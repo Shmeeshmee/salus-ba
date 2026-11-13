@@ -328,6 +328,7 @@ Map<String, Object?> appointment(
   String status = 'booked',
   String role = roleId,
   String practitioner = practitionerId,
+  String patientStatus = 'accepted',
 }) => {
   'resourceType': 'Appointment',
   'id': id,
@@ -338,7 +339,7 @@ Map<String, Object?> appointment(
   'meta': {'lastUpdated': '2026-11-01T08:00:00Z', 'versionId': '1'},
   'participant': [
     {
-      'status': 'accepted',
+      'status': patientStatus,
       'actor': {'reference': 'Patient/$patientId', 'display': 'Ada Example'},
     },
     {

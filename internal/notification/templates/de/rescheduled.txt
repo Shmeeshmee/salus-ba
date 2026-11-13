@@ -1,0 +1,9 @@
+Ihr Termin hat eine neue Uhrzeit
+
+Ihr Termin bei {{.Clinic}} wurde verschoben.
+Neues Datum und neue Uhrzeit: {{.When}}
+
+Um den Termin anzusehen oder abzusagen, öffnen Sie die Salus-App:
+{{.Link}}
+
+Sie können ihn bis 24 Stunden vor Beginn absagen.

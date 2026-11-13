@@ -277,5 +277,45 @@ func appointmentRules() []Rule {
 			Keep: 30 * day, // after expires_at
 			Then: ThenDelete,
 		},
+		{
+			Table: "waitlist_entry",
+			Basis: "The contract with the patient (GDPR Art. 6(1)(b)) and, as that a patient waits for a practitioner or a " +
+				"specialty is health data, the provision of care (Art. 9(2)(h)) under the patient's care consent: to offer them a " +
+				"freed slot; deleted 30 days after it was booked or withdrawn, or after its last day, with its offers; needs a " +
+				"legal decision before production (docs/plans/appointments.md \"Personal data\")",
+			Keep: 30 * day, // after closed_at, or ends_at while active
+			Then: ThenDelete,
+		},
+		{
+			Table: "waitlist_offer",
+			Basis: "Who was offered which freed slot and what they did, for the offer order and the hold (GDPR Art. 6(1)(b), " +
+				"Art. 9(2)(h)); deleted with its entry; needs a legal decision before production (docs/plans/appointments.md " +
+				"\"Personal data\")",
+			Keep: 30 * day, // after its entry's closed_at, or ends_at while active
+			Then: ThenDelete,
+		},
+		{
+			Table: "appointment_reminder",
+			Basis: "The contract with the patient (GDPR Art. 6(1)(b)): when each reminder of an appointment is due and whether " +
+				"it went, so it is sent once; deleted 90 days after its due time; needs a legal decision before production " +
+				"(docs/plans/appointments.md \"Personal data\")",
+			Keep: 90 * day, // after due_at
+			Then: ThenDelete,
+		},
+		{
+			Table: "notification_delivery",
+			Basis: "The contract with the patient (GDPR Art. 6(1)(b)) and the clinic's SMS billing (Art. 6(1)(f)): which channel " +
+				"a reminder or a waitlist offer went through and when, no address or text; deleted 90 days after it was sent " +
+				"(or created, when it never was), and with the account; needs a legal decision before production",
+			Keep: 90 * day, // after sent_at, else created_at
+			Then: ThenDelete,
+		},
+		{
+			Table: "notification_preference",
+			Basis: "The patient's own choice (GDPR Art. 6(1)(b), the contract with the patient): their reminder channels, quiet " +
+				"hours and device time zone, replaced on each change and deleted with the account (foreign key; erasure " +
+				"comes with the subject-rights feature)",
+			Then: ThenKeep,
+		},
 	}
 }

@@ -10,6 +10,7 @@ import 'fhir.dart';
 import 'file_prep.dart' show Prepared;
 import 'health_profile.dart';
 import 'session.dart';
+import 'waitlist_screen.dart' show Waitlists;
 
 /// How long an upload may go without sending a byte or hearing its answer before it is stopped (COPY M5).
 const uploadIdle = Duration(seconds: 60);
@@ -29,24 +30,32 @@ class Booking {
     : _client = client,
       fhir = Fhir(client),
       health = HealthProfile(client),
+      notifications = api.NotificationsApi(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
       _consultation = api.ConsultationApi(client),
       _questionnaires = api.QuestionnairesApi(client),
-      _history = api.HistoryApi(client);
+      _history = api.HistoryApi(client),
+      waitlists = Waitlists(api.WaitlistApi(client));
 
   final api.ApiClient _client;
   final Fhir fhir;
 
   /// The allergies and medications of the profile (SAL-41).
   final HealthProfile health;
+
+  /// The patient's reminder channels, quiet hours and zone (SAL-33).
+  final api.NotificationsApi notifications;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
   final api.AppointmentsApi _appointments;
   final api.ConsultationApi _consultation;
   final api.QuestionnairesApi _questionnaires;
   final api.HistoryApi _history;
+
+  /// The patient's waitlist (SAL-35).
+  final Waitlists waitlists;
 
   /// The signed-in patient's profile, or null before it is first saved.
   Future<api.Patient?> me() async {
@@ -124,6 +133,21 @@ class Booking {
       apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId)));
 
   Future<void> cancel(String appointmentId) => apiCall(() => _appointments.cancelAppointment(appointmentId));
+
+  /// What the patient may do with the appointment now, by the clinic's rules (SAL-34).
+  Future<api.AppointmentActions> actions(String appointmentId) async {
+    final actions = await apiCall(() => _appointments.getAppointmentActions(appointmentId));
+    if (actions == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return actions;
+  }
+
+  /// Confirms that the patient will come; confirming again answers the same.
+  Future<void> confirm(String appointmentId) => apiCall(() => _appointments.confirmAppointment(appointmentId));
+
+  /// Moves the appointment to the free slot [slotId] of its practitioner role.
+  Future<void> reschedule(String appointmentId, String slotId) => apiCall(
+    () => _appointments.rescheduleAppointment(appointmentId, api.RescheduleAppointmentRequest(slotId: slotId)),
+  );
 
   /// A token for the appointment's video consultation (docs/consultation/SPEC.md "Join response"). The token is a
   /// secret: it goes to LiveKit and nowhere else.

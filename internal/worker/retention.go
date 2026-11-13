@@ -51,6 +51,7 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), postgres.NewTransactor(pool), clock.System{})
 	accounts := auth.NewPostgresRepository(retentionPool)
 	figures := trends.NewPostgresRepository(retentionPool)
+	waitlist := appointment.NewPostgresWaitlistRepository(retentionPool)
 	return retention.NewService(map[string]retention.Purger{
 		"session":                  auth.NewSessionPurger(accounts),
 		"invite":                   auth.NewInvitePurger(accounts),
@@ -62,5 +63,9 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 		"trends_cell":              trends.NewCellPurger(figures),
 		"trends_rise":              trends.NewFlagPurger(figures),
 		"appointment_action_token": appointment.NewTokenPurger(appointment.NewPostgresTokenRepository(retentionPool)),
+		"waitlist_entry":           appointment.NewWaitlistEntryPurger(waitlist),
+		"waitlist_offer":           appointment.NewWaitlistOfferPurger(waitlist),
+		"appointment_reminder":     appointment.NewReminderPurger(appointment.NewPostgresReminderRepository(retentionPool)),
+		"notification_delivery":    notification.NewDeliveryPurger(notification.NewPostgresDeliveryRepository(retentionPool)),
 	}, audit, clock.System{})
 }

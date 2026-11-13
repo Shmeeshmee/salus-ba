@@ -17,7 +17,7 @@ export default defineConfig({
       '/invites': apiUrl,
       '/practitioner-roles': apiUrl,
       // Only the JSON actions: /appointments/<id> and /appointments/<id>/call are screens of the app.
-      '^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$': apiUrl,
+      '^/appointments/[^/]+/(cancel|status|changes|questionnaires|consultation(/join|/end)?)$': apiUrl,
       '/questionnaire-responses': apiUrl,
       '/binaries': apiUrl, // the files of questionnaire answers: status and content
       '/specialties': apiUrl,
@@ -37,7 +37,8 @@ export default defineConfig({
       '/analytics/clinic': apiUrl, // the clinic's figures (SAL-20); the screen is /analytics itself
       '/analytics/platform': apiUrl, // the All of Salus figures (SAL-21); no screen is under it
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
-      '/clinic/': apiUrl, // the clinic's JSON API: settings, no-show flags (SAL-36); /clinic itself is a screen
+      '/clinic/': apiUrl, // the admin's clinic settings, SMS usage and no-show flags (SAL-32, SAL-33, SAL-36); /clinic itself is a screen
+      '^/waitlist/.+$': apiUrl, // removing an entry of the waitlist (SAL-35); /waitlist itself is a screen of the app
     },
   },
   test: {

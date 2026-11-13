@@ -2331,7 +2331,7 @@ export interface paths {
         put?: never;
         /**
          * The patient confirms they will come
-         * @description The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+         * @description The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused.
          */
         post: operations["confirmAppointment"];
         delete?: never;
@@ -2351,7 +2351,7 @@ export interface paths {
         put?: never;
         /**
          * The patient moves their appointment to another free slot of the same practitioner role
-         * @description The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+         * @description The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it; the patient gets an e-mail with the new time. Not cached. Audited, also when refused.
          */
         post: operations["rescheduleAppointment"];
         delete?: never;
@@ -2369,7 +2369,7 @@ export interface paths {
         };
         /**
          * What the patient may do with their appointment now
-         * @description For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+         * @description For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Audited as a read of the appointment.
          */
         get: operations["getAppointmentActions"];
         put?: never;
@@ -2392,13 +2392,13 @@ export interface paths {
         };
         /**
          * The page of a reminder's one-time link
-         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. A GET never changes anything. No session. Built in SAL-34 (404 until then).
+         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, or one of an appointment no longer booked or under a consent no longer active, answers the same page saying it no longer works. A GET never changes anything. No session. Audited as a read by the patient's account with the agent `action_link`. Lookups are limited per address (an HMAC of it in Redis).
          */
         get: operations["getAppointmentLinkPage"];
         put?: never;
         /**
          * Confirm or cancel through a reminder's one-time link
-         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own (its host the request's). Answers 303 to the page, which shows the result, also when the link no longer works, the confirmation was made already or the 24 hours have begun (the page says what is true now); a refused action leaves the link unused. No session.
          */
         post: operations["actOnAppointmentLink"];
         delete?: never;
@@ -2462,7 +2462,7 @@ export interface paths {
         put?: never;
         /**
          * The patient joins a clinic's waitlist
-         * @description For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused. Built in SAL-35 (404 until then).
+         * @description For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused.
          */
         post: operations["joinWaitlist"];
         delete?: never;
@@ -2500,7 +2500,7 @@ export interface paths {
         post?: never;
         /**
          * The patient withdraws an entry, or the clinic's staff remove it
-         * @description An open offer of the entry ends with it, and its slot goes to the next entry. Audited. Built in SAL-35.
+         * @description An open offer of the entry ends with it, and its slot goes to the next entry. Audited.
          */
         delete: operations["removeWaitlistEntry"];
         options?: never;
@@ -2519,7 +2519,7 @@ export interface paths {
         put?: never;
         /**
          * The patient accepts an offered slot, which books it
-         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. An offer the patient accepted already (another device) answers its appointment again. Audited, also when refused.
          */
         post: operations["acceptWaitlistOffer"];
         delete?: never;
@@ -2539,7 +2539,7 @@ export interface paths {
         put?: never;
         /**
          * The patient declines an offered slot
-         * @description The entry stays active; the slot goes to the next entry. Built in SAL-35 (404 until then).
+         * @description The entry stays active; the slot goes to the next entry.
          */
         post: operations["declineWaitlistOffer"];
         delete?: never;
@@ -2557,7 +2557,7 @@ export interface paths {
         };
         /**
          * The clinic's waitlist, in offer order
-         * @description For the clinic's staff: entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited. Built in SAL-35 (404 until then).
+         * @description For the clinic's staff: a page of entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited.
          */
         get: operations["listClinicWaitlist"];
         put?: never;
@@ -4553,6 +4553,8 @@ export interface components {
             priority: number;
         };
         ClinicWaitlist: {
+            /** @description The next page's offset; absent after the last page. */
+            next_offset?: number;
             entries: components["schemas"]["ClinicWaitlistEntry"][];
         };
         WaitlistPriority: {
@@ -10687,7 +10689,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked. */
+            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked; `consent_required`: the patient's consent with the clinic is no longer active. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10758,7 +10760,7 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
-                    "Referrer-Policy"?: "no-referrer";
+                    "Referrer-Policy"?: "strict-origin";
                     "X-Robots-Tag"?: "noindex";
                     [name: string]: unknown;
                 };
@@ -10999,7 +11001,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `consent_required`, `waitlist_off`, `too_many_entries`. */
+            /** @description `consent_required`, `waitlist_off`, `too_many_entries`; `profile_required` before the patient's profile exists. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11100,7 +11102,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `offer_expired`, `slot_unavailable`, `consent_required`. */
+            /** @description `offer_expired`, `slot_unavailable`, `consent_required`; `payment_declined` once prices exist. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11150,7 +11152,12 @@ export interface operations {
         parameters: {
             query?: {
                 practitioner_role?: string;
+                /** @description The entries in this status; `active` (waiting, not past the last day) when absent. */
                 status?: components["schemas"]["WaitlistStatus"];
+                /** @description Entries per page; 100 when absent. */
+                limit?: number;
+                /** @description Entries skipped, from the start of the offer order. */
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -11158,13 +11165,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The entries. */
+            /** @description A page of the entries. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ClinicWaitlist"];
+                };
+            };
+            /** @description `invalid_request`: an unknown status, or a limit or offset out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthenticated"];

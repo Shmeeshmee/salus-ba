@@ -2146,6 +2146,107 @@ only through a `SECURITY DEFINER` function by its hash; its row is read in the i
 | A patient learns who at the clinic changed their appointment | The patient's view of the history carries no account or agent |
 | A history row claims a staff member or a patient's app it was not | The insert policy ties `via` to the scope: the patient's scope writes `app` or `link` by the patient's own account (or a job), the clinic's scope `staff` by an account of that clinic (or a job) |
 
+### SAL-33: reminders (migration 00055, renumbered at merge)
+
+**Processing added.** Appointment reminders at the clinic's offsets (default 24 hours and 1 hour before) by push,
+e-mail and, at clinics with the paid option and for patients who opted in, SMS; the patient's notification settings
+(channels, quiet hours, the device's time zone); per clinic, how many SMS messages and parts went each month. Lawful
+basis: the contract with the patient (Art. 6(1)(b)) for the reminders and the settings; the clinic's legitimate
+interest in billing the SMS option (Art. 6(1)(f)) for the usage, which is not personal data. The phone is read only
+for an SMS the patient opted into (Q1), through `patient.NoticePhone`, audited with the job as agent.
+
+**Personal data added.** `appointment_reminder` (when each reminder of an appointment is due and whether it went;
+deleted 90 days after its due time); `notification_delivery` (which channel and device a reminder went through and
+when, no address, number, token or text; deleted 90 days after it was sent, or created when it never was, and with the
+account); `notification_preference` (the patient's channels, quiet hours and the IANA zone of their device, which can
+show that they are abroad: kept to the zone name, replaced on each change, deleted with the account). The periods are
+placeholders that need a legal decision before production (Q9).
+
+**What a message says.** E-mail: the clinic's name, the date and time in the clinic's zone with the zone's name and,
+when the patient's zone differs, in theirs too, whether a questionnaire is outstanding (never which), a one-time link
+to confirm or cancel, and the link to the app. SMS: the clinic's name, the date and time in the clinic's zone and the
+one-time link, with the zone's name, and the patient's day and time when their zone differs. Push: a fixed "You have an appointment reminder" with no data payload, as the chat's (Google and Apple
+are outside the EU/EEA). Never a practitioner, specialty, reason for the visit or anything clinical; job arguments carry
+ids only; nothing of a message is logged.
+
+**Who sees what.** The patient reads and changes their own settings (staff get 403), audited on their account. A
+reminder is seen in its patient's scope and its clinic's (ids and times only); the hourly sweep reads the scheduled
+ones of every clinic through a view of ids and times. The SMS usage is the clinic admin's, in the clinic's scope.
+### SAL-35: the waitlist (migration 00056, renumbered at merge)
+
+**Processing added.** A patient joins a clinic's waitlist for one of its practitioners or a specialty, between two
+dates and, optionally, a time of day (`waitlist_entry`: patient, clinic, role or specialty, dates, times, priority,
+status, timestamps). When a slot is freed (a cancellation, a reschedule, a declined or withdrawn offer), the worker
+holds it (`slot.status` `busy-tentative`) for the first matching entry for the clinic's hold (15 minutes by default) and
+records the offer (`waitlist_offer`: the entry, slot and its period, the role, clinic, patient, expiry, state and the
+appointment its acceptance booked). The patient is told by e-mail (clinic, date and time, the hold's end, a link to the
+app), by a push with a fixed text and no data payload, and by SMS when the patient opted in and the clinic offers it (SAL-33's deliveries, the same channels, quiet hours and records as reminders); they accept in the app, signed in, which books the
+appointment (`booked_via` `waitlist`) through the purchase step (nothing is charged before SAL-23), or decline. The
+clinic's staff see the waitlist in offer order and move an entry up or remove it. The clinic turns the waitlist on
+(off by default). Lawful basis: the contract with the patient (Art. 6(1)(b)); that a patient waits for a practitioner
+or a specialty is health data, processed for care (Art. 9(2)(h)) under the patient's active care consent, checked when
+they join and again before every offer and acceptance.
+
+**Personal data added.** `waitlist_entry` and `waitlist_offer` as above, both deleted 30 days after the entry was
+booked or withdrawn, or after its last day (the offers with their entry). No new field of the patient is read: the
+e-mail address and the push devices are the existing ones. The periods are placeholders that need a legal decision
+before production (Q9).
+
+**Who sees what.** The patient their own entries and offers. The clinic sees its entries while the patient's care
+consent there is active (row-level security, as the appointment's), and the patient's name only where `access.Profile`
+gives it (the admin with the consent; a practitioner only for patients with an appointment in their role); the clinic's
+jobs see every offer of the clinic, to hand a slot on, whatever the consent. Every read and write is audited, the
+jobs' with the job as agent (the entry as `Appointment/<entry id>`, FHIR's waitlist being an Appointment status).
+The public directory never sees a held slot. Job arguments carry opaque ids only.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A reminder reveals health data to Google or Apple | The push is generic, without clinic, time or payload |
+| A reminder goes twice, or after a cancellation or reschedule | Dispatch and its deliveries in one transaction; a delivery leaves pending once and a reminder scheduled once (a dispatched one is only retired, with its appointment's cancellation or move), by triggers for every role; each send re-reads the reminder and the appointment and sends nothing once it no longer holds at the start it was scheduled for. Left: a crash between the provider's acceptance and the commit repeats one message, and an e-mail or SMS repeated carries a second valid one-time link (ADR 0015's accepted window; only a link's hash is stored, so the first cannot be reused) |
+| A reminder on a channel the patient turned off | The patient's channels, and the clinic's SMS option, are checked at dispatch and again at each send: a send held by quiet hours is cancelled once its channel is off |
+| A reminder at night | Quiet hours in the patient's zone (else the clinic's) hold push and SMS until they end, or drop them when that is under 30 minutes before the start; e-mail is silent and never held |
+| The zone shows the patient is abroad | Only the zone name is stored, replaced on each change, read by the notifier's jobs (audited) and the patient; deleted with the account |
+| SMS to someone who did not ask | SMS needs the patient's opt-in with a phone in their profile (409 `phone_required` otherwise) and the clinic's paid option, which cannot be turned on while `pkg/sms` is the fake; the provider is planned, not wired in (docs/privacy/processors.md) |
+
+### SAL-34: one-tap confirm or cancel, self-service rescheduling (no migration)
+
+**Processing added.** A patient confirms or cancels an appointment from a reminder's one-time link, on a page the api
+serves without a session (ADR 0015 "One-tap links", Q4, Q5), or in the app; and moves their own appointment to another
+free slot of the same practitioner role within the clinic's notice and limit. A reschedule frees the old slot for the
+waitlist (a job with opaque ids) and e-mails the patient the new time (the clinic's name and the date only, as the
+booking's e-mail). Lawful basis as for the appointment. No processor added.
+
+**Personal data added.** None stored beyond step 0's columns and rows: `confirmed_at`, `confirmed_via`,
+`reschedule_count`, the appointment's new `period` and `slot_id`, its history rows (`confirmed`, `rescheduled`, the
+cancellation's `status_set` via `link`) and a link's `used_at` and `used_action`. Redis holds a counter of link lookups
+per address for 10 minutes, keyed by an HMAC of the address under `RATE_LIMIT_KEY` (never the address or the token).
+
+**Who sees what.** The link's page shows only the clinic's name, the date and time in the clinic's zone and the
+appointment's state, never a name, practitioner or specialty; a used link shows only its own outcome. Whoever holds
+the link (a forwarded e-mail) can confirm or cancel that one appointment, once, as the reminder itself allows. Every
+read and use is audited as the patient's account with the agent `action_link`, refusals too; the actions in the app
+as the patient's.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A link prefetcher or mail scanner changes an appointment | A `GET` changes nothing (tested for any number of fetches); the action is a `POST` from the page's own origin (`Origin` checked, no `Origin` refused); a cancel needs its box ticked (`confirm_cancel=yes`, checked by the server) |
+| A scanner that also ticks boxes cancels an appointment | Accepted (ADR 0015): the patient gets the cancellation e-mail at once and may book again; the link is single use and allows nothing else |
+| A link used twice or after the appointment changed | Used once by a conditional `UPDATE` (two at once: one wins, tested on Postgres); refused once expired, once the appointment is not booked, once it was rescheduled (`start_at`), and under a consent no longer active |
+| A link's token in a log, the audit, Redis or a referrer | The route pattern is logged, never the path (tested); Caddy's log filter deletes every URI (`scripts/check-caddy-routes.sh` fails without it); the audit names the appointment; Redis keys are an HMAC of the address; `Referrer-Policy: strict-origin` (a Referer carries the origin only, never the path), `Cache-Control: no-store`, `X-Robots-Tag: noindex`; Caddy's log filter also deletes the response headers (the 303's `Location` carries the token) |
+| Guessing tokens | 32 random bytes; lookups limited to 30 per IPv4 address or IPv6 /64 in 10 minutes; unknown, expired and used-up links answer alike |
+| A reschedule moves another patient's appointment or a staff member moves one | The service checks the patient's own appointment through `access`; the database's `appointment_guard_change` lets only the patient's scope move a booked appointment, once per count |
+| A reschedule double-books | The new slot is held (`free` to `busy`) and the exclusion constraint checks the new period in the same transaction; concurrent reschedules serialise on the appointment's row lock (tested on Postgres) |
+| A freed slot is booked twice, or held while it is booked | The offer's row lock serialises acceptance and expiry; the slot moves only from the status before it (free to held, held to busy or free), its row locked by the job that hands it on; one open offer per slot and per entry (partial unique indexes); the exclusion constraint guards last. Concurrency tests on Postgres check after every round that a slot is busy exactly when an appointment holds it and held exactly when an open offer does |
+| An offer reveals the patient's health to others | The e-mail names the clinic, the date and time only, never a practitioner or specialty; the push is generic; the offer is accepted only in the app, signed in |
+| A patient keeps being offered after revoking the consent | The `consent_revoked` job withdraws their entries and open offers there and hands the slots on; every offer and acceptance checks the consent again |
+| A waitlist that a patient forgot keeps their data | Entries end after their last day (at most 90 days ahead) and are deleted 30 days after they close or end, with their offers |
+| A held slot stays hidden after its offer ended | Every decline, withdrawal and expiry hands the slot on in a job that locks it; with nobody matching it is free again |
+| An offer disturbs a patient at night or by an unwanted channel | Offers go through SAL-33's deliveries: the patient's channels and the SMS opt-in apply, a push or SMS inside quiet hours is held or dropped, and a patient inside their quiet hours is passed over for an offer |
+
 ### SAL-36: no-shows, their correction and the clinic's reports (migration 00057, renumbered at merge)
 
 **Processing added.** The practitioner marks a no-show (as before) or the system does at the consultation's end

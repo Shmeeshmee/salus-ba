@@ -1,0 +1,9 @@
+Subject: Si è liberato un orario che attendeva
+
+Presso Synthetic clinic si è liberato un orario che attendeva.
+Data e ora: lunedì 7 gennaio 2030, ore 10:00 (Europe/Sarajevo)
+
+È riservato a lei fino alle 09:10 (Europe/Sarajevo). Dopo viene offerto al paziente successivo. Accettandolo nell'app, l'appuntamento viene prenotato.
+
+Per accettarlo o rifiutarlo, apra l'app Salus:
+https://app.salus.invalid/waitlist

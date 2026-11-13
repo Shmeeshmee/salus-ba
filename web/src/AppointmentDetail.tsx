@@ -3,7 +3,9 @@ import type { Account, ApiClient } from './api/client'
 import { FhirError, nameOf, participant, type Appointment, type AppointmentStatus, type FhirClient, type Patient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
 import type { components } from './api/schema'
+import { AppointmentChanges } from './AppointmentChanges'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
+import { ConfirmationTag } from './Calendar'
 import { PatientHistory } from './History'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
@@ -114,6 +116,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       <p className="when">
         <span>{t('calendar.when', { date: f.date(start, zone, 'long'), start: f.time(start, zone), end: f.time(end, zone) })}</span>
         <span className={`tag ${appt.status}`}>{t(`calendar.status.${appt.status}`)}</span>
+        <ConfirmationTag appt={appt} />
         <NoShowFlag api={api} id={appt.id} start={start} />
       </p>
       {profile && <Profile patient={profile} />}
@@ -128,6 +131,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {consultation && <Consultation status={consultation} zone={zone} />}
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
       {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
+      <ChangesToggle api={api} id={appt.id} zone={zone} />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
       {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}
     </>
@@ -266,6 +270,22 @@ function HistoryToggle(props: HistoryProps) {
         </button>
       </div>
       {open && <PatientHistory {...props} />}
+    </>
+  )
+}
+
+// ChangesToggle opens the appointment's changes on request: opening a booking does not read (and audit) its history.
+function ChangesToggle({ api, id, zone }: { api: ApiClient; id: string; zone: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <div className="actions">
+        <button type="button" className="quiet" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {t(open ? 'appointments.hideChanges' : 'appointments.showChanges')}
+        </button>
+      </div>
+      {open && <AppointmentChanges api={api} id={id} zone={zone} />}
     </>
   )
 }

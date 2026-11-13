@@ -2343,5 +2343,269 @@
   "consentForHistory": "Visits shared from other clinics",
   "@consentForHistory": {
     "description": "SAL-42: My consents, the label of a history consent. Draft, waiting for the owner."
+  },
+  "reminders": "Reminders",
+  "@reminders": {
+    "description": "SAL-33: home button and screen title of the notification settings. Draft, waiting for the owner."
+  },
+  "remindersIntro": "Choose how your clinics remind you of your appointments.",
+  "@remindersIntro": {
+    "description": "SAL-33: notification settings, the sentence under the title. Draft, waiting for the owner."
+  },
+  "remindersPush": "Push notifications",
+  "@remindersPush": {
+    "description": "SAL-33: notification settings, the push switch. Draft, waiting for the owner."
+  },
+  "remindersEmail": "E-mail",
+  "@remindersEmail": {
+    "description": "SAL-33: notification settings, the e-mail switch. Draft, waiting for the owner."
+  },
+  "remindersSms": "SMS",
+  "@remindersSms": {
+    "description": "SAL-33: notification settings, the SMS switch. Draft, waiting for the owner."
+  },
+  "remindersSmsHint": "Reminders and waitlist offers by SMS to the phone number in your profile, only at clinics that offer SMS. Never used for advertising.",
+  "@remindersSmsHint": {
+    "description": "[legal] SAL-33: notification settings, under the SMS switch: the SMS opt-in, what goes by SMS, to which number, where, and never advertising. Draft, waiting for the owner and the lawyer."
+  },
+  "quietHours": "Quiet hours",
+  "@quietHours": {
+    "description": "SAL-33: notification settings, the quiet hours switch. Draft, waiting for the owner."
+  },
+  "quietHoursHint": "Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.",
+  "@quietHoursHint": {
+    "description": "SAL-33: notification settings, under the quiet hours switch: push and SMS wait, e-mail is not held. Draft, waiting for the owner."
+  },
+  "quietHoursFrom": "From",
+  "@quietHoursFrom": {
+    "description": "SAL-33: notification settings, the start of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner."
+  },
+  "quietHoursUntil": "Until",
+  "@quietHoursUntil": {
+    "description": "SAL-33: notification settings, the end of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner."
+  },
+  "remindersSaved": "Your choices are saved.",
+  "@remindersSaved": {
+    "description": "SAL-33: notification settings saved. Draft, waiting for the owner."
+  },
+  "remindersPhoneRequired": "SMS needs a phone number in your profile. Add one in My profile, then try again.",
+  "@remindersPhoneRequired": {
+    "description": "SAL-33: notification settings refused, 409 phone_required. Draft, waiting for the owner."
+  },
+  "remindersInvalid": "These settings could not be saved. Check them and try again.",
+  "@remindersInvalid": {
+    "description": "SAL-33: notification settings refused, 400. Draft, waiting for the owner."
+  },
+  "confirmAttendance": "Confirm I will come",
+  "@confirmAttendance": {
+    "description": "SAL-34: button on an unconfirmed upcoming appointment; the patient confirms they will come. Draft, waiting for the owner."
+  },
+  "appointmentConfirmedStatus": "Confirmed",
+  "@appointmentConfirmedStatus": {
+    "description": "SAL-34: under an upcoming appointment the patient confirmed. Draft, waiting for the owner."
+  },
+  "appointmentConfirmedNotice": "Your appointment is confirmed.",
+  "@appointmentConfirmedNotice": {
+    "description": "SAL-34: notice after confirming. Draft, waiting for the owner."
+  },
+  "changeTime": "Change the time",
+  "@changeTime": {
+    "description": "SAL-34: button opening the reschedule picker. Draft, waiting for the owner."
+  },
+  "rescheduleUntil": "The time can be changed until {date} at {time}.",
+  "@rescheduleUntil": {
+    "description": "SAL-34: until when the patient may change the time, in the clinic's zone. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "reschedulesLeft": "Time changes left: {count}",
+  "@reschedulesLeft": {
+    "description": "SAL-34: how many more times the time may be changed (the clinic's limit). Draft, waiting for the owner.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rescheduleTitle": "Choose a new time",
+  "@rescheduleTitle": {
+    "description": "SAL-34: title of the reschedule picker. Draft, waiting for the owner."
+  },
+  "rescheduleCurrent": "Booked now: {date} at {time}",
+  "@rescheduleCurrent": {
+    "description": "SAL-34: the appointment's current time on the picker. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "rescheduleConfirmTitle": "Move your appointment?",
+  "@rescheduleConfirmTitle": {
+    "description": "SAL-34: dialog title before moving the appointment. Draft, waiting for the owner."
+  },
+  "rescheduleConfirmBody": "Your appointment will move to {date} at {time}. Your current time will be released.",
+  "@rescheduleConfirmBody": {
+    "description": "[legal] SAL-34: dialog text, the effect of a reschedule. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "moveAppointment": "Move appointment",
+  "@moveAppointment": {
+    "description": "SAL-34: dialog button that moves the appointment. Draft, waiting for the owner."
+  },
+  "appointmentMoved": "Your appointment is moved to the new time.",
+  "@appointmentMoved": {
+    "description": "SAL-34: notice after a reschedule. Draft, waiting for the owner."
+  },
+  "rescheduleWindowClosed": "The time of this appointment can no longer be changed in the app. Please contact the clinic.",
+  "@rescheduleWindowClosed": {
+    "description": "SAL-34: reschedule refused, inside the clinic's notice. Draft, waiting for the owner."
+  },
+  "rescheduleLimit": "This appointment's time has been changed as often as the clinic allows.",
+  "@rescheduleLimit": {
+    "description": "SAL-34: reschedule refused, the clinic's limit reached. Draft, waiting for the owner."
+  },
+  "notReschedulable": "The time of this appointment cannot be changed in the app.",
+  "@notReschedulable": {
+    "description": "SAL-34: reschedule refused, the clinic's rules never allow it (another role, the join window open, self-service off). Draft, waiting for the owner."
+  },
+  "waitlistTitle": "My waitlist",
+  "@waitlistTitle": {
+    "description": "SAL-35: the patient's waitlist screen and its button on the home screen. Draft, waiting for the owner."
+  },
+  "waitlistJoinButton": "No suitable time? Join the waitlist",
+  "@waitlistJoinButton": {
+    "description": "SAL-35: under a practitioner's free times. Draft, waiting for the owner."
+  },
+  "waitlistJoinTitle": "Join the waitlist",
+  "@waitlistJoinTitle": {
+    "description": "SAL-35: the join screen's title. Draft, waiting for the owner."
+  },
+  "waitlistExplained": "When a time with this practitioner becomes free, it is offered to the patients waiting, one at a time. You get a notification and can book it in the app while it is held for you.",
+  "@waitlistExplained": {
+    "description": "[legal] SAL-35: how offers work, on the join screen. Draft, waiting for the owner."
+  },
+  "waitlistHowLong": "For how long?",
+  "@waitlistHowLong": {
+    "description": "SAL-35: heading of the span choice. Draft, waiting for the owner."
+  },
+  "waitlistDays": "{days, plural, one{{days} day} other{{days} days}}",
+  "@waitlistDays": {
+    "description": "SAL-35: a span to wait, from today. Draft, waiting for the owner.",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "waitlistWhen": "At what time of day?",
+  "@waitlistWhen": {
+    "description": "SAL-35: heading of the time-of-day choice. Draft, waiting for the owner."
+  },
+  "waitlistAnyTime": "Any time",
+  "@waitlistAnyTime": {
+    "description": "SAL-35: no time of day. Draft, waiting for the owner."
+  },
+  "waitlistMornings": "Mornings, 08:00 to 12:00",
+  "@waitlistMornings": {
+    "description": "SAL-35: in the clinic's zone. Draft, waiting for the owner."
+  },
+  "waitlistAfternoons": "Afternoons, 12:00 to 17:00",
+  "@waitlistAfternoons": {
+    "description": "SAL-35: in the clinic's zone. Draft, waiting for the owner."
+  },
+  "waitlistJoin": "Join the waitlist",
+  "@waitlistJoin": {
+    "description": "SAL-35: the join button. Draft, waiting for the owner."
+  },
+  "waitlistJoined": "You are on the waitlist.",
+  "@waitlistJoined": {
+    "description": "SAL-35: after joining. Draft, waiting for the owner."
+  },
+  "waitlistEmpty": "You are not on any waitlist.",
+  "@waitlistEmpty": {
+    "description": "SAL-35: no active entry. Draft, waiting for the owner."
+  },
+  "waitlistAPractitioner": "A practitioner",
+  "@waitlistAPractitioner": {
+    "description": "SAL-35: an entry whose practitioner is no longer listed, or a specialty. Draft, waiting for the owner."
+  },
+  "waitlistUntil": "Waiting until {date}",
+  "@waitlistUntil": {
+    "description": "SAL-35: the entry's last day. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "waitlistOfferTitle": "A time is free for you",
+  "@waitlistOfferTitle": {
+    "description": "SAL-35: an open offer. Draft, waiting for the owner."
+  },
+  "waitlistHeldUntil": "Held for you until {time}",
+  "@waitlistHeldUntil": {
+    "description": "SAL-35: the hold's end, in the clinic's zone. Draft, waiting for the owner.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitlistAcceptEffect": "Accepting books this time for you. Once payments are available in Salus, accepting also pays for it.",
+  "@waitlistAcceptEffect": {
+    "description": "[legal] SAL-35: that accepting books the time, and pays for it once payments exist. Draft, waiting for the owner."
+  },
+  "waitlistAccept": "Accept and book",
+  "@waitlistAccept": {
+    "description": "[legal] SAL-35: the acceptance button. Draft, waiting for the owner."
+  },
+  "waitlistDecline": "Decline",
+  "@waitlistDecline": {
+    "description": "SAL-35: decline the offer. Draft, waiting for the owner."
+  },
+  "waitlistBooked": "Your appointment is booked. You find it under My appointments.",
+  "@waitlistBooked": {
+    "description": "SAL-35: after accepting. Draft, waiting for the owner."
+  },
+  "waitlistDeclined": "You declined the time. You stay on the waitlist.",
+  "@waitlistDeclined": {
+    "description": "SAL-35: after declining. Draft, waiting for the owner."
+  },
+  "waitlistWithdraw": "Leave the waitlist",
+  "@waitlistWithdraw": {
+    "description": "SAL-35: withdraw the entry. Draft, waiting for the owner."
+  },
+  "waitlistWithdrawn": "You left the waitlist.",
+  "@waitlistWithdrawn": {
+    "description": "SAL-35: after withdrawing. Draft, waiting for the owner."
+  },
+  "waitlistOff": "This clinic has no waitlist.",
+  "@waitlistOff": {
+    "description": "SAL-35: 409 waitlist_off. Draft, waiting for the owner."
+  },
+  "waitlistTooMany": "You are on this clinic's waitlist five times already. Leave one of them first.",
+  "@waitlistTooMany": {
+    "description": "SAL-35: 409 too_many_entries. Draft, waiting for the owner."
+  },
+  "waitlistOfferExpired": "This time is no longer held for you. You stay on the waitlist.",
+  "@waitlistOfferExpired": {
+    "description": "SAL-35: 409 offer_expired. Draft, waiting for the owner."
   }
 }

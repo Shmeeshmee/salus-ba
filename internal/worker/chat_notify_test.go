@@ -183,7 +183,7 @@ func startChatJobs(t *testing.T, db logins, log *slog.Logger) (*pushtest.Sender,
 	t.Helper()
 	ctx := t.Context()
 	pusher, mails := &pushtest.Sender{}, &captureSender{}
-	notifier, err := worker.NewNotifier(db.app, log, mails, pusher, "https://app.example.test", "https://patient.example.test")
+	notifier, err := worker.NewNotifier(db.app, log, testNotifier(mails, pusher))
 	if err != nil {
 		t.Fatal(err)
 	}

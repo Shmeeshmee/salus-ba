@@ -47,6 +47,16 @@ export function ClinicIcon() {
   )
 }
 
+// WaitlistIcon is a queue: three people's places, the first one ahead (SAL-35).
+export function WaitlistIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M3.5 5.5h13M3.5 10h9M3.5 14.5h9" />
+      <path d="M15.5 11.5 17 13l-1.5 1.5" />
+    </svg>
+  )
+}
+
 export function SignOutIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>

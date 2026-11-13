@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ClinicSettings } from './ClinicSettings'
 import { newApiClient } from './api/client'
@@ -35,6 +35,7 @@ const places = {
   ],
 }
 
+// appointmentSettings are the defaults of GET /clinic/appointment-settings, for the reminders section below the form.
 const appointmentSettings = {
   reminder_offsets_minutes: [1440, 60],
   sms_reminders: false,
@@ -47,8 +48,12 @@ const appointmentSettings = {
 }
 
 function renderSettings(routes: Record<string, Route>, language: Language = 'en', platform = true) {
-  // The no-show flag's section (ClinicSettingsNoShows) reads the clinic's appointment settings beside the form.
-  const fake = fakeFetch({ 'GET /places': () => Response.json(places), 'GET /clinic/appointment-settings': () => Response.json(appointmentSettings), ...routes })
+  const fake = fakeFetch({
+    'GET /places': () => Response.json(places),
+    'GET /clinic/appointment-settings': () => Response.json(appointmentSettings),
+    'GET /clinic/sms-usage': () => Response.json({ months: [] }),
+    ...routes,
+  })
   renderInLanguage(
     <ClinicSettings api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} organizationId={id} platform={platform} />,
     language,
@@ -65,7 +70,14 @@ describe('ClinicSettings', () => {
   it('shows that the clinic is loading', () => {
     renderSettings({ [`GET ${path}`]: () => new Promise<Response>(() => {}) })
 
-    expect(screen.getByText('Loading')).toBeTruthy()
+    expect(within(screen.getByRole('heading', { name: 'Clinic settings' }).closest('section')!).getByText('Loading')).toBeTruthy()
+  })
+
+  it('shows the reminders below the clinic settings', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(await screen.findByRole('heading', { name: 'Reminders' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Save reminders' })).toBeTruthy()
   })
 
   it('shows the clinic name from the Organization', async () => {
@@ -336,5 +348,12 @@ describe("the clinic's location and its contribution to the platform figures", (
 
     expect(await screen.findByLabelText('Регија')).toBeTruthy()
     expect(screen.getByLabelText('Град')).toBeTruthy()
+  })
+
+  it("has the clinic's rescheduling rules beside its details", async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(await screen.findByRole('heading', { name: 'Rescheduling' })).toBeTruthy()
+    expect(((await screen.findByLabelText('Notice in hours')) as HTMLInputElement).value).toBe('24')
   })
 })

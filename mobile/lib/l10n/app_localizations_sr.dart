@@ -1803,6 +1803,206 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Посјете подијељене из других клиника';
+
+  @override
+  String get reminders => 'Подсјетници';
+
+  @override
+  String get remindersIntro =>
+      'Изаберите како вас клинике подсјећају на термине.';
+
+  @override
+  String get remindersPush => 'Пуш обавјештења';
+
+  @override
+  String get remindersEmail => 'Е-пошта';
+
+  @override
+  String get remindersSms => 'СМС';
+
+  @override
+  String get remindersSmsHint =>
+      'Подсјетници и понуде са листе чекања СМС-ом на број телефона из вашег профила, само у клиникама које нуде СМС. Никада за оглашавање.';
+
+  @override
+  String get quietHours => 'Тихи сати';
+
+  @override
+  String get quietHoursHint =>
+      'Пуш обавјештења и СМС чекају до краја тихих сати. Ако би тада стигли мање од 30 минута прије термина, не шаљу се. Е-пошта се не задржава.';
+
+  @override
+  String get quietHoursFrom => 'Од';
+
+  @override
+  String get quietHoursUntil => 'До';
+
+  @override
+  String get remindersSaved => 'Ваш избор је сачуван.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'За СМС је потребан број телефона у профилу. Додајте га у одјељку Мој профил, па покушајте поново.';
+
+  @override
+  String get remindersInvalid =>
+      'Ова подешавања није било могуће сачувати. Провјерите их и покушајте поново.';
+
+  @override
+  String get confirmAttendance => 'Потврди долазак';
+
+  @override
+  String get appointmentConfirmedStatus => 'Потврђен';
+
+  @override
+  String get appointmentConfirmedNotice => 'Ваш термин је потврђен.';
+
+  @override
+  String get changeTime => 'Промијени вријеме';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Вријеме можете промијенити до $date у $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Преостало промјена времена: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Изаберите ново вријеме';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Сада заказано: $date у $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Премјестити термин?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Ваш термин ће бити премјештен на $date у $time. Досадашње вријеме биће ослобођено.';
+  }
+
+  @override
+  String get moveAppointment => 'Премјести термин';
+
+  @override
+  String get appointmentMoved => 'Ваш термин је премјештен на ново вријеме.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Вријеме овог термина више се не може промијенити у апликацији. Обратите се клиници.';
+
+  @override
+  String get rescheduleLimit =>
+      'Вријеме овог термина промијењено је онолико пута колико клиника дозвољава.';
+
+  @override
+  String get notReschedulable =>
+      'Вријеме овог термина не може се промијенити у апликацији.';
+
+  @override
+  String get waitlistTitle => 'Моја листа чекања';
+
+  @override
+  String get waitlistJoinButton =>
+      'Нема одговарајућег термина? Пријавите се на листу чекања';
+
+  @override
+  String get waitlistJoinTitle => 'Пријава на листу чекања';
+
+  @override
+  String get waitlistExplained =>
+      'Када се ослободи термин код овог љекара, нуди се пацијентима на чекању, једном по једном. Добићете обавјештење и термин можете да закажете у апликацији док је резервисан за вас.';
+
+  @override
+  String get waitlistHowLong => 'Колико дуго?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days дана',
+      few: '$days дана',
+      one: '$days дан',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'У које доба дана?';
+
+  @override
+  String get waitlistAnyTime => 'Било када';
+
+  @override
+  String get waitlistMornings => 'Ујутру, од 08:00 до 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Послијеподне, од 12:00 до 17:00';
+
+  @override
+  String get waitlistJoin => 'Пријави се на листу чекања';
+
+  @override
+  String get waitlistJoined => 'На листи чекања сте.';
+
+  @override
+  String get waitlistEmpty => 'Нисте ни на једној листи чекања.';
+
+  @override
+  String get waitlistAPractitioner => 'Љекар';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'Чекате до $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Ослободио се термин за вас';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Резервисан за вас до $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Прихватањем заказујете овај термин. Када плаћање буде доступно у апликацији Salus, прихватањем ћете га и платити.';
+
+  @override
+  String get waitlistAccept => 'Прихвати и закажи';
+
+  @override
+  String get waitlistDecline => 'Одбиј';
+
+  @override
+  String get waitlistBooked =>
+      'Ваш термин је заказан. Наћи ћете га у одјељку Моји термини.';
+
+  @override
+  String get waitlistDeclined => 'Одбили сте термин. Остајете на листи чекања.';
+
+  @override
+  String get waitlistWithdraw => 'Напусти листу чекања';
+
+  @override
+  String get waitlistWithdrawn => 'Напустили сте листу чекања.';
+
+  @override
+  String get waitlistOff => 'Ова установа нема листу чекања.';
+
+  @override
+  String get waitlistTooMany =>
+      'Већ сте пет пута на листи чекања ове установе. Прво напустите једну од пријава.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Овај термин више није резервисан за вас. Остајете на листи чекања.';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -3603,6 +3803,206 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get consentForHistory => 'Посјете подијељене из других клиника';
+
+  @override
+  String get reminders => 'Подсјетници';
+
+  @override
+  String get remindersIntro =>
+      'Изаберите како вас клинике подсјећају на термине.';
+
+  @override
+  String get remindersPush => 'Пуш обавјештења';
+
+  @override
+  String get remindersEmail => 'Е-пошта';
+
+  @override
+  String get remindersSms => 'СМС';
+
+  @override
+  String get remindersSmsHint =>
+      'Подсјетници и понуде са листе чекања СМС-ом на број телефона из вашег профила, само у клиникама које нуде СМС. Никада за оглашавање.';
+
+  @override
+  String get quietHours => 'Тихи сати';
+
+  @override
+  String get quietHoursHint =>
+      'Пуш обавјештења и СМС чекају до краја тихих сати. Ако би тада стигли мање од 30 минута прије термина, не шаљу се. Е-пошта се не задржава.';
+
+  @override
+  String get quietHoursFrom => 'Од';
+
+  @override
+  String get quietHoursUntil => 'До';
+
+  @override
+  String get remindersSaved => 'Ваш избор је сачуван.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'За СМС је потребан број телефона у профилу. Додајте га у одјељку Мој профил, па покушајте поново.';
+
+  @override
+  String get remindersInvalid =>
+      'Ова подешавања није било могуће сачувати. Провјерите их и покушајте поново.';
+
+  @override
+  String get confirmAttendance => 'Потврди долазак';
+
+  @override
+  String get appointmentConfirmedStatus => 'Потврђен';
+
+  @override
+  String get appointmentConfirmedNotice => 'Ваш термин је потврђен.';
+
+  @override
+  String get changeTime => 'Промијени вријеме';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Вријеме можете промијенити до $date у $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Преостало промјена времена: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Изаберите ново вријеме';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Сада заказано: $date у $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Премјестити термин?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Ваш термин ће бити премјештен на $date у $time. Досадашње вријеме биће ослобођено.';
+  }
+
+  @override
+  String get moveAppointment => 'Премјести термин';
+
+  @override
+  String get appointmentMoved => 'Ваш термин је премјештен на ново вријеме.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Вријеме овог термина више се не може промијенити у апликацији. Обратите се клиници.';
+
+  @override
+  String get rescheduleLimit =>
+      'Вријеме овог термина промијењено је онолико пута колико клиника дозвољава.';
+
+  @override
+  String get notReschedulable =>
+      'Вријеме овог термина не може се промијенити у апликацији.';
+
+  @override
+  String get waitlistTitle => 'Моја листа чекања';
+
+  @override
+  String get waitlistJoinButton =>
+      'Нема одговарајућег термина? Пријавите се на листу чекања';
+
+  @override
+  String get waitlistJoinTitle => 'Пријава на листу чекања';
+
+  @override
+  String get waitlistExplained =>
+      'Када се ослободи термин код овог љекара, нуди се пацијентима на чекању, једном по једном. Добићете обавјештење и термин можете да закажете у апликацији док је резервисан за вас.';
+
+  @override
+  String get waitlistHowLong => 'Колико дуго?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days дана',
+      few: '$days дана',
+      one: '$days дан',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'У које доба дана?';
+
+  @override
+  String get waitlistAnyTime => 'Било када';
+
+  @override
+  String get waitlistMornings => 'Ујутру, од 08:00 до 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Послијеподне, од 12:00 до 17:00';
+
+  @override
+  String get waitlistJoin => 'Пријави се на листу чекања';
+
+  @override
+  String get waitlistJoined => 'На листи чекања сте.';
+
+  @override
+  String get waitlistEmpty => 'Нисте ни на једној листи чекања.';
+
+  @override
+  String get waitlistAPractitioner => 'Љекар';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'Чекате до $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Ослободио се термин за вас';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Резервисан за вас до $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Прихватањем заказујете овај термин. Када плаћање буде доступно у апликацији Salus, прихватањем ћете га и платити.';
+
+  @override
+  String get waitlistAccept => 'Прихвати и закажи';
+
+  @override
+  String get waitlistDecline => 'Одбиј';
+
+  @override
+  String get waitlistBooked =>
+      'Ваш термин је заказан. Наћи ћете га у одјељку Моји термини.';
+
+  @override
+  String get waitlistDeclined => 'Одбили сте термин. Остајете на листи чекања.';
+
+  @override
+  String get waitlistWithdraw => 'Напусти листу чекања';
+
+  @override
+  String get waitlistWithdrawn => 'Напустили сте листу чекања.';
+
+  @override
+  String get waitlistOff => 'Ова установа нема листу чекања.';
+
+  @override
+  String get waitlistTooMany =>
+      'Већ сте пет пута на листи чекања ове установе. Прво напустите једну од пријава.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Овај термин више није резервисан за вас. Остајете на листи чекања.';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -5404,4 +5804,205 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get consentForHistory => 'Posjete podijeljene iz drugih klinika';
+
+  @override
+  String get reminders => 'Podsjetnici';
+
+  @override
+  String get remindersIntro =>
+      'Izaberite kako vas klinike podsjećaju na termine.';
+
+  @override
+  String get remindersPush => 'Push obavještenja';
+
+  @override
+  String get remindersEmail => 'E-pošta';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Podsjetnici i ponude sa liste čekanja SMS-om na broj telefona iz vašeg profila, samo u klinikama koje nude SMS. Nikada za oglašavanje.';
+
+  @override
+  String get quietHours => 'Tihi sati';
+
+  @override
+  String get quietHoursHint =>
+      'Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-pošta se ne zadržava.';
+
+  @override
+  String get quietHoursFrom => 'Od';
+
+  @override
+  String get quietHoursUntil => 'Do';
+
+  @override
+  String get remindersSaved => 'Vaš izbor je sačuvan.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Za SMS je potreban broj telefona u profilu. Dodajte ga u odjeljku Moj profil, pa pokušajte ponovo.';
+
+  @override
+  String get remindersInvalid =>
+      'Ova podešavanja nije bilo moguće sačuvati. Provjerite ih i pokušajte ponovo.';
+
+  @override
+  String get confirmAttendance => 'Potvrdi dolazak';
+
+  @override
+  String get appointmentConfirmedStatus => 'Potvrđen';
+
+  @override
+  String get appointmentConfirmedNotice => 'Vaš termin je potvrđen.';
+
+  @override
+  String get changeTime => 'Promijeni vrijeme';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Vrijeme možete promijeniti do $date u $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Preostalo promjena vremena: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Izaberite novo vrijeme';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Sada zakazano: $date u $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Premjestiti termin?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Vaš termin će biti premješten na $date u $time. Dosadašnje vrijeme biće oslobođeno.';
+  }
+
+  @override
+  String get moveAppointment => 'Premjesti termin';
+
+  @override
+  String get appointmentMoved => 'Vaš termin je premješten na novo vrijeme.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Vrijeme ovog termina više se ne može promijeniti u aplikaciji. Obratite se klinici.';
+
+  @override
+  String get rescheduleLimit =>
+      'Vrijeme ovog termina promijenjeno je onoliko puta koliko klinika dozvoljava.';
+
+  @override
+  String get notReschedulable =>
+      'Vrijeme ovog termina ne može se promijeniti u aplikaciji.';
+
+  @override
+  String get waitlistTitle => 'Moja lista čekanja';
+
+  @override
+  String get waitlistJoinButton =>
+      'Nema odgovarajućeg termina? Prijavite se na listu čekanja';
+
+  @override
+  String get waitlistJoinTitle => 'Prijava na listu čekanja';
+
+  @override
+  String get waitlistExplained =>
+      'Kada se oslobodi termin kod ovog ljekara, nudi se pacijentima na čekanju, jednom po jednom. Dobićete obavještenje i termin možete da zakažete u aplikaciji dok je rezervisan za vas.';
+
+  @override
+  String get waitlistHowLong => 'Koliko dugo?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days dana',
+      few: '$days dana',
+      one: '$days dan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'U koje doba dana?';
+
+  @override
+  String get waitlistAnyTime => 'Bilo kada';
+
+  @override
+  String get waitlistMornings => 'Ujutru, od 08:00 do 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Poslijepodne, od 12:00 do 17:00';
+
+  @override
+  String get waitlistJoin => 'Prijavi se na listu čekanja';
+
+  @override
+  String get waitlistJoined => 'Na listi čekanja ste.';
+
+  @override
+  String get waitlistEmpty => 'Niste ni na jednoj listi čekanja.';
+
+  @override
+  String get waitlistAPractitioner => 'Ljekar';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'Čekate do $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Oslobodio se termin za vas';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Rezervisan za vas do $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Prihvatanjem zakazujete ovaj termin. Kada plaćanje bude dostupno u aplikaciji Salus, prihvatanjem ćete ga i platiti.';
+
+  @override
+  String get waitlistAccept => 'Prihvati i zakaži';
+
+  @override
+  String get waitlistDecline => 'Odbij';
+
+  @override
+  String get waitlistBooked =>
+      'Vaš termin je zakazan. Naći ćete ga u odjeljku Moji termini.';
+
+  @override
+  String get waitlistDeclined =>
+      'Odbili ste termin. Ostajete na listi čekanja.';
+
+  @override
+  String get waitlistWithdraw => 'Napusti listu čekanja';
+
+  @override
+  String get waitlistWithdrawn => 'Napustili ste listu čekanja.';
+
+  @override
+  String get waitlistOff => 'Ova ustanova nema listu čekanja.';
+
+  @override
+  String get waitlistTooMany =>
+      'Već ste pet puta na listi čekanja ove ustanove. Prvo napustite jednu od prijava.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja.';
 }

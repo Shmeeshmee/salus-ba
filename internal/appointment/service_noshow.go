@@ -19,12 +19,6 @@ const (
 	maxFlagRange = 62 * 24 * time.Hour
 )
 
-// ClinicRules gives the clinic's appointment settings in the transaction in ctx, setting the clinic's scope
-// (organization.Appointments): the repeat no-show flag's threshold and window.
-type ClinicRules interface {
-	For(ctx context.Context, org string) (organization.AppointmentSettings, error)
-}
-
 // corrects reports whether moving an appointment in status from to status to is a correction: a no-show into an
 // attendance or back.
 func corrects(from, to Status) bool {

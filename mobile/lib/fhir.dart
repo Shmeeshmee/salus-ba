@@ -48,7 +48,14 @@ class Slot {
 
 /// The patient's FHIR Appointment.
 class Appointment {
-  const Appointment({required this.id, required this.status, required this.start, required this.end, this.roleId});
+  const Appointment({
+    required this.id,
+    required this.status,
+    required this.start,
+    required this.end,
+    this.roleId,
+    this.confirmed = false,
+  });
 
   final String id;
 
@@ -59,6 +66,10 @@ class Appointment {
 
   /// The PractitionerRole participant's id.
   final String? roleId;
+
+  /// Whether the patient confirmed they will come: their participant is `accepted` (`tentative` until then,
+  /// docs/plans/appointments.md Q3).
+  final bool confirmed;
 }
 
 /// Searches under /fhir/R4 through the generated client's transport, so they carry the session's bearer token.
@@ -118,6 +129,7 @@ class Fhir {
         start: _time(r['start']),
         end: _time(r['end']),
         roleId: _participant(r['participant'], 'PractitionerRole/'),
+        confirmed: _participantStatus(r['participant'], 'Patient/') == 'accepted',
       ),
   ];
 
@@ -233,6 +245,14 @@ class Fhir {
     if (specialties is! List || specialties.isEmpty) return null;
     final coding = ((specialties.first as Map)['coding'] as List?)?.firstOrNull as Map?;
     return coding?['system'] == 'http://snomed.info/sct' ? coding!['code'] as String? : null;
+  }
+
+  /// The status of the first participant whose actor's reference starts with [prefix].
+  static String? _participantStatus(Object? participants, String prefix) {
+    for (final p in (participants as List?) ?? const []) {
+      if (_reference(p['actor']).startsWith(prefix)) return p['status'] as String?;
+    }
+    return null;
   }
 
   static String? _participant(Object? participants, String prefix) {

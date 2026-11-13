@@ -18,7 +18,7 @@ class WaitlistApi {
 
   /// The patient accepts an offered slot, which books it
   ///
-  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. An offer the patient accepted already (another device) answers its appointment again. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -63,7 +63,7 @@ class WaitlistApi {
 
   /// The patient accepts an offered slot, which books it
   ///
-  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. An offer the patient accepted already (another device) answers its appointment again. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -99,7 +99,7 @@ class WaitlistApi {
 
   /// The patient declines an offered slot
   ///
-  /// The entry stays active; the slot goes to the next entry. Built in SAL-35 (404 until then).
+  /// The entry stays active; the slot goes to the next entry.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -144,7 +144,7 @@ class WaitlistApi {
 
   /// The patient declines an offered slot
   ///
-  /// The entry stays active; the slot goes to the next entry. Built in SAL-35 (404 until then).
+  /// The entry stays active; the slot goes to the next entry.
   ///
   /// Parameters:
   ///
@@ -169,7 +169,7 @@ class WaitlistApi {
 
   /// The patient joins a clinic's waitlist
   ///
-  /// For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused. Built in SAL-35 (404 until then).
+  /// For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -214,7 +214,7 @@ class WaitlistApi {
 
   /// The patient joins a clinic's waitlist
   ///
-  /// For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused. Built in SAL-35 (404 until then).
+  /// For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -250,7 +250,7 @@ class WaitlistApi {
 
   /// The clinic's waitlist, in offer order
   ///
-  /// For the clinic's staff: entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited. Built in SAL-35 (404 until then).
+  /// For the clinic's staff: a page of entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -259,9 +259,18 @@ class WaitlistApi {
   /// * [String] practitionerRole:
   ///
   /// * [WaitlistStatus] status:
+  ///   The entries in this status; `active` (waiting, not past the last day) when absent.
+  ///
+  /// * [int] limit:
+  ///   Entries per page; 100 when absent.
+  ///
+  /// * [int] offset:
+  ///   Entries skipped, from the start of the offer order.
   Future<Response> listClinicWaitlistWithHttpInfo({
     String? practitionerRole,
     WaitlistStatus? status,
+    int? limit,
+    int? offset,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -281,6 +290,12 @@ class WaitlistApi {
     if (status != null) {
       queryParams.addAll(_queryParams('', 'status', status));
     }
+    if (limit != null) {
+      queryParams.addAll(_queryParams('', 'limit', limit));
+    }
+    if (offset != null) {
+      queryParams.addAll(_queryParams('', 'offset', offset));
+    }
 
     const contentTypes = <String>[];
 
@@ -298,21 +313,32 @@ class WaitlistApi {
 
   /// The clinic's waitlist, in offer order
   ///
-  /// For the clinic's staff: entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited. Built in SAL-35 (404 until then).
+  /// For the clinic's staff: a page of entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited.
   ///
   /// Parameters:
   ///
   /// * [String] practitionerRole:
   ///
   /// * [WaitlistStatus] status:
+  ///   The entries in this status; `active` (waiting, not past the last day) when absent.
+  ///
+  /// * [int] limit:
+  ///   Entries per page; 100 when absent.
+  ///
+  /// * [int] offset:
+  ///   Entries skipped, from the start of the offer order.
   Future<ClinicWaitlist?> listClinicWaitlist({
     String? practitionerRole,
     WaitlistStatus? status,
+    int? limit,
+    int? offset,
     Future<void>? abortTrigger,
   }) async {
     final response = await listClinicWaitlistWithHttpInfo(
       practitionerRole: practitionerRole,
       status: status,
+      limit: limit,
+      offset: offset,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {
@@ -386,7 +412,7 @@ class WaitlistApi {
 
   /// The patient withdraws an entry, or the clinic's staff remove it
   ///
-  /// An open offer of the entry ends with it, and its slot goes to the next entry. Audited. Built in SAL-35.
+  /// An open offer of the entry ends with it, and its slot goes to the next entry. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -431,7 +457,7 @@ class WaitlistApi {
 
   /// The patient withdraws an entry, or the clinic's staff remove it
   ///
-  /// An open offer of the entry ends with it, and its slot goes to the next entry. Audited. Built in SAL-35.
+  /// An open offer of the entry ends with it, and its slot goes to the next entry. Audited.
   ///
   /// Parameters:
   ///

@@ -1807,4 +1807,204 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Aus anderen Kliniken geteilte Besuche';
+
+  @override
+  String get reminders => 'Erinnerungen';
+
+  @override
+  String get remindersIntro =>
+      'Wählen Sie, wie Ihre Kliniken Sie an Ihre Termine erinnern.';
+
+  @override
+  String get remindersPush => 'Push-Benachrichtigungen';
+
+  @override
+  String get remindersEmail => 'E-Mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Erinnerungen und Angebote von der Warteliste per SMS an die Telefonnummer in Ihrem Profil, nur bei Kliniken, die SMS anbieten. Nie für Werbung.';
+
+  @override
+  String get quietHours => 'Ruhezeiten';
+
+  @override
+  String get quietHoursHint =>
+      'Push-Benachrichtigungen und SMS warten bis zum Ende der Ruhezeiten. Kämen sie dann weniger als 30 Minuten vor dem Termin an, entfallen sie. E-Mails werden nicht zurückgehalten.';
+
+  @override
+  String get quietHoursFrom => 'Von';
+
+  @override
+  String get quietHoursUntil => 'Bis';
+
+  @override
+  String get remindersSaved => 'Ihre Auswahl ist gespeichert.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Für SMS ist eine Telefonnummer in Ihrem Profil nötig. Fügen Sie sie unter Mein Profil hinzu und versuchen Sie es erneut.';
+
+  @override
+  String get remindersInvalid =>
+      'Diese Einstellungen konnten nicht gespeichert werden. Prüfen Sie sie und versuchen Sie es erneut.';
+
+  @override
+  String get confirmAttendance => 'Teilnahme bestätigen';
+
+  @override
+  String get appointmentConfirmedStatus => 'Bestätigt';
+
+  @override
+  String get appointmentConfirmedNotice => 'Ihr Termin ist bestätigt.';
+
+  @override
+  String get changeTime => 'Uhrzeit ändern';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Die Uhrzeit kann bis $date um $time geändert werden.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Verbleibende Änderungen der Uhrzeit: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Neue Uhrzeit wählen';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Derzeit gebucht: $date um $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Termin verschieben?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Ihr Termin wird auf $date um $time verschoben. Die bisherige Uhrzeit wird freigegeben.';
+  }
+
+  @override
+  String get moveAppointment => 'Termin verschieben';
+
+  @override
+  String get appointmentMoved =>
+      'Ihr Termin ist auf die neue Uhrzeit verschoben.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Die Uhrzeit dieses Termins kann in der App nicht mehr geändert werden. Bitte wenden Sie sich an die Klinik.';
+
+  @override
+  String get rescheduleLimit =>
+      'Die Uhrzeit dieses Termins wurde so oft geändert, wie die Klinik es erlaubt.';
+
+  @override
+  String get notReschedulable =>
+      'Die Uhrzeit dieses Termins kann in der App nicht geändert werden.';
+
+  @override
+  String get waitlistTitle => 'Meine Warteliste';
+
+  @override
+  String get waitlistJoinButton => 'Kein passender Termin? Auf die Warteliste';
+
+  @override
+  String get waitlistJoinTitle => 'Auf die Warteliste';
+
+  @override
+  String get waitlistExplained =>
+      'Wird ein Termin bei dieser Ärztin oder diesem Arzt frei, wird er den Wartenden nacheinander angeboten. Sie erhalten eine Benachrichtigung und können ihn in der App buchen, solange er für Sie reserviert ist.';
+
+  @override
+  String get waitlistHowLong => 'Wie lange?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days Tage',
+      one: '$days Tag',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'Zu welcher Tageszeit?';
+
+  @override
+  String get waitlistAnyTime => 'Jederzeit';
+
+  @override
+  String get waitlistMornings => 'Vormittags, 08:00 bis 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Nachmittags, 12:00 bis 17:00';
+
+  @override
+  String get waitlistJoin => 'Auf die Warteliste setzen';
+
+  @override
+  String get waitlistJoined => 'Sie stehen auf der Warteliste.';
+
+  @override
+  String get waitlistEmpty => 'Sie stehen auf keiner Warteliste.';
+
+  @override
+  String get waitlistAPractitioner => 'Eine Ärztin oder ein Arzt';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'Sie warten bis $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Ein Termin ist für Sie frei';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Für Sie reserviert bis $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Mit dem Annehmen buchen Sie diesen Termin. Sobald Zahlungen in Salus möglich sind, bezahlen Sie ihn damit auch.';
+
+  @override
+  String get waitlistAccept => 'Annehmen und buchen';
+
+  @override
+  String get waitlistDecline => 'Ablehnen';
+
+  @override
+  String get waitlistBooked =>
+      'Ihr Termin ist gebucht. Sie finden ihn unter Meine Termine.';
+
+  @override
+  String get waitlistDeclined =>
+      'Sie haben den Termin abgelehnt. Sie bleiben auf der Warteliste.';
+
+  @override
+  String get waitlistWithdraw => 'Warteliste verlassen';
+
+  @override
+  String get waitlistWithdrawn => 'Sie haben die Warteliste verlassen.';
+
+  @override
+  String get waitlistOff => 'Diese Praxis hat keine Warteliste.';
+
+  @override
+  String get waitlistTooMany =>
+      'Sie stehen bereits fünfmal auf der Warteliste dieser Praxis. Verlassen Sie zuerst einen Eintrag.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Dieser Termin ist nicht mehr für Sie reserviert. Sie bleiben auf der Warteliste.';
 }

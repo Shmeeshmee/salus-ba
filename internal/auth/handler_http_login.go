@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"net/http"
-	"net/netip"
 	"strings"
 	"time"
 
@@ -37,7 +36,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := h.svc.Login(r.Context(), req.Email, req.Password, clientIP(r, h.trustedProxies), language, detected)
+	res, err := h.svc.Login(r.Context(), req.Email, req.Password, httpx.ClientIP(r, h.trustedProxies), language, detected)
 	h.writeLogin(w, r, res, err)
 }
 
@@ -165,35 +164,6 @@ func sessionToken(r *http.Request) (string, bool) {
 
 func safeMethod(m string) bool {
 	return m == http.MethodGet || m == http.MethodHead || m == http.MethodOptions
-}
-
-// clientIP is the connection's remote address. Only when that is a trusted proxy is X-Forwarded-For read,
-// from the right: the first address that is not a trusted proxy is the client. The IP is used for the login
-// rate limit only; it is never stored or logged.
-func clientIP(r *http.Request, trusted []netip.Prefix) string {
-	ap, err := netip.ParseAddrPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	ip := ap.Addr().Unmap()
-	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
-	for i := len(hops) - 1; i >= 0 && isTrusted(ip, trusted); i-- {
-		hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
-		if err != nil {
-			break
-		}
-		ip = hop.Unmap()
-	}
-	return ip.String()
-}
-
-func isTrusted(ip netip.Addr, trusted []netip.Prefix) bool {
-	for _, p := range trusted {
-		if p.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }
 
 // Active reports whether the request's session is still open now: the check a long-lived socket repeats after its

@@ -12,6 +12,10 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/notification"
+	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -33,6 +37,11 @@ func (w *revocationWorker) Work(ctx context.Context, job *river.Job[consent.Revo
 	if err != nil {
 		return err
 	}
+	n, err = w.appointments.WithdrawForRevokedConsent(ctx, job.Args.PatientID, job.Args.OrganizationID)
+	w.log.InfoContext(ctx, "waitlist entries withdrawn after a revocation", "withdrawn", n)
+	if err != nil {
+		return err
+	}
 	return w.sessions.EndPatientAccess(ctx, job.Args.PatientID, job.Args.OrganizationID)
 }
 
@@ -48,17 +57,32 @@ func (w *transcriptionRevocationWorker) Work(ctx context.Context, job *river.Job
 	return w.sessions.EndAgentAccess(ctx, job.Args.PatientID, job.Args.OrganizationID)
 }
 
-// newRevocations builds the appointment service on pool (salus_app) at clk for CancelForRevokedConsent: the
-// consent's state, the slots to free, and the cancellation e-mails and the statistics' refreshes to enqueue on
-// jobs (an insert-only client).
+// newRevocations builds the appointment service on pool (salus_app) at clk for the default queue's appointment jobs:
+// CancelForRevokedConsent and WithdrawForRevokedConsent (the consent's state, the slots to free, the cancellation
+// e-mails and the statistics' refreshes), the reminders' sweep, and the waitlist's HandOn and ExpireOffer (the clinic's
+// settings, zone and roles, the offers' expiries and notices), enqueuing on jobs (an insert-only client).
 func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Clock) *appointment.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
 	// Only State is asked of the consent service: it needs no jobs.
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil)
+	slots := newSlots(pool, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
+	rules := organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clk})
+	offers := notification.NewService(notification.Ports{
+		Clinics: clinics, Deliveries: notification.NewPostgresDeliveryRepository(pool), DeliveryJobs: notification.NewRiverDeliveryJobs(jobs),
+		Devices: notification.NewPostgresRepository(pool), Rules: rules, Audit: audit, Tx: tx, Clock: clk,
+	})
 	return appointment.NewService(appointment.Ports{
 		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk,
-		Consents: consents, Slots: newSlots(pool, clk), Jobs: appointment.NewRiverJobs(jobs),
-		Stats: clinicstats.NewRiverQueue(jobs), // a cancellation enqueues its clinic-day's refresh
+		Consents: consents, Slots: slots, Jobs: appointment.NewRiverJobs(jobs),
+		Stats:    clinicstats.NewRiverQueue(jobs), // a cancellation enqueues its clinic-day's refresh
+		Clinics:  clinics,
+		Roles:    practitionerrole.NewService(practitionerrole.Ports{Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
+		Waitlist: appointment.NewPostgresWaitlistRepository(pool), Offered: slots, OfferJobs: appointment.NewRiverOfferJobs(jobs),
+		Rules: rules, Notices: offers, Reach: offers, // the offers' deliveries and quiet hours (SAL-33's, SAL-35)
+		Patients: patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, nil, nil),
+		// A cancellation cancels the reminders; the sweep (the same service) enqueues the lost ones again.
+		Reminders: appointment.NewPostgresReminderRepository(pool),
 	})
 }

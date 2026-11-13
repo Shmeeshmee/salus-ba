@@ -98,6 +98,7 @@ void main() {
       'revokeBody',
       'consentRevoked',
       'cancelBody',
+      'rescheduleConfirmBody',
       'cancelWindowHint',
       'whyCameraAndMicrophone',
       'whyCameraForFiles',

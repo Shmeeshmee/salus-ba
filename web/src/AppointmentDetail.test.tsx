@@ -150,14 +150,14 @@ describe('AppointmentDetail', () => {
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'cancelled' }), [patientRead]: () => outcome(404, 'not-found') })
 
     expect(await screen.findByText('Cancelled')).toBeTruthy()
-    // Only the history's toggle, which opens a view, not an action on the appointment.
-    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history'])
+    // Only the toggles of the history and the changes, which open a view, not an action on the appointment.
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes'])
     cleanup()
 
     // A fulfilled one may be corrected within 30 days (SAL-36, docs/plans/appointments.md Q6), and nothing else.
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
     expect(await screen.findByText('Fulfilled')).toBeTruthy()
-    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Correct to no-show'])
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Correct to no-show'])
   })
 
   it.each([
@@ -399,5 +399,37 @@ describe('AppointmentDetail in a language', () => {
 
     expect(screen.getByText('Otkazati ovaj termin? Pacijent će biti obaviješten e-mailom, a vrijeme ponovo postaje slobodno.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Da, otkaži' })).toBeTruthy()
+  })
+
+  describe("the appointment's changes", () => {
+    const changesGet = `GET /appointments/${id}/changes`
+    const routes = {
+      [read]: () => fhirJSON(booked),
+      [patientRead]: () => outcome(404, 'not-found'),
+      [changesGet]: () => Response.json({ changes: [{ at: '2026-11-02T09:00:00Z', kind: 'confirmed', via: 'app' }] }),
+    }
+
+    it('are read only once asked for, and shown in the clinic zone', async () => {
+      const fake = renderDetail(admin, routes)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Show changes' }))
+      expect(await screen.findByText('Confirmed by the patient')).toBeTruthy()
+      expect(paths(fake.requests)).toContain(changesGet)
+      fireEvent.click(screen.getByRole('button', { name: 'Hide changes' }))
+      expect(screen.queryByText('Confirmed by the patient')).toBeNull()
+    })
+
+    it('are not read when the booking opens', async () => {
+      const fake = renderDetail(practitioner, routes)
+
+      await screen.findByRole('button', { name: 'Show changes' })
+      expect(paths(fake.requests)).not.toContain(changesGet)
+    })
+  })
+
+  it("shows whether the patient confirmed a booked appointment", async () => {
+    renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') })
+
+    expect(await screen.findByText('Confirmed')).toBeTruthy()
   })
 })

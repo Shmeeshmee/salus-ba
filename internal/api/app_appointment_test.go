@@ -89,11 +89,16 @@ func TestNew_APatientBooksAndCancelsAndThePractitionerMarksAppointmentsAudited(t
 	if n := count("SELECT count(*) FROM slot WHERE status = 'busy' AND id IN ($1, $2)", week, soon); n != 2 {
 		t.Errorf("%d of the booked slots are busy, want both", n)
 	}
-	// The confirmations, and a reminder only for the appointment more than 24 hours ahead.
-	for kind, want := range map[string]int{"appointment_booked_email": 2, "appointment_reminder_email": 1} {
-		if n := count("SELECT count(*) FROM river_job WHERE kind = $1 AND queue = 'email'", kind); n != want {
-			t.Errorf("%d %s jobs, want %d", n, kind, want)
-		}
+	// The confirmations, and the reminders still ahead of the clinic's default offsets (SAL-33): 24 hours and 1 hour
+	// before the week's appointment, 1 hour before the one 23 hours ahead.
+	if n := count("SELECT count(*) FROM river_job WHERE kind = $1 AND queue = 'email'", "appointment_booked_email"); n != 2 {
+		t.Errorf("%d confirmations, want 2", n)
+	}
+	if n := count("SELECT count(*) FROM river_job j JOIN appointment_reminder r ON j.args->>'reminder_id' = r.id::text AND j.scheduled_at = r.due_at WHERE j.kind = 'appointment_reminder' AND j.queue = 'push'"); n != 3 {
+		t.Errorf("%d reminder dispatches at their due time, want 3", n)
+	}
+	if n := count("SELECT count(*) FROM river_job WHERE kind = 'appointment_reminder_email'"); n != 0 {
+		t.Errorf("%d legacy reminder e-mails enqueued, want none", n)
 	}
 
 	checkCancelling(t, d, count, week, soon, weekAppt.ID, soonID)
@@ -128,7 +133,9 @@ func checkCancelling(t *testing.T, d directory, count func(q string, args ...any
 	if n := count("SELECT count(*) FROM river_job WHERE kind = 'appointment_cancelled_email' AND queue = 'email'"); n != 2 {
 		t.Errorf("%d cancellation e-mails, want 2", n)
 	}
-
+	if n := count("SELECT count(*) FROM appointment_reminder WHERE state = 'cancelled' AND appointment_id IN ($1, $2)", weekID, soonID); n != 3 {
+		t.Errorf("%d of the cancelled appointments' reminders are cancelled, want all 3", n)
+	}
 }
 
 // checkMarking checks marking an appointment that started an hour ago (seeded as the owner).

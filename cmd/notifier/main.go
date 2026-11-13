@@ -1,7 +1,7 @@
 // Command notifier sends e-mail (ADR 0007): it runs a River client that works the email queue, through SMTP:
 // Mailpit locally, an EU relay with TLS and a login in production (ADR 0011); and the chat's push queue (SAL-29),
 // through FCM and APNs once their credentials are set (docs/deploy/push.md), the fake until then. It logs in as
-// salus_app.
+// salus_app. Reminders by SMS go to the fake (pkg/sms/smstest) until an SMS provider is chosen (config.LoadSMS).
 package main
 
 import (
@@ -25,6 +25,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/push/apns"
 	"github.com/Shmeeshmee/salus/pkg/push/fcm"
 	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
+	"github.com/Shmeeshmee/salus/pkg/sms/smstest"
 )
 
 // stopTimeout is how long a running send gets to finish after a stop signal.
@@ -50,6 +51,9 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if _, err := config.LoadSMS(); err != nil { // the fake only, until an SMS provider is chosen
+		return err
+	}
 	pushCfg, err := config.LoadPush()
 	if err != nil {
 		return err
@@ -64,7 +68,10 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	defer pool.Close()
 	sender := notification.NewSMTPSender(relay.Addr, notification.SMTPSecurity(relay.TLS), relay.Username, relay.Password, relay.From, clock.System{})
-	client, err := worker.NewNotifier(pool, log, sender, pusher, cfg.WebBaseURL, cfg.PatientAppURL)
+	client, err := worker.NewNotifier(pool, log, worker.Notifier{
+		Sender: sender, Pusher: pusher, SMS: &smstest.Sender{}, WebBaseURL: cfg.WebBaseURL, PatientAppURL: cfg.PatientAppURL,
+		LinkURL: cfg.AppointmentLinkURL,
+	})
 	if err != nil {
 		return err
 	}

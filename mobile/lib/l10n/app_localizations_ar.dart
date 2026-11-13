@@ -1842,4 +1842,204 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'زيارات مُشارَكة من عيادات أخرى';
+
+  @override
+  String get reminders => 'التذكيرات';
+
+  @override
+  String get remindersIntro => 'اختر كيف تذكّرك العيادات بمواعيدك.';
+
+  @override
+  String get remindersPush => 'الإشعارات الفورية';
+
+  @override
+  String get remindersEmail => 'البريد الإلكتروني';
+
+  @override
+  String get remindersSms => 'الرسائل القصيرة';
+
+  @override
+  String get remindersSmsHint =>
+      'التذكيرات وعروض قائمة الانتظار برسالة قصيرة إلى رقم الهاتف في ملفك الشخصي، فقط لدى العيادات التي تقدم الرسائل القصيرة. لا تُستخدم أبدًا للإعلانات.';
+
+  @override
+  String get quietHours => 'ساعات الهدوء';
+
+  @override
+  String get quietHoursHint =>
+      'تنتظر الإشعارات الفورية والرسائل القصيرة حتى تنتهي ساعات الهدوء. وإذا كانت ستصل حينها قبل الموعد بأقل من 30 دقيقة، فلا تُرسل. لا يتم تأخير رسائل البريد الإلكتروني.';
+
+  @override
+  String get quietHoursFrom => 'من';
+
+  @override
+  String get quietHoursUntil => 'إلى';
+
+  @override
+  String get remindersSaved => 'تم حفظ اختياراتك.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'تتطلب الرسائل القصيرة رقم هاتف في ملفك الشخصي. أضفه في ملفي الشخصي، ثم حاول مرة أخرى.';
+
+  @override
+  String get remindersInvalid =>
+      'تعذّر حفظ هذه الإعدادات. تحقق منها وحاول مرة أخرى.';
+
+  @override
+  String get confirmAttendance => 'تأكيد الحضور';
+
+  @override
+  String get appointmentConfirmedStatus => 'مؤكد';
+
+  @override
+  String get appointmentConfirmedNotice => 'تم تأكيد موعدك.';
+
+  @override
+  String get changeTime => 'تغيير الوقت';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'يمكن تغيير الوقت حتى $date الساعة $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'عدد مرات تغيير الوقت المتبقية: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'اختر وقتًا جديدًا';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'المحجوز حاليًا: $date الساعة $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'نقل الموعد؟';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'سيُنقل موعدك إلى $date الساعة $time. وسيُتاح وقتك الحالي لغيرك.';
+  }
+
+  @override
+  String get moveAppointment => 'نقل الموعد';
+
+  @override
+  String get appointmentMoved => 'تم نقل موعدك إلى الوقت الجديد.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'لم يعد من الممكن تغيير وقت هذا الموعد عبر التطبيق. يرجى التواصل مع العيادة.';
+
+  @override
+  String get rescheduleLimit =>
+      'تم تغيير وقت هذا الموعد بالعدد الذي تسمح به العيادة.';
+
+  @override
+  String get notReschedulable => 'لا يمكن تغيير وقت هذا الموعد عبر التطبيق.';
+
+  @override
+  String get waitlistTitle => 'قائمة الانتظار الخاصة بي';
+
+  @override
+  String get waitlistJoinButton =>
+      'لا يوجد موعد مناسب؟ انضم إلى قائمة الانتظار';
+
+  @override
+  String get waitlistJoinTitle => 'الانضمام إلى قائمة الانتظار';
+
+  @override
+  String get waitlistExplained =>
+      'عندما يصبح موعد لدى هذا الطبيب متاحًا، يُعرض على المرضى المنتظرين واحدًا تلو الآخر. سيصلك إشعار ويمكنك حجزه في التطبيق ما دام محجوزًا لك.';
+
+  @override
+  String get waitlistHowLong => 'لأي مدة؟';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days يوم',
+      many: '$days يومًا',
+      few: '$days أيام',
+      two: 'يومان',
+      one: 'يوم واحد',
+      zero: '$days يوم',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'في أي وقت من اليوم؟';
+
+  @override
+  String get waitlistAnyTime => 'في أي وقت';
+
+  @override
+  String get waitlistMornings => 'صباحًا، من 08:00 إلى 12:00';
+
+  @override
+  String get waitlistAfternoons => 'بعد الظهر، من 12:00 إلى 17:00';
+
+  @override
+  String get waitlistJoin => 'انضم إلى قائمة الانتظار';
+
+  @override
+  String get waitlistJoined => 'أنت في قائمة الانتظار.';
+
+  @override
+  String get waitlistEmpty => 'لست في أي قائمة انتظار.';
+
+  @override
+  String get waitlistAPractitioner => 'طبيب';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'تنتظر حتى $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'أصبح موعد متاحًا لك';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'محجوز لك حتى $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'بالقبول تحجز هذا الموعد. وعندما يصبح الدفع متاحًا في Salus، ستدفع ثمنه أيضًا عند القبول.';
+
+  @override
+  String get waitlistAccept => 'اقبل واحجز';
+
+  @override
+  String get waitlistDecline => 'ارفض';
+
+  @override
+  String get waitlistBooked => 'تم حجز موعدك. ستجده في مواعيدي.';
+
+  @override
+  String get waitlistDeclined => 'رفضت الموعد. تبقى في قائمة الانتظار.';
+
+  @override
+  String get waitlistWithdraw => 'مغادرة قائمة الانتظار';
+
+  @override
+  String get waitlistWithdrawn => 'غادرت قائمة الانتظار.';
+
+  @override
+  String get waitlistOff => 'لا توجد قائمة انتظار لدى هذه العيادة.';
+
+  @override
+  String get waitlistTooMany =>
+      'أنت مسجل بالفعل خمس مرات في قائمة انتظار هذه العيادة. غادر إحداها أولًا.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار.';
 }

@@ -1,0 +1,9 @@
+Termin koji ste čekali je slobodan
+
+Oslobodio se termin koji ste čekali u ustanovi {{.Clinic}}.
+Datum i vrijeme: {{.When}}
+
+Termin je rezervisan za vas do {{.Until}}. Nakon toga nudi se sljedećem pacijentu. Prihvatanjem u aplikaciji termin se zakazuje.
+
+Da biste ga prihvatili ili odbili, otvorite aplikaciju Salus:
+{{.Link}}

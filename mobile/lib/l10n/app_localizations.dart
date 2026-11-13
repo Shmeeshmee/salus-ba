@@ -2879,6 +2879,336 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Visits shared from other clinics'**
   String get consentForHistory;
+
+  /// SAL-33: home button and screen title of the notification settings. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get reminders;
+
+  /// SAL-33: notification settings, the sentence under the title. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how your clinics remind you of your appointments.'**
+  String get remindersIntro;
+
+  /// SAL-33: notification settings, the push switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications'**
+  String get remindersPush;
+
+  /// SAL-33: notification settings, the e-mail switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'E-mail'**
+  String get remindersEmail;
+
+  /// SAL-33: notification settings, the SMS switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'SMS'**
+  String get remindersSms;
+
+  /// [legal] SAL-33: notification settings, under the SMS switch: the SMS opt-in, what goes by SMS, to which number, where, and never advertising. Draft, waiting for the owner and the lawyer.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders and waitlist offers by SMS to the phone number in your profile, only at clinics that offer SMS. Never used for advertising.'**
+  String get remindersSmsHint;
+
+  /// SAL-33: notification settings, the quiet hours switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours'**
+  String get quietHours;
+
+  /// SAL-33: notification settings, under the quiet hours switch: push and SMS wait, e-mail is not held. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.'**
+  String get quietHoursHint;
+
+  /// SAL-33: notification settings, the start of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get quietHoursFrom;
+
+  /// SAL-33: notification settings, the end of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Until'**
+  String get quietHoursUntil;
+
+  /// SAL-33: notification settings saved. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your choices are saved.'**
+  String get remindersSaved;
+
+  /// SAL-33: notification settings refused, 409 phone_required. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'SMS needs a phone number in your profile. Add one in My profile, then try again.'**
+  String get remindersPhoneRequired;
+
+  /// SAL-33: notification settings refused, 400. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'These settings could not be saved. Check them and try again.'**
+  String get remindersInvalid;
+
+  /// SAL-34: button on an unconfirmed upcoming appointment; the patient confirms they will come. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm I will come'**
+  String get confirmAttendance;
+
+  /// SAL-34: under an upcoming appointment the patient confirmed. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed'**
+  String get appointmentConfirmedStatus;
+
+  /// SAL-34: notice after confirming. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is confirmed.'**
+  String get appointmentConfirmedNotice;
+
+  /// SAL-34: button opening the reschedule picker. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Change the time'**
+  String get changeTime;
+
+  /// SAL-34: until when the patient may change the time, in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The time can be changed until {date} at {time}.'**
+  String rescheduleUntil(String date, String time);
+
+  /// SAL-34: how many more times the time may be changed (the clinic's limit). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Time changes left: {count}'**
+  String reschedulesLeft(int count);
+
+  /// SAL-34: title of the reschedule picker. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a new time'**
+  String get rescheduleTitle;
+
+  /// SAL-34: the appointment's current time on the picker. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Booked now: {date} at {time}'**
+  String rescheduleCurrent(String date, String time);
+
+  /// SAL-34: dialog title before moving the appointment. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Move your appointment?'**
+  String get rescheduleConfirmTitle;
+
+  /// [legal] SAL-34: dialog text, the effect of a reschedule. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment will move to {date} at {time}. Your current time will be released.'**
+  String rescheduleConfirmBody(String date, String time);
+
+  /// SAL-34: dialog button that moves the appointment. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Move appointment'**
+  String get moveAppointment;
+
+  /// SAL-34: notice after a reschedule. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is moved to the new time.'**
+  String get appointmentMoved;
+
+  /// SAL-34: reschedule refused, inside the clinic's notice. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The time of this appointment can no longer be changed in the app. Please contact the clinic.'**
+  String get rescheduleWindowClosed;
+
+  /// SAL-34: reschedule refused, the clinic's limit reached. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'This appointment\'s time has been changed as often as the clinic allows.'**
+  String get rescheduleLimit;
+
+  /// SAL-34: reschedule refused, the clinic's rules never allow it (another role, the join window open, self-service off). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The time of this appointment cannot be changed in the app.'**
+  String get notReschedulable;
+
+  /// SAL-35: the patient's waitlist screen and its button on the home screen. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'My waitlist'**
+  String get waitlistTitle;
+
+  /// SAL-35: under a practitioner's free times. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'No suitable time? Join the waitlist'**
+  String get waitlistJoinButton;
+
+  /// SAL-35: the join screen's title. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Join the waitlist'**
+  String get waitlistJoinTitle;
+
+  /// [legal] SAL-35: how offers work, on the join screen. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'When a time with this practitioner becomes free, it is offered to the patients waiting, one at a time. You get a notification and can book it in the app while it is held for you.'**
+  String get waitlistExplained;
+
+  /// SAL-35: heading of the span choice. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'For how long?'**
+  String get waitlistHowLong;
+
+  /// SAL-35: a span to wait, from today. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{days, plural, one{{days} day} other{{days} days}}'**
+  String waitlistDays(int days);
+
+  /// SAL-35: heading of the time-of-day choice. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'At what time of day?'**
+  String get waitlistWhen;
+
+  /// SAL-35: no time of day. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Any time'**
+  String get waitlistAnyTime;
+
+  /// SAL-35: in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Mornings, 08:00 to 12:00'**
+  String get waitlistMornings;
+
+  /// SAL-35: in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Afternoons, 12:00 to 17:00'**
+  String get waitlistAfternoons;
+
+  /// SAL-35: the join button. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Join the waitlist'**
+  String get waitlistJoin;
+
+  /// SAL-35: after joining. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on the waitlist.'**
+  String get waitlistJoined;
+
+  /// SAL-35: no active entry. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not on any waitlist.'**
+  String get waitlistEmpty;
+
+  /// SAL-35: an entry whose practitioner is no longer listed, or a specialty. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'A practitioner'**
+  String get waitlistAPractitioner;
+
+  /// SAL-35: the entry's last day. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting until {date}'**
+  String waitlistUntil(String date);
+
+  /// SAL-35: an open offer. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'A time is free for you'**
+  String get waitlistOfferTitle;
+
+  /// SAL-35: the hold's end, in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Held for you until {time}'**
+  String waitlistHeldUntil(String time);
+
+  /// [legal] SAL-35: that accepting books the time, and pays for it once payments exist. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepting books this time for you. Once payments are available in Salus, accepting also pays for it.'**
+  String get waitlistAcceptEffect;
+
+  /// [legal] SAL-35: the acceptance button. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept and book'**
+  String get waitlistAccept;
+
+  /// SAL-35: decline the offer. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get waitlistDecline;
+
+  /// SAL-35: after accepting. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is booked. You find it under My appointments.'**
+  String get waitlistBooked;
+
+  /// SAL-35: after declining. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You declined the time. You stay on the waitlist.'**
+  String get waitlistDeclined;
+
+  /// SAL-35: withdraw the entry. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave the waitlist'**
+  String get waitlistWithdraw;
+
+  /// SAL-35: after withdrawing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You left the waitlist.'**
+  String get waitlistWithdrawn;
+
+  /// SAL-35: 409 waitlist_off. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'This clinic has no waitlist.'**
+  String get waitlistOff;
+
+  /// SAL-35: 409 too_many_entries. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on this clinic\'s waitlist five times already. Leave one of them first.'**
+  String get waitlistTooMany;
+
+  /// SAL-35: 409 offer_expired. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'This time is no longer held for you. You stay on the waitlist.'**
+  String get waitlistOfferExpired;
 }
 
 class _AppLocalizationsDelegate

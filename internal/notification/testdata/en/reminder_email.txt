@@ -1,0 +1,9 @@
+Subject: Reminder of your appointment
+
+This is a reminder of your appointment at Synthetic clinic on Monday 7 January 2030, 10:00 (Europe/Sarajevo).
+
+To confirm or cancel the appointment, open this link:
+https://api.salus.invalid/a/0000000000000000000000000000000000000000001
+
+To see it, open the Salus app:
+https://patient.example.test/appointments

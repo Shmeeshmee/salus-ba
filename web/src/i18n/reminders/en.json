@@ -1,0 +1,23 @@
+{
+  "title": "Reminders",
+  "loadFailed": "The reminder settings could not be loaded. Reload the page to try again.",
+  "offsets": "When patients are reminded",
+  "none": "No reminders are sent.",
+  "remove": "Remove",
+  "removeOffset": "Remove the reminder {offset}",
+  "add": "Add a reminder",
+  "choose": "Choose when",
+  "limit": "Up to three reminders, from 15 minutes to 7 days before the appointment.",
+  "minutesBefore": "{count, plural, one {# minute before} other {# minutes before}}",
+  "hoursBefore": "{count, plural, one {# hour before} other {# hours before}}",
+  "daysBefore": "{count, plural, one {# day before} other {# days before}}",
+  "sms": "Reminders by SMS",
+  "smsHint": "Reminders and waitlist offers also go by SMS to patients who opted in. Paid option: [PRICE] per SMS.",
+  "save": "Save reminders",
+  "smsUnavailable": "SMS is not available yet. Turn off reminders by SMS to save the other settings.",
+  "invalid": "Choose up to three different reminders, from 15 minutes to 7 days before the appointment.",
+  "usage": "SMS sent in the last 12 months",
+  "usageLoadFailed": "The SMS usage could not be loaded. Reload the page to try again.",
+  "noUsage": "No SMS sent in the last 12 months.",
+  "usageMonth": "{messages, plural, one {# message} other {# messages}} · {parts, plural, one {# part} other {# parts}}"
+}

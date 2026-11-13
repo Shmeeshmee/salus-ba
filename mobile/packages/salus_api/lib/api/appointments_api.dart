@@ -180,7 +180,7 @@ class AppointmentsApi {
 
   /// The patient confirms they will come
   ///
-  /// The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+  /// The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -225,7 +225,7 @@ class AppointmentsApi {
 
   /// The patient confirms they will come
   ///
-  /// The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+  /// The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -261,7 +261,7 @@ class AppointmentsApi {
 
   /// What the patient may do with their appointment now
   ///
-  /// For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+  /// For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Audited as a read of the appointment.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -298,7 +298,7 @@ class AppointmentsApi {
 
   /// What the patient may do with their appointment now
   ///
-  /// For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+  /// For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Audited as a read of the appointment.
   ///
   /// Parameters:
   ///
@@ -532,7 +532,7 @@ class AppointmentsApi {
 
   /// The patient moves their appointment to another free slot of the same practitioner role
   ///
-  /// The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+  /// The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it; the patient gets an e-mail with the new time. Not cached. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -580,7 +580,7 @@ class AppointmentsApi {
 
   /// The patient moves their appointment to another free slot of the same practitioner role
   ///
-  /// The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+  /// The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it; the patient gets an e-mail with the new time. Not cached. Audited, also when refused.
   ///
   /// Parameters:
   ///

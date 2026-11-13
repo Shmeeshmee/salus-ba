@@ -180,3 +180,101 @@ func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 func writeCode(w http.ResponseWriter, status int, code string) {
 	httpx.JSON(w, status, map[string]string{"error": code})
 }
+
+// Settings is what the SettingsHandler calls (Service, SAL-33).
+type Settings interface {
+	Preferences(ctx context.Context, c Caller) (Preferences, error)
+	SetPreferences(ctx context.Context, c Caller, in Preferences) (Preferences, error)
+	SMSUsage(ctx context.Context, c Caller, from, to string) ([]UsageMonth, error)
+}
+
+// SettingsHandler serves the patient's notification settings and the admin's SMS usage (api/openapi.yaml, tag
+// notifications). Errors are {"error": "<code>"}.
+type SettingsHandler struct {
+	svc Settings
+	HTTPHandler
+}
+
+// NewSettingsHandler returns the handler on svc; caller resolves the signed-in session as NewHTTPHandler's.
+func NewSettingsHandler(svc Settings, caller func(ctx context.Context) (Caller, bool, error), log *slog.Logger) *SettingsHandler {
+	return &SettingsHandler{svc: svc, HTTPHandler: HTTPHandler{caller: caller, log: log}}
+}
+
+// Routes declares the routes on mux.
+func (h *SettingsHandler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /me/notification-settings", h.preferences)
+	mux.HandleFunc("PUT /me/notification-settings", h.setPreferences)
+	mux.HandleFunc("GET /clinic/sms-usage", h.smsUsage)
+}
+
+// settingsJSON is the NotificationSettings schema as it is read: channels required with their three fields;
+// quiet_hours and time_zone absent or null for none.
+type settingsJSON struct {
+	Channels *struct {
+		Push  *bool `json:"push"`
+		Email *bool `json:"email"`
+		SMS   *bool `json:"sms"`
+	} `json:"channels"`
+	Quiet    *QuietHours `json:"quiet_hours"`
+	TimeZone *string     `json:"time_zone"`
+}
+
+func (h *SettingsHandler) preferences(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	p, err := h.svc.Preferences(r.Context(), c)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+func (h *SettingsHandler) setPreferences(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	var in settingsJSON
+	if !decode(w, r, &in) || in.Channels == nil || in.Channels.Push == nil || in.Channels.Email == nil || in.Channels.SMS == nil {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	p := Preferences{Channels: Channels{Push: *in.Channels.Push, Email: *in.Channels.Email, SMS: *in.Channels.SMS}, Quiet: in.Quiet}
+	if in.TimeZone != nil {
+		p.TimeZone = *in.TimeZone
+	}
+	out, err := h.svc.SetPreferences(r.Context(), c, p)
+	if errors.Is(err, ErrPhoneRequired) {
+		writeCode(w, http.StatusConflict, "phone_required")
+		return
+	}
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+// usageJSON is the SmsUsage schema.
+type usageJSON struct {
+	Months []UsageMonth `json:"months"`
+}
+
+func (h *SettingsHandler) smsUsage(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	months, err := h.svc.SMSUsage(r.Context(), c, q.Get("from"), q.Get("to"))
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, usageJSON{Months: months})
+}

@@ -14,12 +14,14 @@ import 'clinics_screen.dart';
 import 'consents_screen.dart';
 import 'language_picker.dart';
 import 'messages.dart';
+import 'notification_settings_screen.dart';
 import 'profile_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
+import 'waitlist_screen.dart';
 
 /// The signed-in patient: the profile first when there is none, then booking, appointments, their history,
-/// consents and sign-out.
+/// consents, reminders and sign-out.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -167,6 +169,10 @@ class _HomeScreenState extends State<HomeScreen> {
               _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
           child: Text(t.myAppointments),
         ),
+        OutlinedButton(
+          onPressed: () => _open(() => WaitlistScreen(booking: booking, now: now)),
+          child: Text(t.waitlistTitle),
+        ),
         if (widget.chats case final chats?)
           OutlinedButton(
             onPressed: () => _open(
@@ -189,6 +195,10 @@ class _HomeScreenState extends State<HomeScreen> {
         OutlinedButton(
           onPressed: () => _open(() => ConsentsScreen(booking: booking)),
           child: Text(t.myConsents),
+        ),
+        OutlinedButton(
+          onPressed: () => _open(() => NotificationSettingsScreen(booking: booking)),
+          child: Text(t.reminders),
         ),
         if (_profile != null) OutlinedButton(onPressed: _editProfile, child: Text(t.myProfile)),
         TextButton(onPressed: _busy ? null : _signOut, child: Text(t.signOut)),

@@ -47,6 +47,31 @@ func (j *riverJobs) EnqueueUnreadEmail(ctx context.Context, a ChatUnreadEmailArg
 	return j.insert(ctx, a, &river.InsertOpts{Queue: emailQueue, MaxAttempts: emailAttempts, ScheduledAt: at, UniqueOpts: river.UniqueOpts{ByArgs: true}})
 }
 
+// The send jobs of the reminders' deliveries (SAL-33), one queue per channel: the notifier works email, push and sms.
+const (
+	smsQueue    = "sms"
+	smsAttempts = 5
+)
+
+// NewRiverDeliveryJobs returns the DeliveryJobs port on a River client (an insert-only one will do).
+func NewRiverDeliveryJobs(client *river.Client[pgx.Tx]) DeliveryJobs {
+	return &riverJobs{client: client}
+}
+
+// EnqueueDelivery enqueues the send of the delivery id on its channel's queue at at, unique by the delivery.
+func (j *riverJobs) EnqueueDelivery(ctx context.Context, channel Channel, id string, at time.Time) error {
+	unique := river.UniqueOpts{ByArgs: true}
+	switch channel {
+	case ChannelEmail:
+		return j.insert(ctx, EmailDeliveryArgs{DeliveryID: id}, &river.InsertOpts{Queue: emailQueue, MaxAttempts: emailAttempts, ScheduledAt: at, UniqueOpts: unique})
+	case ChannelPush:
+		return j.insert(ctx, PushDeliveryArgs{DeliveryID: id}, &river.InsertOpts{Queue: pushQueue, MaxAttempts: pushAttempts, ScheduledAt: at, UniqueOpts: unique})
+	case ChannelSMS:
+		return j.insert(ctx, SMSDeliveryArgs{DeliveryID: id}, &river.InsertOpts{Queue: smsQueue, MaxAttempts: smsAttempts, ScheduledAt: at, UniqueOpts: unique})
+	}
+	return fmt.Errorf("notification: no queue for the channel %q", channel)
+}
+
 func (j *riverJobs) EnqueueWebhook(ctx context.Context, a WebhookDeliveryArgs) error {
 	return j.insert(ctx, a, &river.InsertOpts{Queue: webhookQueue, MaxAttempts: webhookAttempts, UniqueOpts: river.UniqueOpts{ByArgs: true}})
 }

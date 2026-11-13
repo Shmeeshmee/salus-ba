@@ -1,0 +1,9 @@
+A time you were waiting for is free
+
+A time you were waiting for at {{.Clinic}} has become free.
+Date and time: {{.When}}
+
+It is held for you until {{.Until}}. After that it is offered to the next patient. Accepting it in the app books the appointment.
+
+To accept or decline it, open the Salus app:
+{{.Link}}

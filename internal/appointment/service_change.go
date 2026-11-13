@@ -171,11 +171,7 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	via := ViaStaff
-	if c.patient() {
-		via = ViaApp
-	}
-	return out, nil, s.cancelled(ctx, out, Change{Via: via, ByAccountID: c.AccountID})
+	return out, nil, s.cancelled(ctx, out, Change{Via: c.via(), ByAccountID: c.AccountID})
 }
 
 // cancelled frees the slot of the cancelled appointment a, hands it to the waitlist while it is ahead

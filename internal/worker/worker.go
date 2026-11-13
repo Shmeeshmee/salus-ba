@@ -121,7 +121,8 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &slotsWorker{slots: s.slots, log: log})
 	river.AddWorker(workers, &chatPartitionsWorker{chat: s.chat})
 	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, sessions: s.sessions, log: log})
-	river.AddWorker(workers, &slotFreedWorker{})
+	river.AddWorker(workers, &slotFreedWorker{appointments: s.appointments})
+	river.AddWorker(workers, &offerExpireWorker{appointments: s.appointments})
 	river.AddWorker(workers, &transcriptionRevocationWorker{sessions: s.sessions})
 	river.AddWorker(workers, &windowCloseWorker{sessions: s.sessions, log: log})
 	river.AddWorker(workers, &accessEndWorker{sessions: s.sessions, log: log})
@@ -132,6 +133,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &clinicStatsRefreshWorker{builds: s.clinicStats})
 	river.AddWorker(workers, &clinicStatsNightlyWorker{builds: s.clinicStats})
 	river.AddWorker(workers, &trendsWorker{builder: s.trends, log: log})
+	river.AddWorker(workers, &remindersSweepWorker{appointments: s.appointments, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

@@ -1,0 +1,32 @@
+{
+  "title": "Votre rendez-vous",
+  "appointment": "Rendez-vous chez {clinic} : {when}.",
+  "state_confirmed": "Vous avez confirmé votre venue.",
+  "state_unconfirmed": "Merci de confirmer votre venue.",
+  "confirm": "Je confirme ma venue",
+  "cancel_heading": "Annuler le rendez-vous",
+  "cancel_effect": {
+    "defaultMessage": "L'annulation libère le créneau pour d'autres patients et ne peut pas être défaite. Vous recevrez un e-mail concernant l'annulation.",
+    "description": "legal"
+  },
+  "cancel_tick": {
+    "defaultMessage": "Oui, je veux annuler ce rendez-vous",
+    "description": "legal"
+  },
+  "cancel_button": "Annuler le rendez-vous",
+  "cancel_closed": {
+    "defaultMessage": "Le rendez-vous commence dans moins de 24 heures et ne peut plus être annulé ici. Pour l'annuler, contactez l'établissement.",
+    "description": "legal"
+  },
+  "reschedule": "Pour choisir un autre horaire, ouvrez l'application Salus.",
+  "used_confirm": "Vous avez confirmé ce rendez-vous.",
+  "used_cancel": "Vous avez annulé ce rendez-vous.",
+  "invalid": "Ce lien ne fonctionne plus. Ouvrez l'application Salus pour voir vos rendez-vous.",
+  "rate_limited": "Trop de demandes depuis votre connexion. Réessayez dans quelques minutes.",
+  "confirm_cancel_required": "Pour annuler, cochez la case et appuyez à nouveau sur le bouton.",
+  "invalid_request": "La demande n'a pas été comprise. Rouvrez le lien de votre message.",
+  "forbidden": "La demande a été refusée. Rouvrez le lien de votre message.",
+  "date": "{weekday} {day} {month} {year} à {time} ({zone})",
+  "weekdays": "dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi",
+  "months": "janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre"
+}

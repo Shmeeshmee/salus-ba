@@ -1804,4 +1804,205 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Visites partagées d’autres cliniques';
+
+  @override
+  String get reminders => 'Rappels';
+
+  @override
+  String get remindersIntro =>
+      'Choisissez comment vos cliniques vous rappellent vos rendez-vous.';
+
+  @override
+  String get remindersPush => 'Notifications push';
+
+  @override
+  String get remindersEmail => 'E-mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Rappels et offres de la liste d\'attente par SMS au numéro de téléphone de votre profil, uniquement dans les cliniques qui proposent les SMS. Jamais à des fins publicitaires.';
+
+  @override
+  String get quietHours => 'Heures calmes';
+
+  @override
+  String get quietHoursHint =>
+      'Les notifications push et les SMS attendent la fin des heures calmes. S\'ils devaient alors arriver moins de 30 minutes avant le rendez-vous, ils ne sont pas envoyés. Les e-mails ne sont pas retenus.';
+
+  @override
+  String get quietHoursFrom => 'De';
+
+  @override
+  String get quietHoursUntil => 'À';
+
+  @override
+  String get remindersSaved => 'Vos choix sont enregistrés.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Les SMS nécessitent un numéro de téléphone dans votre profil. Ajoutez-le dans Mon profil, puis réessayez.';
+
+  @override
+  String get remindersInvalid =>
+      'Ces paramètres n\'ont pas pu être enregistrés. Vérifiez-les et réessayez.';
+
+  @override
+  String get confirmAttendance => 'Confirmer ma venue';
+
+  @override
+  String get appointmentConfirmedStatus => 'Confirmé';
+
+  @override
+  String get appointmentConfirmedNotice => 'Votre rendez-vous est confirmé.';
+
+  @override
+  String get changeTime => 'Changer l\'heure';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'L\'heure peut être changée jusqu\'au $date à $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Changements d\'heure restants : $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Choisissez une nouvelle heure';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Réservé actuellement : $date à $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Déplacer le rendez-vous ?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Votre rendez-vous sera déplacé au $date à $time. L\'heure actuelle sera libérée.';
+  }
+
+  @override
+  String get moveAppointment => 'Déplacer le rendez-vous';
+
+  @override
+  String get appointmentMoved =>
+      'Votre rendez-vous a été déplacé à la nouvelle heure.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'L\'heure de ce rendez-vous ne peut plus être changée dans l\'application. Veuillez contacter la clinique.';
+
+  @override
+  String get rescheduleLimit =>
+      'L\'heure de ce rendez-vous a été changée autant de fois que la clinique le permet.';
+
+  @override
+  String get notReschedulable =>
+      'L\'heure de ce rendez-vous ne peut pas être changée dans l\'application.';
+
+  @override
+  String get waitlistTitle => 'Ma liste d\'attente';
+
+  @override
+  String get waitlistJoinButton =>
+      'Aucun créneau ne convient ? Inscrivez-vous sur la liste d\'attente';
+
+  @override
+  String get waitlistJoinTitle => 'Inscription sur la liste d\'attente';
+
+  @override
+  String get waitlistExplained =>
+      'Lorsqu\'un créneau se libère chez ce praticien, il est proposé aux patients en attente, l\'un après l\'autre. Vous recevez une notification et pouvez le réserver dans l\'application tant qu\'il vous est réservé.';
+
+  @override
+  String get waitlistHowLong => 'Pour combien de temps ?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days jours',
+      one: '$days jour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'À quel moment de la journée ?';
+
+  @override
+  String get waitlistAnyTime => 'À tout moment';
+
+  @override
+  String get waitlistMornings => 'Le matin, de 08:00 à 12:00';
+
+  @override
+  String get waitlistAfternoons => 'L\'après-midi, de 12:00 à 17:00';
+
+  @override
+  String get waitlistJoin => 'M\'inscrire sur la liste d\'attente';
+
+  @override
+  String get waitlistJoined => 'Vous êtes sur la liste d\'attente.';
+
+  @override
+  String get waitlistEmpty => 'Vous n\'êtes sur aucune liste d\'attente.';
+
+  @override
+  String get waitlistAPractitioner => 'Un praticien';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'En attente jusqu\'au $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Un créneau s\'est libéré pour vous';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Réservé pour vous jusqu\'à $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'En acceptant, vous réservez ce créneau. Lorsque le paiement sera disponible dans Salus, accepter le paiera aussi.';
+
+  @override
+  String get waitlistAccept => 'Accepter et réserver';
+
+  @override
+  String get waitlistDecline => 'Refuser';
+
+  @override
+  String get waitlistBooked =>
+      'Votre rendez-vous est réservé. Vous le trouverez dans Mes rendez-vous.';
+
+  @override
+  String get waitlistDeclined =>
+      'Vous avez refusé le créneau. Vous restez sur la liste d\'attente.';
+
+  @override
+  String get waitlistWithdraw => 'Quitter la liste d\'attente';
+
+  @override
+  String get waitlistWithdrawn => 'Vous avez quitté la liste d\'attente.';
+
+  @override
+  String get waitlistOff => 'Cet établissement n\'a pas de liste d\'attente.';
+
+  @override
+  String get waitlistTooMany =>
+      'Vous êtes déjà inscrit cinq fois sur la liste d\'attente de cet établissement. Quittez d\'abord l\'une des inscriptions.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Ce créneau ne vous est plus réservé. Vous restez sur la liste d\'attente.';
 }

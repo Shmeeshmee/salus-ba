@@ -37,6 +37,26 @@ var (
 	ErrPaymentDeclined = errors.New("appointment: payment declined")
 	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
 	ErrLinkInvalid = errors.New("appointment: link invalid")
+	// ErrInvalidEntry is returned for a waitlist request with neither or both of a role and a specialty, an unknown one,
+	// dates out of order or more than 90 days ahead, or times out of order (SAL-35).
+	ErrInvalidEntry = errors.New("appointment: invalid waitlist entry")
+	// ErrWaitlistOff is returned when the clinic offers no waitlist (SAL-35).
+	ErrWaitlistOff = errors.New("appointment: waitlist off")
+	// ErrTooManyEntries is returned when the patient has as many active entries with the clinic as allowed (SAL-35).
+	ErrTooManyEntries = errors.New("appointment: too many waitlist entries")
+	// ErrOfferExpired is returned when an offer is accepted after its hold, or once it closed (SAL-35).
+	ErrOfferExpired = errors.New("appointment: offer expired")
+	// ErrOfferNotDue is returned when an offer's expiry runs before the offer's end (SAL-35).
+	ErrOfferNotDue = errors.New("appointment: offer not due to expire")
+	// ErrInvalidPriority is returned for a waitlist priority outside 0 to 100 (SAL-35).
+	ErrInvalidPriority = errors.New("appointment: invalid priority")
+	// ErrLinkRateLimited is returned when an address looked up too many links in a short time (SAL-34).
+	ErrLinkRateLimited = errors.New("appointment: too many link lookups")
+	// ErrConfirmCancelRequired is returned for a link's cancel without its ticked box (ADR 0015 "Scanners that click").
+	ErrConfirmCancelRequired = errors.New("appointment: cancel not confirmed")
+	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
+	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
+	ErrReminderGone = errors.New("appointment: reminder no longer applies")
 	// ErrCorrectionWindowClosed is returned when a no-show or an attendance is corrected more than 30 days after the
 	// start (SAL-36, Q6).
 	ErrCorrectionWindowClosed = errors.New("appointment: correction window closed")

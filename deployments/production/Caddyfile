@@ -26,6 +26,8 @@
 				request>client_ip delete
 				request>headers delete
 				request>uri delete
+				# A one-time link's 303 to its page carries the token in Location (SAL-34): no response header is logged.
+				resp_headers delete
 				# caddy-l4 names the client's address `remote` (or `remote_addr`), and Go's network errors
 				# quote both ends of a connection.
 				remote delete
@@ -107,7 +109,9 @@ app.{$SALUS_DOMAIN} {
 		path /clinic/*
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
-	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$
+	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|changes|questionnaires|consultation(/join|/end)?)$
+	# Removing an entry of the waitlist (SAL-35); /waitlist itself is a screen of the app.
+	@apiWaitlist path_regexp ^/waitlist/.+$
 	# /questionnaires and /questionnaires/<id> are screens of the app too: only their writes go to the api.
 	@apiQuestionnaires {
 		path /questionnaires*
@@ -125,12 +129,17 @@ app.{$SALUS_DOMAIN} {
 	handle @apiQuestionnaires {
 		reverse_proxy api:8080
 	}
+	handle @apiWaitlist {
+		reverse_proxy api:8080
+	}
 	# vite-proxy:end
 	handle {
 		reverse_proxy web:8080
 	}
 }
 
+# The API for the mobile app, and the page of a reminder's one-time link (/a/<token>, ADR 0015, Q4): the global log
+# filter above deletes every request's URI, so the token is never in Caddy's log (scripts/check-caddy-routes.sh).
 api.{$SALUS_DOMAIN} {
 	import common
 	handle {

@@ -319,6 +319,495 @@ func (r *postgresStatsRepository) Fulfilled(ctx context.Context, orgID string, f
 	return out, nil
 }
 
+// SAL-34: the patient's confirmation and reschedule, and the use of a one-time link.
+
+// NewPostgresSelfServiceRepository returns the SelfServiceRepository on db, using the transaction in the context when
+// there is one.
+func NewPostgresSelfServiceRepository(db postgres.Querier) SelfServiceRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) ByIDForUpdate(ctx context.Context, id string) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrNotFound
+	}
+	row, err := r.q(ctx).AppointmentByIDForUpdate(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Appointment{}, ErrNotFound
+	case err != nil:
+		return Appointment{}, err
+	}
+	return toAppointment(appointmentdb.AppointmentByIDRow(row)), nil
+}
+
+func (r *postgresRepository) Confirm(ctx context.Context, id string, via Via, at time.Time) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	row, err := r.q(ctx).ConfirmAppointment(ctx, appointmentdb.ConfirmAppointmentParams{ID: u, Via: text(string(via)), At: ts(at)})
+	return changed(appointmentdb.AppointmentByIDRow(row), err)
+}
+
+func (r *postgresRepository) Reschedule(ctx context.Context, id string, m Move, at time.Time) (Appointment, error) {
+	var u, sl pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	if sl.Scan(m.SlotID) != nil {
+		return Appointment{}, ErrSlotUnavailable
+	}
+	row, err := r.q(ctx).RescheduleAppointment(ctx, appointmentdb.RescheduleAppointmentParams{
+		ID: u, SlotID: sl, StartAt: ts(m.Start), EndAt: ts(m.End), At: ts(at), FromCount: int16(m.From),
+	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == exclusionViolation || pgErr.Code == deadlockDetected) {
+		return Appointment{}, ErrSlotUnavailable
+	}
+	return changed(appointmentdb.AppointmentByIDRow(row), err)
+}
+
+func (r *postgresRepository) FindToken(ctx context.Context, hash [32]byte) (Token, error) {
+	row, err := r.q(ctx).FindActionToken(ctx, hash[:])
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Token{}, ErrLinkInvalid
+	case err != nil:
+		return Token{}, err
+	}
+	return Token{
+		ID: row.ID.String(), AppointmentID: row.AppointmentID.String(), OrganizationID: row.OrganizationID.String(),
+		PatientID: row.PatientID.String(), AccountID: row.AccountID.String(),
+	}, nil
+}
+
+func (r *postgresRepository) TokenByID(ctx context.Context, id string) (Token, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Token{}, ErrLinkInvalid
+	}
+	row, err := r.q(ctx).ActionTokenByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Token{}, ErrLinkInvalid
+	case err != nil:
+		return Token{}, err
+	}
+	t := Token{
+		CreatedAt: row.CreatedAt.Time, StartAt: row.StartAt.Time, ID: row.ID.String(), AppointmentID: row.AppointmentID.String(),
+		OrganizationID: row.OrganizationID.String(), PatientID: row.PatientID.String(), AccountID: row.AccountID.String(),
+		Language: string(row.Language), Channel: Channel(row.Channel), UsedAction: LinkAction(row.UsedAction.String),
+	}
+	copy(t.Hash[:], row.TokenHash)
+	if row.ReminderID.Valid {
+		t.ReminderID = row.ReminderID.String()
+	}
+	if row.UsedAt.Valid {
+		t.UsedAt = row.UsedAt.Time
+	}
+	return t, nil
+}
+
+func (r *postgresRepository) UseToken(ctx context.Context, id string, action LinkAction, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return ErrLinkInvalid
+	}
+	n, err := r.q(ctx).UseActionToken(ctx, appointmentdb.UseActionTokenParams{ID: u, Action: text(string(action)), At: ts(at)})
+	switch {
+	case err != nil:
+		return err
+	case n == 0:
+		return ErrLinkInvalid
+	}
+	return nil
+}
+
+// SAL-33: the reminders.
+
+// NewPostgresReminderRepository returns the ReminderRepository on db, using the transaction in the context when there
+// is one: salus_app's pool, or the retention role's for DeleteRemindersDueBefore.
+func NewPostgresReminderRepository(db postgres.Querier) ReminderRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) AddReminder(ctx context.Context, x Reminder) (Reminder, bool, error) {
+	var p appointmentdb.InsertReminderParams
+	if p.AppointmentID.Scan(x.AppointmentID) != nil || p.OrganizationID.Scan(x.OrganizationID) != nil || p.PatientID.Scan(x.PatientID) != nil {
+		return Reminder{}, false, errors.New("appointment: an id of the reminder is not a UUID")
+	}
+	p.OffsetMinutes, p.StartAt, p.DueAt = int32(x.OffsetMinutes), ts(x.StartAt), ts(x.DueAt)
+	row, err := r.q(ctx).InsertReminder(ctx, p)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Reminder{}, false, nil
+	case err != nil:
+		return Reminder{}, false, err
+	}
+	x.ID, x.State = row.ID.String(), ReminderScheduled
+	return x, true, nil
+}
+
+func (r *postgresRepository) CancelReminders(ctx context.Context, appointmentID string) (int64, error) {
+	var u pgtype.UUID
+	if u.Scan(appointmentID) != nil {
+		return 0, nil
+	}
+	return r.q(ctx).CancelReminders(ctx, u)
+}
+
+func (r *postgresRepository) LockReminder(ctx context.Context, id string) (Reminder, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Reminder{}, ErrNotFound
+	}
+	row, err := r.q(ctx).LockReminder(ctx, u)
+	return toReminder(appointmentdb.ReminderByIDRow(row), err)
+}
+
+func (r *postgresRepository) Reminder(ctx context.Context, id string) (Reminder, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Reminder{}, ErrNotFound
+	}
+	return toReminder(r.q(ctx).ReminderByID(ctx, u))
+}
+
+func toReminder(row appointmentdb.ReminderByIDRow, err error) (Reminder, error) {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Reminder{}, ErrNotFound
+	case err != nil:
+		return Reminder{}, err
+	}
+	return Reminder{
+		StartAt: row.StartAt.Time, DueAt: row.DueAt.Time, DispatchedAt: row.DispatchedAt.Time,
+		ID: row.ID.String(), AppointmentID: row.AppointmentID.String(), OrganizationID: row.OrganizationID.String(),
+		PatientID: row.PatientID.String(), State: ReminderState(row.State), OffsetMinutes: int(row.OffsetMinutes),
+	}, nil
+}
+
+func (r *postgresRepository) SetReminderState(ctx context.Context, id string, state ReminderState, at time.Time) error {
+	p := appointmentdb.SetReminderStateParams{State: string(state)}
+	if p.ID.Scan(id) != nil {
+		return ErrNotFound
+	}
+	if state == ReminderDispatched {
+		p.DispatchedAt = ts(at)
+	}
+	n, err := r.q(ctx).SetReminderState(ctx, p)
+	if err == nil && n == 0 {
+		return ErrReminderGone
+	}
+	return err
+}
+
+func (r *postgresRepository) OverdueReminders(ctx context.Context, at, afterDue time.Time, afterID string, max int) ([]Reminder, error) {
+	// From the first page on: a zero cursor is before every due time.
+	p := appointmentdb.OverdueRemindersParams{At: ts(at), AfterDue: pgtype.Timestamptz{Valid: true, InfinityModifier: pgtype.NegativeInfinity}, Max: int32(max)}
+	if !afterDue.IsZero() {
+		p.AfterDue = ts(afterDue)
+	}
+	if p.AfterID.Scan(afterID) != nil {
+		return nil, errors.New("appointment: the sweep's cursor is not a UUID")
+	}
+	rows, err := r.q(ctx).OverdueReminders(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Reminder, len(rows))
+	for i, row := range rows {
+		out[i] = Reminder{ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), DueAt: row.DueAt.Time}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) DeleteRemindersDueBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteRemindersDueBefore(ctx, ts(before))
+}
+
+// SAL-35: the waitlist.
+
+// NewPostgresWaitlistRepository returns the WaitlistRepository on db, using the transaction in the context when there
+// is one; on the retention role's pool it purges every clinic's.
+func NewPostgresWaitlistRepository(db postgres.Querier) WaitlistRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) InsertEntry(ctx context.Context, e WaitlistEntry) (WaitlistEntry, error) {
+	p := appointmentdb.InsertWaitlistEntryParams{
+		CreatedAt: ts(e.Created), EndsAt: ts(e.EndsAt), Specialty: text(e.Specialty),
+		Earliest: pgDate(e.Earliest), Latest: pgDate(e.Latest), TimesStartMinute: minute(e.Times, e.Times.Start), TimesEndMinute: minute(e.Times, e.Times.End),
+	}
+	if p.PatientID.Scan(e.PatientID) != nil || p.OrganizationID.Scan(e.OrganizationID) != nil ||
+		(e.PractitionerRoleID != "" && p.PractitionerRoleID.Scan(e.PractitionerRoleID) != nil) {
+		return WaitlistEntry{}, errors.New("appointment: an id of the entry is not a UUID")
+	}
+	row, err := r.q(ctx).InsertWaitlistEntry(ctx, p)
+	if err != nil {
+		return WaitlistEntry{}, err
+	}
+	return toEntry(appointmentdb.WaitlistEntryForUpdateRow(row)), nil
+}
+
+func (r *postgresRepository) CountActiveEntries(ctx context.Context, patientID, org string, now time.Time) (int, error) {
+	var p appointmentdb.CountActiveWaitlistEntriesParams
+	if p.PatientID.Scan(patientID) != nil || p.OrganizationID.Scan(org) != nil {
+		return 0, nil
+	}
+	p.Now = ts(now)
+	n, err := r.q(ctx).CountActiveWaitlistEntries(ctx, p)
+	return int(n), err
+}
+
+func (r *postgresRepository) PatientEntries(ctx context.Context, patientID string) ([]WaitlistEntry, error) {
+	var u pgtype.UUID
+	if u.Scan(patientID) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).ListPatientWaitlistEntries(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WaitlistEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toEntryWithOffer(appointmentdb.ListClinicWaitlistEntriesRow(row)))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ClinicEntries(ctx context.Context, q ClinicQuery) ([]WaitlistEntry, error) {
+	p := appointmentdb.ListClinicWaitlistEntriesParams{
+		Specialty: text(q.Specialty), Status: text(string(q.Status)), Now: ts(q.Now),
+		MaxRows: int32(q.Limit), SkipRows: int32(q.Offset), //nolint:gosec // bounded by the service
+	}
+	if p.OrganizationID.Scan(q.OrganizationID) != nil || (q.PractitionerRoleID != "" && p.PractitionerRoleID.Scan(q.PractitionerRoleID) != nil) {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).ListClinicWaitlistEntries(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WaitlistEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toEntryWithOffer(row))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) LockEntries(ctx context.Context, patientID, org string) error {
+	return r.q(ctx).LockWaitlistEntries(ctx, appointmentdb.LockWaitlistEntriesParams{PatientID: patientID, OrganizationID: org})
+}
+
+func (r *postgresRepository) EntryForUpdate(ctx context.Context, id string) (WaitlistEntry, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return WaitlistEntry{}, ErrNotFound
+	}
+	row, err := r.q(ctx).WaitlistEntryForUpdate(ctx, u)
+	return entryOrNotFound(row, err)
+}
+
+func (r *postgresRepository) CloseEntry(ctx context.Context, id string, status WaitlistStatus, at time.Time) (WaitlistEntry, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return WaitlistEntry{}, ErrNotFound
+	}
+	row, err := r.q(ctx).CloseWaitlistEntry(ctx, appointmentdb.CloseWaitlistEntryParams{ID: u, Status: string(status), At: ts(at)})
+	return entryOrNotFound(appointmentdb.WaitlistEntryForUpdateRow(row), err)
+}
+
+func (r *postgresRepository) SetPriority(ctx context.Context, id string, priority int, at time.Time) (WaitlistEntry, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return WaitlistEntry{}, ErrNotFound
+	}
+	row, err := r.q(ctx).SetWaitlistPriority(ctx, appointmentdb.SetWaitlistPriorityParams{ID: u, Priority: int16(priority), At: ts(at)}) //nolint:gosec // 0 to 100, checked by the service
+	return entryOrNotFound(appointmentdb.WaitlistEntryForUpdateRow(row), err)
+}
+
+func (r *postgresRepository) ActiveEntries(ctx context.Context, patientID, org string) ([]WaitlistEntry, error) {
+	var p appointmentdb.ActiveWaitlistEntriesParams
+	if p.PatientID.Scan(patientID) != nil || p.OrganizationID.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).ActiveWaitlistEntries(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WaitlistEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toEntry(appointmentdb.WaitlistEntryForUpdateRow(row)))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Candidates(ctx context.Context, m Match, n int) ([]WaitlistEntry, error) {
+	p := appointmentdb.WaitlistCandidatesParams{
+		Now: ts(m.Now), Specialty: text(m.Specialty), Day: pgDate(m.Day), StartMinute: int16(m.Times.Start), EndMinute: int16(m.Times.End), //nolint:gosec // minutes of a day
+		StartAt: ts(m.Start), EndAt: ts(m.End), MaxRows: int32(n), //nolint:gosec // a small limit
+	}
+	if p.OrganizationID.Scan(m.OrganizationID) != nil || p.PractitionerRoleID.Scan(m.PractitionerRoleID) != nil || p.SlotID.Scan(m.SlotID) != nil {
+		return nil, errors.New("appointment: an id of the match is not a UUID")
+	}
+	p.Skip = make([]pgtype.UUID, len(m.Skip))
+	for i, id := range m.Skip {
+		if p.Skip[i].Scan(id) != nil {
+			return nil, errors.New("appointment: an entry to pass over is not a UUID")
+		}
+	}
+	rows, err := r.q(ctx).WaitlistCandidates(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WaitlistEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toEntry(appointmentdb.WaitlistEntryForUpdateRow(row)))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) InsertOffer(ctx context.Context, o Offer) (Offer, error) {
+	p := appointmentdb.InsertWaitlistOfferParams{CreatedAt: ts(o.Created), ExpiresAt: ts(o.ExpiresAt), StartAt: ts(o.Start), EndAt: ts(o.End)}
+	for _, u := range []struct {
+		dst *pgtype.UUID
+		v   string
+	}{{&p.EntryID, o.EntryID}, {&p.SlotID, o.SlotID}, {&p.OrganizationID, o.OrganizationID}, {&p.PatientID, o.PatientID}, {&p.PractitionerRoleID, o.PractitionerRoleID}} {
+		if u.dst.Scan(u.v) != nil {
+			return Offer{}, errors.New("appointment: an id of the offer is not a UUID")
+		}
+	}
+	row, err := r.q(ctx).InsertWaitlistOffer(ctx, p)
+	if err != nil {
+		return Offer{}, err
+	}
+	return toOffer(appointmentdb.WaitlistOfferByIDRow(row)), nil
+}
+
+func (r *postgresRepository) Offer(ctx context.Context, id string) (Offer, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Offer{}, ErrNotFound
+	}
+	row, err := r.q(ctx).WaitlistOfferByID(ctx, u)
+	return offerOrNotFound(row, err)
+}
+
+func (r *postgresRepository) OfferForUpdate(ctx context.Context, id string) (Offer, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Offer{}, ErrNotFound
+	}
+	row, err := r.q(ctx).WaitlistOfferForUpdate(ctx, u)
+	return offerOrNotFound(appointmentdb.WaitlistOfferByIDRow(row), err)
+}
+
+func (r *postgresRepository) OpenOffer(ctx context.Context, slotID, entryID string) (Offer, bool, error) {
+	var p appointmentdb.OpenWaitlistOfferParams
+	if (slotID != "" && p.SlotID.Scan(slotID) != nil) || (entryID != "" && p.EntryID.Scan(entryID) != nil) {
+		return Offer{}, false, nil
+	}
+	rows, err := r.q(ctx).OpenWaitlistOffer(ctx, p)
+	if err != nil || len(rows) == 0 {
+		return Offer{}, false, err
+	}
+	return toOffer(appointmentdb.WaitlistOfferByIDRow(rows[0])), true, nil
+}
+
+func (r *postgresRepository) CloseOffer(ctx context.Context, id string, state OfferState, appointmentID string, at time.Time) (Offer, error) {
+	p := appointmentdb.CloseWaitlistOfferParams{State: string(state), At: ts(at)}
+	if p.ID.Scan(id) != nil || (appointmentID != "" && p.AppointmentID.Scan(appointmentID) != nil) {
+		return Offer{}, ErrNotFound
+	}
+	row, err := r.q(ctx).CloseWaitlistOffer(ctx, p)
+	return offerOrNotFound(appointmentdb.WaitlistOfferByIDRow(row), err)
+}
+
+func (r *postgresRepository) DeleteEntriesClosedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteWaitlistEntriesClosedBefore(ctx, ts(before))
+}
+
+func (r *postgresRepository) DeleteOffersClosedBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteWaitlistOffersClosedBefore(ctx, ts(before))
+}
+
+func entryOrNotFound(row appointmentdb.WaitlistEntryForUpdateRow, err error) (WaitlistEntry, error) {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return WaitlistEntry{}, ErrNotFound
+	case err != nil:
+		return WaitlistEntry{}, err
+	}
+	return toEntry(row), nil
+}
+
+func offerOrNotFound(row appointmentdb.WaitlistOfferByIDRow, err error) (Offer, error) {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Offer{}, ErrNotFound
+	case err != nil:
+		return Offer{}, err
+	}
+	return toOffer(row), nil
+}
+
+// toEntry maps a row; every entry query selects the same columns.
+func toEntry(row appointmentdb.WaitlistEntryForUpdateRow) WaitlistEntry {
+	e := WaitlistEntry{
+		Created: row.CreatedAt.Time, EndsAt: row.EndsAt.Time, ClosedAt: row.ClosedAt.Time,
+		Earliest: row.Earliest.Time, Latest: row.Latest.Time,
+		ID: row.ID.String(), PatientID: row.PatientID.String(), OrganizationID: row.OrganizationID.String(),
+		Specialty: row.Specialty.String, Status: WaitlistStatus(row.Status), Priority: int(row.Priority),
+	}
+	if row.PractitionerRoleID.Valid {
+		e.PractitionerRoleID = row.PractitionerRoleID.String()
+	}
+	if row.TimesStartMinute.Valid {
+		e.Times = Times{Start: int(row.TimesStartMinute.Int16), End: int(row.TimesEndMinute.Int16)}
+	}
+	return e
+}
+
+// toEntryWithOffer maps a row of a list, with the entry's open offer when it has one.
+func toEntryWithOffer(row appointmentdb.ListClinicWaitlistEntriesRow) WaitlistEntry {
+	e := toEntry(appointmentdb.WaitlistEntryForUpdateRow{
+		ID: row.ID, CreatedAt: row.CreatedAt, EndsAt: row.EndsAt, ClosedAt: row.ClosedAt, PatientID: row.PatientID,
+		OrganizationID: row.OrganizationID, PractitionerRoleID: row.PractitionerRoleID, Earliest: row.Earliest, Latest: row.Latest,
+		TimesStartMinute: row.TimesStartMinute, TimesEndMinute: row.TimesEndMinute, Priority: row.Priority, Status: row.Status, Specialty: row.Specialty,
+	})
+	if row.OfferID.Valid {
+		e.Offer = Offer{
+			ID: row.OfferID.String(), EntryID: e.ID, SlotID: row.OfferSlotID.String(), OrganizationID: e.OrganizationID, PatientID: e.PatientID,
+			ExpiresAt: row.OfferExpiresAt.Time, Start: row.OfferStart.Time, End: row.OfferEnd.Time, State: OfferOpen,
+		}
+	}
+	return e
+}
+
+// toOffer maps a row; every offer query selects the same columns.
+func toOffer(row appointmentdb.WaitlistOfferByIDRow) Offer {
+	o := Offer{
+		Start: row.StartAt.Time, End: row.EndAt.Time, ExpiresAt: row.ExpiresAt.Time, Created: row.CreatedAt.Time,
+		ID: row.ID.String(), EntryID: row.EntryID.String(), SlotID: row.SlotID.String(), OrganizationID: row.OrganizationID.String(),
+		PatientID: row.PatientID.String(), PractitionerRoleID: row.PractitionerRoleID.String(), State: OfferState(row.State),
+	}
+	if row.AppointmentID.Valid {
+		o.AppointmentID = row.AppointmentID.String()
+	}
+	return o
+}
+
+func pgDate(t time.Time) pgtype.Date {
+	return pgtype.Date{Time: time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), Valid: true}
+}
+
+// minute is v of t as a column, null for any time of day.
+func minute(t Times, v int) pgtype.Int2 {
+	return pgtype.Int2{Int16: int16(v), Valid: !t.Any()} //nolint:gosec // minutes of a day
+}
+
 // NewPostgresNoShowRepository returns the NoShowRepository on db (salus_app), in the transaction in the context when
 // there is one (SAL-36).
 func NewPostgresNoShowRepository(db postgres.Querier) NoShowRepository {

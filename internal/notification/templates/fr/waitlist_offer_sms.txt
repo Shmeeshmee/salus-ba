@@ -1,0 +1,1 @@
+Créneau libre : {{.Clinic}}, le {{.Day}}/{{.Month}}/{{.Year}} à {{.Time}} ({{.Zone}}), réservé jusqu'à {{.Until}}. Réservez dans Salus : {{.Link}}

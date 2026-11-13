@@ -34,3 +34,25 @@ func TestNoticeAccount_GivesTheJobThePatientsAccountInTheClinicsScopeAndAuditsIt
 		t.Errorf("audit %+v, want the miss audited without an entity", audit.events)
 	}
 }
+
+// The reminders' SMS (SAL-33) reads the patient's phone the same way: in the clinic's scope, audited as a read of the
+// patient with the job as agent; "" for a patient without one.
+func TestNoticePhone_GivesTheJobThePatientsPhoneInTheClinicsScopeAndAuditsIt(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	p := repo.profiles[accountA]
+	p.Phone = "+38760000001"
+	repo.profiles[accountA] = p
+	got, err := newService(repo, audit).NoticePhone(t.Context(), "reminder_sms", clinicA, patientA)
+	if err != nil || got != "+38760000001" {
+		t.Fatalf("NoticePhone() = %q, %v; want patient A's phone", got, err)
+	}
+	if repo.clinic != clinicA || len(audit.events) != 1 || audit.events[0].AgentName != "reminder_sms" || audit.events[0].EntityReference != "Patient/"+patientA {
+		t.Errorf("in %s, audit %+v, want one read of patient A by the job in clinic A", repo.clinic, audit.events)
+	}
+	if got, err := newService(repo, &fakeAuditor{}).NoticePhone(t.Context(), "reminder_sms", clinicA, patientB); err != nil || got != "" {
+		t.Errorf("NoticePhone(no phone) = %q, %v; want none", got, err)
+	}
+	if _, err := newService(repo, &fakeAuditor{}).NoticePhone(t.Context(), "reminder_sms", clinicA, "d0000000-0000-4000-8000-0000000000d0"); !errors.Is(err, patient.ErrNotFound) {
+		t.Errorf("NoticePhone(unknown) = %v, want ErrNotFound", err)
+	}
+}

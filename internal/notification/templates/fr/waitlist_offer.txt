@@ -1,0 +1,9 @@
+Un créneau que vous attendiez est libre
+
+Un créneau que vous attendiez s'est libéré chez {{.Clinic}}.
+Date et heure : {{.When}}
+
+Il vous est réservé jusqu'à {{.Until}}. Ensuite, il est proposé au patient suivant. L'accepter dans l'application réserve le rendez-vous.
+
+Pour l'accepter ou le refuser, ouvrez l'application Salus :
+{{.Link}}

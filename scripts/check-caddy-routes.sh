@@ -5,7 +5,9 @@
 #   `path_regexp` pattern a vite key starting with ^, and every vite key appears there exactly once;
 # - the keys whose GETs the dev server leaves to the app (`bypass`) are exactly the paths of the matchers with
 #   `not method GET`;
-# - every matcher there has a `handle @name` whose only line is `reverse_proxy api:8080`.
+# - every matcher there has a `handle @name` whose only line is `reverse_proxy api:8080`;
+# - the global log filter deletes the request's URI and the response headers, so the token of a one-time link
+#   (/a/<token> on api., and the Location of its 303, SAL-34) is never logged.
 # Run by scripts/lint.sh.
 set -euo pipefail
 
@@ -55,5 +57,10 @@ while read -r m; do
     on && NF { sub(/^[[:space:]]+/, ""); print }' <<<"$region")
   [ "$body" = "reverse_proxy api:8080" ] || fail "handle @$m must hold exactly \`reverse_proxy api:8080\`, has: ${body:-nothing}"
 done < <(awk '{ print $1 }' <<<"$args" | sort -u)
+
+grep -Eq '^[[:space:]]*request>uri[[:space:]]+delete[[:space:]]*$' "$caddyfile" ||
+  fail "the log filter must delete request>uri: a one-time link's token is in the path of /a/"
+grep -Eq '^[[:space:]]*resp_headers[[:space:]]+delete[[:space:]]*$' "$caddyfile" ||
+  fail "the log filter must delete resp_headers: a one-time link's 303 carries the token in Location"
 
 echo "check-caddy-routes: ok ($(wc -l <<<"$expected" | tr -d ' ') routes match $vite)"

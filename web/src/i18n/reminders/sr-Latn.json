@@ -1,0 +1,23 @@
+{
+  "title": "Podsjetnici",
+  "loadFailed": "Podešavanja podsjetnika nisu se mogla učitati. Osvježite stranicu i pokušajte ponovo.",
+  "offsets": "Kada se pacijenti podsjećaju",
+  "none": "Podsjetnici se ne šalju.",
+  "remove": "Ukloni",
+  "removeOffset": "Ukloni podsjetnik {offset}",
+  "add": "Dodaj podsjetnik",
+  "choose": "Izaberite kada",
+  "limit": "Najviše tri podsjetnika, od 15 minuta do 7 dana prije termina.",
+  "minutesBefore": "{count, plural, one {# minut prije} few {# minuta prije} other {# minuta prije}}",
+  "hoursBefore": "{count, plural, one {# sat prije} few {# sata prije} other {# sati prije}}",
+  "daysBefore": "{count, plural, one {# dan prije} few {# dana prije} other {# dana prije}}",
+  "sms": "Podsjetnici SMS-om",
+  "smsHint": "Podsjetnici i ponude sa liste čekanja šalju se i SMS-om pacijentima koji su to izabrali. Plaćena opcija: [PRICE] po SMS-u.",
+  "save": "Sačuvaj podsjetnike",
+  "smsUnavailable": "SMS još nije dostupan. Isključite podsjetnike SMS-om da biste sačuvali ostala podešavanja.",
+  "invalid": "Izaberite najviše tri različita podsjetnika, od 15 minuta do 7 dana prije termina.",
+  "usage": "SMS poruke poslate u posljednjih 12 mjeseci",
+  "usageLoadFailed": "Potrošnja SMS-a nije se mogla učitati. Osvježite stranicu i pokušajte ponovo.",
+  "noUsage": "U posljednjih 12 mjeseci nije poslat nijedan SMS.",
+  "usageMonth": "{messages, plural, one {# poruka} few {# poruke} other {# poruka}} · {parts, plural, one {# dio} few {# dijela} other {# dijelova}}"
+}

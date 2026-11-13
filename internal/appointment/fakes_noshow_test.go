@@ -46,23 +46,10 @@ func (n fakeNoShows) NoShowsSince(ctx context.Context, org string, patients []st
 	return out, nil
 }
 
-// fakeRules is the clinics' appointment settings, the defaults for any clinic without its own.
-type fakeRules struct {
-	err error
-	set map[string]organization.AppointmentSettings
-}
-
-func (r fakeRules) For(_ context.Context, org string) (organization.AppointmentSettings, error) {
-	if s, ok := r.set[org]; ok {
-		return s, r.err
-	}
-	return organization.DefaultAppointmentSettings(), r.err
-}
-
 // noShowFixture is cancelFixture with the no-show ports, and clinic A's flag at threshold with a window of days.
-func noShowFixture(at time.Time, threshold, days int) (*fixture, fakeRules) {
+func noShowFixture(at time.Time, threshold, days int) (*fixture, *fakeRules) {
 	f := withNoShows(cancelFixture(at), threshold, days)
-	return f, f.svc.Rules.(fakeRules)
+	return f, f.rules
 }
 
 // racedNoShows is fakeNoShows after another correction committed first: the appointment is no longer in the status
@@ -77,8 +64,12 @@ func (n racedNoShows) CorrectStatus(ctx context.Context, id string, _, to appoin
 func withNoShows(f *fixture, threshold, days int) *fixture {
 	set := organization.DefaultAppointmentSettings()
 	set.NoShowFlagThreshold, set.NoShowFlagWindowDays = threshold, days
+	if f.rules.settings == nil {
+		f.rules.settings = map[string]organization.AppointmentSettings{}
+	}
+	f.rules.settings[clinicA] = set
 	p := f.svc.Ports
-	p.NoShows, p.Rules = fakeNoShows{r: f.repo}, fakeRules{set: map[string]organization.AppointmentSettings{clinicA: set}}
+	p.NoShows = fakeNoShows{r: f.repo}
 	f.svc = appointment.NewService(p)
 	return f
 }

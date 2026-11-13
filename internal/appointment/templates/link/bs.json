@@ -1,0 +1,32 @@
+{
+  "title": "Vaš termin",
+  "appointment": "Termin u ustanovi {clinic}: {when}.",
+  "state_confirmed": "Potvrdili ste da ćete doći.",
+  "state_unconfirmed": "Molimo potvrdite da ćete doći.",
+  "confirm": "Potvrđujem da ću doći",
+  "cancel_heading": "Otkazivanje termina",
+  "cancel_effect": {
+    "defaultMessage": "Otkazivanjem se termin oslobađa za druge pacijente i to se ne može poništiti. Dobit ćete e-mail o otkazivanju.",
+    "description": "legal"
+  },
+  "cancel_tick": {
+    "defaultMessage": "Da, želim otkazati ovaj termin",
+    "description": "legal"
+  },
+  "cancel_button": "Otkaži termin",
+  "cancel_closed": {
+    "defaultMessage": "Termin počinje za manje od 24 sata i ovdje se više ne može otkazati. Da biste ga otkazali, obratite se ustanovi.",
+    "description": "legal"
+  },
+  "reschedule": "Da biste odabrali drugo vrijeme, otvorite aplikaciju Salus.",
+  "used_confirm": "Potvrdili ste ovaj termin.",
+  "used_cancel": "Otkazali ste ovaj termin.",
+  "invalid": "Ovaj link više ne radi. Otvorite aplikaciju Salus da biste vidjeli svoje termine.",
+  "rate_limited": "Previše zahtjeva s vaše veze. Pokušajte ponovo za nekoliko minuta.",
+  "confirm_cancel_required": "Da biste otkazali, označite polje i ponovo pritisnite dugme.",
+  "invalid_request": "Zahtjev nije razumljiv. Ponovo otvorite link iz poruke.",
+  "forbidden": "Zahtjev je odbijen. Ponovo otvorite link iz poruke.",
+  "date": "{weekday}, {day}. {month} {year}. u {time} ({zone})",
+  "weekdays": "nedjelja|ponedjeljak|utorak|srijeda|četvrtak|petak|subota",
+  "months": "januar|februar|mart|april|maj|juni|juli|august|septembar|oktobar|novembar|decembar"
+}

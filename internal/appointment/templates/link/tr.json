@@ -1,0 +1,32 @@
+{
+  "title": "Randevunuz",
+  "appointment": "Randevu: {clinic}, {when}.",
+  "state_confirmed": "Geleceğinizi onayladınız.",
+  "state_unconfirmed": "Lütfen geleceğinizi onaylayın.",
+  "confirm": "Geleceğimi onaylıyorum",
+  "cancel_heading": "Randevuyu iptal et",
+  "cancel_effect": {
+    "defaultMessage": "İptal, bu zamanı diğer hastalara açar ve geri alınamaz. İptal hakkında bir e-posta alacaksınız.",
+    "description": "legal"
+  },
+  "cancel_tick": {
+    "defaultMessage": "Evet, bu randevuyu iptal etmek istiyorum",
+    "description": "legal"
+  },
+  "cancel_button": "Randevuyu iptal et",
+  "cancel_closed": {
+    "defaultMessage": "Randevu 24 saatten kısa bir süre içinde başlıyor ve artık buradan iptal edilemez. İptal etmek için klinikle iletişime geçin.",
+    "description": "legal"
+  },
+  "reschedule": "Başka bir zaman seçmek için Salus uygulamasını açın.",
+  "used_confirm": "Bu randevuyu onayladınız.",
+  "used_cancel": "Bu randevuyu iptal ettiniz.",
+  "invalid": "Bu bağlantı artık çalışmıyor. Randevularınızı görmek için Salus uygulamasını açın.",
+  "rate_limited": "Bağlantınızdan çok fazla istek geldi. Birkaç dakika sonra tekrar deneyin.",
+  "confirm_cancel_required": "İptal etmek için kutuyu işaretleyin ve düğmeye tekrar basın.",
+  "invalid_request": "İstek anlaşılamadı. Mesajınızdaki bağlantıyı yeniden açın.",
+  "forbidden": "İstek reddedildi. Mesajınızdaki bağlantıyı yeniden açın.",
+  "date": "{day} {month} {year} {weekday}, saat {time} ({zone})",
+  "weekdays": "Pazar|Pazartesi|Salı|Çarşamba|Perşembe|Cuma|Cumartesi",
+  "months": "Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık"
+}

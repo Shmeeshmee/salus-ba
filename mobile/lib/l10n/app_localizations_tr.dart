@@ -1781,4 +1781,204 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Diğer kliniklerden paylaşılan ziyaretler';
+
+  @override
+  String get reminders => 'Hatırlatmalar';
+
+  @override
+  String get remindersIntro =>
+      'Kliniklerin size randevularınızı nasıl hatırlatacağını seçin.';
+
+  @override
+  String get remindersPush => 'Anlık bildirimler';
+
+  @override
+  String get remindersEmail => 'E-posta';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Hatırlatmalar ve bekleme listesi teklifleri, yalnızca SMS sunan kliniklerde, profilinizdeki telefon numarasına SMS ile gönderilir. Asla reklam için kullanılmaz.';
+
+  @override
+  String get quietHours => 'Sessiz saatler';
+
+  @override
+  String get quietHoursHint =>
+      'Anlık bildirimler ve SMS\'ler sessiz saatler bitene kadar bekler. O zaman randevuya 30 dakikadan az kalacaksa gönderilmez. E-postalar bekletilmez.';
+
+  @override
+  String get quietHoursFrom => 'Başlangıç';
+
+  @override
+  String get quietHoursUntil => 'Bitiş';
+
+  @override
+  String get remindersSaved => 'Seçimleriniz kaydedildi.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'SMS için profilinizde bir telefon numarası gerekir. Profilim bölümünden ekleyip tekrar deneyin.';
+
+  @override
+  String get remindersInvalid =>
+      'Bu ayarlar kaydedilemedi. Kontrol edip tekrar deneyin.';
+
+  @override
+  String get confirmAttendance => 'Geleceğimi onayla';
+
+  @override
+  String get appointmentConfirmedStatus => 'Onaylandı';
+
+  @override
+  String get appointmentConfirmedNotice => 'Randevunuz onaylandı.';
+
+  @override
+  String get changeTime => 'Saati değiştir';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Saati değiştirmek için son tarih: $date, saat $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Kalan saat değişikliği hakkı: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Yeni bir saat seçin';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Şu anki randevu: $date, saat $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Randevu taşınsın mı?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Randevunuz $date günü saat $time için taşınacak. Mevcut saatiniz serbest bırakılacak.';
+  }
+
+  @override
+  String get moveAppointment => 'Randevuyu taşı';
+
+  @override
+  String get appointmentMoved => 'Randevunuz yeni saate taşındı.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Bu randevunun saati artık uygulamadan değiştirilemez. Lütfen klinikle iletişime geçin.';
+
+  @override
+  String get rescheduleLimit =>
+      'Bu randevunun saati, kliniğin izin verdiği sayıda değiştirildi.';
+
+  @override
+  String get notReschedulable =>
+      'Bu randevunun saati uygulamadan değiştirilemez.';
+
+  @override
+  String get waitlistTitle => 'Bekleme listem';
+
+  @override
+  String get waitlistJoinButton =>
+      'Uygun saat yok mu? Bekleme listesine katılın';
+
+  @override
+  String get waitlistJoinTitle => 'Bekleme listesine katıl';
+
+  @override
+  String get waitlistExplained =>
+      'Bu doktorda bir saat boşaldığında, bekleyen hastalara sırayla teklif edilir. Bir bildirim alırsınız ve saat sizin için ayrılmışken uygulamada randevu alabilirsiniz.';
+
+  @override
+  String get waitlistHowLong => 'Ne kadar süreyle?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days gün',
+      one: '$days gün',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'Günün hangi saatinde?';
+
+  @override
+  String get waitlistAnyTime => 'Herhangi bir saat';
+
+  @override
+  String get waitlistMornings => 'Sabah, 08:00 ile 12:00 arası';
+
+  @override
+  String get waitlistAfternoons => 'Öğleden sonra, 12:00 ile 17:00 arası';
+
+  @override
+  String get waitlistJoin => 'Bekleme listesine katıl';
+
+  @override
+  String get waitlistJoined => 'Bekleme listesindesiniz.';
+
+  @override
+  String get waitlistEmpty => 'Hiçbir bekleme listesinde değilsiniz.';
+
+  @override
+  String get waitlistAPractitioner => 'Bir doktor';
+
+  @override
+  String waitlistUntil(String date) {
+    return '$date tarihine kadar bekliyorsunuz';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Sizin için bir saat boşaldı';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return '$time saatine kadar sizin için ayrıldı';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Kabul ettiğinizde bu saat için randevunuz alınır. Salus\'ta ödeme mümkün olduğunda, kabul ettiğinizde ücreti de ödenir.';
+
+  @override
+  String get waitlistAccept => 'Kabul et ve randevu al';
+
+  @override
+  String get waitlistDecline => 'Reddet';
+
+  @override
+  String get waitlistBooked =>
+      'Randevunuz alındı. Randevularım bölümünde bulabilirsiniz.';
+
+  @override
+  String get waitlistDeclined =>
+      'Saati reddettiniz. Bekleme listesinde kalıyorsunuz.';
+
+  @override
+  String get waitlistWithdraw => 'Bekleme listesinden çık';
+
+  @override
+  String get waitlistWithdrawn => 'Bekleme listesinden çıktınız.';
+
+  @override
+  String get waitlistOff => 'Bu kliniğin bekleme listesi yok.';
+
+  @override
+  String get waitlistTooMany =>
+      'Bu kliniğin bekleme listesinde zaten beş kez varsınız. Önce birinden çıkın.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Bu saat artık sizin için ayrılmış değil. Bekleme listesinde kalıyorsunuz.';
 }

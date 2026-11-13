@@ -28,6 +28,7 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
+	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope
@@ -69,11 +70,15 @@ type Jobs interface {
 	EnqueueBooked(ctx context.Context, id, org string) error
 	EnqueueCancelled(ctx context.Context, id, org string) error
 	EnqueueAccessEnd(ctx context.Context, id, org string) error
-	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
+	// EnqueueReminders enqueues the dispatch of each reminder (appointment_reminder) at its due time, unique by the
+	// reminder: one already there is kept (SAL-33).
+	EnqueueReminders(ctx context.Context, rs []Reminder) error
 	EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
 	// EnqueueSlotFreed hands a freed slot still ahead to the waitlist (waitlist_slot_freed, SAL-35).
 	EnqueueSlotFreed(ctx context.Context, slotID, org string) error
+	// EnqueueRescheduled tells the patient the new time of their rescheduled appointment (SAL-34).
+	EnqueueRescheduled(ctx context.Context, id, org string) error
 }
 
 // StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
@@ -100,14 +105,32 @@ type Ports struct {
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices
 	Payments payments.Provider
+	// SAL-35, the waitlist: Waitlist stores it, Offered moves its slots (slot.Service), OfferJobs enqueues an offer's
+	// expiry and a later hand-on (River jobs), Notices tells the patient of it and Reach whether an offer reaches them
+	// now (notification.Service, SAL-33's deliveries); the clinic's rules are Rules'. A Service that makes offers (HandOn,
+	// ExpireOffer) needs all of them, and Patients for the account to tell.
+	Waitlist  WaitlistRepository
+	Offered   OfferedSlots
+	OfferJobs OfferJobs
+	Notices   OfferNotices
+	Reach     Reachability
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
 	Tokens TokenRepository
-	// NoShows corrects a no-show or an attendance, and Rules gives the clinic's repeat no-show flag (SAL-36,
-	// service_noshow.go): needed only by the api's Service.
+	// Reminders stores the reminders and Rules gives the clinic's reminder offsets (SAL-33): needed by a Service that
+	// books, cancels or dispatches; the reschedule and the patient's actions read the clinic's rules through Rules too.
+	Reminders ReminderRepository
+	Rules     Rules
+	LinkURL   string // the base of Tokens' links
+	// SelfService, Limiter and LinkKey are the patient's confirmation, rescheduling and one-time links (SAL-34): needed
+	// only by the api's Service. LinkKey keys the HMAC that names an address's link-lookup counter, so no address is
+	// readable in Redis.
+	SelfService SelfServiceRepository
+	Limiter     LinkLimiter
+	LinkKey     []byte
+	// NoShows corrects a no-show or an attendance and counts the repeat no-shows (SAL-36, service_noshow.go): needed
+	// only by the api's Service, which reads the clinic's no-show flag through Rules.
 	NoShows NoShowRepository
-	Rules   ClinicRules
-	LinkURL string
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -124,8 +147,8 @@ func NewService(p Ports) *Service {
 // in the public directory first (free, of an active role of a listed clinic); then, in one transaction in
 // the patient's scope with the slot's clinic set, the clinic is checked listed and the patient's consent with
 // it active, the slot is held, the appointment stored, the confirmation and the request of the role's default
-// questionnaire (questionnaire_default_request) enqueued (and the reminder, 24 hours before the start, when that
-// is ahead), and the booking audited. ErrForbidden to staff, ErrProfileRequired
+// questionnaire (questionnaire_default_request) enqueued, its reminders scheduled (service_reminder.go), and the
+// booking audited. ErrForbidden to staff, ErrProfileRequired
 // without a profile, ErrSlotUnavailable for a slot that is not free and ahead or a time the practitioner is
 // booked at, ErrConsentRequired without an active consent; each refusal is audited.
 func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointment, error) {
@@ -220,19 +243,23 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	if err := s.Jobs.EnqueueBooked(ctx, out.ID, out.OrganizationID); err != nil {
-		return Appointment{}, nil, err
+	return out, nil, s.booked(ctx, out, now)
+}
+
+// booked enqueues what follows the booking of a at now, in its transaction (a direct booking's, a waitlist
+// acceptance's): its confirmation, the request of its role's default questionnaire, the refresh of the clinic's
+// statistics and its reminders.
+func (s *Service) booked(ctx context.Context, a Appointment, now time.Time) error {
+	if err := s.Jobs.EnqueueBooked(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
 	}
-	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
-		return Appointment{}, nil, err
+	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
 	}
-	if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
-		return Appointment{}, nil, err
+	if err := s.Stats.EnqueueStatsRefresh(ctx, a.OrganizationID, a.Start); err != nil {
+		return err
 	}
-	if err := s.scheduleReminders(ctx, out, now); err != nil {
-		return Appointment{}, nil, err
-	}
-	return out, nil, nil
+	return s.scheduleReminders(ctx, a, now)
 }
 
 // refuse audits a refused interaction by c in a transaction of its own and returns refusal.
@@ -255,6 +282,9 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, resource, i
 	}
 	e := entry(interaction, resource, id, outcome, purpose)
 	e.AgentAccountID, e.OrganizationID = c.AccountID, c.OrganizationID
+	if c.Via == ViaLink { // the patient's account, through a reminder's one-time link (ADR 0015 "Binding")
+		e.AgentName = agentActionLink
+	}
 	return s.Audit.Record(ctx, e)
 }
 

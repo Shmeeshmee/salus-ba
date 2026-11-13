@@ -53,3 +53,22 @@ WHERE id = @id AND status = 'busy' AND lower(period) > @updated_at;
 -- Retention, as salus_retention: free slots whose end is past their period, in every clinic.
 DELETE FROM slot
 WHERE status = 'free' AND upper(period) < @before::timestamptz;
+
+-- SAL-35: the waitlist.
+
+-- name: LockSlot :one
+-- The waitlist: the slot to hand on, locked until the transaction ends (two jobs of one slot run one after the other).
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+       upper(period)::timestamptz AS end_at
+FROM slot
+WHERE id = @id
+FOR UPDATE;
+
+-- name: TransitionSlot :one
+-- The waitlist: free to busy-tentative (an offer), busy-tentative to busy (its acceptance) or to free (none left); no
+-- row when the slot is not in the status it moves from.
+UPDATE slot
+SET status = @to_status, version_id = version_id + 1, updated_at = @updated_at
+WHERE id = @id AND status = @from_status::text
+RETURNING id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+          upper(period)::timestamptz AS end_at;

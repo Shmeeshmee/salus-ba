@@ -7,12 +7,20 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-// emailQueue is the queue the notifier works (ADR 0007: e-mail is sent by the notifier).
-const emailQueue = "email"
+// emailQueue is the queue the notifier works (ADR 0007: e-mail is sent by the notifier); pushQueue its other one,
+// where a reminder's dispatch runs (SAL-33).
+const (
+	emailQueue = "email"
+	pushQueue  = "push"
+)
+
+// reminderAttempts bounds a reminder's dispatch: a reminder is stale within hours, and the sweep repairs a lost one.
+const reminderAttempts = 10
 
 type riverJobs struct {
 	client *river.Client[pgx.Tx]
@@ -31,8 +39,26 @@ func (j *riverJobs) EnqueueCancelled(ctx context.Context, id, org string) error 
 	return j.insert(ctx, CancelledEmailArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
 }
 
-func (j *riverJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {
-	return j.insert(ctx, ReminderEmailArgs{AppointmentID: id, OrganizationID: org}, at)
+// EnqueueReminders enqueues each reminder's dispatch on the notifier's push queue at its due time, unique by the
+// reminder in River's default states: the sweep's repeat of a job still there (or completed) keeps it.
+func (j *riverJobs) EnqueueReminders(ctx context.Context, rs []Reminder) error {
+	tx, ok := postgres.Tx(ctx)
+	if !ok {
+		return postgres.ErrNoTx
+	}
+	params := make([]river.InsertManyParams, 0, len(rs))
+	for _, r := range rs {
+		params = append(params, river.InsertManyParams{
+			Args: ReminderArgs{ReminderID: r.ID, OrganizationID: r.OrganizationID},
+			InsertOpts: &river.InsertOpts{
+				Queue: pushQueue, MaxAttempts: reminderAttempts, ScheduledAt: r.DueAt, UniqueOpts: river.UniqueOpts{ByArgs: true},
+			},
+		})
+	}
+	if _, err := j.client.InsertManyTx(ctx, tx, params); err != nil {
+		return fmt.Errorf("appointment: enqueue %s: %w", ReminderArgs{}.Kind(), err)
+	}
+	return nil
 }
 
 // EnqueueAccessEnd enqueues consultation_access_end on the default queue, which the worker works.
@@ -55,6 +81,40 @@ func (j *riverJobs) EnqueueQuestionnaireDiscard(ctx context.Context, id, org str
 // EnqueueSlotFreed enqueues waitlist_slot_freed on the default queue, which the worker works.
 func (j *riverJobs) EnqueueSlotFreed(ctx context.Context, slotID, org string) error {
 	return j.insertOn(ctx, river.QueueDefault, SlotFreedArgs{SlotID: slotID, OrganizationID: org}, time.Time{})
+}
+
+// NewRiverOfferJobs returns the OfferJobs port on a River client (SAL-35).
+func NewRiverOfferJobs(client *river.Client[pgx.Tx]) OfferJobs {
+	return &riverJobs{client: client}
+}
+
+// EnqueueHandOn enqueues waitlist_slot_freed for the slot at at (the morning after its candidates' quiet hours), once
+// while one waits or runs (unique by its arguments).
+func (j *riverJobs) EnqueueHandOn(ctx context.Context, slotID, org string, at time.Time) error {
+	tx, ok := postgres.Tx(ctx)
+	if !ok {
+		return postgres.ErrNoTx
+	}
+	_, err := j.client.InsertTx(ctx, tx, SlotFreedArgs{SlotID: slotID, OrganizationID: org}, &river.InsertOpts{
+		Queue: river.QueueDefault, ScheduledAt: at,
+		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
+			rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateRetryable, rivertype.JobStateScheduled,
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("appointment: enqueue a later hand-on: %w", err)
+	}
+	return nil
+}
+
+// EnqueueOfferExpire enqueues waitlist_offer_expire on the default queue, which the worker works, at the offer's end.
+func (j *riverJobs) EnqueueOfferExpire(ctx context.Context, offerID, org string, at time.Time) error {
+	return j.insertOn(ctx, river.QueueDefault, OfferExpireArgs{OfferID: offerID, OrganizationID: org}, at)
+}
+
+// EnqueueRescheduled enqueues appointment_rescheduled_email on the email queue (SAL-34).
+func (j *riverJobs) EnqueueRescheduled(ctx context.Context, id, org string) error {
+	return j.insert(ctx, RescheduledEmailArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
 }
 
 // insert enqueues args on the email queue in the transaction in ctx, to run at at (zero for now).
