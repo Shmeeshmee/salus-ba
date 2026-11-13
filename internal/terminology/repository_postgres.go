@@ -541,3 +541,40 @@ func (r *postgresCatalogRepository) PutGroupName(ctx context.Context, group stri
 		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, GroupCode: group, Language: n.Language,
 	})
 }
+
+func (r *postgresRepository) DrugCodes(ctx context.Context, ids []string) (map[string]string, error) {
+	us := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			us = append(us, u)
+		}
+	}
+	out := map[string]string{}
+	if len(us) == 0 {
+		return out, nil
+	}
+	rows, err := r.q(ctx).DrugCodes(ctx, us)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.ID.String()] = row.Atc.String
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) DrugLabelled(ctx context.Context, id, label string) (string, bool, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return "", false, nil
+	}
+	atc, err := r.q(ctx).DrugLabelled(ctx, terminologydb.DrugLabelledParams{ID: u, Label: label})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return "", false, nil
+	case err != nil:
+		return "", false, err
+	}
+	return atc.String, true, nil
+}

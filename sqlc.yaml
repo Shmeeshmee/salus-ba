@@ -12,6 +12,14 @@ overrides:
 sql:
   - engine: postgresql
     schema: migrations
+    queries: internal/allergyintolerance/query.sql
+    gen:
+      go:
+        package: allergyintolerancedb
+        out: internal/allergyintolerance/allergyintolerancedb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/auditevent/query.sql
     gen:
       go:
@@ -185,6 +193,14 @@ sql:
       go:
         package: communicationdb
         out: internal/communication/communicationdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/medicationstatement/query.sql
+    gen:
+      go:
+        package: medicationstatementdb
+        out: internal/medicationstatement/medicationstatementdb
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations

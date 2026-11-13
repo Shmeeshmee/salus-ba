@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:salus_api/api.dart';
 
+import 'allergies_screen.dart';
 import 'booking.dart';
+import 'medications_screen.dart';
 import 'messages.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
 
 /// The patient's profile (docs/booking/SPEC.md "Profile"): created on the first save, then updated at the version
-/// it was read.
+/// it was read. A saved profile also opens the patient's allergies and current medications (SAL-41).
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
@@ -157,7 +159,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         if (_error != null) ui.Message(_error!, error: true),
+        if (widget.profile case final profile?) ...[
+          OutlinedButton(
+            onPressed: () => _open(AllergiesScreen(booking: widget.booking, patientId: profile.id)),
+            child: Text(t.allergies),
+          ),
+          OutlinedButton(
+            onPressed: () => _open(MedicationsScreen(booking: widget.booking, patientId: profile.id)),
+            child: Text(t.currentMedications),
+          ),
+        ],
       ],
     );
   }
+
+  void _open(Widget screen) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
 }

@@ -26,6 +26,7 @@ func TestHistorySchemas_MatchTheirGoTypes(t *testing.T) {
 		"Dosage":                   medicationstatement.Dosage{},
 		"AllergyIntoleranceInput":  allergyintolerance.Input{},
 		"MedicationStatementInput": medicationstatement.Input{},
+		"EntryWritten":             allergyintolerance.EntryWritten{},
 		"SharingCandidate":         consent.Candidate{},
 		"HistorySharing":           consent.Sharing{},
 		"SetHistorySharingRequest": consent.SetSharing{},
@@ -75,5 +76,15 @@ func TestHistoryEnums_AreTheGoConstants(t *testing.T) {
 	}
 	if got, want := s["OpenItem"].Properties["type"].Enum, []string{string(history.OpenQuestionnaire), string(history.OpenDraft)}; !slices.Equal(got, want) {
 		t.Errorf("OpenItem.type enum = %v, want %v", got, want)
+	}
+}
+
+// The medications answer a write with the same EntryWritten as the allergies.
+func TestEntryWritten_IsOneShape(t *testing.T) {
+	t.Parallel()
+	a, aReq := jsonFields(allergyintolerance.EntryWritten{})
+	m, mReq := jsonFields(medicationstatement.EntryWritten{})
+	if !slices.Equal(a, m) || !slices.Equal(aReq, mReq) {
+		t.Errorf("medicationstatement.EntryWritten has %v (required %v), allergyintolerance's %v (%v)", m, mReq, a, aReq)
 	}
 }

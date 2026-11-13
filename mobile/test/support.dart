@@ -109,6 +109,14 @@ http.Response jsonResponse(int status, [Object? body, Map<String, String> header
   headers: {'content-type': 'application/json', ...headers},
 );
 
+/// A JSON request body without the null fields the generated client writes for absent ones.
+Map<String, Object?> sent(String json) => _present(jsonDecode(json) as Map<String, Object?>);
+
+Map<String, Object?> _present(Map<String, Object?> m) => {
+  for (final e in m.entries)
+    if (e.value != null) e.key: e.value is Map ? _present((e.value as Map).cast<String, Object?>()) : e.value,
+};
+
 Map<String, Object?> account({String role = 'patient'}) => {
   'id': '0b8f3c1e-6f1a-4c9e-9d2b-3a1f5e7c9d01',
   'email': email,
@@ -389,3 +397,13 @@ Future<void> tapOutlined(WidgetTester tester, String label) =>
     tapFound(tester, find.widgetWithText(OutlinedButton, label));
 
 Future<void> tapText(WidgetTester tester, String text) => tapFound(tester, find.text(text));
+
+/// Opens the drop-down whose label or value is [field] and picks [option] in its menu.
+Future<void> choose(WidgetTester tester, String field, String option) async {
+  final dropdown = find.ancestor(
+    of: find.text(field).first,
+    matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+  );
+  await tapFound(tester, dropdown.first);
+  await tapFound(tester, find.text(option).last);
+}

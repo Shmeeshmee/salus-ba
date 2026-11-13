@@ -2111,6 +2111,564 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Access revoked.'**
   String get chatRevoked;
+
+  /// SAL-41: Profile button and screen title.
+  ///
+  /// In en, this message translates to:
+  /// **'Allergies'**
+  String get allergies;
+
+  /// SAL-41: Profile button and screen title.
+  ///
+  /// In en, this message translates to:
+  /// **'Current medications'**
+  String get currentMedications;
+
+  /// [legal] SAL-41: Allergies screen: who sees the profile's allergies.
+  ///
+  /// In en, this message translates to:
+  /// **'Clinics you have given your consent to see the allergies in your profile when you have an appointment with them.'**
+  String get allergiesIntro;
+
+  /// [legal] SAL-41: Medications screen: who sees the profile's medications.
+  ///
+  /// In en, this message translates to:
+  /// **'Clinics you have given your consent to see the medications in your profile when you have an appointment with them.'**
+  String get medicationsIntro;
+
+  /// SAL-41: Allergies screen, empty.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not added any allergies.'**
+  String get noAllergies;
+
+  /// SAL-41: Medications screen, empty.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not added any medications.'**
+  String get noMedications;
+
+  /// SAL-41: Button and form title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an allergy'**
+  String get addAllergy;
+
+  /// SAL-41: Button and form title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a medication'**
+  String get addMedication;
+
+  /// SAL-41: Form title when changing an allergy.
+  ///
+  /// In en, this message translates to:
+  /// **'Change allergy'**
+  String get changeAllergy;
+
+  /// SAL-41: Form title when changing a medication.
+  ///
+  /// In en, this message translates to:
+  /// **'Change medication'**
+  String get changeMedication;
+
+  /// SAL-41: Button on the patient's own allergy or medication: opens the form.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get change;
+
+  /// SAL-41: Allergy form: what the patient is allergic to.
+  ///
+  /// In en, this message translates to:
+  /// **'Substance or food'**
+  String get allergySubstance;
+
+  /// SAL-41: Medication form: the medication's name.
+  ///
+  /// In en, this message translates to:
+  /// **'Medication'**
+  String get medicationName;
+
+  /// SAL-41: Under the substance or medication field, which suggests terms.
+  ///
+  /// In en, this message translates to:
+  /// **'Type to search, or write it in your own words.'**
+  String get termSearchHint;
+
+  /// SAL-41: Allergy form: the allergy's category.
+  ///
+  /// In en, this message translates to:
+  /// **'Type (optional)'**
+  String get allergyCategory;
+
+  /// SAL-41: A drop-down's empty choice.
+  ///
+  /// In en, this message translates to:
+  /// **'Not specified'**
+  String get notSpecified;
+
+  /// SAL-41: Allergy category.
+  ///
+  /// In en, this message translates to:
+  /// **'Food'**
+  String get categoryFood;
+
+  /// SAL-41: Allergy category.
+  ///
+  /// In en, this message translates to:
+  /// **'Medication'**
+  String get categoryMedication;
+
+  /// SAL-41: Allergy category (for example pollen or dust).
+  ///
+  /// In en, this message translates to:
+  /// **'Environment'**
+  String get categoryEnvironment;
+
+  /// SAL-41: Allergy category (FHIR biologic: for example a vaccine or a blood product).
+  ///
+  /// In en, this message translates to:
+  /// **'Biological product'**
+  String get categoryBiologic;
+
+  /// SAL-41: Allergy form: the reaction, up to 200 characters.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction (optional)'**
+  String get reactionOptional;
+
+  /// SAL-41: Allergy form: the reaction's severity; only with a reaction.
+  ///
+  /// In en, this message translates to:
+  /// **'Severity'**
+  String get severity;
+
+  /// SAL-41: Reaction severity.
+  ///
+  /// In en, this message translates to:
+  /// **'Mild'**
+  String get severityMild;
+
+  /// SAL-41: Reaction severity.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderate'**
+  String get severityModerate;
+
+  /// SAL-41: Reaction severity.
+  ///
+  /// In en, this message translates to:
+  /// **'Severe'**
+  String get severitySevere;
+
+  /// SAL-41: Allergy and medication form: the status drop-down.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get entryStatus;
+
+  /// SAL-41: Allergy clinical status.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get allergyActive;
+
+  /// SAL-41: Allergy clinical status.
+  ///
+  /// In en, this message translates to:
+  /// **'Inactive'**
+  String get allergyInactive;
+
+  /// SAL-41: Allergy clinical status.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolved'**
+  String get allergyResolved;
+
+  /// SAL-41: Allergy card; the reaction as written.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction: {reaction}'**
+  String reactionLine(String reaction);
+
+  /// SAL-41: Allergy card; the reaction as written and its severity (severityMild...).
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction: {reaction} ({severity})'**
+  String reactionWithSeverity(String reaction, String severity);
+
+  /// SAL-41: Allergy or medication card: a clinician confirmed it.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed by a clinician'**
+  String get confirmedByClinician;
+
+  /// SAL-41: Allergy or medication card: a clinic's entry, not the patient's.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded by a clinic during one of your visits'**
+  String get recordedByClinic;
+
+  /// SAL-41: Form of a confirmed entry.
+  ///
+  /// In en, this message translates to:
+  /// **'If you change this entry, it is no longer confirmed by a clinician.'**
+  String get confirmedChangeNote;
+
+  /// SAL-41: Substance or medication field: empty or too long.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name, up to 200 characters.'**
+  String get nameRequired;
+
+  /// SAL-41: Button on a clinic's entry, and the confirmation dialog's button.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to my profile'**
+  String get addToProfile;
+
+  /// SAL-41: Dialog title before a clinic's entry is added to the profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to your profile?'**
+  String get addToProfileTitle;
+
+  /// [legal] SAL-41: Dialog text: the effect of adding a clinic's entry to the profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Every clinic you have given your consent to will then see it, without the name of the clinic that recorded it.'**
+  String get addToProfileBody;
+
+  /// SAL-41: After a clinic's entry was added to the profile.
+  ///
+  /// In en, this message translates to:
+  /// **'It is now in your profile.'**
+  String get addedToProfile;
+
+  /// SAL-41: Dialog title before an allergy or medication is removed.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this entry?'**
+  String get removeEntryTitle;
+
+  /// [legal] SAL-41: Dialog text: the effect of a removal.
+  ///
+  /// In en, this message translates to:
+  /// **'It will no longer be shown to you or to any clinic. If a clinic recorded or confirmed it, it stays in your medical record, marked as removed.'**
+  String get removeEntryBody;
+
+  /// SAL-41: After a removal.
+  ///
+  /// In en, this message translates to:
+  /// **'The entry is removed.'**
+  String get entryRemoved;
+
+  /// SAL-41: After an allergy or medication was added or changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to your profile.'**
+  String get entrySaved;
+
+  /// SAL-41: Write refused: the entry changed since it was read (412).
+  ///
+  /// In en, this message translates to:
+  /// **'This entry was changed in the meantime. The latest version is shown.'**
+  String get entryChanged;
+
+  /// SAL-41: Write refused: invalid input (400).
+  ///
+  /// In en, this message translates to:
+  /// **'Some details are not valid. Check them and try again.'**
+  String get entryInvalid;
+
+  /// SAL-41: Write refused (403).
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot change this entry.'**
+  String get entryNotAllowed;
+
+  /// SAL-41: Write refused: no such entry (404).
+  ///
+  /// In en, this message translates to:
+  /// **'This entry is no longer available.'**
+  String get entryNotFound;
+
+  /// SAL-41: Medication form heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Dose (optional)'**
+  String get doseHeading;
+
+  /// SAL-41: Medication form: the dose's number.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get doseAmount;
+
+  /// SAL-41: Medication form: the dose's unit.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit'**
+  String get doseUnit;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'milligrams (mg)'**
+  String get unitMg;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'grams (g)'**
+  String get unitG;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'micrograms (µg)'**
+  String get unitUg;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'millilitres (mL)'**
+  String get unitMl;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'international units (IU)'**
+  String get unitIu;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'tablets'**
+  String get unitTablet;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'capsules'**
+  String get unitCapsule;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'drops'**
+  String get unitDrop;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'puffs (inhaler)'**
+  String get unitPuff;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'patches'**
+  String get unitPatch;
+
+  /// SAL-41: Medication form: only one part of the dose.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter both the amount and the unit, or neither.'**
+  String get doseBoth;
+
+  /// SAL-41: A number field: 0 or less.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a number above 0.'**
+  String get numberAboveZero;
+
+  /// SAL-41: Medication form heading.
+  ///
+  /// In en, this message translates to:
+  /// **'How often (optional)'**
+  String get howOftenHeading;
+
+  /// SAL-41: Medication form: how many times per period.
+  ///
+  /// In en, this message translates to:
+  /// **'Times'**
+  String get timesLabel;
+
+  /// SAL-41: Medication form: the period's number.
+  ///
+  /// In en, this message translates to:
+  /// **'Every'**
+  String get everyLabel;
+
+  /// SAL-41: Medication form: the period's unit.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit of time'**
+  String get periodUnitLabel;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'hours'**
+  String get periodHours;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'days'**
+  String get periodDays;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'weeks'**
+  String get periodWeeks;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'months'**
+  String get periodMonths;
+
+  /// SAL-41: Medication form: how often only partly filled in.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill in all three, or leave them empty.'**
+  String get howOftenAll;
+
+  /// SAL-41: Medication form checkbox and card line.
+  ///
+  /// In en, this message translates to:
+  /// **'As needed'**
+  String get asNeeded;
+
+  /// SAL-41: Medication status.
+  ///
+  /// In en, this message translates to:
+  /// **'Taking it now'**
+  String get medicationActive;
+
+  /// SAL-41: Medication status.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped'**
+  String get medicationStopped;
+
+  /// SAL-41: A dose; value is the number written for the language.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} mg'**
+  String doseMg(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} g'**
+  String doseG(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} µg'**
+  String doseUg(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} mL'**
+  String doseMl(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} IU'**
+  String doseIu(String value);
+
+  /// SAL-41: A dose; count is the number, value the number written for the language.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} tablet} other{{value} tablets}}'**
+  String doseTablet(num count, String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} capsule} other{{value} capsules}}'**
+  String doseCapsule(num count, String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} drop} other{{value} drops}}'**
+  String doseDrop(num count, String value);
+
+  /// SAL-41: A dose (inhaler).
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} puff} other{{value} puffs}}'**
+  String dosePuff(num count, String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} patch} other{{value} patches}}'**
+  String dosePatch(num count, String value);
+
+  /// SAL-41: Medication card; the dose (doseMg...).
+  ///
+  /// In en, this message translates to:
+  /// **'Dose: {dose}'**
+  String doseLine(String dose);
+
+  /// SAL-41: Medication card: how many times per hour.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× an hour'**
+  String howOftenPerHour(int frequency);
+
+  /// SAL-41: Medication card: how many times per day.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× a day'**
+  String howOftenPerDay(int frequency);
+
+  /// SAL-41: Medication card: how many times per week.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× a week'**
+  String howOftenPerWeek(int frequency);
+
+  /// SAL-41: Medication card: how many times per month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× a month'**
+  String howOftenPerMonth(int frequency);
+
+  /// SAL-41: Medication card: times per a period other than 1; every is the period written for the language.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} hour} other{{frequency}× every {every} hours}}'**
+  String howOftenEveryHours(num period, int frequency, String every);
+
+  /// SAL-41: As howOftenEveryHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} day} other{{frequency}× every {every} days}}'**
+  String howOftenEveryDays(num period, int frequency, String every);
+
+  /// SAL-41: As howOftenEveryHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} week} other{{frequency}× every {every} weeks}}'**
+  String howOftenEveryWeeks(num period, int frequency, String every);
+
+  /// SAL-41: As howOftenEveryHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} month} other{{frequency}× every {every} months}}'**
+  String howOftenEveryMonths(num period, int frequency, String every);
 }
 
 class _AppLocalizationsDelegate

@@ -1661,5 +1661,524 @@
   "chatRevoked": "Access revoked.",
   "@chatRevoked": {
     "description": "[legal] After a revocation."
+  },
+  "allergies": "Allergies",
+  "@allergies": {
+    "description": "SAL-41: Profile button and screen title."
+  },
+  "currentMedications": "Current medications",
+  "@currentMedications": {
+    "description": "SAL-41: Profile button and screen title."
+  },
+  "allergiesIntro": "Clinics you have given your consent to see the allergies in your profile when you have an appointment with them.",
+  "@allergiesIntro": {
+    "description": "[legal] SAL-41: Allergies screen: who sees the profile's allergies."
+  },
+  "medicationsIntro": "Clinics you have given your consent to see the medications in your profile when you have an appointment with them.",
+  "@medicationsIntro": {
+    "description": "[legal] SAL-41: Medications screen: who sees the profile's medications."
+  },
+  "noAllergies": "You have not added any allergies.",
+  "@noAllergies": {
+    "description": "SAL-41: Allergies screen, empty."
+  },
+  "noMedications": "You have not added any medications.",
+  "@noMedications": {
+    "description": "SAL-41: Medications screen, empty."
+  },
+  "addAllergy": "Add an allergy",
+  "@addAllergy": {
+    "description": "SAL-41: Button and form title."
+  },
+  "addMedication": "Add a medication",
+  "@addMedication": {
+    "description": "SAL-41: Button and form title."
+  },
+  "changeAllergy": "Change allergy",
+  "@changeAllergy": {
+    "description": "SAL-41: Form title when changing an allergy."
+  },
+  "changeMedication": "Change medication",
+  "@changeMedication": {
+    "description": "SAL-41: Form title when changing a medication."
+  },
+  "change": "Change",
+  "@change": {
+    "description": "SAL-41: Button on the patient's own allergy or medication: opens the form."
+  },
+  "allergySubstance": "Substance or food",
+  "@allergySubstance": {
+    "description": "SAL-41: Allergy form: what the patient is allergic to."
+  },
+  "medicationName": "Medication",
+  "@medicationName": {
+    "description": "SAL-41: Medication form: the medication's name."
+  },
+  "termSearchHint": "Type to search, or write it in your own words.",
+  "@termSearchHint": {
+    "description": "SAL-41: Under the substance or medication field, which suggests terms."
+  },
+  "allergyCategory": "Type (optional)",
+  "@allergyCategory": {
+    "description": "SAL-41: Allergy form: the allergy's category."
+  },
+  "notSpecified": "Not specified",
+  "@notSpecified": {
+    "description": "SAL-41: A drop-down's empty choice."
+  },
+  "categoryFood": "Food",
+  "@categoryFood": {
+    "description": "SAL-41: Allergy category."
+  },
+  "categoryMedication": "Medication",
+  "@categoryMedication": {
+    "description": "SAL-41: Allergy category."
+  },
+  "categoryEnvironment": "Environment",
+  "@categoryEnvironment": {
+    "description": "SAL-41: Allergy category (for example pollen or dust)."
+  },
+  "categoryBiologic": "Biological product",
+  "@categoryBiologic": {
+    "description": "SAL-41: Allergy category (FHIR biologic: for example a vaccine or a blood product)."
+  },
+  "reactionOptional": "Reaction (optional)",
+  "@reactionOptional": {
+    "description": "SAL-41: Allergy form: the reaction, up to 200 characters."
+  },
+  "severity": "Severity",
+  "@severity": {
+    "description": "SAL-41: Allergy form: the reaction's severity; only with a reaction."
+  },
+  "severityMild": "Mild",
+  "@severityMild": {
+    "description": "SAL-41: Reaction severity."
+  },
+  "severityModerate": "Moderate",
+  "@severityModerate": {
+    "description": "SAL-41: Reaction severity."
+  },
+  "severitySevere": "Severe",
+  "@severitySevere": {
+    "description": "SAL-41: Reaction severity."
+  },
+  "entryStatus": "Status",
+  "@entryStatus": {
+    "description": "SAL-41: Allergy and medication form: the status drop-down."
+  },
+  "allergyActive": "Active",
+  "@allergyActive": {
+    "description": "SAL-41: Allergy clinical status."
+  },
+  "allergyInactive": "Inactive",
+  "@allergyInactive": {
+    "description": "SAL-41: Allergy clinical status."
+  },
+  "allergyResolved": "Resolved",
+  "@allergyResolved": {
+    "description": "SAL-41: Allergy clinical status."
+  },
+  "reactionLine": "Reaction: {reaction}",
+  "@reactionLine": {
+    "description": "SAL-41: Allergy card; the reaction as written.",
+    "placeholders": {
+      "reaction": {
+        "type": "String"
+      }
+    }
+  },
+  "reactionWithSeverity": "Reaction: {reaction} ({severity})",
+  "@reactionWithSeverity": {
+    "description": "SAL-41: Allergy card; the reaction as written and its severity (severityMild...).",
+    "placeholders": {
+      "reaction": {
+        "type": "String"
+      },
+      "severity": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmedByClinician": "Confirmed by a clinician",
+  "@confirmedByClinician": {
+    "description": "SAL-41: Allergy or medication card: a clinician confirmed it."
+  },
+  "recordedByClinic": "Recorded by a clinic during one of your visits",
+  "@recordedByClinic": {
+    "description": "SAL-41: Allergy or medication card: a clinic's entry, not the patient's."
+  },
+  "confirmedChangeNote": "If you change this entry, it is no longer confirmed by a clinician.",
+  "@confirmedChangeNote": {
+    "description": "SAL-41: Form of a confirmed entry."
+  },
+  "nameRequired": "Enter a name, up to 200 characters.",
+  "@nameRequired": {
+    "description": "SAL-41: Substance or medication field: empty or too long."
+  },
+  "addToProfile": "Add to my profile",
+  "@addToProfile": {
+    "description": "SAL-41: Button on a clinic's entry, and the confirmation dialog's button."
+  },
+  "addToProfileTitle": "Add to your profile?",
+  "@addToProfileTitle": {
+    "description": "SAL-41: Dialog title before a clinic's entry is added to the profile."
+  },
+  "addToProfileBody": "Every clinic you have given your consent to will then see it, without the name of the clinic that recorded it.",
+  "@addToProfileBody": {
+    "description": "[legal] SAL-41: Dialog text: the effect of adding a clinic's entry to the profile."
+  },
+  "addedToProfile": "It is now in your profile.",
+  "@addedToProfile": {
+    "description": "SAL-41: After a clinic's entry was added to the profile."
+  },
+  "removeEntryTitle": "Remove this entry?",
+  "@removeEntryTitle": {
+    "description": "SAL-41: Dialog title before an allergy or medication is removed."
+  },
+  "removeEntryBody": "It will no longer be shown to you or to any clinic. If a clinic recorded or confirmed it, it stays in your medical record, marked as removed.",
+  "@removeEntryBody": {
+    "description": "[legal] SAL-41: Dialog text: the effect of a removal."
+  },
+  "entryRemoved": "The entry is removed.",
+  "@entryRemoved": {
+    "description": "SAL-41: After a removal."
+  },
+  "entrySaved": "Saved to your profile.",
+  "@entrySaved": {
+    "description": "SAL-41: After an allergy or medication was added or changed."
+  },
+  "entryChanged": "This entry was changed in the meantime. The latest version is shown.",
+  "@entryChanged": {
+    "description": "SAL-41: Write refused: the entry changed since it was read (412)."
+  },
+  "entryInvalid": "Some details are not valid. Check them and try again.",
+  "@entryInvalid": {
+    "description": "SAL-41: Write refused: invalid input (400)."
+  },
+  "entryNotAllowed": "You cannot change this entry.",
+  "@entryNotAllowed": {
+    "description": "SAL-41: Write refused (403)."
+  },
+  "entryNotFound": "This entry is no longer available.",
+  "@entryNotFound": {
+    "description": "SAL-41: Write refused: no such entry (404)."
+  },
+  "doseHeading": "Dose (optional)",
+  "@doseHeading": {
+    "description": "SAL-41: Medication form heading."
+  },
+  "doseAmount": "Amount",
+  "@doseAmount": {
+    "description": "SAL-41: Medication form: the dose's number."
+  },
+  "doseUnit": "Unit",
+  "@doseUnit": {
+    "description": "SAL-41: Medication form: the dose's unit."
+  },
+  "unitMg": "milligrams (mg)",
+  "@unitMg": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitG": "grams (g)",
+  "@unitG": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitUg": "micrograms (µg)",
+  "@unitUg": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitMl": "millilitres (mL)",
+  "@unitMl": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitIu": "international units (IU)",
+  "@unitIu": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitTablet": "tablets",
+  "@unitTablet": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitCapsule": "capsules",
+  "@unitCapsule": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitDrop": "drops",
+  "@unitDrop": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitPuff": "puffs (inhaler)",
+  "@unitPuff": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitPatch": "patches",
+  "@unitPatch": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "doseBoth": "Enter both the amount and the unit, or neither.",
+  "@doseBoth": {
+    "description": "SAL-41: Medication form: only one part of the dose."
+  },
+  "numberAboveZero": "Enter a number above 0.",
+  "@numberAboveZero": {
+    "description": "SAL-41: A number field: 0 or less."
+  },
+  "howOftenHeading": "How often (optional)",
+  "@howOftenHeading": {
+    "description": "SAL-41: Medication form heading."
+  },
+  "timesLabel": "Times",
+  "@timesLabel": {
+    "description": "SAL-41: Medication form: how many times per period."
+  },
+  "everyLabel": "Every",
+  "@everyLabel": {
+    "description": "SAL-41: Medication form: the period's number."
+  },
+  "periodUnitLabel": "Unit of time",
+  "@periodUnitLabel": {
+    "description": "SAL-41: Medication form: the period's unit."
+  },
+  "periodHours": "hours",
+  "@periodHours": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "periodDays": "days",
+  "@periodDays": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "periodWeeks": "weeks",
+  "@periodWeeks": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "periodMonths": "months",
+  "@periodMonths": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "howOftenAll": "Fill in all three, or leave them empty.",
+  "@howOftenAll": {
+    "description": "SAL-41: Medication form: how often only partly filled in."
+  },
+  "asNeeded": "As needed",
+  "@asNeeded": {
+    "description": "SAL-41: Medication form checkbox and card line."
+  },
+  "medicationActive": "Taking it now",
+  "@medicationActive": {
+    "description": "SAL-41: Medication status."
+  },
+  "medicationStopped": "Stopped",
+  "@medicationStopped": {
+    "description": "SAL-41: Medication status."
+  },
+  "doseMg": "{value} mg",
+  "@doseMg": {
+    "description": "SAL-41: A dose; value is the number written for the language.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseG": "{value} g",
+  "@doseG": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseUg": "{value} µg",
+  "@doseUg": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseMl": "{value} mL",
+  "@doseMl": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseIu": "{value} IU",
+  "@doseIu": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseTablet": "{count, plural, one{{value} tablet} other{{value} tablets}}",
+  "@doseTablet": {
+    "description": "SAL-41: A dose; count is the number, value the number written for the language.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseCapsule": "{count, plural, one{{value} capsule} other{{value} capsules}}",
+  "@doseCapsule": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseDrop": "{count, plural, one{{value} drop} other{{value} drops}}",
+  "@doseDrop": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "dosePuff": "{count, plural, one{{value} puff} other{{value} puffs}}",
+  "@dosePuff": {
+    "description": "SAL-41: A dose (inhaler).",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "dosePatch": "{count, plural, one{{value} patch} other{{value} patches}}",
+  "@dosePatch": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseLine": "Dose: {dose}",
+  "@doseLine": {
+    "description": "SAL-41: Medication card; the dose (doseMg...).",
+    "placeholders": {
+      "dose": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenPerHour": "{frequency}× an hour",
+  "@howOftenPerHour": {
+    "description": "SAL-41: Medication card: how many times per hour.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenPerDay": "{frequency}× a day",
+  "@howOftenPerDay": {
+    "description": "SAL-41: Medication card: how many times per day.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenPerWeek": "{frequency}× a week",
+  "@howOftenPerWeek": {
+    "description": "SAL-41: Medication card: how many times per week.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenPerMonth": "{frequency}× a month",
+  "@howOftenPerMonth": {
+    "description": "SAL-41: Medication card: how many times per month.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenEveryHours": "{period, plural, one{{frequency}× every {every} hour} other{{frequency}× every {every} hours}}",
+  "@howOftenEveryHours": {
+    "description": "SAL-41: Medication card: times per a period other than 1; every is the period written for the language.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenEveryDays": "{period, plural, one{{frequency}× every {every} day} other{{frequency}× every {every} days}}",
+  "@howOftenEveryDays": {
+    "description": "SAL-41: As howOftenEveryHours.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenEveryWeeks": "{period, plural, one{{frequency}× every {every} week} other{{frequency}× every {every} weeks}}",
+  "@howOftenEveryWeeks": {
+    "description": "SAL-41: As howOftenEveryHours.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenEveryMonths": "{period, plural, one{{frequency}× every {every} month} other{{frequency}× every {every} months}}",
+  "@howOftenEveryMonths": {
+    "description": "SAL-41: As howOftenEveryHours.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
   }
 }
