@@ -69,7 +69,9 @@ type Jobs interface {
 	EnqueueBooked(ctx context.Context, id, org string) error
 	EnqueueCancelled(ctx context.Context, id, org string) error
 	EnqueueAccessEnd(ctx context.Context, id, org string) error
-	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
+	// EnqueueReminders enqueues the dispatch of each reminder (appointment_reminder) at its due time, unique by the
+	// reminder: one already there is kept (SAL-33).
+	EnqueueReminders(ctx context.Context, rs []Reminder) error
 	EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
 	// EnqueueSlotFreed hands a freed slot still ahead to the waitlist (waitlist_slot_freed, SAL-35).
@@ -104,13 +106,16 @@ type Ports struct {
 	Payments payments.Provider
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
-	Tokens  TokenRepository
-	LinkURL string
-	// SelfService, Settings, Limiter and LinkKey are the patient's confirmation, rescheduling and one-time links
-	// (SAL-34): needed only by the api's Service. LinkKey keys the HMAC that names an address's link-lookup counter, so
-	// no address is readable in Redis.
+	Tokens TokenRepository
+	// Reminders stores the reminders and Rules gives the clinic's reminder offsets (SAL-33): needed by a Service that
+	// books, cancels or dispatches; the reschedule and the patient's actions read the clinic's rules through Rules too.
+	Reminders ReminderRepository
+	Rules     Rules
+	LinkURL   string // the base of Tokens' links
+	// SelfService, Limiter and LinkKey are the patient's confirmation, rescheduling and one-time links (SAL-34): needed
+	// only by the api's Service. LinkKey keys the HMAC that names an address's link-lookup counter, so no address is
+	// readable in Redis.
 	SelfService SelfServiceRepository
-	Settings    ClinicSettings
 	Limiter     LinkLimiter
 	LinkKey     []byte
 }
@@ -129,8 +134,8 @@ func NewService(p Ports) *Service {
 // in the public directory first (free, of an active role of a listed clinic); then, in one transaction in
 // the patient's scope with the slot's clinic set, the clinic is checked listed and the patient's consent with
 // it active, the slot is held, the appointment stored, the confirmation and the request of the role's default
-// questionnaire (questionnaire_default_request) enqueued (and the reminder, 24 hours before the start, when that
-// is ahead), and the booking audited. ErrForbidden to staff, ErrProfileRequired
+// questionnaire (questionnaire_default_request) enqueued, its reminders scheduled (service_reminder.go), and the
+// booking audited. ErrForbidden to staff, ErrProfileRequired
 // without a profile, ErrSlotUnavailable for a slot that is not free and ahead or a time the practitioner is
 // booked at, ErrConsentRequired without an active consent; each refusal is audited.
 func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointment, error) {

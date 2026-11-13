@@ -70,13 +70,13 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	}
 	events, jobs, refreshes := len(t.f.audit.events), len(t.f.jobs.enqueued), len(t.f.stats.refreshes)
 	appts, held, released := slices.Clone(t.f.repo.appts), slices.Clone(t.f.slots.held), slices.Clone(t.f.slots.released)
-	changes, tokens := slices.Clone(t.f.repo.changes), slices.Clone(t.f.tokens.stored)
+	changes, tokens, reminders := slices.Clone(t.f.repo.changes), slices.Clone(t.f.tokens.stored), slices.Clone(t.f.reminders.reminders)
 	t.f.repo.patient, t.f.repo.clinic, t.f.repo.notice = "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.jobs.enqueued, t.f.stats.refreshes = t.f.audit.events[:events], t.f.jobs.enqueued[:jobs], t.f.stats.refreshes[:refreshes]
 		t.f.repo.appts, t.f.slots.held, t.f.slots.released = appts, held, released
-		t.f.repo.changes, t.f.tokens.stored = changes, tokens
+		t.f.repo.changes, t.f.tokens.stored, t.f.reminders.reminders = changes, tokens, reminders
 	}
 	return err
 }
@@ -456,8 +456,13 @@ func (j *fakeJobs) EnqueueRescheduled(ctx context.Context, id, org string) error
 	return j.add(ctx, "rescheduled "+id+" "+org)
 }
 
-func (j *fakeJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {
-	return j.add(ctx, fmt.Sprintf("reminder %s %s at %s", id, org, at.Format(time.RFC3339)))
+func (j *fakeJobs) EnqueueReminders(ctx context.Context, rs []appointment.Reminder) error {
+	for _, r := range rs {
+		if err := j.add(ctx, fmt.Sprintf("reminder %s %s at %s", r.ID, r.OrganizationID, r.DueAt.Format(time.RFC3339))); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // fakeStatsQueue keeps the clinic-day refreshes enqueued, in a transaction only.
@@ -497,8 +502,11 @@ type fixture struct {
 	jobs     *fakeJobs
 	tokens   *fakeTokens
 	stats    *fakeStatsQueue
-	audit    *fakeAuditor
-	svc      *appointment.Service
+	// reminders and rules are SAL-33's (fakes_reminder_test.go).
+	reminders *fakeReminders
+	rules     *fakeRules
+	audit     *fakeAuditor
+	svc       *appointment.Service
 }
 
 // linkURL is the fixture's base of one-time links.
@@ -525,10 +533,11 @@ func newFixture(appts ...appointment.Appointment) *fixture {
 	}
 	f.repo = &fakeRepository{consents: f.consents, appts: appts}
 	f.patients = &fakePatients{repo: f.repo}
+	f.reminders, f.rules = &fakeReminders{repo: f.repo}, &fakeRules{}
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,
-		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats,
+		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats, Reminders: f.reminders, Rules: f.rules,
 	})
 	return f
 }

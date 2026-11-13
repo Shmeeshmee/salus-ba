@@ -1844,6 +1844,49 @@ class AppLocalizationsAr extends AppLocalizations {
   String get consentForHistory => 'زيارات مُشارَكة من عيادات أخرى';
 
   @override
+  String get reminders => 'التذكيرات';
+
+  @override
+  String get remindersIntro => 'اختر كيف تذكّرك العيادات بمواعيدك.';
+
+  @override
+  String get remindersPush => 'الإشعارات الفورية';
+
+  @override
+  String get remindersEmail => 'البريد الإلكتروني';
+
+  @override
+  String get remindersSms => 'الرسائل القصيرة';
+
+  @override
+  String get remindersSmsHint =>
+      'التذكيرات وعروض قائمة الانتظار برسالة قصيرة إلى رقم الهاتف في ملفك الشخصي، فقط لدى العيادات التي تقدم الرسائل القصيرة. لا تُستخدم أبدًا للإعلانات.';
+
+  @override
+  String get quietHours => 'ساعات الهدوء';
+
+  @override
+  String get quietHoursHint =>
+      'تنتظر الإشعارات الفورية والرسائل القصيرة حتى تنتهي ساعات الهدوء. وإذا كانت ستصل حينها قبل الموعد بأقل من 30 دقيقة، فلا تُرسل. لا يتم تأخير رسائل البريد الإلكتروني.';
+
+  @override
+  String get quietHoursFrom => 'من';
+
+  @override
+  String get quietHoursUntil => 'إلى';
+
+  @override
+  String get remindersSaved => 'تم حفظ اختياراتك.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'تتطلب الرسائل القصيرة رقم هاتف في ملفك الشخصي. أضفه في ملفي الشخصي، ثم حاول مرة أخرى.';
+
+  @override
+  String get remindersInvalid =>
+      'تعذّر حفظ هذه الإعدادات. تحقق منها وحاول مرة أخرى.';
+
+  @override
   String get confirmAttendance => 'تأكيد الحضور';
 
   @override

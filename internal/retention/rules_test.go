@@ -340,3 +340,26 @@ func TestRules_DeleteThePlatformFiguresFiveYearsAfterTheirBuild(t *testing.T) {
 		t.Errorf("rules for %v, want trends_cell and trends_rise", found)
 	}
 }
+
+// The reminders (SAL-33): a reminder and a delivery 90 days after it was due or sent, the patient's notification
+// settings kept while the account exists (deleted with it).
+func TestRules_DeleteRemindersAndDeliveriesAfterNinetyDaysAndKeepThePreferences(t *testing.T) {
+	want := map[string]retention.Rule{
+		"appointment_reminder":    {Then: retention.ThenDelete, Keep: 90 * 24 * time.Hour},
+		"notification_delivery":   {Then: retention.ThenDelete, Keep: 90 * 24 * time.Hour},
+		"notification_preference": {Then: retention.ThenKeep},
+	}
+	for _, r := range retention.Rules() {
+		w, ok := want[r.Table]
+		if !ok {
+			continue
+		}
+		if r.Then != w.Then || r.Keep != w.Keep {
+			t.Errorf("%s: then %q after %v, want %q after %v", r.Table, r.Then, r.Keep, w.Then, w.Keep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}

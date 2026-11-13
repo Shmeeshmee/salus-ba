@@ -195,3 +195,155 @@ func (r *postgresRepository) AddDeadLetter(ctx context.Context, d DeadLetter) er
 func (r *postgresRepository) DeleteDeadLettersBefore(ctx context.Context, before time.Time) (int64, error) {
 	return r.q(ctx).DeleteDeadLettersBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
 }
+
+// SAL-33: the deliveries, the patients' settings and the SMS usage.
+
+// NewPostgresDeliveryRepository returns the DeliveryRepository on db, using the transaction in the context when there
+// is one: salus_app's pool, or the retention role's for DeleteDeliveriesBefore.
+func NewPostgresDeliveryRepository(db postgres.Querier) DeliveryRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) AddDelivery(ctx context.Context, d Delivery) (Delivery, bool, error) {
+	p := notificationdb.InsertDeliveryParams{Kind: string(d.Kind), Channel: string(d.Channel)}
+	if p.SourceID.Scan(d.SourceID) != nil || p.OrganizationID.Scan(d.OrganizationID) != nil || p.AccountID.Scan(d.AccountID) != nil ||
+		d.DeviceID != "" && p.DeviceID.Scan(d.DeviceID) != nil {
+		return Delivery{}, false, errors.New("notification: an id of the delivery is not a UUID")
+	}
+	row, err := r.q(ctx).InsertDelivery(ctx, p)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Delivery{}, false, nil
+	case err != nil:
+		return Delivery{}, false, err
+	}
+	d.ID, d.CreatedAt, d.State = row.ID.String(), row.CreatedAt.Time, DeliveryPending
+	return d, true, nil
+}
+
+func (r *postgresRepository) LockDelivery(ctx context.Context, id string) (Delivery, error) {
+	u, err := uid(id)
+	if err != nil {
+		return Delivery{}, err
+	}
+	row, err := r.q(ctx).LockDelivery(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Delivery{}, ErrNotFound
+	case err != nil:
+		return Delivery{}, err
+	}
+	d := Delivery{
+		CreatedAt: row.CreatedAt.Time, SentAt: row.SentAt.Time, ID: row.ID.String(), SourceID: row.SourceID.String(),
+		OrganizationID: row.OrganizationID.String(), AccountID: row.AccountID.String(), Kind: Kind(row.Kind),
+		Channel: Channel(row.Channel), State: DeliveryState(row.State), Segments: int(row.Segments.Int32),
+	}
+	if row.DeviceID.Valid {
+		d.DeviceID = row.DeviceID.String()
+	}
+	return d, nil
+}
+
+func (r *postgresRepository) SetDeliveryState(ctx context.Context, id string, state DeliveryState, at time.Time, segments int) error {
+	u, err := uid(id)
+	if err != nil {
+		return err
+	}
+	p := notificationdb.SetDeliveryStateParams{ID: u, State: string(state)}
+	if state == DeliverySent {
+		p.SentAt = pgtype.Timestamptz{Time: at, Valid: true}
+	}
+	if segments > 0 {
+		p.Segments = pgtype.Int4{Int32: int32(segments), Valid: true}
+	}
+	n, err := r.q(ctx).SetDeliveryState(ctx, p)
+	if err == nil && n == 0 {
+		return ErrDeliveryDone
+	}
+	return err
+}
+
+func (r *postgresRepository) DeleteDeliveriesBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteDeliveriesBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+}
+
+func (r *postgresRepository) Preferences(ctx context.Context, accountID string) (Preferences, bool, error) {
+	u, err := uid(accountID)
+	if err != nil {
+		return Preferences{}, false, nil
+	}
+	row, err := r.q(ctx).NotificationPreference(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Preferences{}, false, nil
+	case err != nil:
+		return Preferences{}, false, err
+	}
+	p := Preferences{Channels: Channels{Push: row.Push, Email: row.Email, SMS: row.Sms}, TimeZone: row.TimeZone.String}
+	if row.QuietStart.Valid && row.QuietEnd.Valid {
+		p.Quiet = &QuietHours{Start: clockOf(row.QuietStart), End: clockOf(row.QuietEnd)}
+	}
+	return p, true, nil
+}
+
+// clockOf writes a time of day as HH:MM.
+func clockOf(t pgtype.Time) string {
+	m := t.Microseconds / 60e6
+	return time.Date(0, 1, 1, int(m/60), int(m%60), 0, 0, time.UTC).Format("15:04")
+}
+
+// timeOf reads HH:MM as a time of day.
+func timeOf(hhmm string) pgtype.Time {
+	t, err := time.Parse("15:04", hhmm)
+	if err != nil {
+		return pgtype.Time{}
+	}
+	return pgtype.Time{Microseconds: int64(t.Hour()*60+t.Minute()) * 60e6, Valid: true}
+}
+
+func (r *postgresRepository) SetPreferences(ctx context.Context, accountID string, p Preferences, at time.Time) error {
+	u, err := uid(accountID)
+	if err != nil {
+		return err
+	}
+	params := notificationdb.SetNotificationPreferenceParams{
+		AccountID: u, Push: p.Channels.Push, Email: p.Channels.Email, Sms: p.Channels.SMS,
+		TimeZone: pgtype.Text{String: p.TimeZone, Valid: p.TimeZone != ""}, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	}
+	if p.Quiet != nil {
+		params.QuietStart, params.QuietEnd = timeOf(p.Quiet.Start), timeOf(p.Quiet.End)
+	}
+	return r.q(ctx).SetNotificationPreference(ctx, params)
+}
+
+func (r *postgresRepository) AddSMSUsage(ctx context.Context, org string, month time.Time, segments int) error {
+	u, err := uid(org)
+	if err != nil {
+		return err
+	}
+	return r.q(ctx).AddSMSUsage(ctx, notificationdb.AddSMSUsageParams{
+		OrganizationID: u, Month: pgtype.Date{Time: month, Valid: true}, Segments: int32(segments),
+	})
+}
+
+func (r *postgresRepository) SMSUsage(ctx context.Context, org string, from, to time.Time) ([]UsageMonth, error) {
+	u, err := uid(org)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.q(ctx).SMSUsage(ctx, notificationdb.SMSUsageParams{
+		OrganizationID: u, FromMonth: pgtype.Date{Time: from, Valid: true}, ToMonth: pgtype.Date{Time: to, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]UsageMonth, len(rows))
+	for i, row := range rows {
+		out[i] = UsageMonth{Month: row.Month.Time.Format("2006-01"), Messages: int(row.Messages), Segments: int(row.Segments)}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ClinicScope(ctx context.Context) (string, error) {
+	return r.q(ctx).ClinicScope(ctx)
+}

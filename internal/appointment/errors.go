@@ -41,6 +41,9 @@ var (
 	ErrLinkRateLimited = errors.New("appointment: too many link lookups")
 	// ErrConfirmCancelRequired is returned for a link's cancel without its ticked box (ADR 0015 "Scanners that click").
 	ErrConfirmCancelRequired = errors.New("appointment: cancel not confirmed")
+	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
+	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
+	ErrReminderGone = errors.New("appointment: reminder no longer applies")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

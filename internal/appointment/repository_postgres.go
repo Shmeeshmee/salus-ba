@@ -424,3 +424,106 @@ func (r *postgresRepository) UseToken(ctx context.Context, id string, action Lin
 	}
 	return nil
 }
+
+// SAL-33: the reminders.
+
+// NewPostgresReminderRepository returns the ReminderRepository on db, using the transaction in the context when there
+// is one: salus_app's pool, or the retention role's for DeleteRemindersDueBefore.
+func NewPostgresReminderRepository(db postgres.Querier) ReminderRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) AddReminder(ctx context.Context, x Reminder) (Reminder, bool, error) {
+	var p appointmentdb.InsertReminderParams
+	if p.AppointmentID.Scan(x.AppointmentID) != nil || p.OrganizationID.Scan(x.OrganizationID) != nil || p.PatientID.Scan(x.PatientID) != nil {
+		return Reminder{}, false, errors.New("appointment: an id of the reminder is not a UUID")
+	}
+	p.OffsetMinutes, p.StartAt, p.DueAt = int32(x.OffsetMinutes), ts(x.StartAt), ts(x.DueAt)
+	row, err := r.q(ctx).InsertReminder(ctx, p)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Reminder{}, false, nil
+	case err != nil:
+		return Reminder{}, false, err
+	}
+	x.ID, x.State = row.ID.String(), ReminderScheduled
+	return x, true, nil
+}
+
+func (r *postgresRepository) CancelReminders(ctx context.Context, appointmentID string) (int64, error) {
+	var u pgtype.UUID
+	if u.Scan(appointmentID) != nil {
+		return 0, nil
+	}
+	return r.q(ctx).CancelReminders(ctx, u)
+}
+
+func (r *postgresRepository) LockReminder(ctx context.Context, id string) (Reminder, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Reminder{}, ErrNotFound
+	}
+	row, err := r.q(ctx).LockReminder(ctx, u)
+	return toReminder(appointmentdb.ReminderByIDRow(row), err)
+}
+
+func (r *postgresRepository) Reminder(ctx context.Context, id string) (Reminder, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Reminder{}, ErrNotFound
+	}
+	return toReminder(r.q(ctx).ReminderByID(ctx, u))
+}
+
+func toReminder(row appointmentdb.ReminderByIDRow, err error) (Reminder, error) {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Reminder{}, ErrNotFound
+	case err != nil:
+		return Reminder{}, err
+	}
+	return Reminder{
+		StartAt: row.StartAt.Time, DueAt: row.DueAt.Time, DispatchedAt: row.DispatchedAt.Time,
+		ID: row.ID.String(), AppointmentID: row.AppointmentID.String(), OrganizationID: row.OrganizationID.String(),
+		PatientID: row.PatientID.String(), State: ReminderState(row.State), OffsetMinutes: int(row.OffsetMinutes),
+	}, nil
+}
+
+func (r *postgresRepository) SetReminderState(ctx context.Context, id string, state ReminderState, at time.Time) error {
+	p := appointmentdb.SetReminderStateParams{State: string(state)}
+	if p.ID.Scan(id) != nil {
+		return ErrNotFound
+	}
+	if state == ReminderDispatched {
+		p.DispatchedAt = ts(at)
+	}
+	n, err := r.q(ctx).SetReminderState(ctx, p)
+	if err == nil && n == 0 {
+		return ErrReminderGone
+	}
+	return err
+}
+
+func (r *postgresRepository) OverdueReminders(ctx context.Context, at, afterDue time.Time, afterID string, max int) ([]Reminder, error) {
+	// From the first page on: a zero cursor is before every due time.
+	p := appointmentdb.OverdueRemindersParams{At: ts(at), AfterDue: pgtype.Timestamptz{Valid: true, InfinityModifier: pgtype.NegativeInfinity}, Max: int32(max)}
+	if !afterDue.IsZero() {
+		p.AfterDue = ts(afterDue)
+	}
+	if p.AfterID.Scan(afterID) != nil {
+		return nil, errors.New("appointment: the sweep's cursor is not a UUID")
+	}
+	rows, err := r.q(ctx).OverdueReminders(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Reminder, len(rows))
+	for i, row := range rows {
+		out[i] = Reminder{ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), DueAt: row.DueAt.Time}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) DeleteRemindersDueBefore(ctx context.Context, before time.Time) (int64, error) {
+	return r.q(ctx).DeleteRemindersDueBefore(ctx, ts(before))
+}

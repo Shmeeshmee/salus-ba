@@ -2344,6 +2344,58 @@
   "@consentForHistory": {
     "description": "SAL-42: My consents, the label of a history consent. Draft, waiting for the owner."
   },
+  "reminders": "Reminders",
+  "@reminders": {
+    "description": "SAL-33: home button and screen title of the notification settings. Draft, waiting for the owner."
+  },
+  "remindersIntro": "Choose how your clinics remind you of your appointments.",
+  "@remindersIntro": {
+    "description": "SAL-33: notification settings, the sentence under the title. Draft, waiting for the owner."
+  },
+  "remindersPush": "Push notifications",
+  "@remindersPush": {
+    "description": "SAL-33: notification settings, the push switch. Draft, waiting for the owner."
+  },
+  "remindersEmail": "E-mail",
+  "@remindersEmail": {
+    "description": "SAL-33: notification settings, the e-mail switch. Draft, waiting for the owner."
+  },
+  "remindersSms": "SMS",
+  "@remindersSms": {
+    "description": "SAL-33: notification settings, the SMS switch. Draft, waiting for the owner."
+  },
+  "remindersSmsHint": "Reminders and waitlist offers by SMS to the phone number in your profile, only at clinics that offer SMS. Never used for advertising.",
+  "@remindersSmsHint": {
+    "description": "[legal] SAL-33: notification settings, under the SMS switch: the SMS opt-in, what goes by SMS, to which number, where, and never advertising. Draft, waiting for the owner and the lawyer."
+  },
+  "quietHours": "Quiet hours",
+  "@quietHours": {
+    "description": "SAL-33: notification settings, the quiet hours switch. Draft, waiting for the owner."
+  },
+  "quietHoursHint": "Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.",
+  "@quietHoursHint": {
+    "description": "SAL-33: notification settings, under the quiet hours switch: push and SMS wait, e-mail is not held. Draft, waiting for the owner."
+  },
+  "quietHoursFrom": "From",
+  "@quietHoursFrom": {
+    "description": "SAL-33: notification settings, the start of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner."
+  },
+  "quietHoursUntil": "Until",
+  "@quietHoursUntil": {
+    "description": "SAL-33: notification settings, the end of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner."
+  },
+  "remindersSaved": "Your choices are saved.",
+  "@remindersSaved": {
+    "description": "SAL-33: notification settings saved. Draft, waiting for the owner."
+  },
+  "remindersPhoneRequired": "SMS needs a phone number in your profile. Add one in My profile, then try again.",
+  "@remindersPhoneRequired": {
+    "description": "SAL-33: notification settings refused, 409 phone_required. Draft, waiting for the owner."
+  },
+  "remindersInvalid": "These settings could not be saved. Check them and try again.",
+  "@remindersInvalid": {
+    "description": "SAL-33: notification settings refused, 400. Draft, waiting for the owner."
+  },
   "confirmAttendance": "Confirm I will come",
   "@confirmAttendance": {
     "description": "SAL-34: button on an unconfirmed upcoming appointment; the patient confirms they will come. Draft, waiting for the owner."

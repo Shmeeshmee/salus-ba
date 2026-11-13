@@ -45,6 +45,68 @@ key with other parameters, no SMS adapter; the SMS option refused with the fake 
 (`TestAppointments_RefusesTheSMSOptionWhileNoProviderSends`); `For`'s scope documented and the history's insert tied to
 the scope (`TestAppointmentChange_IsAppendOnly`).
 
+## SAL-33: reminders (branch `appt-33-reminders`, migration 00055 as a placeholder)
+
+Built: migration 00055 with `appointment_reminder` (owned by `appointment`; row-level security for the patient's own
+and the clinic's scope; a reminder leaves `scheduled` once, by trigger, for every role; the view
+`appointment_reminder_scheduled` of ids and times for the sweep), `notification_delivery`, `notification_preference`
+and `sms_usage` (owned by `notification`; a delivery leaves `pending` once, by trigger), the foreign key of
+`appointment_action_token.reminder_id`, ownership and retention (reminders and deliveries 90 days, the settings with
+the account). In `appointment` (`service_reminder.go`): `scheduleReminders` (one row and one `appointment_reminder`
+job per offset of the clinic's settings still ahead, unique by the reminder, in the booking's transaction),
+`cancelReminders` (every cancellation), `TakeReminder`, `ReminderDispatched`, `ReminderNotice`, `SweepReminders` and
+the reminder purger. In `notification`: `Service.Deliver` (the plan's contract, in the caller's transaction:
+channels, quiet hours, the delivery rows and their jobs), `DispatchReminder`, `SendDelivery` (the `reminder_email`,
+`reminder_push`, `reminder_sms` jobs on the `email`, `push` and new `sms` queues), the patient's settings
+(`GET`, `PUT /me/notification-settings`) and the admin's SMS usage (`GET /clinic/sms-usage`), the delivery purger.
+`patient.NoticePhone` (audited, job as agent). `APPOINTMENT_LINK_URL` in `internal/config`, the notifier and both
+composes; the notifier loads `config.LoadSMS` (the fake). `appointment_reminders_sweep` hourly from the scheduler,
+worked by the worker. The legacy `appointment_reminder_email` is no longer enqueued; its worker still sends the jobs
+enqueued before (an appointment booked before keeps its one 24-hour e-mail; ADR 0015 amended to match). Web: `ClinicSettingsReminders.tsx` (offsets, the SMS option with `[PRICE]`, 12 months of usage) in the
+clinic settings; the Vite proxy and the Caddyfile route `/clinic/` to the api (`/clinic` itself stays the screen).
+Mobile: `notification_settings_screen.dart` from the home screen. e2e: `TestReminders_TheReminderEmailArrivesAtItsTimeWithAOneTimeLink`.
+
+Tests named in the plan: `TestReminder_SentOnceAtTheRightInstant` (`internal/worker`): a patient in Asia/Dubai of a
+clinic in Europe/Sarajevo across the 25 October 2026 change, quiet hours in either zone, a dispatch rolled back once and
+every job run twice, a cancellation and a reschedule between scheduling and dispatch; against Postgres with the
+real repositories and River's inserts, fake senders.
+
+### Measured (`make bench-reminders`, 2026-11-13)
+
+The host was shared with the other wave-1 stacks (load average 10 to 25 during the runs), so the numbers are upper
+bounds; the queries are those of the code, on salus_app with its row-level security.
+
+| Measure | Result |
+| --- | --- |
+| The hourly sweep over 100 000 scheduled reminders, 1 000 of them overdue: find them (two pages of the partial index on `(due_at, id)` where scheduled) and enqueue their dispatch again (unique by the reminder, `InsertManyTx`) | 30.0 ms and 33.8 ms per sweep (two counts of five) |
+| 1 000 reminders dispatched at once by 10 workers (the notifier's), each storing an e-mail and a push delivery with their jobs | 1.37 s for the 1 000 (mean of three runs) |
+| Their 2 000 sends by 10 workers on the fake senders (lock, re-read the reminder and the appointment, issue the e-mail's one-time link, send, mark sent) | 4.6 s for the 2 000 (mean of three runs) |
+
+- The 1 000 dispatches share one practitioner role, so their appointments cannot share a start: the benchmark runs
+  them all at one instant, the work a minute with 1 000 due reminders asks. About 1.4 ms of database work per
+  dispatch and 2.3 ms per send at ten at a time: a burst of 1 000 is sent within seconds, far inside the reminders'
+  lead of an hour or a day.
+- The cost is in the sends' audited reads (the appointment, the patient's account and settings, each audited in the
+  same transaction). Not tuned: nothing here is near a limit.
+
+As built (agent decisions, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| `Deliver`'s `content` | `notification.Content{Deadline}`: the instant a held push or SMS must still be 30 minutes before (a reminder's start, an offer's expiry). The text is composed by the send job from the delivery's kind, so a send re-reads what still holds; SAL-35 adds the `waitlist_offer` composer in `compose` |
+| Sends outside the transaction | A send locks and checks its delivery, composes (issuing a new one-time link for an e-mail or SMS) and commits; then sends; then marks it sent (an SMS counted in its clinic's month in that transaction). "Sent once" holds per dispatch: a crash between the provider's acceptance and the mark (the window ADR 0015 accepts) resends the e-mail, push or SMS, and an e-mail or SMS resent carries a second valid link (both single use, both expiring at the start). The first link cannot be reused: only its hash is stored |
+| A send's channel | Checked at dispatch and again at the send: a send held by quiet hours whose channel the patient turned off meanwhile, or whose clinic turned SMS off, is cancelled |
+| A reminder's generations | A cancellation or reschedule cancels the appointment's live reminders, the dispatched ones too (a dispatched reminder may be retired once, by the trigger), so their held sends are cancelled when they run; a live reminder (scheduled or dispatched) is unique per appointment, offset and start (a partial index), so a move from A to B and back to A schedules A's again |
+| SMS text and length | The clinic's time with its zone's name, then the patient's day and time with theirs when it differs. With a 16-letter clinic name and a 71-character link: en 1 part at home, 2 abroad; bs, hr, sr-Latn, de, tr, it, fr 2 at home and abroad (GSM-7); sr-Cyrl and ar 3 at home and abroad (UCS-2). Longer clinic names add parts (at most `sms.MaxSegments`, 3) |
+| Deliver's audit agent and scope | The agent is the kind's, `<kind>_delivery` (`reminder_delivery`, `waitlist_offer_delivery`); Deliver reads the clinic's SMS option in the clinic's scope and sets the caller's clinic scope back after. A kind without a composer (a waitlist offer before SAL-35) fails its delivery at the send instead of retrying |
+| A Service without the delivery ports | The api builds `notification.Service` for the settings only; `Deliver`, `DispatchReminder` and `SendDelivery` return an error when their ports are missing, never a nil dereference |
+| Sweep's cross-clinic read | A view with its owner's rights (`appointment_reminder_scheduled`, ids and times only) instead of a `SECURITY DEFINER` function: sqlc cannot read a function's `RETURNS TABLE`. The sweep takes reminders due and not started, in pages of 1 000 |
+| Patient's zone from the app | The app sends `DateTime.now().timeZoneName` only when it is an IANA name; most phones report an abbreviation, so the zone is rarely sent and the clinic's is used. A real zone needs the `flutter_timezone` package: the owner's call |
+| SMS text | Latin-script languages without diacritics (GSM-7); Cyrillic and Arabic shortened. The owner's call (plan's "Copy waiting") |
+| `repository_sms.go` | Not created: archcheck lets only `repository_postgres.go` import the sqlc package, so the SMS usage's queries are there, beside the deliveries' |
+| `NewNotifier` | Takes a `worker.Notifier` struct (sender, pusher, SMS, the three URLs) instead of positional arguments |
+| SMS usage route | 403 for anyone but the clinic's admin, patients included |
+
 ## SAL-34: one-tap confirm or cancel, self-service rescheduling (branch `appt-34-confirm-reschedule`)
 
 No migration. Built: in `appointment`, `Confirm`, `Actions` (`service_confirm.go`), `Reschedule` (`service_reschedule.go`),
@@ -70,14 +132,14 @@ no and a foreign `Origin` (`TestLinkUse_Refusals`); the token never in the log o
 (`TestLink_RateLimitedPerAddressUnderAnHMAC`, `TestRedisLinkLimiter_…`). Reschedule on Postgres: three at once of one
 appointment respect the limit, racing a booking of the target slot and a cancellation keep slots in step, the
 exclusion constraint's refusal audited in its own transaction (`internal/api/reschedule_test.go`). e2e:
-`TestLinks_ThePatientConfirmsAndCancelsThroughTheLinkAndReschedulesInTheApp`. Nothing to measure was asked of SAL-34.
+`TestLinks_ThePatientConfirmsAndCancelsThroughTheLinkAndReschedulesInTheApp`, from the reminder e-mail in Mailpit. Nothing to measure was asked of SAL-34.
 
 As built (agent decisions, for the owner to review):
 
 | Topic | Decision |
 | --- | --- |
-| e2e's link | Issued through `IssueLink` as the notifier would, until SAL-33's reminder e-mail carries it; then the journey starts from that e-mail in Mailpit |
-| The page's own origin | The `POST`'s `Origin` host must be the request's `Host` (no `APPOINTMENT_LINK_URL` before SAL-33); a missing or `null` `Origin` is refused |
+| e2e's link | Taken from SAL-33's reminder e-mail in Mailpit (the clinic's offset just under the time to the start, so the reminder is due within a minute) |
+| The page's own origin | The `POST`'s `Origin` host must be the request's `Host` (the api's own host, which serves `APPOINTMENT_LINK_URL`'s links); a missing or `null` `Origin` is refused |
 | Consent | A reschedule needs the care consent active (`409 consent_required`, added to the OpenAPI), as a booking; a link no longer works under a consent no longer active; the in-app confirmation needs none (the revocation cancels the appointments it applies to) |
 | Confirming a confirmed appointment through a link | Refused without using the link, so it can still cancel; the page (303) shows the confirmed state |
 | A used link's page | Its outcome with the start it was issued for (`start_at`), whatever the appointment became since |
@@ -86,9 +148,8 @@ As built (agent decisions, for the owner to review):
 | Join window | Opens 10 minutes before the start, as `videosession`'s: the constant is repeated in `appointment` (`joinOpensBefore`) |
 | Refusal order of a reschedule | Self-service off, another role or clinic, the join window open (`not_reschedulable`); then the notice (`reschedule_window_closed`); then the limit; then its own slot (`slot_unavailable`); then the consent |
 | The reschedule e-mail | A new notifier job, `appointment_rescheduled_email`, in the reschedule's transaction; it sends the time current when it runs |
-| The legacy reminder until SAL-33 | The booking's 24-hour `appointment_reminder_email` stays scheduled for the old time and sends then with the current time; the reschedule schedules one for the new time. SAL-33 replaces both with its rows |
 | Client address | `httpx.ClientIP` (moved from `auth`, which now uses it), for the rate limit only |
-| Referrer policy | `strict-origin`, not ADR 0015's `no-referrer` (review of #92): under `no-referrer` browsers send `Origin: null` with the form's `POST` (Fetch, "append a request Origin header"), which the `Origin` check refuses. A Referer then carries the api's origin only, never the token's path. ADR 0015 "GET never changes anything" says `no-referrer`: for the owner to amend |
+| Referrer policy | `strict-origin`, not ADR 0015's `no-referrer` (review of #92): under `no-referrer` browsers send `Origin: null` with the form's `POST` (Fetch, "append a request Origin header"), which the `Origin` check refuses. A Referer then carries the api's origin only, never the token's path. ADR 0015 "GET never changes anything" is amended to match |
 | A link's use | Reads the appointment under its row lock (`ByIDForUpdate`) and decides validity on that row, so a reschedule or cancellation committed after the page was read leaves an old-time link useless (review of #92) |
 | Settings in the patient's transaction | `organization.Appointments.For` sets the clinic's scope; the reschedule and the actions drop it and set the patient's again right after (review of #92) |
 | Web history | Behind "Show changes" on the appointment's page, read (and audited) only when asked |

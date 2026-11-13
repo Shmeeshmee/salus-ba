@@ -203,7 +203,8 @@ func newSelfFixtureAt(at time.Time, appts ...appointment.Appointment) *selfFixtu
 		Repo: f.repo, Audit: f.audit, Tx: selfTx{inner: fakeTransactor{f: f.fixture}, s: f.self}, Clock: clock.Fixed{T: at},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,
 		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats,
-		SelfService: f.self, Settings: f.settings, Limiter: f.limiter, LinkKey: []byte("a synthetic key of at least 32 bytes"),
+		Reminders: f.reminders, Rules: f.settings,
+		SelfService: f.self, Limiter: f.limiter, LinkKey: []byte("a synthetic key of at least 32 bytes"),
 	})
 	return f
 }

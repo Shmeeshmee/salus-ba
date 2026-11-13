@@ -14,8 +14,9 @@ import (
 
 // Slots of role A1 in clinic A for the reschedule's tests.
 const (
-	slotLater = "52000000-0000-4000-8000-000000000001" // start + 1 day
-	slotOther = "52000000-0000-4000-8000-000000000002" // role A2, start + 1 day
+	slotLater   = "52000000-0000-4000-8000-000000000001" // start + 1 day
+	slotOther   = "52000000-0000-4000-8000-000000000002" // role A2, start + 1 day
+	oldReminder = "53000000-0000-4000-8000-000000000001"
 )
 
 func rescheduleFixture(a appointment.Appointment) *selfFixture {
@@ -29,6 +30,10 @@ func rescheduleFixture(a appointment.Appointment) *selfFixture {
 func TestReschedule_MovesTheSameAppointmentToAFreeSlotOfItsRole(t *testing.T) {
 	a := booked(apptA, patientA, roleA1, clinicA, start)
 	f := rescheduleFixture(a)
+	f.reminders.reminders = append(f.reminders.reminders, appointment.Reminder{
+		ID: oldReminder, AppointmentID: apptA, OrganizationID: clinicA, PatientID: patientA, OffsetMinutes: 1440,
+		StartAt: start, DueAt: start.Add(-24 * time.Hour), State: appointment.ReminderScheduled,
+	})
 	got, err := f.svc.Reschedule(t.Context(), me, apptA, slotLater)
 	newStart := start.Add(24 * time.Hour)
 	if err != nil || got.ID != apptA || !got.Start.Equal(newStart) || got.SlotID != slotLater || got.RescheduleCount != 1 || got.VersionID != 2 ||
@@ -41,13 +46,23 @@ func TestReschedule_MovesTheSameAppointmentToAFreeSlotOfItsRole(t *testing.T) {
 	if want := []string{clinicA + "/" + a.SlotID}; !slices.Equal(f.slots.released, want) {
 		t.Errorf("released %v, want the old slot %v", f.slots.released, want)
 	}
-	wantJobs := []string{
-		"slot_freed " + a.SlotID + " " + clinicA,
-		"reminder " + apptA + " " + clinicA + " at " + newStart.Add(-24*time.Hour).Format(time.RFC3339),
-		"rescheduled " + apptA + " " + clinicA,
+	// The reminders of the old start are cancelled, and the clinic's offsets scheduled again for the new one (SAL-33).
+	var due []string
+	for _, r := range f.reminders.reminders {
+		switch {
+		case r.ID == oldReminder:
+			if r.State != appointment.ReminderCancelled {
+				t.Errorf("the old start's reminder is %s, want cancelled", r.State)
+			}
+		case r.State == appointment.ReminderScheduled && r.StartAt.Equal(newStart):
+			due = append(due, r.DueAt.Format(time.RFC3339))
+		}
 	}
-	if !slices.Equal(f.jobs.enqueued, wantJobs) {
-		t.Errorf("enqueued %v, want %v", f.jobs.enqueued, wantJobs)
+	if want := []string{newStart.Add(-24 * time.Hour).Format(time.RFC3339), newStart.Add(-time.Hour).Format(time.RFC3339)}; !slices.Equal(due, want) {
+		t.Errorf("reminders due %v, want %v", due, want)
+	}
+	if n := len(f.jobs.enqueued); n != 4 || f.jobs.enqueued[0] != "slot_freed "+a.SlotID+" "+clinicA || f.jobs.enqueued[n-1] != "rescheduled "+apptA+" "+clinicA {
+		t.Errorf("enqueued %v, want the freed slot, the two reminders' dispatches and the e-mail with the new time", f.jobs.enqueued)
 	}
 	if want := []string{clinicA + " " + start.Format(time.RFC3339), clinicA + " " + newStart.Format(time.RFC3339)}; !slices.Equal(f.stats.refreshes, want) {
 		t.Errorf("refreshes %v, want both days %v", f.stats.refreshes, want)

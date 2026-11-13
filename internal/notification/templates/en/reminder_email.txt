@@ -1,0 +1,12 @@
+Reminder of your appointment
+
+This is a reminder of your appointment at {{.Clinic}} on {{.When}}.
+{{if .WhenLocal}}In your time zone: {{.WhenLocal}}
+{{end}}
+{{if .Questionnaire}}There is a questionnaire to fill in before your appointment. You can find it in the Salus app.
+
+{{end}}To confirm or cancel the appointment, open this link:
+{{.ActionLink}}
+
+To see it, open the Salus app:
+{{.Link}}

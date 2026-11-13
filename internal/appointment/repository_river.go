@@ -11,8 +11,15 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-// emailQueue is the queue the notifier works (ADR 0007: e-mail is sent by the notifier).
-const emailQueue = "email"
+// emailQueue is the queue the notifier works (ADR 0007: e-mail is sent by the notifier); pushQueue its other one,
+// where a reminder's dispatch runs (SAL-33).
+const (
+	emailQueue = "email"
+	pushQueue  = "push"
+)
+
+// reminderAttempts bounds a reminder's dispatch: a reminder is stale within hours, and the sweep repairs a lost one.
+const reminderAttempts = 10
 
 type riverJobs struct {
 	client *river.Client[pgx.Tx]
@@ -31,8 +38,26 @@ func (j *riverJobs) EnqueueCancelled(ctx context.Context, id, org string) error 
 	return j.insert(ctx, CancelledEmailArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
 }
 
-func (j *riverJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {
-	return j.insert(ctx, ReminderEmailArgs{AppointmentID: id, OrganizationID: org}, at)
+// EnqueueReminders enqueues each reminder's dispatch on the notifier's push queue at its due time, unique by the
+// reminder in River's default states: the sweep's repeat of a job still there (or completed) keeps it.
+func (j *riverJobs) EnqueueReminders(ctx context.Context, rs []Reminder) error {
+	tx, ok := postgres.Tx(ctx)
+	if !ok {
+		return postgres.ErrNoTx
+	}
+	params := make([]river.InsertManyParams, 0, len(rs))
+	for _, r := range rs {
+		params = append(params, river.InsertManyParams{
+			Args: ReminderArgs{ReminderID: r.ID, OrganizationID: r.OrganizationID},
+			InsertOpts: &river.InsertOpts{
+				Queue: pushQueue, MaxAttempts: reminderAttempts, ScheduledAt: r.DueAt, UniqueOpts: river.UniqueOpts{ByArgs: true},
+			},
+		})
+	}
+	if _, err := j.client.InsertManyTx(ctx, tx, params); err != nil {
+		return fmt.Errorf("appointment: enqueue %s: %w", ReminderArgs{}.Kind(), err)
+	}
+	return nil
 }
 
 // EnqueueAccessEnd enqueues consultation_access_end on the default queue, which the worker works.

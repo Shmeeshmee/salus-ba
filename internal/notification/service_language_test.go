@@ -44,7 +44,11 @@ func TestEmails_AreWrittenInEveryLanguage(t *testing.T) {
 				t.Fatalf("%s %s: error = %v", lang, k.name, err)
 			}
 		}
-		names := []string{"invite", "booked", "booked_questionnaire", "cancelled", "reminder", "reminder_questionnaire", "signed", "rescheduled"}
+		// The reminder of SAL-33 is a delivery: sent as its send job sends it, with and without a questionnaire.
+		for _, outstanding := range []bool{false, true} {
+			sendReminderEmail(t, lang, sender, outstanding)
+		}
+		names := []string{"invite", "booked", "booked_questionnaire", "cancelled", "reminder", "reminder_questionnaire", "signed", "rescheduled", "reminder_email", "reminder_email_questionnaire"}
 		if len(sender.sent) != len(names) {
 			t.Fatalf("%s: sent %d e-mails, want %d", lang, len(sender.sent), len(names))
 		}

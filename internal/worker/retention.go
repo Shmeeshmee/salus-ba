@@ -62,5 +62,7 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 		"trends_cell":              trends.NewCellPurger(figures),
 		"trends_rise":              trends.NewFlagPurger(figures),
 		"appointment_action_token": appointment.NewTokenPurger(appointment.NewPostgresTokenRepository(retentionPool)),
+		"appointment_reminder":     appointment.NewReminderPurger(appointment.NewPostgresReminderRepository(retentionPool)),
+		"notification_delivery":    notification.NewDeliveryPurger(notification.NewPostgresDeliveryRepository(retentionPool)),
 	}, audit, clock.System{})
 }

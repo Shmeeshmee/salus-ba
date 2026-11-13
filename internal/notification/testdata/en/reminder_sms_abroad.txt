@@ -1,0 +1,1 @@
+Reminder: Synthetic clinic, 25/10/2026 at 09:00 (Europe/Sarajevo), 25/10 12:00 (Asia/Dubai). Confirm or cancel: https://api.salus.invalid/a/0000000000000000000000000000000000000000001

@@ -1805,6 +1805,50 @@ class AppLocalizationsSr extends AppLocalizations {
   String get consentForHistory => 'Посјете подијељене из других клиника';
 
   @override
+  String get reminders => 'Подсјетници';
+
+  @override
+  String get remindersIntro =>
+      'Изаберите како вас клинике подсјећају на термине.';
+
+  @override
+  String get remindersPush => 'Пуш обавјештења';
+
+  @override
+  String get remindersEmail => 'Е-пошта';
+
+  @override
+  String get remindersSms => 'СМС';
+
+  @override
+  String get remindersSmsHint =>
+      'Подсјетници и понуде са листе чекања СМС-ом на број телефона из вашег профила, само у клиникама које нуде СМС. Никада за оглашавање.';
+
+  @override
+  String get quietHours => 'Тихи сати';
+
+  @override
+  String get quietHoursHint =>
+      'Пуш обавјештења и СМС чекају до краја тихих сати. Ако би тада стигли мање од 30 минута прије термина, не шаљу се. Е-пошта се не задржава.';
+
+  @override
+  String get quietHoursFrom => 'Од';
+
+  @override
+  String get quietHoursUntil => 'До';
+
+  @override
+  String get remindersSaved => 'Ваш избор је сачуван.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'За СМС је потребан број телефона у профилу. Додајте га у одјељку Мој профил, па покушајте поново.';
+
+  @override
+  String get remindersInvalid =>
+      'Ова подешавања није било могуће сачувати. Провјерите их и покушајте поново.';
+
+  @override
   String get confirmAttendance => 'Потврди долазак';
 
   @override
@@ -3659,6 +3703,50 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get consentForHistory => 'Посјете подијељене из других клиника';
+
+  @override
+  String get reminders => 'Подсјетници';
+
+  @override
+  String get remindersIntro =>
+      'Изаберите како вас клинике подсјећају на термине.';
+
+  @override
+  String get remindersPush => 'Пуш обавјештења';
+
+  @override
+  String get remindersEmail => 'Е-пошта';
+
+  @override
+  String get remindersSms => 'СМС';
+
+  @override
+  String get remindersSmsHint =>
+      'Подсјетници и понуде са листе чекања СМС-ом на број телефона из вашег профила, само у клиникама које нуде СМС. Никада за оглашавање.';
+
+  @override
+  String get quietHours => 'Тихи сати';
+
+  @override
+  String get quietHoursHint =>
+      'Пуш обавјештења и СМС чекају до краја тихих сати. Ако би тада стигли мање од 30 минута прије термина, не шаљу се. Е-пошта се не задржава.';
+
+  @override
+  String get quietHoursFrom => 'Од';
+
+  @override
+  String get quietHoursUntil => 'До';
+
+  @override
+  String get remindersSaved => 'Ваш избор је сачуван.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'За СМС је потребан број телефона у профилу. Додајте га у одјељку Мој профил, па покушајте поново.';
+
+  @override
+  String get remindersInvalid =>
+      'Ова подешавања није било могуће сачувати. Провјерите их и покушајте поново.';
 
   @override
   String get confirmAttendance => 'Потврди долазак';
@@ -5516,6 +5604,50 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get consentForHistory => 'Posjete podijeljene iz drugih klinika';
+
+  @override
+  String get reminders => 'Podsjetnici';
+
+  @override
+  String get remindersIntro =>
+      'Izaberite kako vas klinike podsjećaju na termine.';
+
+  @override
+  String get remindersPush => 'Push obavještenja';
+
+  @override
+  String get remindersEmail => 'E-pošta';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Podsjetnici i ponude sa liste čekanja SMS-om na broj telefona iz vašeg profila, samo u klinikama koje nude SMS. Nikada za oglašavanje.';
+
+  @override
+  String get quietHours => 'Tihi sati';
+
+  @override
+  String get quietHoursHint =>
+      'Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-pošta se ne zadržava.';
+
+  @override
+  String get quietHoursFrom => 'Od';
+
+  @override
+  String get quietHoursUntil => 'Do';
+
+  @override
+  String get remindersSaved => 'Vaš izbor je sačuvan.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Za SMS je potreban broj telefona u profilu. Dodajte ga u odjeljku Moj profil, pa pokušajte ponovo.';
+
+  @override
+  String get remindersInvalid =>
+      'Ova podešavanja nije bilo moguće sačuvati. Provjerite ih i pokušajte ponovo.';
 
   @override
   String get confirmAttendance => 'Potvrdi dolazak';

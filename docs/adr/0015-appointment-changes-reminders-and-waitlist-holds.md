@@ -97,8 +97,9 @@ video session never changes time under its participants. Staff rescheduling is n
   goes through Google and Apple outside the EU/EEA, so its alert stays generic like the chat's ("You have an
   appointment reminder"), with no data payload: the app opens the upcoming appointments. The e-mail and the SMS carry
   the one-tap link.
-- The existing `appointment_reminder_email` job is replaced: its worker stays registered as a no-op that completes,
-  for jobs enqueued before the deploy, and goes in a later release.
+- The existing `appointment_reminder_email` job is replaced: it is no longer enqueued, and its worker keeps sending the
+  jobs enqueued before the deploy, so an appointment booked before keeps its one 24-hour e-mail (the plan's "Legacy
+  reminder"; amended in SAL-33); the worker goes in a later release, once those jobs have drained.
 
 ### The waitlist hold lives in Postgres
 
@@ -131,8 +132,9 @@ video session never changes time under its participants. Staff rescheduling is n
 - **GET never changes anything.** Mail scanners and link previewers fetch links; a `GET` renders a page with what
   the message itself already said (clinic, date and time) and the actions still possible as buttons. The action is
   a `POST` of a form from that page (Post/Redirect/Get). No JavaScript, no cookies, no third-party requests; `Cache-
-  Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, a strict CSP, and the `POST` checks
-  that `Origin` is the page's own.
+  Control: no-store`, `Referrer-Policy: strict-origin`, `X-Robots-Tag: noindex`, a strict CSP, and the `POST` checks
+  that `Origin` is the page's own. Not `no-referrer`: under it browsers send `Origin: null` with the form's `POST`, which
+  that check must refuse; `strict-origin` lets a Referer carry the api's origin only, never the token's path (SAL-34).
 - **CSRF.** No session or cookie is involved, so no ambient authority exists to ride; the token in the form is the
   credential, and a cross-site attacker does not have it.
 - **Single use and expiry.** The first `POST` uses the token with a conditional update (`SET used_at, used_action

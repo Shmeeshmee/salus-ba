@@ -9,7 +9,7 @@ describe('the catalogs', () => {
   })
 
   it('has the areas of the plan', () => {
-    expect([...areas].sort()).toEqual(['admin', 'allergies', 'analytics', 'appointments', 'attachments', 'auth', 'calendar', 'chat', 'common', 'consultation', 'history', 'questionnaire', 'review', 'shell', 'terminology'])
+    expect([...areas].sort()).toEqual(['admin', 'allergies', 'analytics', 'appointments', 'attachments', 'auth', 'calendar', 'chat', 'common', 'consultation', 'history', 'questionnaire', 'reminders', 'review', 'shell', 'terminology'])
   })
 })
 

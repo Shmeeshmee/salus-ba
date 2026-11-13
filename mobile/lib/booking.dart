@@ -29,6 +29,7 @@ class Booking {
     : _client = client,
       fhir = Fhir(client),
       health = HealthProfile(client),
+      notifications = api.NotificationsApi(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
@@ -41,6 +42,9 @@ class Booking {
 
   /// The allergies and medications of the profile (SAL-41).
   final HealthProfile health;
+
+  /// The patient's reminder channels, quiet hours and zone (SAL-33).
+  final api.NotificationsApi notifications;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
   final api.AppointmentsApi _appointments;

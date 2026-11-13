@@ -16,16 +16,10 @@ import (
 // window", videosession): a reschedule is refused from then on, whatever the clinic's notice (ADR 0015).
 const joinOpensBefore = 10 * time.Minute
 
-// ClinicSettings gives a clinic's appointment rules in the caller's transaction, setting the clinic's scope on it
-// (organization.Appointments.For).
-type ClinicSettings interface {
-	For(ctx context.Context, org string) (organization.AppointmentSettings, error)
-}
-
 // settingsFor reads the appointment settings of the clinic org in the transaction in ctx, then drops the clinic's scope
 // that For sets and sets the patient's again, so what follows runs in the patient's scope only.
 func (s *Service) settingsFor(ctx context.Context, org, patientID string) (organization.AppointmentSettings, error) {
-	set, err := s.Settings.For(ctx, org)
+	set, err := s.Rules.For(ctx, org)
 	if err != nil {
 		return organization.AppointmentSettings{}, err
 	}
