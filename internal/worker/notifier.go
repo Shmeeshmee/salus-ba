@@ -47,7 +47,7 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sende
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
 	// Issuing a token and reading an account's e-mail need only the repository, the audit, the transaction
 	// and the clock.
 	accounts := auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})

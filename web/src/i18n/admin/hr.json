@@ -26,6 +26,7 @@
   "inviteForbidden": "Samo administrator klinike može slati pozivnice.",
   "clinicSettings": "Postavke klinike",
   "clinicLoadFailed": "Klinika se nije mogla učitati. Osvježite stranicu i pokušajte ponovno.",
+  "placesLoadFailed": "Regije i gradovi nisu se mogli učitati. Osvježite stranicu i pokušajte ponovno.",
   "clinicName": "Naziv klinike",
   "timeZone": "Vremenska zona",
   "timeZoneHint": "Termini i radno vrijeme prikazuju se u ovoj vremenskoj zoni.",
@@ -39,5 +40,19 @@
   "clinicConflict": "Netko drugi promijenio je postavke klinike. Učitajte ponovno da biste vidjeli promjene.",
   "invalidClinicName": "Unesite naziv od 1 do 200 znakova.",
   "invalidTimeZone": "Odaberite vremensku zonu s popisa.",
-  "clinicForbidden": "Samo administrator klinike može mijenjati ove postavke."
+  "clinicForbidden": "Samo administrator klinike može mijenjati ove postavke.",
+  "region": "Regija",
+  "city": "Grad",
+  "chooseRegion": "Odaberite regiju",
+  "chooseCity": "Odaberite grad",
+  "locationHint": "Gdje se klinika nalazi. Podaci za cijeli Salus grupiraju klinike po regiji i gradu; promjena se računa od sljedećeg punog mjeseca.",
+  "contributes": {
+    "defaultMessage": "Sudjeluj u podacima za cijeli Salus",
+    "description": "legal"
+  },
+  "contributesHint": {
+    "defaultMessage": "Dijagnoze i termini klinike ulaze, anonimizirani, u podatke svih klinika. Ako se isključite, klinika se izostavlja od sljedeće obrade, a njezino osoblje više ne vidi ove podatke.",
+    "description": "legal"
+  },
+  "invalidLocation": "Odaberite grad u toj regiji."
 }

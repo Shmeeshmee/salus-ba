@@ -37,6 +37,8 @@ type Config struct {
 	WebhookKey []byte
 	// TrustedProxies may set X-Forwarded-For (TRUSTED_PROXY_CIDRS, comma-separated CIDRs).
 	TrustedProxies []netip.Prefix
+	// Analytics are the analytics settings (loadAnalytics).
+	Analytics Analytics
 }
 
 // Load reads the configuration from the environment. Errors name the variable, never a value.
@@ -86,6 +88,9 @@ func Load() (Config, error) {
 			return Config{}, errors.New("config: TRUSTED_PROXY_CIDRS holds an entry that is not a CIDR")
 		}
 		cfg.TrustedProxies = append(cfg.TrustedProxies, p)
+	}
+	if cfg.Analytics, err = loadAnalytics(); err != nil {
+		return Config{}, err
 	}
 	return cfg, nil
 }

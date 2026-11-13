@@ -28,6 +28,24 @@ func (s *Stats) Starts(ctx context.Context, orgID string, from, to time.Time, ke
 	if err != nil {
 		return nil, fmt.Errorf("appointment: starts: %w", err)
 	}
+	return starts(rows, key), nil
+}
+
+// Fulfilled is Starts for the fulfilled appointments only (the platform heatmap, docs/plans/analytics.md §5): the
+// others are not read.
+func (s *Stats) Fulfilled(ctx context.Context, orgID string, from, to time.Time, key []byte) ([]Start, error) {
+	if key != nil && len(key) < pseudonym.MinKey {
+		return nil, ErrShortKey
+	}
+	rows, err := s.repo.Fulfilled(ctx, orgID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("appointment: fulfilled: %w", err)
+	}
+	return starts(rows, key), nil
+}
+
+// starts maps the rows, each patient as HMAC-SHA256 of their id under key (zero without a key).
+func starts(rows []Booked, key []byte) []Start {
 	out := make([]Start, len(rows))
 	for i, b := range rows {
 		out[i] = Start{Start: b.Start, PractitionerRoleID: b.PractitionerRoleID, Status: b.Status}
@@ -35,5 +53,5 @@ func (s *Stats) Starts(ctx context.Context, orgID string, from, to time.Time, ke
 			out[i].Patient = pseudonym.Of(key, b.PatientID)
 		}
 	}
-	return out, nil
+	return out
 }

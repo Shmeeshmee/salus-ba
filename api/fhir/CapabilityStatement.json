@@ -20,7 +20,7 @@
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language and organization-patient-transcript-copy extensions (a left-out extension keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true only.",
+          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true only, without the location and the contribution.",
           "searchParam": [
             {
               "name": "listed",

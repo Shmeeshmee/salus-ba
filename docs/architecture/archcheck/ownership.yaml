@@ -56,6 +56,9 @@ tables:
   term_translation: {owner: terminology, personal_data: true} # reviewed_by
   transcript_segment: {owner: transcript, personal_data: true}
   transcription_consent: {owner: consent, personal_data: true}
+  trends_cell: {owner: trends, personal_data: true}
+  trends_period: {owner: trends, personal_data: false}
+  trends_rise: {owner: trends, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
   webhook_dead_letter: {owner: notification, personal_data: true} # ids of a patient's message (00047)
   webhook_endpoint: {owner: notification, personal_data: true} # created_by (00047)
