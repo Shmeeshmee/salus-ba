@@ -351,6 +351,26 @@ session's stack shared the host, so the times are noisy):
 | 12 | 167 | 0 | 244 s |
 | 8 | 212 | 0 | 234 s |
 
+Added from the runner-speed session (PR #96):
+
+| Test | Cause | Fix |
+| --- | --- | --- |
+| `cmd/worker` `TestRun_StartsRiverAndStopsCleanly` (and the other `cmd/*` start-up tests) | A fixed 15 s deadline (10 s for the api's "listening") on a start-up that, on a busy host, waits that long for its first Postgres connection | The tests already wait for the binary's own readiness line ("started", "listening"), polled every 10 ms; the ceiling is now `startCeiling`, 60 s |
+| `make test` with 53300 when several stacks share one host | Each suite runs slower on a shared host and holds its connections longer, so its Postgres's peak grows | `max_connections` 400 to 600 in the compose Postgres, with `-p 8` above |
+
+Three stacks at once (three compose projects, each with its own Postgres, uncached suites of both modules started
+together with `-p 8`, sampled every 0.5 s), `max_connections` 600:
+
+| Stack | Peak connections | Failed tests | Wall time |
+| --- | --- | --- | --- |
+| 1 | 237 | 0 | 391 s |
+| 2 | 229 | 0 | 384 s |
+| 3 | 243 | 0 | 371 s |
+
+The 600 leave 2.5 times the highest peak. Tried and dropped: capping pgtest's admin pool at 4 connections. With three
+stacks it starved the parallel tests' database creation: peaks fell to about 100, but `internal/api` and `migrations`
+ran past go test's 10-minute timeout, their tests waiting about 58 s for an admin connection.
+
 No test was quarantined.
 
 **Config defaults.** `config.LoadWebhookKey` (the api and the worker): `WEBHOOK_KEY` or its file, base64 of 32 bytes;
