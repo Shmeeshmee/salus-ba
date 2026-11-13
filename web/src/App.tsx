@@ -169,7 +169,7 @@ const chatPath = /^\/chats\/[^/]+$/
 // Call is the call page with the consultation's live source and actions, built once for the page (live.ts).
 function Call({ api, fhir, id }: Clients & { id: string }) {
   const consult = useMemo(() => consultSocket({ api, fhir }), [api, fhir])
-  return <CallScreen api={api} fhir={fhir} id={id} consult={consult} history={<CallHistory api={api} fhir={fhir} appointmentId={id} />} />
+  return <CallScreen api={api} fhir={fhir} id={id} consult={consult} history={(refresh) => <CallHistory api={api} fhir={fhir} appointmentId={id} refresh={refresh} />} />
 }
 
 function Screen({ api, fhir, path, account }: Clients & { path: string; account: Account }) {

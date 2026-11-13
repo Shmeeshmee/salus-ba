@@ -11,6 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/history"
 	"github.com/Shmeeshmee/salus/internal/medicationstatement"
@@ -239,11 +240,11 @@ func (f *fakeQuestionnaires) Titles(ctx context.Context, c questionnaire.Caller,
 // fakeConditions gives the confirmed coded fields of each document, and keeps who asked for which.
 type fakeConditions struct {
 	err       error
-	confirmed map[string][]string // the confirmed field keys by document
+	confirmed map[string][]condition.FieldCode // the confirmed fields and their codes by document
 	asked     []string
 }
 
-func (f *fakeConditions) Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]string, error) {
+func (f *fakeConditions) Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]condition.FieldCode, error) {
 	if err := inTx(ctx); err != nil {
 		return nil, err
 	}
@@ -253,7 +254,7 @@ func (f *fakeConditions) Confirmed(ctx context.Context, c appointment.Caller, do
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := map[string][]string{}
+	out := map[string][]condition.FieldCode{}
 	for _, id := range documentIDs {
 		if keys, ok := f.confirmed[id]; ok {
 			out[id] = keys
@@ -372,7 +373,8 @@ func newPractFixture() *practFixture {
 		practAcc + apptNow: {Practitioner: true, Level: 2, Appointment: appointment.Appointment{ID: apptNow, PatientID: patientA, OrganizationID: clinicA}},
 		practAcc + appt2:   {Level: 2, Appointment: appointment.Appointment{ID: appt2, PatientID: patientA, OrganizationID: clinicA}},
 	}}
-	f.conditions = &fakeConditions{confirmed: map[string][]string{doc1: {"diagnosis"}}}
+	// The rule-out field's Condition is confirmed under another code than the document's: not its confirmation.
+	f.conditions = &fakeConditions{confirmed: map[string][]condition.FieldCode{doc1: {{Key: "diagnosis", Code: "J06.9"}, {Key: "ruleout", Code: "K21.9"}}}}
 	f.svc = history.NewService(history.Ports{
 		Tx: fakeTransactor{f: f}, Audit: f.audit, Encounters: f.encounters, Compositions: f.compositions, Responses: f.responses,
 		Questionnaires: &fakeQuestionnaires{titles: map[string]string{version1: "Placeholder intake"}, log: log},

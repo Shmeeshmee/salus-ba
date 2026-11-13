@@ -3,16 +3,16 @@
   "tab": "History",
   "summary": "Before the visit",
   "allergies": "Allergies",
-  "noAllergies": "No allergies shown to you",
+  "noAllergies": "No allergies shown to you. Entries recorded in visits you cannot see are not included; ask the patient.",
   "medications": "Current medications",
-  "noMedications": "No current medications shown to you",
+  "noMedications": "No current medications shown to you. Entries recorded in visits you cannot see are not included; ask the patient.",
   "confirmed": "Confirmed by a clinician",
   "reactionSeverity": "{reaction}, {severity}",
   "severity.mild": "mild",
   "severity.moderate": "moderate",
   "severity.severe": "severe",
   "lastVisit": "Last visit",
-  "noLastVisit": "No earlier visits",
+  "noLastVisit": "No earlier visits shown to you. Visits you cannot see are not included; ask the patient.",
   "openItems": "Open for this appointment",
   "noOpenItems": "Nothing open",
   "open.questionnaire_pending": "Questionnaire not completed",
@@ -38,5 +38,6 @@
   "sharedByPatient": "Shared by the patient",
   "showHistory": "Show history",
   "hideHistory": "Hide history",
-  "answersFailed": "The answers could not be opened."
+  "answersFailed": "The answers could not be opened.",
+  "retry": "Try again"
 }

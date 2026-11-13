@@ -121,7 +121,7 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Condition, er
 	}, nil
 }
 
-func (r *postgresRepository) Confirmed(ctx context.Context, org, practitionerID string, documentIDs []string) (map[string][]string, error) {
+func (r *postgresRepository) Confirmed(ctx context.Context, org, practitionerID string, documentIDs []string) (map[string][]FieldCode, error) {
 	ids, err := uuids(org, practitionerID)
 	if err != nil {
 		return nil, err
@@ -137,10 +137,10 @@ func (r *postgresRepository) Confirmed(ctx context.Context, org, practitionerID 
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string][]string, len(rows))
+	out := make(map[string][]FieldCode, len(rows))
 	for _, row := range rows {
 		doc := row.DocumentDraftID.String()
-		out[doc] = append(out[doc], row.FieldKey)
+		out[doc] = append(out[doc], FieldCode{Key: row.FieldKey, Code: row.Code})
 	}
 	return out, nil
 }

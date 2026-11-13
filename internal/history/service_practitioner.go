@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/medicationstatement"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
@@ -188,7 +189,9 @@ func (s *Service) complete(ctx context.Context, c appointment.Caller, es []entry
 		}
 		keys := confirmed[strings.TrimPrefix(e.Reference, "Composition/")]
 		for _, f := range e.coded {
-			e.Diagnoses = append(e.Diagnoses, Diagnosis{Code: f.Value, Label: f.Label, Confirmed: slices.Contains(keys, f.Key)})
+			// Confirmed only for this field and this code: a Condition of another code is not its confirmation.
+			confirmedHere := slices.Contains(keys, condition.FieldCode{Key: f.Key, Code: f.Value})
+			e.Diagnoses = append(e.Diagnoses, Diagnosis{Code: f.Value, Label: f.Label, Confirmed: confirmedHere})
 		}
 	}
 	return nil
@@ -196,9 +199,9 @@ func (s *Service) complete(ctx context.Context, c appointment.Caller, es []entry
 
 // titlesAndConfirmed reads the titles of the versions and the confirmed coded fields of the documents, each only
 // when there is one.
-func (s *Service) titlesAndConfirmed(ctx context.Context, c appointment.Caller, versions, docs []string) (map[string]string, map[string][]string, error) {
+func (s *Service) titlesAndConfirmed(ctx context.Context, c appointment.Caller, versions, docs []string) (map[string]string, map[string][]condition.FieldCode, error) {
 	var titles map[string]string
-	var confirmed map[string][]string
+	var confirmed map[string][]condition.FieldCode
 	var err error
 	if len(versions) > 0 {
 		qc := questionnaire.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, PatientID: c.PatientID, Admin: c.Admin}

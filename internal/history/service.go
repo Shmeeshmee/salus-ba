@@ -7,6 +7,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/medicationstatement"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
@@ -71,10 +72,10 @@ type Questionnaires interface {
 	Titles(ctx context.Context, c questionnaire.Caller, ids []string) (map[string]string, error)
 }
 
-// Conditions gives the keys of the coded fields of the signed documents whose Condition is confirmed, by document:
+// Conditions gives the coded fields (key and code) of the signed documents whose Condition is confirmed, by document:
 // the caller's clinic's own, and a shared visit's (condition.Reads). Part of the documents, which are audited.
 type Conditions interface {
-	Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]string, error)
+	Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]condition.FieldCode, error)
 }
 
 // Clinics gives the names of the clinics a clinic's scope shows (organization.Service).

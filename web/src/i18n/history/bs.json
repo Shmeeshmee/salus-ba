@@ -3,16 +3,16 @@
   "tab": "Historija",
   "summary": "Prije pregleda",
   "allergies": "Alergije",
-  "noAllergies": "Nema alergija koje su vam prikazane",
+  "noAllergies": "Nema alergija koje su vam prikazane. Unosi iz pregleda koje ne vidite nisu uključeni; pitajte pacijenta.",
   "medications": "Trenutni lijekovi",
-  "noMedications": "Nema trenutnih lijekova koji su vam prikazani",
+  "noMedications": "Nema trenutnih lijekova koji su vam prikazani. Unosi iz pregleda koje ne vidite nisu uključeni; pitajte pacijenta.",
   "confirmed": "Potvrđeno od kliničara",
   "reactionSeverity": "{reaction}, {severity}",
   "severity.mild": "blaga",
   "severity.moderate": "umjerena",
   "severity.severe": "teška",
   "lastVisit": "Posljednji pregled",
-  "noLastVisit": "Nema ranijih pregleda",
+  "noLastVisit": "Nema ranijih pregleda koji su vam prikazani. Pregledi koje ne vidite nisu uključeni; pitajte pacijenta.",
   "openItems": "Otvoreno za ovaj termin",
   "noOpenItems": "Ništa nije otvoreno",
   "open.questionnaire_pending": "Upitnik nije popunjen",
@@ -38,5 +38,6 @@
   "sharedByPatient": "Pacijent je podijelio",
   "showHistory": "Prikaži historiju",
   "hideHistory": "Sakrij historiju",
-  "answersFailed": "Odgovore nije moguće otvoriti."
+  "answersFailed": "Odgovore nije moguće otvoriti.",
+  "retry": "Pokušajte ponovo"
 }

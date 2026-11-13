@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
 import { PatientHistory } from './History'
+import { I18nProvider } from './i18n/I18nProvider'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
 import { apiError, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
@@ -73,9 +75,9 @@ describe('PatientHistory', () => {
     renderHistory({ [history]: () => Response.json({ items: [] }), [summary]: () => Response.json({ allergies: [], medications: [], openItems: [] }) })
 
     expect(await screen.findByText('No history to show')).toBeTruthy()
-    expect(screen.getByText('No allergies shown to you')).toBeTruthy()
-    expect(screen.getByText('No current medications shown to you')).toBeTruthy()
-    expect(screen.getByText('No earlier visits')).toBeTruthy()
+    expect(screen.getByText('No allergies shown to you. Entries recorded in visits you cannot see are not included; ask the patient.')).toBeTruthy()
+    expect(screen.getByText('No current medications shown to you. Entries recorded in visits you cannot see are not included; ask the patient.')).toBeTruthy()
+    expect(screen.getByText('No earlier visits shown to you. Visits you cannot see are not included; ask the patient.')).toBeTruthy()
     expect(screen.getByText('Nothing open')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
   })
@@ -111,9 +113,13 @@ describe('PatientHistory', () => {
   })
 
   it('says when the history cannot be loaded', async () => {
-    renderHistory({ [history]: () => apiError(404, 'not_found'), [summary]: () => apiError(404, 'not_found') })
+    let fail = true
+    renderHistory({ [history]: () => (fail ? apiError(500, 'internal') : Response.json(page)), [summary]: () => Response.json(fullSummary) })
 
     expect(await screen.findByText('The history could not be loaded.')).toBeTruthy()
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Placeholder report')).toBeTruthy()
   })
 
   it('says a section could not be loaded, never that none is recorded', async () => {
@@ -124,8 +130,44 @@ describe('PatientHistory', () => {
 
     expect(await screen.findByText('Allergies could not be loaded.')).toBeTruthy()
     expect(screen.getByText('Current medications could not be loaded.')).toBeTruthy()
-    expect(screen.queryByText('No allergies shown to you')).toBeNull()
-    expect(screen.queryByText('No current medications shown to you')).toBeNull()
+    expect(screen.queryByText('No allergies shown to you. Entries recorded in visits you cannot see are not included; ask the patient.')).toBeNull()
+    expect(screen.queryByText('No current medications shown to you. Entries recorded in visits you cannot see are not included; ask the patient.')).toBeNull()
+  })
+
+  it('leaves out a dose or a timing in a unit it does not know', async () => {
+    const odd = { ...fullSummary, medications: [{ reference: 'MedicationStatement/m2', text: 'Placeholder medicine',
+      dosage: { doseValue: 2, doseUnit: 'cup', frequency: 3, period: 1, periodUnit: 'year' }, confirmed: false }] }
+    renderHistory({ [history]: () => Response.json(page), [summary]: () => Response.json(odd) })
+
+    const name = await screen.findByText('Placeholder medicine')
+    expect(name.closest('li')?.textContent).toBe('Placeholder medicine')
+  })
+
+  it('reads the summary again when asked, and after a failure on request', async () => {
+    let fail = true
+    const fake = renderHistory({ [history]: () => Response.json(page), [summary]: () => (fail ? apiError(500, 'internal') : Response.json(fullSummary)) })
+
+    expect(await screen.findByText('The summary could not be loaded.')).toBeTruthy()
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Placeholder substance')).toBeTruthy()
+    const summaries = () => fake.requests.filter((r) => new URL(r.url).pathname.endsWith('/summary')).length
+    const histories = () => fake.requests.filter((r) => new URL(r.url).pathname === `/patients/${patientId}/history`).length
+    expect(summaries()).toBe(2)
+    expect(histories()).toBe(1)
+  })
+
+  it('reads the summary again when its refresh changes, not the history', async () => {
+    const fake = fakeFetch({ [history]: () => Response.json(page), [summary]: () => Response.json(fullSummary) })
+    const api = newApiClient(fake.fetch)
+    const fhir = newFhirClient(fake.fetch)
+    const view = (refresh: string) => <PatientHistory api={api} fhir={fhir} patientId={patientId} appointmentId={appt} zone="Europe/Sarajevo" refresh={refresh} />
+    const { rerender } = renderInLanguage(view('1'), 'en')
+    expect(await screen.findByText('Placeholder substance')).toBeTruthy()
+    rerender(inEnglish(view('2')))
+    await screen.findByText('Placeholder substance')
+    await waitFor(() => expect(fake.requests.filter((r) => new URL(r.url).pathname.endsWith('/summary'))).toHaveLength(2))
+    expect(fake.requests.filter((r) => new URL(r.url).pathname === `/patients/${patientId}/history`)).toHaveLength(1)
   })
 
   it('keeps the history when the summary cannot be loaded', async () => {
@@ -133,7 +175,7 @@ describe('PatientHistory', () => {
 
     expect(await screen.findByText('The summary could not be loaded.')).toBeTruthy()
     expect(screen.getByText('Placeholder report')).toBeTruthy()
-    expect(screen.queryByText('No allergies shown to you')).toBeNull()
+    expect(screen.queryByText('No allergies shown to you. Entries recorded in visits you cannot see are not included; ask the patient.')).toBeNull()
   })
 
   it('marks a shared visit as shared when its clinic has no name', async () => {
@@ -169,3 +211,12 @@ describe('PatientHistory', () => {
     expect(screen.getByText('Пацијент је подијелио из установе Other synthetic clinic')).toBeTruthy()
   })
 })
+
+// inEnglish is ui as renderInLanguage wraps it, for a rerender.
+function inEnglish(ui: ReactNode) {
+  return (
+    <I18nProvider initial="en" browser={['en']}>
+      {ui}
+    </I18nProvider>
+  )
+}

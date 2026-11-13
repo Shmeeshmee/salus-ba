@@ -188,9 +188,9 @@ func TestReadRepository_ReadsTheConfirmedFields(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	read := func(clinic string) map[string][]string {
+	read := func(clinic string) map[string][]condition.FieldCode {
 		t.Helper()
-		var got map[string][]string
+		var got map[string][]condition.FieldCode
 		if err := inClinic(t, app, clinic, func(ctx context.Context) error {
 			var err error
 			got, err = condition.NewPostgresReadRepository(app).Confirmed(ctx, clinic, "00000000-0000-4000-8000-0000000000f1", []string{s.document, "nope"})
@@ -200,7 +200,7 @@ func TestReadRepository_ReadsTheConfirmedFields(t *testing.T) {
 		}
 		return got
 	}
-	if got := read(s.clinic); len(got) != 1 || !slices.Equal(got[s.document], []string{"a"}) {
+	if got := read(s.clinic); len(got) != 1 || !slices.Equal(got[s.document], []condition.FieldCode{{Key: "a", Code: "J06.9"}}) {
 		t.Errorf("the clinic: %v, want field a of the document", got)
 	}
 	if got := read("00000000-0000-4000-8000-0000000000ff"); len(got) != 0 {

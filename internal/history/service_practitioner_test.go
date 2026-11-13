@@ -53,8 +53,9 @@ func TestForPractitioner_ListsTheVisitsAndWhatBelongsToThemNewestFirst(t *testin
 	}
 }
 
-// A coded field is a diagnosis as its Condition says: confirmed only when it is (a code 00042 backfilled from a
-// document signed before SAL-19 is unconfirmed, as is one the conditions do not know), with the field's label so a
+// A coded field is a diagnosis as its Condition says: confirmed only when it is, for that field and that code (a
+// code 00042 backfilled from a document signed before SAL-19 is unconfirmed, as is one the conditions do not know,
+// or know under another code), with the field's label so a
 // "rule out" field never reads as a diagnosis; asked once, as the caller, for the documents the page shows.
 func TestForPractitioner_MarksADiagnosisConfirmedOnlyByItsCondition(t *testing.T) {
 	t.Parallel()

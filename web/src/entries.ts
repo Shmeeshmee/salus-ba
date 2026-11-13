@@ -77,7 +77,7 @@ export type Entries = { allergies: Allergy[]; medications: Medication[] }
 
 export const confirmedURL = 'https://salus.invalid/fhir/StructureDefinition/medicationstatement-confirmed'
 
-function oneOf<T extends string>(value: string | undefined, set: readonly T[]): T | undefined {
+export function oneOf<T extends string>(value: string | undefined, set: readonly T[]): T | undefined {
   return set.find((x) => x === value)
 }
 

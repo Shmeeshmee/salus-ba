@@ -40,15 +40,15 @@ func (f *fakeReadRepo) SetPatient(_ context.Context, id string) error {
 
 // Confirmed gives the held Condition's document and field when it is confirmed, of the clinic org, or, standing in
 // for history_confirmed_conditions, when the scope's practitioner is shared.
-func (f *fakeReadRepo) Confirmed(ctx context.Context, org, practitionerID string, documentIDs []string) (map[string][]string, error) {
+func (f *fakeReadRepo) Confirmed(ctx context.Context, org, practitionerID string, documentIDs []string) (map[string][]condition.FieldCode, error) {
 	if ctx.Value(txKey{}) == nil || f.scope != "clinic "+org {
 		return nil, errors.New("read outside the clinic's scope or transaction")
 	}
 	f.asked = append(f.asked, practitionerID)
-	out := map[string][]string{}
+	out := map[string][]condition.FieldCode{}
 	for _, id := range documentIDs {
 		if id == f.c.DocumentID && f.c.VerificationStatus == condition.VerificationConfirmed && (f.c.OrganizationID == org || f.shared) {
-			out[id] = append(out[id], f.c.FieldKey)
+			out[id] = append(out[id], condition.FieldCode{Key: f.c.FieldKey, Code: f.c.Code})
 		}
 	}
 	return out, nil
@@ -175,7 +175,7 @@ func TestConfirmed_GivesTheConfirmedFieldsOfTheDocuments(t *testing.T) {
 	audit := &fakeAudit{}
 	svc := condition.NewReads(condition.ReadPorts{Repo: repo, Encounters: fakeEncounters{}, Audit: audit, Tx: fakeTx{}})
 	got, err := svc.Confirmed(t.Context(), practitioner, []string{c.DocumentID, unrelated})
-	if err != nil || len(got) != 1 || len(got[c.DocumentID]) != 1 || got[c.DocumentID][0] != c.FieldKey {
+	if err != nil || len(got) != 1 || len(got[c.DocumentID]) != 1 || got[c.DocumentID][0] != (condition.FieldCode{Key: c.FieldKey, Code: c.Code}) {
 		t.Errorf("Confirmed() = %v, %v; want the document's field", got, err)
 	}
 	if len(repo.asked) != 1 || repo.asked[0] != practitioner.PractitionerID || len(audit.events) != 0 {

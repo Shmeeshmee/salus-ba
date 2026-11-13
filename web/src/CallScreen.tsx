@@ -41,7 +41,7 @@ type Consult = { live: LiveSource; actions: ConsultActions }
 // fhir reads the patient's allergies and medications (SAL-41): the warning of the active allergies on every state of
 // the page and the panel beside the video. Without it neither is shown.
 // history is the patient's history for a tab of the live panels (SAL-40).
-type Props = { api: ApiClient; fhir?: Pick<FhirClient, 'get'>; id: string; media?: Media; consult?: Consult; history?: ReactNode }
+type Props = { api: ApiClient; fhir?: Pick<FhirClient, 'get'>; id: string; media?: Media; consult?: Consult; history?: (refresh: string) => ReactNode }
 
 // The practitioner's own time zone, for the times of the transcript's lines.
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone

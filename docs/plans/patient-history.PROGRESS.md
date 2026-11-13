@@ -141,3 +141,15 @@ adapter); `TestHistory_ReadsTheProfileThroughSAL41sServices` keeps the stand-ins
 allergy the patient added. A failed read stays "unavailable"; "No allergies shown to you" follows only a read that
 returned none. The medication's dosage is shown with SAL-41's strings (`allergies.dose.*`, `allergies.timing.*`,
 `allergies.asNeeded`), no new copy. The call page has both tabs, SAL-41's allergies and medications and the history.
+
+Second review (focused, 2026-11-13), after merging main (SAL-20): the empty texts say what is left out ("…
+Entries recorded in visits you cannot see are not included; ask the patient.", and the same for the medications and
+the last visit); the call page's summary is read again each time its tab is shown and when SAL-41's entries change,
+and a failed summary or history read has "Try again"; `expectHTTP` fails on every missing string (`missing`, tested);
+the dosage keeps only SAL-41's known units; a diagnosis is confirmed only by a Condition of that field and that code
+(00051's `history_confirmed_conditions` returns the code). Accepted: `Seen` audits every entry it returns, inactive
+allergies and stopped medications included, which the summary does not show: over-audit, the safe direction; an
+active-only read would change SAL-41's services, so it was not added. Not adopted: deriving the practitioner in
+00051's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
+questionnaire's and the condition's scopes set the clinic only, and the caller carries the practitioner, not a role
+(a practitioner has one per clinic). The argument comes from the session's caller in the service, never the request.

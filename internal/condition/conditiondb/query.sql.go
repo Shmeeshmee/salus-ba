@@ -53,10 +53,10 @@ func (q *Queries) ConditionByID(ctx context.Context, id pgtype.UUID) (ConditionB
 }
 
 const confirmedFields = `-- name: ConfirmedFields :many
-SELECT document_draft_id, field_key FROM condition
+SELECT document_draft_id, field_key, code FROM condition
 WHERE document_draft_id = ANY($1::uuid[]) AND verification_status = 'confirmed' AND organization_id = $2
 UNION
-SELECT h.document_draft_id, h.field_key FROM history_confirmed_conditions($1::uuid[], $3::uuid) AS h
+SELECT h.document_draft_id, h.field_key, h.code FROM history_confirmed_conditions($1::uuid[], $3::uuid) AS h
 `
 
 type ConfirmedFieldsParams struct {
@@ -68,6 +68,7 @@ type ConfirmedFieldsParams struct {
 type ConfirmedFieldsRow struct {
 	DocumentDraftID pgtype.UUID
 	FieldKey        string
+	Code            string
 }
 
 // The coded fields of the signed documents ids whose Condition is confirmed: the clinic's own (condition_clinic),
@@ -81,7 +82,7 @@ func (q *Queries) ConfirmedFields(ctx context.Context, arg ConfirmedFieldsParams
 	var items []ConfirmedFieldsRow
 	for rows.Next() {
 		var i ConfirmedFieldsRow
-		if err := rows.Scan(&i.DocumentDraftID, &i.FieldKey); err != nil {
+		if err := rows.Scan(&i.DocumentDraftID, &i.FieldKey, &i.Code); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

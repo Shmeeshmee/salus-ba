@@ -142,14 +142,14 @@ func TestHistoryConfirmedConditions_GivesOnlyASharedDocumentsConfirmedFields(t *
 	practitioner := practitionerOf(t, owner, h.r.roles[clinicA])
 	lookupAs := func(scope map[string]string, practitionerID string) []string {
 		t.Helper()
-		return idsIn(t, app, scope, `SELECT document_draft_id::text || ' ' || field_key FROM history_confirmed_conditions('{`+
+		return idsIn(t, app, scope, `SELECT document_draft_id::text || ' ' || field_key || ' ' || code FROM history_confirmed_conditions('{`+
 			h.final[shared]+`,`+h.final[own]+`}'::uuid[], '`+practitionerID+`')`)
 	}
 	if got := lookupAs(clinicScope, practitioner); len(got) != 0 {
 		t.Errorf("nothing shared: clinic A gets %v, want none", got)
 	}
 	share(t, owner, h.consent, shared)
-	if got := lookupAs(clinicScope, practitioner); !slices.Equal(got, []string{h.final[shared] + " confirmed-key"}) {
+	if got := lookupAs(clinicScope, practitioner); !slices.Equal(got, []string{h.final[shared] + " confirmed-key J06.9"}) {
 		t.Errorf("shared: clinic A gets %v, want the shared document's confirmed field only", got)
 	}
 	if got := lookupAs(clinicScope, "a9000000-0000-4000-8000-0000000000a9"); len(got) != 0 {
