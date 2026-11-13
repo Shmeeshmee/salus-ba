@@ -1,0 +1,77 @@
+/* The analytics page (docs/plans/analytics.md §9 ANA-4): light, flat, mint accents; one axis per chart, thin marks,
+   recessive grid. Series colours were checked for colour-vision separation; identity is never colour alone (legend
+   and table view). Transitions only when the reader has not asked for reduced motion. */
+.analytics {
+  --series-1: #2A78D6;
+  --series-2: #1BAF7A;
+  --series-3: #EB6834;
+  --series-4: #6250D6;
+  display: grid;
+  gap: 16px;
+}
+.analytics h1 { margin: 0; }
+.analytics-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); }
+.analytics-tabs [role='tab'] {
+  font: inherit; font-size: 15px; padding: 8px 14px; border: 0; border-bottom: 2px solid transparent;
+  background: none; color: var(--color-text-muted); cursor: pointer; margin-bottom: -1px;
+}
+.analytics-tabs [role='tab'][aria-selected='true'] { color: var(--color-ink); border-bottom-color: var(--color-mint); font-weight: 600; }
+.analytics-view { display: grid; gap: 16px; }
+.analytics-view > p { margin: 0; }
+.analytics-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; }
+.analytics-filters .field { min-width: 160px; flex: 1 1 160px; max-width: 260px; }
+.analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.analytics-wide { grid-column: 1 / -1; display: grid; gap: 8px; }
+
+.chart { margin: 0; padding: 16px; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); min-width: 0; }
+.chart-title { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.chart-note { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.chart-empty { margin: 8px 0; }
+.chart-plot { position: relative; }
+.chart-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-svg text { font-family: var(--font); font-size: 12px; fill: var(--color-text-muted); }
+.chart-svg .axis line { stroke: var(--color-border); stroke-width: 1; }
+.chart-svg .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-svg .mark { outline: none; cursor: default; }
+.chart-svg .hit { fill: transparent; }
+.chart-svg .mark:focus-visible .hit, .chart-svg .cell:focus-visible { stroke: var(--color-ink); stroke-width: 2; }
+.chart-svg .bar-label { fill: var(--color-ink); font-size: 13px; }
+.chart-svg .bar-value { fill: var(--color-ink); font-size: 13px; }
+.chart-svg .bar-fill { fill: var(--color-brand); }
+.chart-svg .bar.active .bar-fill { fill: var(--color-brand-hover); }
+.chart-svg .bar.active .hit { fill: var(--color-mint-faint); }
+.chart-svg .openable { cursor: pointer; }
+.chart-svg .cell.active { stroke: var(--color-ink); stroke-width: 1.5; }
+
+.chart-legend { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--color-text-muted); }
+.chart-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend .swatch { width: 12px; height: 12px; border-radius: 3px; }
+.chart-legend .swatch.hatched { background: repeating-linear-gradient(45deg, var(--color-page) 0 3px, var(--color-border-strong) 3px 5px); }
+
+.chart-tooltip {
+  position: absolute; z-index: 2; transform: translate(-50%, 8px); pointer-events: none; display: grid; gap: 2px;
+  width: max-content; max-width: 260px; padding: 6px 10px; border-radius: 8px; background: var(--color-ink); color: #FFFFFF; font-size: 13px;
+}
+.chart-tooltip.left { transform: translate(-90%, 8px); }
+.chart-tooltip .muted-tip { color: #C9D2CE; }
+
+.chart-table { margin-top: 8px; font-size: 13px; }
+.chart-table summary { cursor: pointer; color: var(--color-text-muted); }
+.chart-table table { border-collapse: collapse; margin-top: 8px; display: block; overflow-x: auto; }
+.chart-table th, .chart-table td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.chart-table td { font-variant-numeric: tabular-nums; }
+
+.drill-path { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+.drill-path button { font: inherit; border: 0; padding: 0; background: none; color: var(--color-brand); text-decoration: underline; cursor: pointer; }
+.drill-path [aria-current] { font-weight: 600; }
+
+.rises { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rises li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tag.rise { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.tag.partial { background: var(--color-page); }
+.rises .tip [role='tooltip'] { left: 0; right: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .chart-svg .bar-fill, .chart-svg .cell, .chart-svg .hit { transition: fill .15s ease-out; }
+  .chart-svg .line { transition: opacity .15s ease-out; }
+}

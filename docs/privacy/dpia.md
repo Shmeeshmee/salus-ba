@@ -1991,6 +1991,27 @@ location hint are not shown.
 | A rise flag read as an official alert | No count; copy "Unusual rise" with a tooltip that it is not a public-health alert (ANA-4); L6 open |
 | Processing before the legal answers | `ANALYTICS_PLATFORM_ENABLED` off by default; tests run both ways |
 
+### SAL-22: the analytics charts (web)
+
+**Processing added.** None on the server. The staff web app gets an Analytics page that shows what the clinic and
+platform endpoints of SAL-20 and SAL-21 return: counts per month, weekday and hour, diagnosis group, region, city,
+specialty and, for a clinic admin, practitioner, through the generated client (`web/src/analytics/data.ts`); every
+read is audited by those endpoints. The tests use synthetic placeholder figures (`web/src/analytics/fixtures.ts`).
+
+**Minimisation.** The page asks only for counts and keys (codes, place ids, role ids); names come from the reference
+endpoints. Nothing is stored in the browser and nothing is logged. A practitioner who is not an admin is offered no
+practitioner or specialty filter (the API refuses both) and no practitioner breakdown, and is told the diagnoses shown are the
+ones they recorded (rule C2).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| The page asks for a platform combination that would undo the suppression | The All of Salus filters follow one table at a time (plan §5: geography × diagnosis, geography × specialty, specialty × diagnosis); a dimension outside the table is not offered (tested against fixtures that refuse it) |
+| A hidden cell read as a small number or as zero | It reads "Hidden" with a hatched mark and the tooltip that small or dominated groups are hidden; a sum over months is labelled patient-months and "Partial" when a cell is hidden |
+| A rise flag taken as an official alert | "Unusual rise", never "outbreak", with the tooltip that it compares with the previous weeks and is not a public-health alert (legal-tagged string) |
+| The platform view before the legal answers | The tab is shown only with the `analytics_platform` feature of `GET /auth/me` and for a contributing clinic |
+
 ## Patient history (`docs/plans/patient-history.md`, ADR 0014)
 
 ### Step 0: the contract (migration 00043)
