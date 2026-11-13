@@ -255,6 +255,17 @@ Changed on approval (2026-11-04, owner):
 - Slot status changes in the appointment's transaction, proven by a concurrent book-and-cancel test.
 - The specialty list is the owner's twelve.
 
+Changed by the appointments epic (2026-11-13, owner; docs/plans/appointments.md "Decisions", ADR 0015):
+
+- The patient participant of an `Appointment` is `tentative` until the patient confirms, `accepted` after, and
+  `declined` once they cancel; the practitioner and the role stay `accepted` (supersedes "each `status: accepted`").
+- A no-show and a fulfilled appointment may be corrected into each other by its practitioner or the clinic's admin
+  within 30 days of the start, each correction audited with a history row (supersedes "a no-show appointment does
+  not change again" and "admin: not change other statuses" for this correction only).
+- A patient reschedules their own appointment to another free slot of the same role within the clinic's rules; the
+  appointment keeps its id (supersedes "rescheduling (cancel and book again)" in section 5).
+- The phone may carry SMS reminders and waitlist offers, opt-in (section 4).
+
 Changed on review of PR #18 (2026-11-05, owner):
 
 - Paediatrics is SNOMED CT 394537008 "Pediatric specialty", outside `c80-practice-codes` (preferred binding).
@@ -291,7 +302,7 @@ Changed on review of PR #18 (2026-11-05, owner):
 | --- | --- | --- |
 | `patient` | `given_name`, `family_name` | So the clinic knows who is coming, and the patient is addressed correctly |
 | `patient` | `birth_date` | To tell apart patients with the same name, and because age matters to the practitioner preparing the visit |
-| `patient` | `phone` (optional) | So the practitioner can reach the patient about a booked appointment when e-mail is too slow; never used for SMS or marketing |
+| `patient` | `phone` (optional) | So the practitioner can reach the patient about a booked appointment when e-mail is too slow; since 2026-11-13 (owner, docs/plans/appointments.md Q1) also for appointment reminders and waitlist offers by SMS, only when the patient opts in per channel and the clinic offers SMS; never marketing |
 | `patient` | `account_id`, `version_id`, timestamps | To find the profile of the signed-in account; optimistic locking |
 | `consent` | `patient_id`, `organization_id`, `status`, `date_time`, `revoked_at` | The patient's decision, when it was made and withdrawn, as proof (Art. 7(1)) |
 | `appointment` | `patient_id`, `practitioner_role_id`, `organization_id`, `slot_id`, `period`, `status` | The booking itself: who sees whom, where, when |
