@@ -4,6 +4,7 @@ package e2e_test
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -25,16 +26,31 @@ func TestReminders_TheReminderEmailArrivesAtItsTimeWithAOneTimeLink(t *testing.T
 	}, nil)
 	p.must(http.StatusCreated, http.MethodPost, "/consents", map[string]string{"organizationId": clinic.id}, nil)
 
-	slots := freeSlots(t, p.api, clinic.scheduleID)
-	if len(slots) == 0 {
+	// The first free slot from an hour ahead, with its start (Slot has a search, no read).
+	now := clock.System{}.Now().UTC()
+	q := url.Values{
+		"schedule": {"Schedule/" + clinic.scheduleID}, "status": {"free"},
+		"start": {"ge" + now.Add(time.Hour).Format(time.RFC3339), "lt" + now.Add(3*time.Hour).Format(time.RFC3339)},
+	}
+	var found struct {
+		Entry []struct{ Resource struct{ ID, Start string } }
+	}
+	p.must(http.StatusOK, http.MethodGet, "/fhir/R4/Slot?"+q.Encode(), nil, &found)
+	if len(found.Entry) == 0 {
 		t.Fatal("no free slot")
 	}
-	var slot struct{ Start string }
-	p.must(http.StatusOK, http.MethodGet, "/fhir/R4/Slot/"+slots[0], nil, &slot)
-	start, err := time.Parse(time.RFC3339, slot.Start)
-	if err != nil {
-		t.Fatal(err)
+	var slot string
+	var start time.Time
+	for _, e := range found.Entry {
+		at, err := time.Parse(time.RFC3339, e.Resource.Start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slot == "" || at.Before(start) {
+			slot, start = e.Resource.ID, at
+		}
 	}
+	slots := []string{slot}
 	// Due between 5 and 65 seconds from now: the offset in whole minutes just under the time to the start.
 	offset := int(start.Sub(clock.System{}.Now().Add(5*time.Second)) / time.Minute)
 	var settings map[string]any
