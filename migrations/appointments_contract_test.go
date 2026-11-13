@@ -87,6 +87,17 @@ func TestAppointmentChange_IsAppendOnly(t *testing.T) {
 		})
 	}
 	clinic := map[string]string{"app.organization_id": clinicA}
+	var staffA, staffB string
+	for _, x := range []struct {
+		id    *string
+		email string
+		org   string
+	}{{&staffA, "staff.a@example.test", clinicA}, {&staffB, "staff.b@example.test", clinicB}} {
+		if err := owner.QueryRow(t.Context(), `INSERT INTO account (email, password_hash, role, organization_id) VALUES ($1, 'h', 'admin', $2) RETURNING id`,
+			x.email, x.org).Scan(x.id); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, tt := range []struct {
 		scope                map[string]string
 		name, via, by, agent string
@@ -97,7 +108,9 @@ func TestAppointmentChange_IsAppendOnly(t *testing.T) {
 		{name: "a job in the patient's scope", scope: own, via: "system", agent: "consent_revoked", ok: true},
 		{name: "the patient's scope claiming staff", scope: own, via: "staff", by: p[0].account},
 		{name: "the patient's scope with another account", scope: own, via: "app", by: p[1].account},
-		{name: "the clinic's staff", scope: clinic, via: "staff", by: p[1].account, ok: true},
+		{name: "the clinic's staff", scope: clinic, via: "staff", by: staffA, ok: true},
+		{name: "staff by another clinic's account", scope: clinic, via: "staff", by: staffB},
+		{name: "staff by a patient's account", scope: clinic, via: "staff", by: p[1].account},
 		{name: "a job in the clinic's scope", scope: clinic, via: "system", agent: "consultation_window_close", ok: true},
 		{name: "the clinic's scope claiming the patient's app", scope: clinic, via: "app", by: p[0].account},
 		{name: "the clinic's scope claiming the link", scope: clinic, via: "link", by: p[0].account},
@@ -194,14 +207,29 @@ func TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment(t *test
 		{name: "the patient resets the count", scope: own, q: resetCount, id: a.aFuture},
 		{name: "the patient confirms", scope: own, q: confirm, id: a.aFuture, ok: true},
 		{name: "the patient clears the confirmation", scope: own, q: clear, id: a.aFuture},
+		{name: "the patient confirms again", scope: own, q: confirm, id: a.aFuture},
+		{name: "the patient confirms a cancelled one", scope: own, q: confirm, id: a.bFuture},
 	} {
 		if err := run(tt.scope, tt.q, tt.id); (err == nil) != tt.ok {
 			t.Errorf("%s: %v, want done %t", tt.name, err, tt.ok)
 		}
 	}
-	// The schema owner is not guarded (migrations, the operator, fixtures), as row-level security does not hold it.
+	// The schema owner's session is not guarded (migrations, the operator, fixtures), as row-level security does not
+	// hold it; a SECURITY DEFINER function of the owner, called by the app, is.
 	if _, err := owner.Exec(t.Context(), moveFree, a.aFuture); err != nil {
 		t.Errorf("the owner moves an appointment: %v", err)
+	}
+	if _, err := owner.Exec(t.Context(), `CREATE FUNCTION test_move(id uuid) RETURNS void LANGUAGE sql SECURITY DEFINER AS
+		$$ UPDATE public.appointment SET period = tstzrange(lower(period) + interval '1 hour', upper(period) + interval '1 hour'),
+		   slot_id = gen_random_uuid() WHERE appointment.id = test_move.id $$;
+		GRANT EXECUTE ON FUNCTION test_move(uuid) TO salus_app`); err != nil {
+		t.Fatal(err)
+	}
+	if err := asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
+		_, err := db.Exec(ctx, "SELECT test_move($1)", a.aFuture)
+		return err
+	}); err == nil {
+		t.Error("an owner's SECURITY DEFINER function moved an appointment for the app")
 	}
 }
 

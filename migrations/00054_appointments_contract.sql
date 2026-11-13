@@ -28,7 +28,8 @@ GRANT UPDATE (period, slot_id, confirmed_at, confirmed_via, reschedule_count) ON
 -- consent, a revoked clinic's past ones), so this trigger says who may change what: the period and the slot only in
 -- the patient's own scope, of a booked appointment that stays booked, the period and the slot together, the reschedule count up by
 -- exactly one with every change of the period and never otherwise; the confirmation only in the patient's scope (their app, or the
--- one-time link, which acts as the patient), and never cleared once set. It guards every role but the table's
+-- one-time link, which acts as the patient), of a booked appointment, once: a confirmation never changes. A job in
+-- the patient's scope (the revocation's) counts as the patient's scope; it changes none of these. It guards every role but the table's
 -- owner (migrations, salusctl, test fixtures), which row-level security does not hold either (as 00043's
 -- profile_entry_update_check).
 -- +goose StatementBegin
@@ -41,7 +42,8 @@ DECLARE
                    AND NULLIF(current_setting('app.patient_id', true), '')::uuid = OLD.patient_id;
     moved boolean := NEW.period IS DISTINCT FROM OLD.period OR NEW.slot_id IS DISTINCT FROM OLD.slot_id;
 BEGIN
-    IF current_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.oid = TG_RELID) THEN
+    -- session_user, not current_user: a SECURITY DEFINER function owned by the owner runs as it, yet stays guarded.
+    IF session_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.oid = TG_RELID) THEN
         RETURN NEW;
     END IF;
     IF moved AND NOT (own AND OLD.status = 'booked' AND NEW.status = 'booked') THEN
@@ -56,11 +58,16 @@ BEGIN
     IF NEW.period IS NOT DISTINCT FROM OLD.period AND NEW.reschedule_count IS DISTINCT FROM OLD.reschedule_count THEN
         RAISE EXCEPTION 'appointment: the reschedule count changes only with the period' USING ERRCODE = 'check_violation';
     END IF;
-    IF (NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at OR NEW.confirmed_via IS DISTINCT FROM OLD.confirmed_via) AND NOT own THEN
-        RAISE EXCEPTION 'appointment: only its patient confirms' USING ERRCODE = 'insufficient_privilege';
-    END IF;
-    IF OLD.confirmed_at IS NOT NULL AND NEW.confirmed_at IS NULL THEN
-        RAISE EXCEPTION 'appointment: a confirmation is never cleared' USING ERRCODE = 'check_violation';
+    IF NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at OR NEW.confirmed_via IS DISTINCT FROM OLD.confirmed_via THEN
+        IF NOT own THEN
+            RAISE EXCEPTION 'appointment: only its patient confirms' USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        IF OLD.confirmed_at IS NOT NULL THEN
+            RAISE EXCEPTION 'appointment: a confirmation never changes' USING ERRCODE = 'check_violation';
+        END IF;
+        IF OLD.status <> 'booked' THEN
+            RAISE EXCEPTION 'appointment: only a booked appointment is confirmed' USING ERRCODE = 'check_violation';
+        END IF;
     END IF;
     RETURN NEW;
 END
@@ -110,7 +117,7 @@ CREATE POLICY appointment_change_seen ON appointment_change FOR SELECT
     USING (EXISTS (SELECT 1 FROM appointment a WHERE a.id = appointment_change.appointment_id));
 -- A row is written only for an appointment the scope sees, and says who wrote it as the scope is: in the patient's own
 -- scope their app or link (by the patient's own account) or a job (the revocation's, by no account); in the clinic's
--- scope its staff or a job. A patient's scope never claims staff, a clinic's never the patient's app or link.
+-- scope a job, or its staff by an account of the row's clinic (account has no row-level security to recurse into). A patient's scope never claims staff, a clinic's never the patient's app or link.
 CREATE POLICY appointment_change_write ON appointment_change FOR INSERT
     WITH CHECK (EXISTS (SELECT 1 FROM appointment a WHERE a.id = appointment_change.appointment_id)
                 AND CASE WHEN NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL
@@ -118,7 +125,10 @@ CREATE POLICY appointment_change_write ON appointment_change FOR INSERT
                               AND (via = 'system'
                                    OR (via IN ('app', 'link')
                                        AND by_account_id = (SELECT p.account_id FROM patient p WHERE p.id = appointment_change.patient_id)))
-                         ELSE via IN ('staff', 'system')
+                         ELSE via = 'system'
+                              OR (via = 'staff' AND EXISTS (SELECT 1 FROM account s
+                                                            WHERE s.id = appointment_change.by_account_id
+                                                              AND s.organization_id = appointment_change.organization_id))
                     END);
 
 -- Append-only, for every role, the owner included (as communication_revision, 00041).
