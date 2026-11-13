@@ -74,6 +74,12 @@ String parameterToString(dynamic value) {
   if (value is AllergySeverity) {
     return AllergySeverityTypeTransformer().encode(value).toString();
   }
+  if (value is AppointmentChangeKind) {
+    return AppointmentChangeKindTypeTransformer().encode(value).toString();
+  }
+  if (value is AppointmentChangeVia) {
+    return AppointmentChangeViaTypeTransformer().encode(value).toString();
+  }
   if (value is ConsentKind) {
     return ConsentKindTypeTransformer().encode(value).toString();
   }
@@ -100,6 +106,9 @@ String parameterToString(dynamic value) {
   }
   if (value is TermLanguage) {
     return TermLanguageTypeTransformer().encode(value).toString();
+  }
+  if (value is WaitlistStatus) {
+    return WaitlistStatusTypeTransformer().encode(value).toString();
   }
   if (value is WebhookEventType) {
     return WebhookEventTypeTypeTransformer().encode(value).toString();

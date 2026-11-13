@@ -579,7 +579,7 @@ export interface paths {
         put?: never;
         /**
          * Mark an appointment fulfilled or no-show
-         * @description The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once. Not cached. Audited, also when refused.
+         * @description The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). From SAL-36 the practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (409 `correction_window_closed` after). Not cached. Audited, also when refused.
          */
         post: operations["setAppointmentStatus"];
         delete?: never;
@@ -2156,6 +2156,335 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/appointment-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The admin's clinic's appointment settings
+         * @description The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md).
+         */
+        get: operations["getAppointmentSettings"];
+        /**
+         * Replace the admin's clinic's appointment settings
+         * @description Every field required; the ranges are the schema's, and the reminder offsets are distinct. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
+         */
+        put: operations["setAppointmentSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An appointment's history
+         * @description Its confirmations, reschedules and statuses, oldest first, for whoever sees the appointment in full: the patient their own, its practitioner and the clinic's admin with the patient's consent. Who made a change is never in it. Not cached. Audited, also when refused.
+         */
+        get: operations["listAppointmentChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The patient confirms they will come
+         * @description The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+         */
+        post: operations["confirmAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The patient moves their appointment to another free slot of the same practitioner role
+         * @description The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+         */
+        post: operations["rescheduleAppointment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/appointments/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the patient may do with their appointment now
+         * @description For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+         */
+        get: operations["getAppointmentActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/a/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * The page of a reminder's one-time link
+         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). An unknown, used or expired link answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
+         */
+        get: operations["getAppointmentLinkPage"];
+        put?: never;
+        /**
+         * Confirm or cancel through a reminder's one-time link
+         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` while the patient's 24-hour window is open. Uses the link once, in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+         */
+        post: operations["actOnAppointmentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's reminder channels, quiet hours and time zone
+         * @description Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33 (404 until then).
+         */
+        get: operations["getNotificationSettings"];
+        /**
+         * Replace the patient's reminder channels, quiet hours and time zone
+         * @description SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+         */
+        put: operations["setNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/sms-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The admin's clinic's SMS usage per month
+         * @description Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+         */
+        get: operations["getSmsUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The patient joins a clinic's waitlist
+         * @description For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused. Built in SAL-35 (404 until then).
+         */
+        post: operations["joinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The patient's waitlist entries, with their open offers */
+        get: operations["listMyWaitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/waitlist/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * The patient withdraws an entry, or the clinic's staff remove it
+         * @description An open offer of the entry ends with it, and its slot goes to the next entry. Audited. Built in SAL-35.
+         */
+        delete: operations["removeWaitlistEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/waitlist/offers/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The patient accepts an offered slot, which books it
+         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step, which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+         */
+        post: operations["acceptWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/waitlist/offers/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The patient declines an offered slot
+         * @description The entry stays active; the slot goes to the next entry. Built in SAL-35 (404 until then).
+         */
+        post: operations["declineWaitlistOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's waitlist, in offer order
+         * @description For the clinic's staff: entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited. Built in SAL-35 (404 until then).
+         */
+        get: operations["listClinicWaitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/waitlist/{id}/priority": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Staff move an entry up or down the waitlist */
+        put: operations["setWaitlistPriority"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/noshow-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Repeat no-show flags beside the calendar's appointments
+         * @description For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) the caller sees in full whose patient missed at least the threshold in the window; empty when the rule is off. Computed on read, never stored. Built in SAL-36 (404 until then).
+         */
+        get: operations["listNoShowFlags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2646,6 +2975,26 @@ export interface components {
              * @description Absent unless cancelled.
              */
             cancelledAt?: string;
+            /**
+             * Format: date-time
+             * @description When the patient confirmed it; absent while unconfirmed (docs/plans/appointments.md).
+             */
+            confirmedAt?: string;
+            /**
+             * @description Where the patient confirmed it; absent while unconfirmed.
+             * @enum {string}
+             */
+            confirmedVia?: "app" | "link";
+            /**
+             * @description A free slot of the directory, or an offer of the waitlist.
+             * @enum {string}
+             */
+            bookedVia: "direct" | "waitlist";
+            /**
+             * Format: int32
+             * @description How often the patient moved it.
+             */
+            rescheduleCount: number;
             /** Format: int32 */
             versionId: number;
         };
@@ -3799,6 +4148,175 @@ export interface components {
                     seq: number;
                 };
             };
+        };
+        /** @description The clinic's appointment rules (docs/plans/appointments.md, ADR 0015). Not personal data. */
+        AppointmentSettings: {
+            /** @description When reminders go out, in minutes before the start; empty for none. */
+            reminder_offsets_minutes: number[];
+            /** @description The paid SMS option: reminders and waitlist offers also by SMS, to patients who opted in. */
+            sms_reminders: boolean;
+            /** @description A patient reschedules until this many hours before the start. */
+            reschedule_notice_hours: number;
+            /** @description How often an appointment may be rescheduled; 0 turns self-service rescheduling off. */
+            reschedule_max: number;
+            waitlist_enabled: boolean;
+            /** @description How long a freed slot is held for the patient it is offered to. */
+            waitlist_hold_minutes: number;
+            /** @description Staff see a flag from this many no-shows in the window; 0 for off. */
+            noshow_flag_threshold: number;
+            noshow_flag_window_days: number;
+        };
+        /** @enum {string} */
+        AppointmentChangeKind: "confirmed" | "rescheduled" | "status_set" | "status_corrected";
+        /** @enum {string} */
+        AppointmentChangeVia: "app" | "link" | "staff" | "system";
+        /** @description One row of an appointment's history: a reschedule has the four times, a status change both statuses. Who made it is never in it. */
+        AppointmentChange: {
+            /** Format: date-time */
+            at: string;
+            kind: components["schemas"]["AppointmentChangeKind"];
+            via: components["schemas"]["AppointmentChangeVia"];
+            /** Format: date-time */
+            from_start?: string;
+            /** Format: date-time */
+            from_end?: string;
+            /** Format: date-time */
+            to_start?: string;
+            /** Format: date-time */
+            to_end?: string;
+            /** @enum {string} */
+            from_status?: "booked" | "cancelled" | "fulfilled" | "noshow";
+            /** @enum {string} */
+            to_status?: "booked" | "cancelled" | "fulfilled" | "noshow";
+        };
+        AppointmentChangeList: {
+            changes: components["schemas"]["AppointmentChange"][];
+        };
+        RescheduleAppointmentRequest: {
+            /**
+             * Format: uuid
+             * @description A free slot of the appointment's practitioner role, ahead.
+             */
+            slotId: string;
+        };
+        AppointmentActions: {
+            confirm: boolean;
+            cancel: boolean;
+            /**
+             * Format: date-time
+             * @description Absent when cancelling is not possible.
+             */
+            cancel_until?: string;
+            reschedule: boolean;
+            /**
+             * Format: date-time
+             * @description Absent when rescheduling is not possible.
+             */
+            reschedule_until?: string;
+            reschedules_left: number;
+        };
+        AppointmentLinkAction: {
+            /** @enum {string} */
+            action: "confirm" | "cancel";
+        };
+        NotificationChannels: {
+            push: boolean;
+            email: boolean;
+            /** @description Opt-in; needs a phone in the profile and a clinic that offers SMS. */
+            sms: boolean;
+        };
+        /** @description HH:MM in the patient's zone; may wrap midnight (22:00 to 08:00). */
+        QuietHours: {
+            start: string;
+            end: string;
+        };
+        /** @description The patient's reminder and offer channels, quiet hours (absent for none) and device zone (absent: the clinic's is used). Personal data: the zone can show that the patient is abroad. */
+        NotificationSettings: {
+            channels: components["schemas"]["NotificationChannels"];
+            quiet_hours?: components["schemas"]["QuietHours"];
+            /** @description An IANA zone, e.g. Asia/Dubai. */
+            time_zone?: string;
+        };
+        SmsUsage: {
+            months: {
+                month: string;
+                messages: number;
+                segments: number;
+            }[];
+        };
+        /** @enum {string} */
+        WaitlistStatus: "active" | "booked" | "withdrawn" | "expired";
+        /** @description A time of day in the clinic's zone, start before end. */
+        WaitlistTimes: {
+            start: string;
+            end: string;
+        };
+        /** @description One of `practitioner_role_id` and `specialty`. */
+        NewWaitlistEntry: {
+            /** Format: uuid */
+            organization_id: string;
+            /** Format: uuid */
+            practitioner_role_id?: string;
+            /** @description A specialty code of GET /specialties. */
+            specialty?: string;
+            /** Format: date */
+            earliest: string;
+            /** Format: date */
+            latest: string;
+            times?: components["schemas"]["WaitlistTimes"];
+        };
+        WaitlistOffer: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            slot_start: string;
+            /** Format: date-time */
+            slot_end: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        WaitlistEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organization_id: string;
+            /** Format: uuid */
+            practitioner_role_id?: string;
+            specialty?: string;
+            /** Format: date */
+            earliest: string;
+            /** Format: date */
+            latest: string;
+            times?: components["schemas"]["WaitlistTimes"];
+            status: components["schemas"]["WaitlistStatus"];
+            /** Format: date-time */
+            created_at: string;
+            offer?: components["schemas"]["WaitlistOffer"];
+        };
+        WaitlistEntryList: {
+            entries: components["schemas"]["WaitlistEntry"][];
+        };
+        ClinicWaitlistEntry: {
+            entry: components["schemas"]["WaitlistEntry"];
+            /** Format: uuid */
+            patient_id: string;
+            /** @description Absent where the care consent does not give it. */
+            patient_name?: string;
+            priority: number;
+        };
+        ClinicWaitlist: {
+            entries: components["schemas"]["ClinicWaitlistEntry"][];
+        };
+        WaitlistPriority: {
+            priority: number;
+        };
+        NoShowFlags: {
+            flags: {
+                /** Format: uuid */
+                appointment_id: string;
+                noshows: number;
+                window_days: number;
+            }[];
         };
     };
     responses: {
@@ -9430,6 +9948,795 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    getAppointmentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setAppointmentSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointmentSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings stored. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentSettings"];
+                };
+            };
+            /** @description `invalid_request`: a field missing, unknown or out of its range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAppointmentChanges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The history. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentChangeList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: the clinic sees the appointment at the name, times and status only. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    confirmAppointment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The confirmed appointment. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `appointment_closed`: no longer booked, or started. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    rescheduleAppointment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RescheduleAppointmentRequest"];
+            };
+        };
+        responses: {
+            /** @description The appointment at its new time and version. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `invalid_request`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAppointmentActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The actions. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentActions"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAppointmentLinkPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "Referrer-Policy"?: "no-referrer";
+                    "X-Robots-Tag"?: "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description Too many link lookups from this address; the page says to try again later. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    actOnAppointmentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["AppointmentLinkAction"];
+            };
+        };
+        responses: {
+            /** @description To the page. */
+            303: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The page, saying the request was not understood. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description The page, for a foreign `Origin`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description Too many link lookups from this address. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    getNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings stored. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            /** @description `invalid_request`: a field missing or invalid (a time, a zone). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `phone_required`: SMS on without a phone in the profile. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSmsUsage: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The usage. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmsUsage"];
+                };
+            };
+            /** @description `invalid_request`: a month missing or `to` before `from`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    joinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewWaitlistEntry"];
+            };
+        };
+        responses: {
+            /** @description The entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistEntry"];
+                };
+            };
+            /** @description `invalid_request`: neither or both of a role and a specialty, dates out of order or too far ahead. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consent_required`, `waitlist_off`, `too_many_entries`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entries, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistEntryList"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeWaitlistEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such active entry the caller may change. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booked appointment. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such offer of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `offer_expired`, `slot_unavailable`, `consent_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    declineWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such open offer of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicWaitlist: {
+        parameters: {
+            query?: {
+                practitioner_role?: string;
+                status?: components["schemas"]["WaitlistStatus"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicWaitlist"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setWaitlistPriority: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistPriority"];
+            };
+        };
+        responses: {
+            /** @description The entry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicWaitlistEntry"];
+                };
+            };
+            /** @description `invalid_request`: a priority outside 0 to 100. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such active entry of the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listNoShowFlags: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The flags. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoShowFlags"];
+                };
+            };
+            /** @description `invalid_request`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
         };
     };
 }

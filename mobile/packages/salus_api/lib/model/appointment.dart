@@ -22,6 +22,10 @@ class Appointment {
     required this.status,
     this.cancellationReason,
     this.cancelledAt,
+    this.confirmedAt,
+    this.confirmedVia,
+    required this.bookedVia,
+    required this.rescheduleCount,
     required this.versionId,
   });
 
@@ -51,6 +55,26 @@ class Appointment {
   ///
   DateTime? cancelledAt;
 
+  /// When the patient confirmed it; absent while unconfirmed (docs/plans/appointments.md).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  DateTime? confirmedAt;
+
+  /// Where the patient confirmed it; absent while unconfirmed.
+  AppointmentConfirmedViaEnum? confirmedVia;
+
+  /// A free slot of the directory, or an offer of the waitlist.
+  AppointmentBookedViaEnum bookedVia;
+
+  /// How often the patient moved it.
+  ///
+  /// Minimum value: 0
+  int rescheduleCount;
+
   int versionId;
 
   @override
@@ -66,6 +90,10 @@ class Appointment {
           other.status == status &&
           other.cancellationReason == cancellationReason &&
           other.cancelledAt == cancelledAt &&
+          other.confirmedAt == confirmedAt &&
+          other.confirmedVia == confirmedVia &&
+          other.bookedVia == bookedVia &&
+          other.rescheduleCount == rescheduleCount &&
           other.versionId == versionId;
 
   @override
@@ -80,11 +108,15 @@ class Appointment {
       (status.hashCode) +
       (cancellationReason == null ? 0 : cancellationReason!.hashCode) +
       (cancelledAt == null ? 0 : cancelledAt!.hashCode) +
+      (confirmedAt == null ? 0 : confirmedAt!.hashCode) +
+      (confirmedVia == null ? 0 : confirmedVia!.hashCode) +
+      (bookedVia.hashCode) +
+      (rescheduleCount.hashCode) +
       (versionId.hashCode);
 
   @override
   String toString() =>
-      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, versionId=$versionId]';
+      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, rescheduleCount=$rescheduleCount, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -105,6 +137,18 @@ class Appointment {
     } else {
       json[r'cancelledAt'] = null;
     }
+    if (this.confirmedAt != null) {
+      json[r'confirmedAt'] = this.confirmedAt!.toUtc().toIso8601String();
+    } else {
+      json[r'confirmedAt'] = null;
+    }
+    if (this.confirmedVia != null) {
+      json[r'confirmedVia'] = this.confirmedVia;
+    } else {
+      json[r'confirmedVia'] = null;
+    }
+    json[r'bookedVia'] = this.bookedVia;
+    json[r'rescheduleCount'] = this.rescheduleCount;
     json[r'versionId'] = this.versionId;
     return json;
   }
@@ -148,6 +192,14 @@ class Appointment {
             'Required key "Appointment[status]" is missing from JSON.');
         assert(json[r'status'] != null,
             'Required key "Appointment[status]" has a null value in JSON.');
+        assert(json.containsKey(r'bookedVia'),
+            'Required key "Appointment[bookedVia]" is missing from JSON.');
+        assert(json[r'bookedVia'] != null,
+            'Required key "Appointment[bookedVia]" has a null value in JSON.');
+        assert(json.containsKey(r'rescheduleCount'),
+            'Required key "Appointment[rescheduleCount]" is missing from JSON.');
+        assert(json[r'rescheduleCount'] != null,
+            'Required key "Appointment[rescheduleCount]" has a null value in JSON.');
         assert(json.containsKey(r'versionId'),
             'Required key "Appointment[versionId]" is missing from JSON.');
         assert(json[r'versionId'] != null,
@@ -167,6 +219,11 @@ class Appointment {
         cancellationReason: AppointmentCancellationReasonEnum.fromJson(
             json[r'cancellationReason']),
         cancelledAt: mapDateTime(json, r'cancelledAt', r''),
+        confirmedAt: mapDateTime(json, r'confirmedAt', r''),
+        confirmedVia:
+            AppointmentConfirmedViaEnum.fromJson(json[r'confirmedVia']),
+        bookedVia: AppointmentBookedViaEnum.fromJson(json[r'bookedVia'])!,
+        rescheduleCount: mapValueOfType<int>(json, r'rescheduleCount')!,
         versionId: mapValueOfType<int>(json, r'versionId')!,
       );
     }
@@ -231,6 +288,8 @@ class Appointment {
     'start',
     'end',
     'status',
+    'bookedVia',
+    'rescheduleCount',
     'versionId',
   };
 }
@@ -407,4 +466,172 @@ class AppointmentCancellationReasonEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static AppointmentCancellationReasonEnumTypeTransformer? _instance;
+}
+
+/// Where the patient confirmed it; absent while unconfirmed.
+enum AppointmentConfirmedViaEnum {
+  app._(r'app'),
+  link._(r'link'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const AppointmentConfirmedViaEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [AppointmentConfirmedViaEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static AppointmentConfirmedViaEnum? fromJson(dynamic value) =>
+      AppointmentConfirmedViaEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [AppointmentConfirmedViaEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<AppointmentConfirmedViaEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <AppointmentConfirmedViaEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = AppointmentConfirmedViaEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [AppointmentConfirmedViaEnum] to String,
+/// and [decode] dynamic data back to [AppointmentConfirmedViaEnum].
+class AppointmentConfirmedViaEnumTypeTransformer {
+  factory AppointmentConfirmedViaEnumTypeTransformer() =>
+      _instance ??= const AppointmentConfirmedViaEnumTypeTransformer._();
+
+  const AppointmentConfirmedViaEnumTypeTransformer._();
+
+  String encode(AppointmentConfirmedViaEnum data) => data._value;
+
+  /// Returns the instance of [AppointmentConfirmedViaEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  AppointmentConfirmedViaEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is AppointmentConfirmedViaEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'app':
+          return AppointmentConfirmedViaEnum.app;
+        case r'link':
+          return AppointmentConfirmedViaEnum.link;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static AppointmentConfirmedViaEnumTypeTransformer? _instance;
+}
+
+/// A free slot of the directory, or an offer of the waitlist.
+enum AppointmentBookedViaEnum {
+  direct._(r'direct'),
+  waitlist._(r'waitlist'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const AppointmentBookedViaEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [AppointmentBookedViaEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static AppointmentBookedViaEnum? fromJson(dynamic value) =>
+      AppointmentBookedViaEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [AppointmentBookedViaEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<AppointmentBookedViaEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <AppointmentBookedViaEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = AppointmentBookedViaEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [AppointmentBookedViaEnum] to String,
+/// and [decode] dynamic data back to [AppointmentBookedViaEnum].
+class AppointmentBookedViaEnumTypeTransformer {
+  factory AppointmentBookedViaEnumTypeTransformer() =>
+      _instance ??= const AppointmentBookedViaEnumTypeTransformer._();
+
+  const AppointmentBookedViaEnumTypeTransformer._();
+
+  String encode(AppointmentBookedViaEnum data) => data._value;
+
+  /// Returns the instance of [AppointmentBookedViaEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  AppointmentBookedViaEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is AppointmentBookedViaEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'direct':
+          return AppointmentBookedViaEnum.direct;
+        case r'waitlist':
+          return AppointmentBookedViaEnum.waitlist;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static AppointmentBookedViaEnumTypeTransformer? _instance;
 }

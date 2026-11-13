@@ -1300,7 +1300,9 @@ paths:
       operationId: setAppointmentStatus
       summary: Mark an appointment fulfilled or no-show
       description: >-
-        The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once. Not
+        The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its
+        history (GET /appointments/{id}/changes). From SAL-36 the practitioner and the clinic's admin also correct a
+        `noshow` to `fulfilled` and back within 30 days of the start (409 `correction_window_closed` after). Not
         cached. Audited, also when refused.
       tags: [appointments]
       security:
@@ -4603,6 +4605,664 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+  /clinic/appointment-settings:
+    get:
+      operationId: getAppointmentSettings
+      summary: The admin's clinic's appointment settings
+      description: >-
+        The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at
+        most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md).
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The settings.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppointmentSettings"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: setAppointmentSettings
+      summary: Replace the admin's clinic's appointment settings
+      description: >-
+        Every field required; the ranges are the schema's, and the reminder offsets are distinct. A change applies to
+        appointments booked, accepted or rescheduled after it. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AppointmentSettings"}
+      responses:
+        "200":
+          description: The settings stored.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppointmentSettings"}
+        "400":
+          description: "`invalid_request`: a field missing, unknown or out of its range."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/changes:
+    get:
+      operationId: listAppointmentChanges
+      summary: An appointment's history
+      description: >-
+        Its confirmations, reschedules and statuses, oldest first, for whoever sees the appointment in full: the patient
+        their own, its practitioner and the clinic's admin with the patient's consent. Who made a change is never in
+        it. Not cached. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppointmentID"
+      responses:
+        "200":
+          description: The history.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppointmentChangeList"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: the clinic sees the appointment at the name, times and status only."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/confirm:
+    post:
+      operationId: confirmAppointment
+      x-salus-package: SAL-34
+      summary: The patient confirms they will come
+      description: >-
+        The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its
+        history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/AppointmentID"
+      responses:
+        "200":
+          description: The confirmed appointment.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`appointment_closed`: no longer booked, or started."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/reschedule:
+    post:
+      operationId: rescheduleAppointment
+      x-salus-package: SAL-34
+      summary: The patient moves their appointment to another free slot of the same practitioner role
+      description: >-
+        The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the
+        consultation's join window has opened. The new slot is held and the old one freed (and offered to the
+        waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached.
+        Audited, also when refused. Built in SAL-34 (404 until then).
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/AppointmentID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RescheduleAppointmentRequest"}
+      responses:
+        "200":
+          description: The appointment at its new time and version.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: >-
+            `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic
+            allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off;
+            `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /appointments/{id}/actions:
+    get:
+      operationId: getAppointmentActions
+      x-salus-package: SAL-34
+      summary: What the patient may do with their appointment now
+      description: >-
+        For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many
+        reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppointmentID"
+      responses:
+        "200":
+          description: The actions.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AppointmentActions"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /a/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored.
+        schema: {type: string, pattern: "^[A-Za-z0-9_-]{43}$"}
+    get:
+      operationId: getAppointmentLinkPage
+      x-salus-package: SAL-34
+      summary: The page of a reminder's one-time link
+      description: >-
+        An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the
+        date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however
+        often it is fetched (link prefetchers). An unknown, used or expired link answers the same page saying it no
+        longer works. No session. Built in SAL-34 (404 until then).
+      tags: [appointment-links]
+      security: []
+      responses:
+        "200":
+          description: The page.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            Referrer-Policy: {schema: {type: string, const: no-referrer}}
+            X-Robots-Tag: {schema: {type: string, const: noindex}}
+          content:
+            text/html:
+              schema: {type: string}
+        "429":
+          description: Too many link lookups from this address; the page says to try again later.
+          content:
+            text/html:
+              schema: {type: string}
+    post:
+      operationId: actOnAppointmentLink
+      x-salus-package: SAL-34
+      summary: Confirm or cancel through a reminder's one-time link
+      description: >-
+        The page's form, the second tap: `confirm` while unconfirmed, `cancel` while the patient's 24-hour window is
+        open. Uses the link once, in the transaction that confirms or cancels, as the link's patient on its appointment
+        only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built
+        in SAL-34 (404 until then).
+      tags: [appointment-links]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: {$ref: "#/components/schemas/AppointmentLinkAction"}
+      responses:
+        "303":
+          description: To the page.
+          headers:
+            Location: {schema: {type: string}}
+        "400":
+          description: The page, saying the request was not understood.
+          content:
+            text/html:
+              schema: {type: string}
+        "403":
+          description: The page, for a foreign `Origin`.
+          content:
+            text/html:
+              schema: {type: string}
+        "429":
+          description: Too many link lookups from this address.
+          content:
+            text/html:
+              schema: {type: string}
+  /me/notification-settings:
+    get:
+      operationId: getNotificationSettings
+      x-salus-package: SAL-33
+      summary: The patient's reminder channels, quiet hours and time zone
+      description: >-
+        Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient
+        changes them. Patients only. Built in SAL-33 (404 until then).
+      tags: [notifications]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The settings.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/NotificationSettings"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: setNotificationSettings
+      x-salus-package: SAL-33
+      summary: Replace the patient's reminder channels, quiet hours and time zone
+      description: >-
+        SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours`
+        for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+      tags: [notifications]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NotificationSettings"}
+      responses:
+        "200":
+          description: The settings stored.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/NotificationSettings"}
+        "400":
+          description: "`invalid_request`: a field missing or invalid (a time, a zone)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`phone_required`: SMS on without a phone in the profile."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/sms-usage:
+    get:
+      operationId: getSmsUsage
+      x-salus-package: SAL-33
+      summary: The admin's clinic's SMS usage per month
+      description: Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+      tags: [notifications]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}}
+        - {name: to, in: query, required: true, schema: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}}
+      responses:
+        "200":
+          description: The usage.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SmsUsage"}
+        "400":
+          description: "`invalid_request`: a month missing or `to` before `from`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /waitlist:
+    post:
+      operationId: joinWaitlist
+      x-salus-package: SAL-35
+      summary: The patient joins a clinic's waitlist
+      description: >-
+        For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the
+        clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries
+        per clinic, dates at most 90 days ahead. Audited, also when refused. Built in SAL-35 (404 until then).
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NewWaitlistEntry"}
+      responses:
+        "201":
+          description: The entry.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WaitlistEntry"}
+        "400":
+          description: "`invalid_request`: neither or both of a role and a specialty, dates out of order or too far ahead."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_required`, `waitlist_off`, `too_many_entries`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/waitlist:
+    get:
+      operationId: listMyWaitlist
+      x-salus-package: SAL-35
+      summary: The patient's waitlist entries, with their open offers
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The entries, newest first.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WaitlistEntryList"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /waitlist/{id}:
+    delete:
+      operationId: removeWaitlistEntry
+      x-salus-package: SAL-35
+      summary: The patient withdraws an entry, or the clinic's staff remove it
+      description: An open offer of the entry ends with it, and its slot goes to the next entry. Audited. Built in SAL-35.
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204":
+          description: Withdrawn.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such active entry the caller may change."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /waitlist/offers/{id}/accept:
+    post:
+      operationId: acceptWaitlistOffer
+      x-salus-package: SAL-35
+      summary: The patient accepts an offered slot, which books it
+      description: >-
+        While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored
+        (`bookedVia` `waitlist`), in one transaction; paid through the purchase step, which charges nothing until the
+        payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "201":
+          description: The booked appointment.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such offer of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`offer_expired`, `slot_unavailable`, `consent_required`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /waitlist/offers/{id}/decline:
+    post:
+      operationId: declineWaitlistOffer
+      x-salus-package: SAL-35
+      summary: The patient declines an offered slot
+      description: The entry stays active; the slot goes to the next entry. Built in SAL-35 (404 until then).
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204":
+          description: Declined.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such open offer of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/waitlist:
+    get:
+      operationId: listClinicWaitlist
+      x-salus-package: SAL-35
+      summary: The clinic's waitlist, in offer order
+      description: >-
+        For the clinic's staff: entries by `priority` then join time, each with the patient's name at the level the
+        care consent gives and its open offer. Audited. Built in SAL-35 (404 until then).
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: practitioner_role, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: status, in: query, required: false, schema: {$ref: "#/components/schemas/WaitlistStatus"}}
+      responses:
+        "200":
+          description: The entries.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicWaitlist"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/waitlist/{id}/priority:
+    put:
+      operationId: setWaitlistPriority
+      x-salus-package: SAL-35
+      summary: Staff move an entry up or down the waitlist
+      tags: [waitlist]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WaitlistPriority"}
+      responses:
+        "200":
+          description: The entry.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicWaitlistEntry"}
+        "400":
+          description: "`invalid_request`: a priority outside 0 to 100."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such active entry of the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/noshow-flags:
+    get:
+      operationId: listNoShowFlags
+      x-salus-package: SAL-36
+      summary: Repeat no-show flags beside the calendar's appointments
+      description: >-
+        For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) the caller sees
+        in full whose patient missed at least the threshold in the window; empty when the rule is off. Computed on
+        read, never stored. Built in SAL-36 (404 until then).
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: The flags.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/NoShowFlags"}
+        "400":
+          description: "`invalid_request`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     ChatAttachmentID:
@@ -5743,7 +6403,7 @@ components:
           enum: [fulfilled, noshow]
     Appointment:
       type: object
-      required: [id, organizationId, practitionerRoleId, slotId, start, end, status, versionId]
+      required: [id, organizationId, practitionerRoleId, slotId, start, end, status, versionId, bookedVia, rescheduleCount]
       description: >-
         An appointment after a booking or a change (FHIR Appointment; reads go through FHIR). Health data: it
         shows whom the patient consults. Neither the patient nor who cancelled is in it.
@@ -5779,6 +6439,23 @@ components:
           type: string
           format: date-time
           description: Absent unless cancelled.
+        confirmedAt:
+          type: string
+          format: date-time
+          description: When the patient confirmed it; absent while unconfirmed (docs/plans/appointments.md).
+        confirmedVia:
+          type: string
+          enum: [app, link]
+          description: Where the patient confirmed it; absent while unconfirmed.
+        bookedVia:
+          type: string
+          enum: [direct, waitlist]
+          description: A free slot of the directory, or an offer of the waitlist.
+        rescheduleCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: How often the patient moved it.
         versionId:
           type: integer
           format: int32
@@ -7296,3 +7973,195 @@ components:
                 sender_role: {type: string, enum: [patient, practitioner]}
                 body: {type: string}
                 seq: {type: integer, format: int64}
+    AppointmentSettings:
+      type: object
+      additionalProperties: false
+      required: [reminder_offsets_minutes, sms_reminders, reschedule_notice_hours, reschedule_max, waitlist_enabled, waitlist_hold_minutes, noshow_flag_threshold, noshow_flag_window_days]
+      description: The clinic's appointment rules (docs/plans/appointments.md, ADR 0015). Not personal data.
+      properties:
+        reminder_offsets_minutes:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items: {type: integer, minimum: 15, maximum: 10080}
+          description: When reminders go out, in minutes before the start; empty for none.
+        sms_reminders: {type: boolean, description: "The paid SMS option: reminders and waitlist offers also by SMS, to patients who opted in."}
+        reschedule_notice_hours: {type: integer, minimum: 0, maximum: 168, description: "A patient reschedules until this many hours before the start."}
+        reschedule_max: {type: integer, minimum: 0, maximum: 5, description: "How often an appointment may be rescheduled; 0 turns self-service rescheduling off."}
+        waitlist_enabled: {type: boolean}
+        waitlist_hold_minutes: {type: integer, minimum: 5, maximum: 120, description: "How long a freed slot is held for the patient it is offered to."}
+        noshow_flag_threshold: {type: integer, minimum: 0, maximum: 10, description: "Staff see a flag from this many no-shows in the window; 0 for off."}
+        noshow_flag_window_days: {type: integer, minimum: 30, maximum: 730}
+    AppointmentChangeKind:
+      type: string
+      enum: [confirmed, rescheduled, status_set, status_corrected]
+    AppointmentChangeVia:
+      type: string
+      enum: [app, link, staff, system]
+    AppointmentChange:
+      type: object
+      required: [at, kind, via]
+      description: >-
+        One row of an appointment's history: a reschedule has the four times, a status change both statuses. Who made
+        it is never in it.
+      properties:
+        at: {type: string, format: date-time}
+        kind: {$ref: "#/components/schemas/AppointmentChangeKind"}
+        via: {$ref: "#/components/schemas/AppointmentChangeVia"}
+        from_start: {type: string, format: date-time}
+        from_end: {type: string, format: date-time}
+        to_start: {type: string, format: date-time}
+        to_end: {type: string, format: date-time}
+        from_status: {type: string, enum: [booked, cancelled, fulfilled, noshow]}
+        to_status: {type: string, enum: [booked, cancelled, fulfilled, noshow]}
+    AppointmentChangeList:
+      type: object
+      required: [changes]
+      properties:
+        changes:
+          type: array
+          items: {$ref: "#/components/schemas/AppointmentChange"}
+    RescheduleAppointmentRequest:
+      type: object
+      required: [slotId]
+      additionalProperties: false
+      properties:
+        slotId: {type: string, format: uuid, description: "A free slot of the appointment's practitioner role, ahead."}
+    AppointmentActions:
+      type: object
+      required: [confirm, cancel, reschedule, reschedules_left]
+      properties:
+        confirm: {type: boolean}
+        cancel: {type: boolean}
+        cancel_until: {type: string, format: date-time, description: "Absent when cancelling is not possible."}
+        reschedule: {type: boolean}
+        reschedule_until: {type: string, format: date-time, description: "Absent when rescheduling is not possible."}
+        reschedules_left: {type: integer, minimum: 0}
+    AppointmentLinkAction:
+      type: object
+      required: [action]
+      properties:
+        action: {type: string, enum: [confirm, cancel]}
+    NotificationChannels:
+      type: object
+      required: [push, email, sms]
+      properties:
+        push: {type: boolean}
+        email: {type: boolean}
+        sms: {type: boolean, description: "Opt-in; needs a phone in the profile and a clinic that offers SMS."}
+    QuietHours:
+      type: object
+      required: [start, end]
+      description: HH:MM in the patient's zone; may wrap midnight (22:00 to 08:00).
+      properties:
+        start: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        end: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+    NotificationSettings:
+      type: object
+      required: [channels]
+      additionalProperties: false
+      description: >-
+        The patient's reminder and offer channels, quiet hours (absent for none) and device zone (absent: the clinic's
+        is used). Personal data: the zone can show that the patient is abroad.
+      properties:
+        channels: {$ref: "#/components/schemas/NotificationChannels"}
+        quiet_hours: {$ref: "#/components/schemas/QuietHours"}
+        time_zone: {type: string, maxLength: 64, description: "An IANA zone, e.g. Asia/Dubai."}
+    SmsUsage:
+      type: object
+      required: [months]
+      properties:
+        months:
+          type: array
+          items:
+            type: object
+            required: [month, messages, segments]
+            properties:
+              month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+              messages: {type: integer, minimum: 0}
+              segments: {type: integer, minimum: 0}
+    WaitlistStatus:
+      type: string
+      enum: [active, booked, withdrawn, expired]
+    WaitlistTimes:
+      type: object
+      required: [start, end]
+      description: A time of day in the clinic's zone, start before end.
+      properties:
+        start: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        end: {type: string, pattern: "^([01][0-9]|2[0-4]):[0-5][0-9]$"}
+    NewWaitlistEntry:
+      type: object
+      required: [organization_id, earliest, latest]
+      additionalProperties: false
+      description: One of `practitioner_role_id` and `specialty`.
+      properties:
+        organization_id: {type: string, format: uuid}
+        practitioner_role_id: {type: string, format: uuid}
+        specialty: {type: string, description: "A specialty code of GET /specialties."}
+        earliest: {type: string, format: date}
+        latest: {type: string, format: date}
+        times: {$ref: "#/components/schemas/WaitlistTimes"}
+    WaitlistOffer:
+      type: object
+      required: [id, slot_start, slot_end, expires_at]
+      properties:
+        id: {type: string, format: uuid}
+        slot_start: {type: string, format: date-time}
+        slot_end: {type: string, format: date-time}
+        expires_at: {type: string, format: date-time}
+    WaitlistEntry:
+      type: object
+      required: [id, organization_id, earliest, latest, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid}
+        practitioner_role_id: {type: string, format: uuid}
+        specialty: {type: string}
+        earliest: {type: string, format: date}
+        latest: {type: string, format: date}
+        times: {$ref: "#/components/schemas/WaitlistTimes"}
+        status: {$ref: "#/components/schemas/WaitlistStatus"}
+        created_at: {type: string, format: date-time}
+        offer: {$ref: "#/components/schemas/WaitlistOffer"}
+    WaitlistEntryList:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: {$ref: "#/components/schemas/WaitlistEntry"}
+    ClinicWaitlistEntry:
+      type: object
+      required: [entry, patient_id, priority]
+      properties:
+        entry: {$ref: "#/components/schemas/WaitlistEntry"}
+        patient_id: {type: string, format: uuid}
+        patient_name: {type: string, description: "Absent where the care consent does not give it."}
+        priority: {type: integer, minimum: 0, maximum: 100}
+    ClinicWaitlist:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: {$ref: "#/components/schemas/ClinicWaitlistEntry"}
+    WaitlistPriority:
+      type: object
+      required: [priority]
+      additionalProperties: false
+      properties:
+        priority: {type: integer, minimum: 0, maximum: 100}
+    NoShowFlags:
+      type: object
+      required: [flags]
+      properties:
+        flags:
+          type: array
+          items:
+            type: object
+            required: [appointment_id, noshows, window_days]
+            properties:
+              appointment_id: {type: string, format: uuid}
+              noshows: {type: integer, minimum: 1}
+              window_days: {type: integer}
