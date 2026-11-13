@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import { useIntl } from 'react-intl'
-import { formatCalendarDate, formatDate, formatDateTime, formatNumber, formatTime } from './format'
+import { formatCalendarDate, formatDate, formatDateTime, formatMonth, formatNumber, formatTime, formatWeekday } from './format'
 import type { Language } from './languages'
 
 export type LanguageContext = {
@@ -32,5 +32,7 @@ export function useFormat() {
     calendarDate: (date: string) => formatCalendarDate(date, language),
     dateTime: (instant: Date, zone: string) => formatDateTime(instant, zone, language),
     number: (n: number) => formatNumber(n, language),
+    month: (month: string, style: 'short' | 'long') => formatMonth(month, language, style),
+    weekday: (weekday: number) => formatWeekday(weekday, language),
   }
 }
