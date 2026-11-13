@@ -1,0 +1,14 @@
+Randevu hatırlatması
+
+Randevunuzu hatırlatmak isteriz.
+Klinik: {{.Clinic}}
+Tarih ve saat: {{.When}}
+{{if .WhenLocal}}Sizin saat diliminizde: {{.WhenLocal}}
+{{end}}
+{{if .Questionnaire}}Randevunuzdan önce doldurmanız gereken bir anket var. Anketi Salus uygulamasında bulabilirsiniz.
+
+{{end}}Randevuyu onaylamak veya iptal etmek için bu bağlantıyı açın:
+{{.ActionLink}}
+
+Randevunuzu görmek için Salus uygulamasını açın:
+{{.Link}}

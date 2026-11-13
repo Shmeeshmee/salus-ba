@@ -460,5 +460,18 @@
   "sharingStopped": "Non condivide più la Sua storia clinica con questa clinica.",
   "sharingChanged": "Le Sue visite condivise sono cambiate nel frattempo. Le controlli e salvi di nuovo.",
   "bookedNotShared": "L'appuntamento è prenotato, ma non è stato possibile condividere la Sua storia clinica. Può condividerla nella sezione «Storia condivisa».",
-  "consentForHistory": "Visite condivise da altre cliniche"
+  "consentForHistory": "Visite condivise da altre cliniche",
+  "reminders": "Promemoria",
+  "remindersIntro": "Scegli come le cliniche ti ricordano i tuoi appuntamenti.",
+  "remindersPush": "Notifiche push",
+  "remindersEmail": "E-mail",
+  "remindersSms": "SMS",
+  "remindersSmsHint": "Promemoria e offerte dalla lista d'attesa via SMS al numero di telefono del tuo profilo, solo presso le cliniche che offrono gli SMS. Mai per pubblicità.",
+  "quietHours": "Ore di silenzio",
+  "quietHoursHint": "Le notifiche push e gli SMS attendono la fine delle ore di silenzio. Se arriverebbero meno di 30 minuti prima dell'appuntamento, non vengono inviati. Le e-mail non vengono trattenute.",
+  "quietHoursFrom": "Dalle",
+  "quietHoursUntil": "Alle",
+  "remindersSaved": "Le tue scelte sono salvate.",
+  "remindersPhoneRequired": "Per gli SMS serve un numero di telefono nel profilo. Aggiungilo in Il mio profilo, poi riprova.",
+  "remindersInvalid": "Non è stato possibile salvare queste impostazioni. Controllale e riprova."
 }

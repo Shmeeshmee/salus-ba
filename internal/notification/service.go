@@ -6,6 +6,9 @@ import (
 	"strings"
 
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/push"
+	"github.com/Shmeeshmee/salus/pkg/sms"
 )
 
 // Invites issues the token of an invite's link and gives the invite's e-mail (auth.Service).
@@ -27,6 +30,24 @@ type Ports struct {
 	// Questionnaires is asked by the booking confirmation and the reminder only.
 	Questionnaires Questionnaires
 	Sender         Sender
+
+	// The reminders' deliveries and the patient's settings (SAL-33, service_reminder.go, service_preferences.go,
+	// service_sms.go). A binary that delivers nothing leaves them nil: the api sets Deliveries, Profiles, Devices,
+	// Audit, Tx and Clock for the settings and the SMS usage; the notifier all of them.
+	Deliveries   DeliveryRepository
+	DeliveryJobs DeliveryJobs
+	Devices      Repository // the push devices, and the clinic's scope of the SMS usage
+	Reminders    Reminders
+	Rules        ClinicRules
+	Languages    Languages
+	Phones       Phones
+	Profiles     Profiles
+	Pusher       push.Sender
+	SMS          sms.Sender
+	Audit        Auditor
+	Tx           Transactor
+	Clock        clock.Clock
+
 	// WebBaseURL is WEB_BASE_URL: invite links point at <WebBaseURL>/invite#<token>.
 	WebBaseURL string
 	// PatientAppURL is PATIENT_APP_URL: appointment e-mails link to <PatientAppURL>/appointments.
@@ -42,6 +63,7 @@ type Service struct {
 	clinics        Clinics
 	questionnaires Questionnaires
 	sender         Sender
+	p              Ports // the reminders' ports (SAL-33)
 	webBaseURL     string
 	patientAppURL  string
 }
@@ -52,7 +74,7 @@ func NewService(p Ports) *Service {
 		letters: loadLetters(),
 		invites: p.Invites, appointments: p.Appointments, accounts: p.Accounts, clinics: p.Clinics,
 		questionnaires: p.Questionnaires, sender: p.Sender,
-		webBaseURL: strings.TrimRight(p.WebBaseURL, "/"), patientAppURL: strings.TrimRight(p.PatientAppURL, "/"),
+		webBaseURL: strings.TrimRight(p.WebBaseURL, "/"), patientAppURL: strings.TrimRight(p.PatientAppURL, "/"), p: p,
 	}
 }
 

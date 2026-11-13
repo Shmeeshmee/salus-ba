@@ -1,0 +1,10 @@
+Subject: Reminder of your appointment
+
+This is a reminder of your appointment at Synthetic clinic on Sunday 25 October 2026, 09:00 (Europe/Sarajevo).
+In your time zone: Sunday 25 October 2026, 12:00 (Asia/Dubai)
+
+To confirm or cancel the appointment, open this link:
+https://api.salus.invalid/a/0000000000000000000000000000000000000000001
+
+To see it, open the Salus app:
+https://app.salus.invalid/appointments

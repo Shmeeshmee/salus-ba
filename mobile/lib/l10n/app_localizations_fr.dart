@@ -1804,4 +1804,48 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Visites partagées d’autres cliniques';
+
+  @override
+  String get reminders => 'Rappels';
+
+  @override
+  String get remindersIntro =>
+      'Choisissez comment vos cliniques vous rappellent vos rendez-vous.';
+
+  @override
+  String get remindersPush => 'Notifications push';
+
+  @override
+  String get remindersEmail => 'E-mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Rappels et offres de la liste d\'attente par SMS au numéro de téléphone de votre profil, uniquement dans les cliniques qui proposent les SMS. Jamais à des fins publicitaires.';
+
+  @override
+  String get quietHours => 'Heures calmes';
+
+  @override
+  String get quietHoursHint =>
+      'Les notifications push et les SMS attendent la fin des heures calmes. S\'ils devaient alors arriver moins de 30 minutes avant le rendez-vous, ils ne sont pas envoyés. Les e-mails ne sont pas retenus.';
+
+  @override
+  String get quietHoursFrom => 'De';
+
+  @override
+  String get quietHoursUntil => 'À';
+
+  @override
+  String get remindersSaved => 'Vos choix sont enregistrés.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Les SMS nécessitent un numéro de téléphone dans votre profil. Ajoutez-le dans Mon profil, puis réessayez.';
+
+  @override
+  String get remindersInvalid =>
+      'Ces paramètres n\'ont pas pu être enregistrés. Vérifiez-les et réessayez.';
 }

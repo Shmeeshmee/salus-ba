@@ -20,3 +20,11 @@ var (
 	// open): it is dead-lettered at once.
 	ErrUndeliverable = errors.New("notification: the webhook delivery cannot succeed on a retry")
 )
+
+// The errors of the reminders' deliveries and the patient's notification settings (SAL-33).
+var (
+	// ErrPhoneRequired is returned when a patient turns SMS on without a phone in their profile.
+	ErrPhoneRequired = errors.New("notification: a phone is required for SMS")
+	// ErrDeliveryDone is returned when a delivery that already left pending is changed.
+	ErrDeliveryDone = errors.New("notification: the delivery is no longer pending")
+)

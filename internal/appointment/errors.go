@@ -37,6 +37,9 @@ var (
 	ErrPaymentDeclined = errors.New("appointment: payment declined")
 	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
 	ErrLinkInvalid = errors.New("appointment: link invalid")
+	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
+	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
+	ErrReminderGone = errors.New("appointment: reminder no longer applies")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

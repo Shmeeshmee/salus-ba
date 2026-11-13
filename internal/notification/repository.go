@@ -66,3 +66,37 @@ type SecretBox interface {
 	Seal(plaintext []byte, id string) ([]byte, error)
 	Open(sealed []byte, id string) ([]byte, error)
 }
+
+// DeliveryRepository stores the deliveries of reminders and offers, the patients' notification settings (both by
+// account, not row-level secured, like the devices) and the clinics' SMS usage (in the clinic set by SetClinic of
+// Repository on the same transaction) (migration 00055, SAL-33).
+type DeliveryRepository interface {
+	// AddDelivery stores d, pending, and returns it with its id; ok is false when its source already has a delivery on
+	// that channel (and device): nothing is stored.
+	AddDelivery(ctx context.Context, d Delivery) (out Delivery, ok bool, err error)
+	// LockDelivery returns the delivery, locked against a change until the transaction ends, or ErrNotFound.
+	LockDelivery(ctx context.Context, id string) (Delivery, error)
+	// SetDeliveryState moves the pending delivery to state at at (with the parts of a sent SMS); ErrDeliveryDone when
+	// it is not pending.
+	SetDeliveryState(ctx context.Context, id string, state DeliveryState, at time.Time, segments int) error
+	// DeleteDeliveriesBefore deletes the deliveries sent (or, never sent, created) before before, and counts them;
+	// only the retention role may.
+	DeleteDeliveriesBefore(ctx context.Context, before time.Time) (int64, error)
+
+	// Preferences returns the account's notification settings; ok is false when it has stored none.
+	Preferences(ctx context.Context, accountID string) (p Preferences, ok bool, err error)
+	// SetPreferences replaces the account's notification settings, at at.
+	SetPreferences(ctx context.Context, accountID string, p Preferences, at time.Time) error
+
+	// AddSMSUsage counts one message of segments parts in the clinic's month (its first day, UTC).
+	AddSMSUsage(ctx context.Context, org string, month time.Time, segments int) error
+	// ClinicScope returns the transaction's clinic scope (app.organization_id), "" for none.
+	ClinicScope(ctx context.Context) (string, error)
+	// SMSUsage returns the clinic's months from from to to (first days, UTC), those with usage, oldest first.
+	SMSUsage(ctx context.Context, org string, from, to time.Time) ([]UsageMonth, error)
+}
+
+// DeliveryJobs enqueues a delivery's send job on its channel's queue, at at, in the transaction in the context.
+type DeliveryJobs interface {
+	EnqueueDelivery(ctx context.Context, channel Channel, id string, at time.Time) error
+}

@@ -158,6 +158,8 @@ services:
       # Appointment e-mails link to <PATIENT_APP_URL>/appointments. A placeholder (.invalid resolves nowhere)
       # until the patient app has a link domain (docs/booking/PROGRESS.md, "Waiting on people").
       PATIENT_APP_URL: ${PATIENT_APP_URL:-https://patient.salus.invalid}
+      # The reminders' one-time links, <APPOINTMENT_LINK_URL>/a/<token>: the api's public origin (SAL-33).
+      APPOINTMENT_LINK_URL: http://localhost:${SALUS_API_PORT:-8080}
     depends_on:
       <<: *app-deps
       mailpit: {condition: service_healthy}

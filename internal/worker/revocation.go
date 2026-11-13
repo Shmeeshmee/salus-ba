@@ -48,7 +48,8 @@ func (w *transcriptionRevocationWorker) Work(ctx context.Context, job *river.Job
 	return w.sessions.EndAgentAccess(ctx, job.Args.PatientID, job.Args.OrganizationID)
 }
 
-// newRevocations builds the appointment service on pool (salus_app) at clk for CancelForRevokedConsent: the
+// newRevocations builds the appointment service on pool (salus_app) at clk for CancelForRevokedConsent and the
+// reminders' sweep: the
 // consent's state, the slots to free, and the cancellation e-mails and the statistics' refreshes to enqueue on
 // jobs (an insert-only client).
 func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Clock) *appointment.Service {
@@ -60,5 +61,7 @@ func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Cl
 		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk,
 		Consents: consents, Slots: newSlots(pool, clk), Jobs: appointment.NewRiverJobs(jobs),
 		Stats: clinicstats.NewRiverQueue(jobs), // a cancellation enqueues its clinic-day's refresh
+		// A cancellation cancels the reminders; the sweep (the same service) enqueues the lost ones again.
+		Reminders: appointment.NewPostgresReminderRepository(pool),
 	})
 }

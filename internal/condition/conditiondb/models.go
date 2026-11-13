@@ -311,6 +311,26 @@ type AppointmentChange struct {
 	ToStatus       pgtype.Text
 }
 
+type AppointmentReminder struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	StartAt        pgtype.Timestamptz
+	DueAt          pgtype.Timestamptz
+	DispatchedAt   pgtype.Timestamptz
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	OffsetMinutes  int32
+	State          string
+}
+
+type AppointmentReminderScheduled struct {
+	ID             pgtype.UUID
+	OrganizationID pgtype.UUID
+	DueAt          pgtype.Timestamptz
+	StartAt        pgtype.Timestamptz
+}
+
 type AuditEvent struct {
 	ID              pgtype.UUID
 	Recorded        pgtype.Timestamptz
@@ -640,6 +660,31 @@ type MedicationStatementProvenance struct {
 	AgentType             string
 }
 
+type NotificationDelivery struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	SentAt         pgtype.Timestamptz
+	SourceID       pgtype.UUID
+	OrganizationID pgtype.UUID
+	AccountID      pgtype.UUID
+	DeviceID       pgtype.UUID
+	Segments       pgtype.Int4
+	Kind           string
+	Channel        string
+	State          string
+}
+
+type NotificationPreference struct {
+	AccountID  pgtype.UUID
+	UpdatedAt  pgtype.Timestamptz
+	QuietStart pgtype.Time
+	QuietEnd   pgtype.Time
+	Push       bool
+	Email      bool
+	Sms        bool
+	TimeZone   pgtype.Text
+}
+
 type Organization struct {
 	ID                    pgtype.UUID
 	CreatedAt             pgtype.Timestamptz
@@ -861,6 +906,13 @@ type Slot struct {
 	VersionID      int32
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
+}
+
+type SmsUsage struct {
+	OrganizationID pgtype.UUID
+	Month          pgtype.Date
+	Messages       int32
+	Segments       int32
 }
 
 type Suggestion struct {

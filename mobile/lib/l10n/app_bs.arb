@@ -460,5 +460,18 @@
   "sharingStopped": "Više ne dijelite svoju historiju s ovom klinikom.",
   "sharingChanged": "Vaše podijeljene posjete su se u međuvremenu promijenile. Provjerite ih i ponovo sačuvajte.",
   "bookedNotShared": "Vaš termin je zakazan, ali vaša historija nije mogla biti podijeljena. Možete je podijeliti u odjeljku Podijeljena historija.",
-  "consentForHistory": "Posjete podijeljene iz drugih klinika"
+  "consentForHistory": "Posjete podijeljene iz drugih klinika",
+  "reminders": "Podsjetnici",
+  "remindersIntro": "Odaberite kako vas klinike podsjećaju na termine.",
+  "remindersPush": "Push obavještenja",
+  "remindersEmail": "E-mail",
+  "remindersSms": "SMS",
+  "remindersSmsHint": "Podsjetnici i ponude s liste čekanja SMS-om na broj telefona iz vašeg profila, samo u klinikama koje nude SMS. Nikada za oglašavanje.",
+  "quietHours": "Tihi sati",
+  "quietHoursHint": "Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-mailovi se ne zadržavaju.",
+  "quietHoursFrom": "Od",
+  "quietHoursUntil": "Do",
+  "remindersSaved": "Vaš izbor je sačuvan.",
+  "remindersPhoneRequired": "Za SMS je potreban broj telefona u profilu. Dodajte ga u odjeljku Moj profil, pa pokušajte ponovo.",
+  "remindersInvalid": "Ove postavke nije bilo moguće sačuvati. Provjerite ih i pokušajte ponovo."
 }

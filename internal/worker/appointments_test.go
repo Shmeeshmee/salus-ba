@@ -32,7 +32,7 @@ type booking struct {
 // seedBooking creates, as the owner, the listed clinic with a practitioner, a schedule and two busy slots, a
 // patient (Ana Example, a fresh synthetic address) with an active consent and an active transcription consent
 // (SAL-12), and their two appointments: one a week ahead and one that started an hour ago.
-func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
+func seedBooking(t testing.TB, owner *pgxpool.Pool) booking {
 	t.Helper()
 	ctx := t.Context()
 	b := booking{email: "patient-" + strings.ToLower(rand.Text()) + "@example.test"}
@@ -125,7 +125,7 @@ func TestConsentRevoked_CancelsTheFutureAppointmentsFreesTheirSlotsAndEnqueuesTh
 // runEmailJob starts the notifier, enqueues args on the email queue, and returns the job's final state.
 func runEmailJob(t *testing.T, app *pgxpool.Pool, args river.JobArgs) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), &pushtest.Sender{}, "https://app.example.test", "https://patient.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), testNotifier(mailpitSender(t), &pushtest.Sender{}))
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}
@@ -152,6 +152,8 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	owner, app := pgtest.NewAppDatabase(t)
 	b := seedBooking(t, owner)
 
+	// The legacy reminder e-mail (appointment_reminder_email) of an appointment booked before SAL-33 still goes: no
+	// longer enqueued, its jobs drain (the plan's "Legacy reminder").
 	for _, args := range []river.JobArgs{
 		appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
 		appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},

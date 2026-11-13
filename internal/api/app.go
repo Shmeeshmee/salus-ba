@@ -101,6 +101,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
 		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
+		// A booking schedules its reminders by the clinic's offsets, a cancellation cancels them (SAL-33).
+		Reminders: appointment.NewPostgresReminderRepository(pool), Rules: appointmentRules(pool, audit, tx),
 	})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
@@ -140,7 +142,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log)}, platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})

@@ -21,6 +21,7 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	setMailpit(t)
 	t.Setenv("WEB_BASE_URL", "https://app.example.test")
 	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
+	t.Setenv("APPOINTMENT_LINK_URL", "https://api.example.test")
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)

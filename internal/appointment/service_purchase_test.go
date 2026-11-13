@@ -28,7 +28,7 @@ func pricedFixture(amount int64) (*fixture, *paymentstest.Provider) {
 	provider := &paymentstest.Provider{}
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, Consents: f.consents, Slots: f.slots,
-		Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats,
+		Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats, Reminders: f.reminders, Rules: f.rules,
 		Prices: fakePrices{amount: amount}, Payments: provider,
 	})
 	return f, provider
@@ -108,7 +108,7 @@ func TestPurchase_RefundsEvenWhenTheRequestIsCancelled(t *testing.T) {
 	provider := &cancellingProvider{Provider: &paymentstest.Provider{}, cancel: cancel}
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, Consents: f.consents, Slots: f.slots,
-		Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats,
+		Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats, Reminders: f.reminders, Rules: f.rules,
 		Prices: fakePrices{amount: 5000}, Payments: provider,
 	})
 	delete(f.consents.state, patientA+clinicA)
