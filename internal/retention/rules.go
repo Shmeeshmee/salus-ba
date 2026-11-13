@@ -95,7 +95,7 @@ func Rules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), appointmentRules())...)
 }
 
 // chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):
@@ -219,6 +219,28 @@ func historyRules() []Rule {
 			Table: "history_consent_encounter",
 			Basis: "Proof of which visits the patient shared with the clinic and when (GDPR Art. 7(1)), kept with its history consent; needs a legal decision before production (docs/plans/patient-history.md)",
 			Then:  ThenKeep,
+		},
+	}
+}
+
+// appointmentRules are the rules of the appointments epic (docs/plans/appointments.md, SAL-32, ADR 0015); the periods
+// are placeholders that need a legal decision before production (the plan's Q9).
+func appointmentRules() []Rule {
+	return []Rule{
+		{
+			Table: "appointment_change",
+			Basis: "The clinic's care record and its accountability (GDPR Art. 9(2)(h), Art. 5(2)): who confirmed, rescheduled, " +
+				"marked or corrected an appointment, from what to what; append-only and kept with the appointment; needs a legal " +
+				"decision before production (docs/plans/appointments.md \"Personal data\")",
+			Then: ThenKeep,
+		},
+		{
+			Table: "appointment_action_token",
+			Basis: "The contract with the patient (GDPR Art. 6(1)(b)): a reminder's one-time link to confirm or cancel, stored as " +
+				"its hash; deleted 30 days after it expires (the appointment's start), and with the account; needs a legal " +
+				"decision before production (docs/plans/appointments.md \"Personal data\")",
+			Keep: 30 * day, // after expires_at
+			Then: ThenDelete,
 		},
 	}
 }

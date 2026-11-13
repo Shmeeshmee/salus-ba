@@ -12,6 +12,8 @@ tables:
   account: {owner: auth, personal_data: true}
   allergy_intolerance: {owner: allergyintolerance, personal_data: true} # 00043, SAL-41
   appointment: {owner: appointment, personal_data: true}
+  appointment_action_token: {owner: appointment, personal_data: true} # a reminder's one-time link (00053, SAL-32)
+  appointment_change: {owner: appointment, personal_data: true} # an appointment's history (00053, SAL-32)
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
   chat_consent: {owner: consent, personal_data: true}
@@ -33,6 +35,7 @@ tables:
   invite: {owner: auth, personal_data: true}
   medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   organization: {owner: organization, personal_data: false}
+  organization_appointment_settings: {owner: organization, personal_data: false} # reminder, reschedule, waitlist, no-show rules (00053)
   organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00047)
   patient: {owner: patient, personal_data: true}
   place: {owner: terminology, personal_data: false}

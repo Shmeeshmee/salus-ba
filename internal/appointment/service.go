@@ -15,11 +15,8 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
-// The patient's cancellation window and the reminder's lead: both 24 hours before the start.
-const (
-	patientCancelBefore = 24 * time.Hour
-	reminderBefore      = 24 * time.Hour
-)
+// patientCancelBefore is the patient's cancellation window: until 24 hours before the start.
+const patientCancelBefore = 24 * time.Hour
 
 // Transactor runs fn in a transaction carried by the context, joining one already there
 // (postgres.Transactor).
@@ -74,6 +71,8 @@ type Jobs interface {
 	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
 	EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
+	// EnqueueSlotFreed hands a freed slot still ahead to the waitlist (waitlist_slot_freed, SAL-35).
+	EnqueueSlotFreed(ctx context.Context, slotID, org string) error
 }
 
 // Ports are the Service's dependencies. The notifier builds it for Notice only (Repo, Audit, Tx, Clock,
@@ -89,6 +88,10 @@ type Ports struct {
 	Clinics  Clinics
 	Roles    Roles
 	Jobs     Jobs
+	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
+	// by a Service that issues links (IssueLink, the notifier's reminders).
+	Tokens  TokenRepository
+	LinkURL string
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -172,9 +175,12 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	} else if err != nil {
 		return Appointment{}, nil, err
 	}
+	if err := s.purchase(ctx, b); err != nil {
+		return Appointment{}, nil, err
+	}
 	out, err = s.Repo.Create(ctx, Appointment{
 		PatientID: c.PatientID, PractitionerRoleID: b.PractitionerRoleID, OrganizationID: b.OrganizationID, SlotID: b.ID,
-		Start: b.Start, End: b.End, Created: now,
+		Start: b.Start, End: b.End, Created: now, BookedVia: BookedDirect,
 	})
 	if err != nil {
 		return Appointment{}, nil, err
@@ -185,10 +191,8 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
 		return Appointment{}, nil, err
 	}
-	if at := out.Start.Add(-reminderBefore); at.After(now) {
-		if err := s.Jobs.EnqueueReminder(ctx, out.ID, out.OrganizationID, at); err != nil {
-			return Appointment{}, nil, err
-		}
+	if err := s.scheduleReminders(ctx, out, now); err != nil {
+		return Appointment{}, nil, err
 	}
 	return out, nil, nil
 }

@@ -52,6 +52,11 @@ func (j *riverJobs) EnqueueQuestionnaireDiscard(ctx context.Context, id, org str
 	return j.insertOn(ctx, river.QueueDefault, QuestionnaireDiscardArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
 }
 
+// EnqueueSlotFreed enqueues waitlist_slot_freed on the default queue, which the worker works.
+func (j *riverJobs) EnqueueSlotFreed(ctx context.Context, slotID, org string) error {
+	return j.insertOn(ctx, river.QueueDefault, SlotFreedArgs{SlotID: slotID, OrganizationID: org}, time.Time{})
+}
+
 // insert enqueues args on the email queue in the transaction in ctx, to run at at (zero for now).
 func (j *riverJobs) insert(ctx context.Context, args river.JobArgs, at time.Time) error {
 	return j.insertOn(ctx, emailQueue, args, at)

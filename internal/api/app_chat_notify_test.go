@@ -31,6 +31,16 @@ func TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks(t *testing.T) 
 	if rec := c.d.practitioner.do(http.MethodPut, "/clinic/chat-settings", settings); rec.Code != http.StatusForbidden {
 		t.Errorf("the practitioner sets = %d, want 403", rec.Code)
 	}
+	rules := `{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":12,"reschedule_max":1,` +
+		`"waitlist_enabled":true,"waitlist_hold_minutes":20,"noshow_flag_threshold":2,"noshow_flag_window_days":90}`
+	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reminder_offsets_minutes":[1440,60]`)
+	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", rules); rec.Code != http.StatusOK {
+		t.Errorf("PUT appointment settings = %d %s", rec.Code, rec.Body)
+	}
+	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reschedule_notice_hours":12`)
+	if rec := c.d.practitioner.do(http.MethodGet, "/clinic/appointment-settings", ""); rec.Code != http.StatusForbidden {
+		t.Errorf("the practitioner reads the appointment settings = %d, want 403", rec.Code)
+	}
 	hours := "/organizations/" + inviteClinic + "/chat-hours"
 	expectHTTP(t, c.d.patient, http.MethodGet, hours, http.StatusOK, `"response_time_hours":8`, `"time_zone":"Europe/Sarajevo"`, `"open_now":`)
 	expectHTTP(t, c.d.practitioner, http.MethodGet, hours, http.StatusOK, `"day":"mon"`)

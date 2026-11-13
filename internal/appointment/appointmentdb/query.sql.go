@@ -13,7 +13,7 @@ import (
 
 const appointmentByID = `-- name: AppointmentByID :one
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = $1
@@ -32,6 +32,10 @@ type AppointmentByIDRow struct {
 	VersionID            int32
 	Status               string
 	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -52,6 +56,10 @@ func (q *Queries) AppointmentByID(ctx context.Context, id pgtype.UUID) (Appointm
 		&i.VersionID,
 		&i.Status,
 		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -60,7 +68,7 @@ func (q *Queries) AppointmentByID(ctx context.Context, id pgtype.UUID) (Appointm
 
 const appointmentByIDForShare = `-- name: AppointmentByIDForShare :one
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = $1
@@ -80,6 +88,10 @@ type AppointmentByIDForShareRow struct {
 	VersionID            int32
 	Status               string
 	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -102,6 +114,10 @@ func (q *Queries) AppointmentByIDForShare(ctx context.Context, id pgtype.UUID) (
 		&i.VersionID,
 		&i.Status,
 		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -114,7 +130,7 @@ SET status = 'cancelled', cancelled_at = $1, cancellation_reason = $2, cancelled
     updated_at = $1, version_id = version_id + 1
 WHERE id = $4 AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -138,6 +154,10 @@ type CancelAppointmentRow struct {
 	VersionID            int32
 	Status               string
 	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -164,6 +184,10 @@ func (q *Queries) CancelAppointment(ctx context.Context, arg CancelAppointmentPa
 		&i.VersionID,
 		&i.Status,
 		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -171,11 +195,11 @@ func (q *Queries) CancelAppointment(ctx context.Context, arg CancelAppointmentPa
 }
 
 const createAppointment = `-- name: CreateAppointment :one
-INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at)
+INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at, booked_via)
 VALUES ($1, $2, $3, $4, tstzrange($5::timestamptz, $6::timestamptz),
-        $7, $7)
+        $7, $7, $8)
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -187,6 +211,7 @@ type CreateAppointmentParams struct {
 	StartAt            pgtype.Timestamptz
 	EndAt              pgtype.Timestamptz
 	CreatedAt          pgtype.Timestamptz
+	BookedVia          string
 }
 
 type CreateAppointmentRow struct {
@@ -202,6 +227,10 @@ type CreateAppointmentRow struct {
 	VersionID            int32
 	Status               string
 	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -217,6 +246,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		arg.StartAt,
 		arg.EndAt,
 		arg.CreatedAt,
+		arg.BookedVia,
 	)
 	var i CreateAppointmentRow
 	err := row.Scan(
@@ -232,10 +262,183 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		&i.VersionID,
 		&i.Status,
 		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
 		&i.StartAt,
 		&i.EndAt,
 	)
 	return i, err
+}
+
+const deleteActionTokensExpiredBefore = `-- name: DeleteActionTokensExpiredBefore :execrows
+DELETE FROM appointment_action_token
+WHERE expires_at < $1::timestamptz
+`
+
+// Retention, as salus_retention: links whose period after their expiry is over.
+func (q *Queries) DeleteActionTokensExpiredBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteActionTokensExpiredBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertActionToken = `-- name: InsertActionToken :exec
+INSERT INTO appointment_action_token (created_at, expires_at, appointment_id, organization_id, patient_id, account_id, reminder_id,
+                                      token_hash, channel, language)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10)
+`
+
+type InsertActionTokenParams struct {
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	AccountID      pgtype.UUID
+	ReminderID     pgtype.UUID
+	TokenHash      []byte
+	Channel        string
+	Language       Language
+}
+
+// A notifier job's one-time link, in the clinic scope with the job's appointment set.
+func (q *Queries) InsertActionToken(ctx context.Context, arg InsertActionTokenParams) error {
+	_, err := q.db.Exec(ctx, insertActionToken,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.AppointmentID,
+		arg.OrganizationID,
+		arg.PatientID,
+		arg.AccountID,
+		arg.ReminderID,
+		arg.TokenHash,
+		arg.Channel,
+		arg.Language,
+	)
+	return err
+}
+
+const insertAppointmentChange = `-- name: InsertAppointmentChange :one
+
+INSERT INTO appointment_change (at, appointment_id, organization_id, patient_id, by_account_id, from_slot_id, to_slot_id,
+                                from_period, to_period, kind, via, agent, from_status, to_status)
+SELECT $1, a.id, a.organization_id, a.patient_id, $2, $3, $4,
+       CASE WHEN $5::timestamptz IS NULL THEN NULL ELSE tstzrange($5::timestamptz, $6::timestamptz) END,
+       CASE WHEN $7::timestamptz IS NULL THEN NULL ELSE tstzrange($7::timestamptz, $8::timestamptz) END,
+       $9, $10, $11, $12, $13
+FROM appointment a
+WHERE a.id = $14
+RETURNING id
+`
+
+type InsertAppointmentChangeParams struct {
+	At            pgtype.Timestamptz
+	ByAccountID   pgtype.UUID
+	FromSlotID    pgtype.UUID
+	ToSlotID      pgtype.UUID
+	FromStart     pgtype.Timestamptz
+	FromEnd       pgtype.Timestamptz
+	ToStart       pgtype.Timestamptz
+	ToEnd         pgtype.Timestamptz
+	Kind          string
+	Via           string
+	Agent         pgtype.Text
+	FromStatus    pgtype.Text
+	ToStatus      pgtype.Text
+	AppointmentID pgtype.UUID
+}
+
+// SAL-32 step 0 (docs/plans/appointments.md): the history and the one-time links.
+// One row of an appointment's history, with the appointment's clinic and patient (the foreign key checks them);
+// row-level security lets the scope write it only for an appointment it sees.
+func (q *Queries) InsertAppointmentChange(ctx context.Context, arg InsertAppointmentChangeParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertAppointmentChange,
+		arg.At,
+		arg.ByAccountID,
+		arg.FromSlotID,
+		arg.ToSlotID,
+		arg.FromStart,
+		arg.FromEnd,
+		arg.ToStart,
+		arg.ToEnd,
+		arg.Kind,
+		arg.Via,
+		arg.Agent,
+		arg.FromStatus,
+		arg.ToStatus,
+		arg.AppointmentID,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const listAppointmentChanges = `-- name: ListAppointmentChanges :many
+SELECT id, at, appointment_id, by_account_id, from_slot_id, to_slot_id, kind, via, agent, from_status, to_status,
+       lower(from_period)::timestamptz AS from_start, upper(from_period)::timestamptz AS from_end,
+       lower(to_period)::timestamptz AS to_start, upper(to_period)::timestamptz AS to_end
+FROM appointment_change
+WHERE appointment_id = $1
+ORDER BY at, id
+`
+
+type ListAppointmentChangesRow struct {
+	ID            pgtype.UUID
+	At            pgtype.Timestamptz
+	AppointmentID pgtype.UUID
+	ByAccountID   pgtype.UUID
+	FromSlotID    pgtype.UUID
+	ToSlotID      pgtype.UUID
+	Kind          string
+	Via           string
+	Agent         pgtype.Text
+	FromStatus    pgtype.Text
+	ToStatus      pgtype.Text
+	FromStart     pgtype.Timestamptz
+	FromEnd       pgtype.Timestamptz
+	ToStart       pgtype.Timestamptz
+	ToEnd         pgtype.Timestamptz
+}
+
+func (q *Queries) ListAppointmentChanges(ctx context.Context, appointmentID pgtype.UUID) ([]ListAppointmentChangesRow, error) {
+	rows, err := q.db.Query(ctx, listAppointmentChanges, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAppointmentChangesRow
+	for rows.Next() {
+		var i ListAppointmentChangesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.At,
+			&i.AppointmentID,
+			&i.ByAccountID,
+			&i.FromSlotID,
+			&i.ToSlotID,
+			&i.Kind,
+			&i.Via,
+			&i.Agent,
+			&i.FromStatus,
+			&i.ToStatus,
+			&i.FromStart,
+			&i.FromEnd,
+			&i.ToStart,
+			&i.ToEnd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listBookedForStats = `-- name: ListBookedForStats :many
@@ -286,7 +489,7 @@ func (q *Queries) ListBookedForStats(ctx context.Context, arg ListBookedForStats
 
 const searchAppointments = `-- name: SearchAppointments :many
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE ($1::uuid IS NULL OR patient_id = $1::uuid)
@@ -320,6 +523,10 @@ type SearchAppointmentsRow struct {
 	VersionID            int32
 	Status               string
 	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -355,6 +562,10 @@ func (q *Queries) SearchAppointments(ctx context.Context, arg SearchAppointments
 			&i.VersionID,
 			&i.Status,
 			&i.CancellationReason,
+			&i.ConfirmedAt,
+			&i.ConfirmedVia,
+			&i.RescheduleCount,
+			&i.BookedVia,
 			&i.StartAt,
 			&i.EndAt,
 		); err != nil {
@@ -373,7 +584,7 @@ UPDATE appointment
 SET status = $1, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -396,6 +607,10 @@ type SetAppointmentStatusRow struct {
 	VersionID            int32
 	Status               string
 	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -416,6 +631,10 @@ func (q *Queries) SetAppointmentStatus(ctx context.Context, arg SetAppointmentSt
 		&i.VersionID,
 		&i.Status,
 		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
 		&i.StartAt,
 		&i.EndAt,
 	)

@@ -26,6 +26,15 @@ var (
 	ErrNotStarted = errors.New("appointment: not started")
 	// ErrInvalidStatus is returned for a status a practitioner may not set (only fulfilled and noshow).
 	ErrInvalidStatus = errors.New("appointment: invalid status")
+	// ErrRescheduleWindowClosed is returned when a patient reschedules inside the clinic's notice (SAL-34).
+	ErrRescheduleWindowClosed = errors.New("appointment: reschedule window closed")
+	// ErrRescheduleLimit is returned when the appointment was rescheduled as often as the clinic allows (SAL-34).
+	ErrRescheduleLimit = errors.New("appointment: reschedule limit reached")
+	// ErrNotReschedulable is returned for a reschedule the clinic's rules never allow: another role's slot, the
+	// consultation's join window open, or self-service rescheduling off (SAL-34).
+	ErrNotReschedulable = errors.New("appointment: not reschedulable")
+	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
+	ErrLinkInvalid = errors.New("appointment: link invalid")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

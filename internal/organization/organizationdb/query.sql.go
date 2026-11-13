@@ -11,6 +11,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const appointmentSettings = `-- name: AppointmentSettings :one
+SELECT reminder_offsets_minutes, sms_reminders, reschedule_notice_hours, reschedule_max, waitlist_enabled, waitlist_hold_minutes,
+       noshow_flag_threshold, noshow_flag_window_days
+FROM organization_appointment_settings
+WHERE organization_id = $1
+`
+
+type AppointmentSettingsRow struct {
+	ReminderOffsetsMinutes []int32
+	SmsReminders           bool
+	RescheduleNoticeHours  int32
+	RescheduleMax          int32
+	WaitlistEnabled        bool
+	WaitlistHoldMinutes    int32
+	NoshowFlagThreshold    int32
+	NoshowFlagWindowDays   int32
+}
+
+// The clinic's appointment settings (00053); row-level security shows only the clinic set.
+func (q *Queries) AppointmentSettings(ctx context.Context, organizationID pgtype.UUID) (AppointmentSettingsRow, error) {
+	row := q.db.QueryRow(ctx, appointmentSettings, organizationID)
+	var i AppointmentSettingsRow
+	err := row.Scan(
+		&i.ReminderOffsetsMinutes,
+		&i.SmsReminders,
+		&i.RescheduleNoticeHours,
+		&i.RescheduleMax,
+		&i.WaitlistEnabled,
+		&i.WaitlistHoldMinutes,
+		&i.NoshowFlagThreshold,
+		&i.NoshowFlagWindowDays,
+	)
+	return i, err
+}
+
 const chatSettings = `-- name: ChatSettings :one
 SELECT hours, response_time_hours, email_after_minutes
 FROM organization_chat_settings
@@ -179,6 +214,49 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.PatientTranscriptCopy,
 	)
 	return i, err
+}
+
+const putAppointmentSettings = `-- name: PutAppointmentSettings :exec
+INSERT INTO organization_appointment_settings (organization_id, reminder_offsets_minutes, sms_reminders, reschedule_notice_hours,
+                                               reschedule_max, waitlist_enabled, waitlist_hold_minutes, noshow_flag_threshold,
+                                               noshow_flag_window_days, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10)
+ON CONFLICT (organization_id) DO UPDATE
+SET reminder_offsets_minutes = EXCLUDED.reminder_offsets_minutes, sms_reminders = EXCLUDED.sms_reminders,
+    reschedule_notice_hours = EXCLUDED.reschedule_notice_hours, reschedule_max = EXCLUDED.reschedule_max,
+    waitlist_enabled = EXCLUDED.waitlist_enabled, waitlist_hold_minutes = EXCLUDED.waitlist_hold_minutes,
+    noshow_flag_threshold = EXCLUDED.noshow_flag_threshold, noshow_flag_window_days = EXCLUDED.noshow_flag_window_days,
+    updated_at = EXCLUDED.updated_at
+`
+
+type PutAppointmentSettingsParams struct {
+	OrganizationID         pgtype.UUID
+	ReminderOffsetsMinutes []int32
+	SmsReminders           bool
+	RescheduleNoticeHours  int32
+	RescheduleMax          int32
+	WaitlistEnabled        bool
+	WaitlistHoldMinutes    int32
+	NoshowFlagThreshold    int32
+	NoshowFlagWindowDays   int32
+	UpdatedAt              pgtype.Timestamptz
+}
+
+func (q *Queries) PutAppointmentSettings(ctx context.Context, arg PutAppointmentSettingsParams) error {
+	_, err := q.db.Exec(ctx, putAppointmentSettings,
+		arg.OrganizationID,
+		arg.ReminderOffsetsMinutes,
+		arg.SmsReminders,
+		arg.RescheduleNoticeHours,
+		arg.RescheduleMax,
+		arg.WaitlistEnabled,
+		arg.WaitlistHoldMinutes,
+		arg.NoshowFlagThreshold,
+		arg.NoshowFlagWindowDays,
+		arg.UpdatedAt,
+	)
+	return err
 }
 
 const putChatSettings = `-- name: PutChatSettings :exec

@@ -75,3 +75,19 @@ type Location struct {
 	ID       string
 	TimeZone string
 }
+
+// AppointmentSettings are the clinic's appointment rules (docs/plans/appointments.md, ADR 0015 "Clinic rules"): when
+// reminders go out (minutes before the start, at most three, 15 minutes to 7 days), whether the paid SMS option is
+// on, how late and how often a patient may reschedule (0 turns self-service rescheduling off), whether freed slots
+// go to the waitlist and how long an offer is held, and from how many no-shows in how many days staff see a flag (0
+// for off). Nothing in them is personal data.
+type AppointmentSettings struct {
+	ReminderOffsetsMinutes []int `json:"reminder_offsets_minutes"`
+	RescheduleNoticeHours  int   `json:"reschedule_notice_hours"`
+	RescheduleMax          int   `json:"reschedule_max"`
+	WaitlistHoldMinutes    int   `json:"waitlist_hold_minutes"`
+	NoShowFlagThreshold    int   `json:"noshow_flag_threshold"`
+	NoShowFlagWindowDays   int   `json:"noshow_flag_window_days"`
+	SMSReminders           bool  `json:"sms_reminders"`
+	WaitlistEnabled        bool  `json:"waitlist_enabled"`
+}

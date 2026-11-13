@@ -257,6 +257,44 @@ type Appointment struct {
 	Status               string
 	CancellationReason   pgtype.Text
 	Period               pgtype.Range[pgtype.Timestamptz]
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+}
+
+type AppointmentActionToken struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	UsedAt         pgtype.Timestamptz
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	AccountID      pgtype.UUID
+	ReminderID     pgtype.UUID
+	TokenHash      []byte
+	Channel        string
+	Language       Language
+	UsedAction     pgtype.Text
+}
+
+type AppointmentChange struct {
+	ID             pgtype.UUID
+	At             pgtype.Timestamptz
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	ByAccountID    pgtype.UUID
+	FromSlotID     pgtype.UUID
+	ToSlotID       pgtype.UUID
+	FromPeriod     pgtype.Range[pgtype.Timestamptz]
+	ToPeriod       pgtype.Range[pgtype.Timestamptz]
+	Kind           string
+	Via            string
+	Agent          pgtype.Text
+	FromStatus     pgtype.Text
+	ToStatus       pgtype.Text
 }
 
 type AuditEvent struct {
@@ -564,6 +602,20 @@ type Organization struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+}
+
+type OrganizationAppointmentSetting struct {
+	OrganizationID         pgtype.UUID
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+	ReminderOffsetsMinutes []int32
+	SmsReminders           bool
+	RescheduleNoticeHours  int32
+	RescheduleMax          int32
+	WaitlistEnabled        bool
+	WaitlistHoldMinutes    int32
+	NoshowFlagThreshold    int32
+	NoshowFlagWindowDays   int32
 }
 
 type OrganizationChatSetting struct {

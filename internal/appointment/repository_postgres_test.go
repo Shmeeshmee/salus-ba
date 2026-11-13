@@ -92,7 +92,7 @@ func TestCreateAndByID_StoreABookedAppointmentInThePatientsScope(t *testing.T) {
 		return err
 	})
 	want := newAppt(s, s.patientA, start)
-	want.ID, want.Status, want.VersionID, want.LastUpdated = created.ID, appointment.StatusBooked, 1, now
+	want.ID, want.Status, want.VersionID, want.LastUpdated, want.BookedVia = created.ID, appointment.StatusBooked, 1, now, appointment.BookedDirect
 	if err != nil || !same(created, want) || !same(read, want) {
 		t.Fatalf("Create() = %+v, ByID() = %+v, %v;\nwant %+v", created, read, err, want)
 	}

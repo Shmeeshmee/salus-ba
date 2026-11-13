@@ -53,7 +53,7 @@ func (r *postgresRepository) Create(ctx context.Context, a Appointment) (Appoint
 	}
 	row, err := r.q(ctx).CreateAppointment(ctx, appointmentdb.CreateAppointmentParams{
 		PatientID: p, PractitionerRoleID: role, OrganizationID: org, SlotID: sl,
-		StartAt: ts(a.Start), EndAt: ts(a.End), CreatedAt: ts(a.Created),
+		StartAt: ts(a.Start), EndAt: ts(a.End), CreatedAt: ts(a.Created), BookedVia: string(bookedVia(a.BookedVia)),
 	})
 	var pgErr *pgconn.PgError
 	switch {
@@ -169,7 +169,19 @@ func toAppointment(row appointmentdb.AppointmentByIDRow) Appointment {
 	if row.CancelledByAccountID.Valid {
 		a.CancelledBy = row.CancelledByAccountID.String()
 	}
+	if row.ConfirmedAt.Valid {
+		a.ConfirmedAt, a.ConfirmedVia = row.ConfirmedAt.Time, Via(row.ConfirmedVia.String)
+	}
+	a.RescheduleCount, a.BookedVia = int32(row.RescheduleCount), BookedVia(row.BookedVia)
 	return a
+}
+
+// bookedVia is v, or BookedDirect when unset.
+func bookedVia(v BookedVia) BookedVia {
+	if v == "" {
+		return BookedDirect
+	}
+	return v
 }
 
 type postgresStatsRepository struct {

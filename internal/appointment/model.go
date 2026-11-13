@@ -42,6 +42,7 @@ type Appointment struct {
 	Created            time.Time // Appointment.created
 	CancelledAt        time.Time // zero unless cancelled
 	LastUpdated        time.Time // meta.lastUpdated
+	ConfirmedAt        time.Time // when the patient confirmed it; zero while unconfirmed (docs/plans/appointments.md)
 	ID                 string
 	PatientID          string // the patient participant
 	PractitionerRoleID string // the practitioner role participant
@@ -49,8 +50,97 @@ type Appointment struct {
 	SlotID             string // Appointment.slot
 	CancelledBy        string // the account that cancelled; empty for none or a job
 	Status             Status
-	Reason             Reason // Appointment.cancelationReason; empty unless cancelled
-	VersionID          int32  // meta.versionId
+	Reason             Reason    // Appointment.cancelationReason; empty unless cancelled
+	ConfirmedVia       Via       // ViaApp or ViaLink once confirmed; empty while unconfirmed
+	BookedVia          BookedVia // how it was booked: directly or through a waitlist offer
+	VersionID          int32     // meta.versionId
+	RescheduleCount    int32     // how often the patient moved it
+}
+
+// Via is how a change of an appointment was made: in the patient's app, through a one-time link of a reminder, by
+// the clinic's staff, or by the system (a job, the consultation's end).
+type Via string
+
+// The ways.
+const (
+	ViaApp    Via = "app"
+	ViaLink   Via = "link"
+	ViaStaff  Via = "staff"
+	ViaSystem Via = "system"
+)
+
+// BookedVia is how an appointment was booked.
+type BookedVia string
+
+// The ways an appointment is booked: a free slot of the directory, or an offer of the waitlist (SAL-35).
+const (
+	BookedDirect   BookedVia = "direct"
+	BookedWaitlist BookedVia = "waitlist"
+)
+
+// ChangeKind is what an appointment_change records.
+type ChangeKind string
+
+// The kinds of change.
+const (
+	ChangeConfirmed       ChangeKind = "confirmed"        // the patient confirmed (SAL-34)
+	ChangeRescheduled     ChangeKind = "rescheduled"      // the patient moved it to another slot of its role (SAL-34)
+	ChangeStatusSet       ChangeKind = "status_set"       // booked to fulfilled or noshow, by the practitioner or the system
+	ChangeStatusCorrected ChangeKind = "status_corrected" // noshow and fulfilled corrected into each other (SAL-36)
+)
+
+// Change is one row of an appointment's history: append-only, kept with the appointment. A reschedule names both
+// periods and slots, a status change both statuses. ByAccountID is the account that made it (empty for the system,
+// whose job is Agent); neither is shown to the patient.
+type Change struct {
+	At            time.Time
+	FromStart     time.Time
+	FromEnd       time.Time
+	ToStart       time.Time
+	ToEnd         time.Time
+	ID            string
+	AppointmentID string
+	ByAccountID   string
+	Agent         string
+	FromSlotID    string
+	ToSlotID      string
+	Kind          ChangeKind
+	Via           Via
+	FromStatus    Status
+	ToStatus      Status
+}
+
+// Channel is the message a one-time link was sent in.
+type Channel string
+
+// The channels that carry a link.
+const (
+	ChannelEmail Channel = "email"
+	ChannelSMS   Channel = "sms"
+)
+
+// Link is a one-time link to issue for a reminder of an appointment (ADR 0015 "One-tap links"): the appointment and
+// its clinic, the reminder and the channel it goes out in, and the language the page answers in.
+type Link struct {
+	AppointmentID  string
+	OrganizationID string
+	ReminderID     string // empty until SAL-33's reminders exist
+	Language       string
+	Channel        Channel
+}
+
+// Token is a stored one-time link: only the SHA-256 of its token.
+type Token struct {
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	AppointmentID  string
+	OrganizationID string
+	PatientID      string
+	AccountID      string
+	ReminderID     string
+	Language       string
+	Channel        Channel
+	Hash           [32]byte
 }
 
 // Name is the patient's name as an appointment shows it.
@@ -179,3 +269,13 @@ type Start struct {
 	Status             Status
 	Patient            [32]byte
 }
+
+// SlotFreedArgs is the waitlist_slot_freed job on the default queue, enqueued with every cancellation that frees a
+// slot still ahead (and every reschedule, SAL-34): the waitlist offers it (SAL-35). Opaque ids only.
+type SlotFreedArgs struct {
+	SlotID         string `json:"slot_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (SlotFreedArgs) Kind() string { return "waitlist_slot_freed" }

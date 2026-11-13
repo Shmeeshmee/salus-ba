@@ -156,6 +156,9 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 			return Appointment{}, ErrCancellationWindowClosed, nil
 		}
 		reason = ReasonPatient
+		if err := s.settle(ctx, v.a); err != nil {
+			return Appointment{}, nil, err
+		}
 		// The appointment is checked: its clinic is set for the slot's release.
 		if err := s.Repo.SetClinic(ctx, v.a.OrganizationID); err != nil {
 			return Appointment{}, nil, err
@@ -171,11 +174,19 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 	return out, nil, s.cancelled(ctx, out)
 }
 
-// cancelled frees the slot of the cancelled appointment a and enqueues its e-mail, the end of its
-// consultation's access (consultation_access_end) and the discard of its questionnaire responses
-// (questionnaire_responses_discard), in its transaction. Every cancellation goes through it.
+// cancelled frees the slot of the cancelled appointment a, hands it to the waitlist while it is ahead
+// (waitlist_slot_freed), cancels its reminders, and enqueues its e-mail, the end of its consultation's access
+// (consultation_access_end) and the discard of its questionnaire responses (questionnaire_responses_discard), in
+// its transaction. Every cancellation goes through it.
 func (s *Service) cancelled(ctx context.Context, a Appointment) error {
-	if _, err := s.Slots.Release(ctx, a.OrganizationID, a.SlotID); err != nil {
+	freed, err := s.Slots.Release(ctx, a.OrganizationID, a.SlotID)
+	if err != nil {
+		return err
+	}
+	if err := s.slotFreed(ctx, freed, a.OrganizationID, a.SlotID); err != nil {
+		return err
+	}
+	if err := s.cancelReminders(ctx, a.ID); err != nil {
 		return err
 	}
 	if err := s.Jobs.EnqueueCancelled(ctx, a.ID, a.OrganizationID); err != nil {
@@ -237,10 +248,16 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 		return Appointment{}, ErrNotStarted, nil
 	}
 	out, err = s.Repo.SetStatus(ctx, id, status, now)
-	if errors.Is(err, ErrClosed) {
+	switch {
+	case errors.Is(err, ErrClosed):
 		return Appointment{}, ErrClosed, nil
+	case err != nil:
+		return Appointment{}, nil, err
 	}
-	return out, nil, err
+	return out, nil, s.recordChange(ctx, Change{
+		At: now, AppointmentID: id, Kind: ChangeStatusSet, Via: ViaStaff, ByAccountID: c.AccountID,
+		FromStatus: StatusBooked, ToStatus: status,
+	})
 }
 
 // CancelForRevokedConsent cancels, after the patient revoked their consent with the clinic org (the

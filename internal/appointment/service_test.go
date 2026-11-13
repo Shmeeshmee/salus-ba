@@ -25,6 +25,7 @@ func TestBook_HoldsTheSlotStoresTheAppointmentEnqueuesItsEmailsAndAuditsIt(t *te
 	want := appointment.Appointment{
 		ID: newID, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, SlotID: slotFree,
 		Start: start, End: start.Add(30 * time.Minute), Created: now, LastUpdated: now, Status: appointment.StatusBooked, VersionID: 1,
+		BookedVia: appointment.BookedDirect,
 	}
 	if err != nil || got != want {
 		t.Fatalf("Book() = %+v, %v;\nwant %+v", got, err, want)

@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
@@ -49,12 +50,13 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*reten
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), postgres.NewTransactor(pool), clock.System{})
 	accounts := auth.NewPostgresRepository(retentionPool)
 	return retention.NewService(map[string]retention.Purger{
-		"session":                auth.NewSessionPurger(accounts),
-		"invite":                 auth.NewInvitePurger(accounts),
-		"slot":                   slot.NewPurger(slot.NewPostgresRepository(retentionPool)),
-		"video_session":          videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
-		"questionnaire_response": questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
-		"binary":                 binary.NewPurger(binary.NewPostgresRepository(retentionPool), store),
-		"webhook_dead_letter":    notification.NewDeadLetterPurger(notification.NewPostgresRepository(retentionPool)),
+		"session":                  auth.NewSessionPurger(accounts),
+		"invite":                   auth.NewInvitePurger(accounts),
+		"slot":                     slot.NewPurger(slot.NewPostgresRepository(retentionPool)),
+		"video_session":            videosession.NewPurger(videosession.NewPostgresRepository(retentionPool)),
+		"questionnaire_response":   questionnaireresponse.NewPurger(questionnaireresponse.NewPostgresRepository(retentionPool)),
+		"binary":                   binary.NewPurger(binary.NewPostgresRepository(retentionPool), store),
+		"webhook_dead_letter":      notification.NewDeadLetterPurger(notification.NewPostgresRepository(retentionPool)),
+		"appointment_action_token": appointment.NewTokenPurger(appointment.NewPostgresTokenRepository(retentionPool)),
 	}, audit, clock.System{})
 }

@@ -21,4 +21,6 @@ var (
 	// ErrInvalidChatSettings is returned for chat settings out of their ranges, or hours that are not valid
 	// stretches of a weekday.
 	ErrInvalidChatSettings = errors.New("organization: invalid chat settings")
+	// ErrInvalidAppointmentSettings is returned for appointment settings out of their ranges.
+	ErrInvalidAppointmentSettings = errors.New("organization: invalid appointment settings")
 )
