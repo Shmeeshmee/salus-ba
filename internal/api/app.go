@@ -110,7 +110,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies).WithFeatures(features(cfg.Analytics))
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners, roles, appointment.NewFacts(appointmentRepo))
-	consultAPI, consultStream, documents := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
+	consultAPI, consultStream, documents, signatures := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
 	questionnaireAPI, streams, timeline := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients, encounters: encounters,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
@@ -142,7 +142,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
-		Timeout: RequestTimeout,
+		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})
 	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil
 }
@@ -195,6 +195,7 @@ type profileEntries struct {
 	allergies   *allergyintolerance.Service
 	medications *medicationstatement.Service
 	routes      []func(*http.ServeMux)
+	provenances []func(http.ResponseWriter, *http.Request) bool // the sources of their clinical writes' Provenances
 }
 
 // newProfileEntries builds the profileEntries.
@@ -209,12 +210,14 @@ func newProfileEntries(p profilePorts, fhirBase string, log *slog.Logger) profil
 		Repo: medicationstatement.NewPostgresRepository(p.pool), Consents: p.consents, Visits: visits, Roles: p.roles,
 		Encounters: p.encounters, Terms: terms, Audit: p.audit, Tx: p.tx, Clock: clock.System{},
 	})
+	allergiesFHIR := allergyintolerance.NewFHIRHandler(allergies, caller, fhirBase, log)
+	medicationsFHIR := medicationstatement.NewFHIRHandler(medications, caller, fhirBase, log)
 	return profileEntries{allergies: allergies, medications: medications, routes: []func(*http.ServeMux){
 		allergyintolerance.NewHTTPHandler(allergies, caller, log).Routes,
-		allergyintolerance.NewFHIRHandler(allergies, caller, fhirBase, log).Routes,
+		allergiesFHIR.Routes,
 		medicationstatement.NewHTTPHandler(medications, caller, log).Routes,
-		medicationstatement.NewFHIRHandler(medications, caller, fhirBase, log).Routes,
-	}}
+		medicationsFHIR.Routes,
+	}, provenances: []func(http.ResponseWriter, *http.Request) bool{allergiesFHIR.Provenance, medicationsFHIR.Provenance}}
 }
 
 // readiness are the dependencies /readyz pings.
@@ -291,9 +294,10 @@ type consultPorts struct {
 
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
 // documents (templates, drafting, signing, the signed PDF and their FHIR reads), for its practitioner; it
-// returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream, and the
-// documents (for the history: a source of the patient's timeline and of the practitioner's view).
-func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux), documents *composition.Service) {
+// returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream, the
+// documents (for the history: a source of the patient's timeline and of the practitioner's view), and the
+// signatures' source of GET /fhir/R4/Provenance/{id}.
+func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux), documents *composition.Service, signatures func(http.ResponseWriter, *http.Request) bool) {
 	terms := terminology.NewService(terminology.NewPostgresRepository(p.pool), nil) // the tagging only (SAL-13)
 	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(p.pool), Stream: transcript.NewRedisStream(p.rdb), Encounters: p.encounters, Consents: p.consents,
@@ -312,14 +316,15 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		Publisher: suggestion.NewRedisPublisher(p.rdb), Audit: p.audit, Tx: p.tx,
 	})
 	transcriptHandler := transcript.NewHTTPHandler(transcripts, suggestion.NewCommandHandler(suggestions, log), caller, clock.System{}, log)
+	documentsFHIR := composition.NewFHIRHandler(documents, caller, fhirBase, log)
 	return []func(*http.ServeMux){
 		transcriptHandler.Routes,
 		composition.NewHTTPHandler(documents, caller, log).Routes,
-		composition.NewFHIRHandler(documents, caller, fhirBase, log).Routes,
+		documentsFHIR.Routes,
 		condition.NewFHIRHandler(condition.NewReads(condition.ReadPorts{
 			Repo: condition.NewPostgresReadRepository(p.pool), Encounters: p.encounters, Audit: p.audit, Tx: p.tx,
 		}), caller, log).Routes,
-	}, transcriptHandler.StreamRoutes, documents
+	}, transcriptHandler.StreamRoutes, documents, documentsFHIR.Provenance
 }
 
 // s3PageSize is the object store listing's page, S3's largest.

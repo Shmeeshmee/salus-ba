@@ -243,6 +243,19 @@ type AllergyIntolerance struct {
 	VerificationStatus      string
 }
 
+type AllergyIntoleranceProvenance struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	Recorded             pgtype.Timestamptz
+	AllergyIntoleranceID pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	PatientID            pgtype.UUID
+	TargetVersion        int32
+	Activity             string
+	AgentType            string
+}
+
 type Appointment struct {
 	ID                   pgtype.UUID
 	CreatedAt            pgtype.Timestamptz
@@ -612,6 +625,19 @@ type MedicationStatement struct {
 	DoseUnit                pgtype.Text
 	PeriodUnit              pgtype.Text
 	Status                  string
+}
+
+type MedicationStatementProvenance struct {
+	ID                    pgtype.UUID
+	CreatedAt             pgtype.Timestamptz
+	Recorded              pgtype.Timestamptz
+	MedicationStatementID pgtype.UUID
+	PractitionerRoleID    pgtype.UUID
+	OrganizationID        pgtype.UUID
+	PatientID             pgtype.UUID
+	TargetVersion         int32
+	Activity              string
+	AgentType             string
 }
 
 type Organization struct {

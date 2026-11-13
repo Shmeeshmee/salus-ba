@@ -243,3 +243,31 @@ func TestNew_StreamRoutesAreExemptFromTheRequestTimeout(t *testing.T) {
 }
 
 type sessionKey struct{}
+
+// GET /fhir/R4/Provenance/{id} has several sources (the entries' writes, the signatures): each is asked in turn
+// until one answers; the ones after it are not asked. An id no source answers is a not-found OperationOutcome.
+func TestRouter_AsksTheProvenanceSourcesInTurn(t *testing.T) {
+	var asked []string
+	source := func(name string, answers bool) func(http.ResponseWriter, *http.Request) bool {
+		return func(w http.ResponseWriter, r *http.Request) bool {
+			asked = append(asked, name+":"+r.PathValue("id"))
+			if answers {
+				w.WriteHeader(http.StatusTeapot)
+			}
+			return answers
+		}
+	}
+	h := router.New(router.Config{Logger: slog.New(slog.DiscardHandler), Timeout: time.Second,
+		Provenances: []func(http.ResponseWriter, *http.Request) bool{source("a", false), source("b", true), source("c", true)}})
+	if rec := get(t, h, "/fhir/R4/Provenance/p1"); rec.Code != http.StatusTeapot || strings.Join(asked, ",") != "a:p1,b:p1" {
+		t.Errorf("= %d, asked %v; want b's answer, after a, and c not asked", rec.Code, asked)
+	}
+	asked = nil
+	h = router.New(router.Config{Logger: slog.New(slog.DiscardHandler), Timeout: time.Second,
+		Provenances: []func(http.ResponseWriter, *http.Request) bool{source("a", false)}})
+	rec := get(t, h, "/fhir/R4/Provenance/p1")
+	if rec.Code != http.StatusNotFound || len(asked) != 1 {
+		t.Errorf("= %d, asked %v; want 404 after asking a", rec.Code, asked)
+	}
+	assertGolden(t, "fhir_not_found.json", rec.Body.Bytes())
+}

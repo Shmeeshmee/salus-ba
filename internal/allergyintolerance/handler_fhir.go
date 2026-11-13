@@ -85,6 +85,7 @@ func toFHIR(a AllergyIntolerance, attributed bool) resource {
 type Reader interface {
 	Get(ctx context.Context, c Caller, id string) (Seen, error)
 	Seen(ctx context.Context, c Caller, patientID string) ([]Seen, error)
+	Provenance(ctx context.Context, c Caller, id string) (Provenance, bool, error)
 }
 
 // FHIRHandler serves the AllergyIntolerance read and search by patient of the FHIR API
@@ -154,6 +155,45 @@ func (h *FHIRHandler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	fhir.Write(w, http.StatusOK, fhir.NewSearchset(h.base+"/AllergyIntolerance?"+q.Encode(), matches, nil))
+}
+
+// Provenance answers GET /fhir/R4/Provenance/{id} and reports true when the id is an allergy's Provenance in the
+// caller's scope (or nobody is signed in); otherwise it writes nothing and reports false, for the route's next
+// source (internal/api/router).
+func (h *FHIRHandler) Provenance(w http.ResponseWriter, r *http.Request) bool {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return true
+	}
+	p, found, err := h.svc.Provenance(r.Context(), c, r.PathValue("id"))
+	switch {
+	case !found:
+		return false
+	case errors.Is(err, ErrNotFound):
+		fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")
+		return true
+	case err != nil:
+		fhir.InternalError(w, r, h.log, err)
+		return true
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("ETag", fhir.ETag("1"))
+	fhir.Write(w, http.StatusOK, provenanceOf(p))
+	return true
+}
+
+// provenanceOf is p as an R4 Provenance: a clinic's role on behalf of the clinic, or the patient. Recording confirms
+// the entry with the recorder's role (00053 checks it), so a creation's agent is its author and its verifier.
+func provenanceOf(p Provenance) fhir.Provenance {
+	c := fhir.Change{Recorded: p.Recorded, ID: p.ID, Resource: "AllergyIntolerance/" + p.EntryID, Activity: p.Activity,
+		AgentTypes: []string{p.AgentType}, Who: "Patient/" + p.PatientID, Version: p.Version}
+	if p.PatientID == "" {
+		c.Who, c.OnBehalfOf = "PractitionerRole/"+p.RoleID, "Organization/"+p.OrganizationID
+	}
+	if p.Activity == fhir.ActivityCreate {
+		c.AgentTypes = append(c.AgentTypes, fhir.AgentVerifier)
+	}
+	return fhir.NewWriteProvenance(c)
 }
 
 // signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.

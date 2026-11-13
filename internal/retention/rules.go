@@ -215,12 +215,22 @@ func historyRules() []Rule {
 	return []Rule{
 		{
 			Table: "allergy_intolerance",
-			Basis: "The patient's allergies, safety-critical for their care (GDPR Art. 9(2)(h)); kept with the clinical record, a mistaken entry as entered-in-error, and the patient's own unconfirmed entry deleted when they remove it; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Basis: "The patient's allergies, safety-critical for their care (GDPR Art. 9(2)(h)); kept with the clinical record, a mistaken entry as entered-in-error, and the patient's own entry that no clinic ever confirmed or wrote deleted when they remove it; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
 			Then:  ThenKeep,
 		},
 		{
 			Table: "medication_statement",
 			Basis: "The patient's current medications, for their care (GDPR Art. 9(2)(h)); kept as allergy_intolerance is; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "allergy_intolerance_provenance",
+			Basis: "Who (a clinic, or the patient on a clinic's entry) recorded, changed, confirmed or removed an allergy and when (FHIR Provenance, GDPR Art. 9(2)(h)); kept with its entry as allergy_intolerance is and never deleted with it (an entry with a Provenance is removed as entered-in-error); needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "medication_statement_provenance",
+			Basis: "Who recorded, changed, confirmed or removed a medication and when (FHIR Provenance, GDPR Art. 9(2)(h)); kept as allergy_intolerance_provenance is; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
 			Then:  ThenKeep,
 		},
 		{

@@ -16,10 +16,11 @@ import (
 // fakeRepo holds the allergies by id and records the scope; it does not apply row-level security (the service must
 // decide alone) but keeps the versions.
 type fakeRepo struct {
-	byID    map[string]allergyintolerance.AllergyIntolerance
-	clinic  string
-	patient string
-	deleted []string
+	byID        map[string]allergyintolerance.AllergyIntolerance
+	provenances []allergyintolerance.Provenance // in the order written
+	clinic      string
+	patient     string
+	deleted     []string
 }
 
 func newRepo(as ...allergyintolerance.AllergyIntolerance) *fakeRepo {
@@ -74,6 +75,29 @@ func (r *fakeRepo) Delete(_ context.Context, id string, version int32) error {
 	delete(r.byID, id)
 	r.deleted = append(r.deleted, id)
 	return nil
+}
+
+func (r *fakeRepo) InsertProvenance(_ context.Context, p allergyintolerance.Provenance) error {
+	r.provenances = append(r.provenances, p)
+	return nil
+}
+
+func (r *fakeRepo) HasProvenance(_ context.Context, id string) (bool, error) {
+	for _, p := range r.provenances {
+		if p.EntryID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *fakeRepo) Provenance(_ context.Context, id string) (allergyintolerance.Provenance, error) {
+	for _, p := range r.provenances {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return allergyintolerance.Provenance{}, allergyintolerance.ErrNotFound
 }
 
 type fakeConsents map[string]access.Consent // by clinic
