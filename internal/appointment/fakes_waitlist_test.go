@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -23,6 +24,8 @@ type fakeWaitlist struct {
 	offers   []appointment.Offer
 	cands    []string // the ids Candidates gives, in order
 	matched  []appointment.Match
+	queries  []appointment.ClinicQuery
+	locked   []string // "<patient> <clinic>" of each LockEntries
 }
 
 func (w *fakeWaitlist) inTx(ctx context.Context) error {
@@ -87,14 +90,29 @@ func (w *fakeWaitlist) PatientEntries(ctx context.Context, patientID string) ([]
 	return out, w.inTx(ctx)
 }
 
-func (w *fakeWaitlist) ClinicEntries(ctx context.Context, org, roleID, specialty string) ([]appointment.WaitlistEntry, error) {
+func (w *fakeWaitlist) ClinicEntries(ctx context.Context, q appointment.ClinicQuery) ([]appointment.WaitlistEntry, error) {
+	w.queries = append(w.queries, q)
 	var out []appointment.WaitlistEntry
 	for _, e := range w.entries {
-		if e.OrganizationID == org && w.visible(e) && (roleID == "" || e.PractitionerRoleID == roleID || (specialty != "" && e.Specialty == specialty)) {
+		status := e.Status
+		if status == appointment.WaitlistActive && !e.EndsAt.After(q.Now) {
+			status = appointment.WaitlistExpired
+		}
+		if e.OrganizationID == q.OrganizationID && w.visible(e) && status == q.Status &&
+			(q.PractitionerRoleID == "" || e.PractitionerRoleID == q.PractitionerRoleID || (q.Specialty != "" && e.Specialty == q.Specialty)) {
 			out = append(out, w.withOffer(e))
 		}
 	}
-	return out, w.inTx(ctx)
+	if q.Offset >= len(out) {
+		return nil, w.inTx(ctx)
+	}
+	out = out[q.Offset:]
+	return out[:min(len(out), q.Limit)], w.inTx(ctx)
+}
+
+func (w *fakeWaitlist) LockEntries(ctx context.Context, patientID, org string) error {
+	w.locked = append(w.locked, patientID+" "+org)
+	return w.inTx(ctx)
 }
 
 func (w *fakeWaitlist) find(id string) (int, bool) {
@@ -222,6 +240,16 @@ func (w *fakeWaitlist) DeleteEntriesClosedBefore(context.Context, time.Time) (in
 }
 func (w *fakeWaitlist) DeleteOffersClosedBefore(context.Context, time.Time) (int64, error) {
 	return 3, w.err
+}
+
+// RecordAll keeps the events as Record does, in a transaction only.
+func (a *fakeAuditor) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	for _, e := range es {
+		if err := a.Record(ctx, e); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // fakeSettings gives each clinic's appointment settings: the defaults with the waitlist on, unless off.

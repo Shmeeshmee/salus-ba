@@ -145,15 +145,22 @@ func TestWaitlistHandler_ListsThePatientsAndTheClinicsEntries(t *testing.T) {
 	svc = &stubWaitlist{clinic: appointment.ClinicEntry{Entry: theEntry, Patient: nameA, Named: true}}
 	rec := serveWaitlist(t, svc, admin, http.MethodGet, "/clinic/waitlist?practitioner_role="+roleA1+"&status=active", "")
 	want := `{"entries":[{"patient_id":"` + patientA + `","patient_name":"Ada Example","entry":` + entryJSON + `,"priority":5}]}` + "\n"
-	if rec.Code != http.StatusOK || rec.Body.String() != want || svc.filter != (appointment.WaitlistFilter{PractitionerRoleID: roleA1, Status: appointment.WaitlistActive}) {
+	if rec.Code != http.StatusOK || rec.Body.String() != want || svc.filter != (appointment.WaitlistFilter{PractitionerRoleID: roleA1, Status: appointment.WaitlistActive, Limit: 100}) {
 		t.Errorf("GET /clinic/waitlist = %d %s (filter %+v),\nwant %s", rec.Code, rec.Body, svc.filter, want)
 	}
 	svc = &stubWaitlist{clinic: appointment.ClinicEntry{Entry: theEntry}}
 	if rec := serveWaitlist(t, svc, pract, http.MethodGet, "/clinic/waitlist", ""); strings.Contains(rec.Body.String(), "patient_name") {
 		t.Errorf("an entry without a name sent one: %s", rec.Body)
 	}
-	if rec := serveWaitlist(t, &stubWaitlist{}, admin, http.MethodGet, "/clinic/waitlist?status=lost", ""); rec.Code != http.StatusBadRequest {
-		t.Errorf("an unknown status = %d, want 400", rec.Code)
+	for _, q := range []string{"status=lost", "limit=0", "limit=501", "offset=-1", "limit=x"} {
+		if rec := serveWaitlist(t, &stubWaitlist{}, admin, http.MethodGet, "/clinic/waitlist?"+q, ""); rec.Code != http.StatusBadRequest {
+			t.Errorf("GET /clinic/waitlist?%s = %d, want 400", q, rec.Code)
+		}
+	}
+	svc = &stubWaitlist{clinic: appointment.ClinicEntry{Entry: theEntry}}
+	rec = serveWaitlist(t, svc, admin, http.MethodGet, "/clinic/waitlist?limit=1&offset=4", "")
+	if !strings.HasPrefix(rec.Body.String(), `{"next_offset":5,`) || svc.filter.Status != appointment.WaitlistActive || svc.filter.Offset != 4 {
+		t.Errorf("a full page = %s (filter %+v), want the next offset and the active entries by default", rec.Body, svc.filter)
 	}
 	if rec := serveWaitlist(t, &stubWaitlist{err: appointment.ErrForbidden}, me, http.MethodGet, "/clinic/waitlist", ""); rec.Code != http.StatusNotFound {
 		t.Errorf("a patient's GET /clinic/waitlist = %d, want 404", rec.Code)

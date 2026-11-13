@@ -11,6 +11,10 @@ import { Alert, Confirm } from './ui'
 type Entry = components['schemas']['ClinicWaitlistEntry']
 type Status = components['schemas']['WaitlistStatus']
 
+// The list's pages: the API gives 500 entries at most at once.
+const pageSize = 100
+const maxPage = 500
+
 // Waitlist is the clinic's waitlist for its staff (SAL-35): the entries in offer order (priority, then who joined
 // first), each with what the patient waits for, the dates and times, the patient's name where the care consent gives
 // it, and an open offer's hold; staff move an entry up or down (priority 0 to 100) and remove one. Offers are made
@@ -18,16 +22,17 @@ type Status = components['schemas']['WaitlistStatus']
 export function Waitlist({ api, fhir, account }: { api: ApiClient; fhir: FhirClient; account: Account }) {
   const t = useT()
   const organizationId = account.organizationId ?? ''
-  const [status, setStatus] = useState<Status | ''>('active')
+  const [status, setStatus] = useState<Status>('active')
+  const [limit, setLimit] = useState(pageSize)
   const { state: staff } = useLoad(async () => {
     const [members, zone] = await Promise.all([loadStaff(fhir, organizationId), loadTimeZone(fhir, organizationId)])
     return { members, zone }
   }, [fhir, organizationId])
   const { state, reload } = useLoad(async () => {
-    const res = await attempt(api.GET('/clinic/waitlist', { params: { query: status === '' ? {} : { status } } }))
+    const res = await attempt(api.GET('/clinic/waitlist', { params: { query: { status, limit } } }))
     if (!res.ok) throw new Error('waitlist')
-    return res.data.entries
-  }, [api, status])
+    return res.data
+  }, [api, status, limit])
 
   return (
     <section className="panel">
@@ -35,16 +40,29 @@ export function Waitlist({ api, fhir, account }: { api: ApiClient; fhir: FhirCli
       <div className="toolbar">
         <label>
           <span className="muted small">{t('waitlist.show')} </span>
-          <select value={status} onChange={(e) => setStatus(e.target.value as Status | '')}>
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value as Status)
+              setLimit(pageSize)
+            }}
+          >
             <option value="active">{t('waitlist.statusActive')}</option>
-            <option value="">{t('waitlist.statusAll')}</option>
+            <option value="expired">{t('waitlist.status.expired')}</option>
+            <option value="booked">{t('waitlist.status.booked')}</option>
+            <option value="withdrawn">{t('waitlist.status.withdrawn')}</option>
           </select>
         </label>
       </div>
       {(state.name === 'loading' || staff.name === 'loading') && <p className="muted">{t('common.loading')}</p>}
       {(state.name === 'failed' || staff.name === 'failed') && <Alert message={t('waitlist.loadFailed')} />}
       {state.name === 'loaded' && staff.name === 'loaded' && (
-        <Entries api={api} entries={state.value} members={staff.value.members} zone={staff.value.zone} onChanged={reload} />
+        <Entries api={api} entries={state.value.entries} members={staff.value.members} zone={staff.value.zone} onChanged={reload} />
+      )}
+      {state.name === 'loaded' && state.value.next_offset !== undefined && limit < maxPage && (
+        <button type="button" onClick={() => setLimit((n) => Math.min(n + pageSize, maxPage))}>
+          {t('waitlist.showMore')}
+        </button>
       )}
     </section>
   )

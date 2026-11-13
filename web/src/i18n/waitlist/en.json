@@ -3,7 +3,6 @@
   "title": "Waitlist",
   "show": "Show",
   "statusActive": "Waiting",
-  "statusAll": "All",
   "loadFailed": "The waitlist could not be loaded. Reload the page to try again.",
   "empty": "Nobody is on the waitlist.",
   "aPractitioner": "A practitioner",
@@ -33,5 +32,6 @@
   "settingsSaveFailed": "The settings could not be saved. Try again.",
   "settingsSaved": "Waitlist settings saved.",
   "save": "Save",
-  "saving": "Saving"
+  "saving": "Saving",
+  "showMore": "Show more"
 }

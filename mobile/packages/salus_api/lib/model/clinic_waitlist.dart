@@ -13,26 +13,46 @@ part of salus_api;
 class ClinicWaitlist {
   /// Returns a new [ClinicWaitlist] instance.
   ClinicWaitlist({
+    this.nextOffset,
     this.entries = const [],
   });
+
+  /// The next page's offset; absent after the last page.
+  ///
+  /// Minimum value: 0
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? nextOffset;
 
   List<ClinicWaitlistEntry> entries;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ClinicWaitlist && _deepEquality.equals(other.entries, entries);
+      other is ClinicWaitlist &&
+          other.nextOffset == nextOffset &&
+          _deepEquality.equals(other.entries, entries);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (entries.hashCode);
+      (nextOffset == null ? 0 : nextOffset!.hashCode) + (entries.hashCode);
 
   @override
-  String toString() => 'ClinicWaitlist[entries=$entries]';
+  String toString() =>
+      'ClinicWaitlist[nextOffset=$nextOffset, entries=$entries]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
+    if (this.nextOffset != null) {
+      json[r'next_offset'] = this.nextOffset;
+    } else {
+      json[r'next_offset'] = null;
+    }
     json[r'entries'] = this.entries;
     return json;
   }
@@ -56,6 +76,7 @@ class ClinicWaitlist {
       }());
 
       return ClinicWaitlist(
+        nextOffset: mapValueOfType<int>(json, r'next_offset'),
         entries: ClinicWaitlistEntry.listFromJson(json[r'entries']),
       );
     }

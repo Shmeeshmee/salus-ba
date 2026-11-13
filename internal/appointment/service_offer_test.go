@@ -314,3 +314,31 @@ func TestOfferNotice_GivesTheOfferAndTheAccount(t *testing.T) {
 		t.Errorf("OfferNotice(another clinic) = %v, want ErrNotFound", err)
 	}
 }
+
+// An offer accepted on one device gives the second device that appointment, read again and audited as a read: no
+// second booking, and with a price no second charge and no refund of the one the first paid (review of PR #93,
+// findings 1 and 7).
+func TestAccept_AnOfferAcceptedOnAnotherDeviceGivesItsAppointment(t *testing.T) {
+	t.Parallel()
+	w, id, _ := offered(t, now.Add(time.Minute))
+	provider := &paymentstest.Provider{}
+	w.with(func(p *appointment.Ports) { p.Prices, p.Payments = fakePrices{amount: 3000}, provider })
+	first, err := w.svc.Accept(t.Context(), me, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.audit.events = nil
+	again, err := w.svc.Accept(t.Context(), me, id)
+	if err != nil || again.ID != first.ID {
+		t.Fatalf("Accept() again = %+v, %v; want the first appointment", again, err)
+	}
+	if got := provider.Charged(); len(got) != 1 || provider.Refunded(got[0].ID) != 0 {
+		t.Errorf("charged %+v, want one receipt, not refunded", got)
+	}
+	if want := []auditevent.AuditEvent{event(me, auditevent.CodeRead, "Appointment", first.ID, auditevent.OutcomeSuccess)}; !slices.Equal(w.audit.events, want) {
+		t.Errorf("audit %+v, want %+v", w.audit.events, want)
+	}
+	if _, err := w.svc.Accept(t.Context(), other, id); !errors.Is(err, appointment.ErrNotFound) {
+		t.Errorf("Accept(another patient) = %v, want ErrNotFound", err)
+	}
+}

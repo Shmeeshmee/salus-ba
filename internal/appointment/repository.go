@@ -68,9 +68,11 @@ type WaitlistRepository interface {
 	CountActiveEntries(ctx context.Context, patientID, org string, now time.Time) (int, error)
 	// PatientEntries returns the patient's entries, newest first, each with its open offer.
 	PatientEntries(ctx context.Context, patientID string) ([]WaitlistEntry, error)
-	// ClinicEntries returns the clinic's entries in offer order (priority descending, then created_at), each with its
-	// open offer; with the filter's role, those of the role or of its specialty.
-	ClinicEntries(ctx context.Context, org, roleID, specialty string) ([]WaitlistEntry, error)
+	// ClinicEntries returns a page of the clinic's entries in offer order (priority descending, then created_at), each
+	// with its open offer; with q's role, those of the role or of its specialty; with q's status, those in it.
+	ClinicEntries(ctx context.Context, q ClinicQuery) ([]WaitlistEntry, error)
+	// LockEntries holds the patient's entries with the clinic until the transaction ends: joins run one at a time.
+	LockEntries(ctx context.Context, patientID, org string) error
 	// EntryForUpdate returns the entry id locked until the transaction ends, or ErrNotFound.
 	EntryForUpdate(ctx context.Context, id string) (WaitlistEntry, error)
 	// CloseEntry closes the active entry id with status at at and returns it; ErrNotFound when it is not active.
@@ -79,7 +81,8 @@ type WaitlistRepository interface {
 	SetPriority(ctx context.Context, id string, priority int, at time.Time) (WaitlistEntry, error)
 	// ActiveEntries returns the patient's active entries with the clinic.
 	ActiveEntries(ctx context.Context, patientID, org string) ([]WaitlistEntry, error)
-	// Candidates returns at most n active entries that m matches, in offer order: of m's clinic, role or specialty,
+	// Candidates returns, locked, at most n active entries that m matches, in offer order (those another transaction
+	// holds are passed over): of m's clinic, role or specialty,
 	// day and times, never offered m's slot, without an open offer, of a patient who never held the slot (its
 	// cancelled or rescheduled appointment) and has no booked appointment overlapping it that the scope shows.
 	Candidates(ctx context.Context, m Match, n int) ([]WaitlistEntry, error)

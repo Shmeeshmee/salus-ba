@@ -86,8 +86,10 @@ func TestWaitlist_AFreedSlotIsOfferedAndAcceptedThroughTheApp(t *testing.T) {
 	if appt.SlotID != slotID || appt.BookedVia != "waitlist" || appt.Status != "booked" {
 		t.Errorf("the acceptance booked %+v, want the freed slot booked via the waitlist", appt)
 	}
-	if got, code := waiting.refusal(http.MethodPost, "/waitlist/offers/"+offer.ID+"/accept", nil); got != http.StatusConflict || code != "offer_expired" {
-		t.Errorf("a second acceptance = %d %q, want 409 offer_expired", got, code)
+	var again struct{ ID string }
+	waiting.must(http.StatusCreated, http.MethodPost, "/waitlist/offers/"+offer.ID+"/accept", nil, &again)
+	if again.ID != appt.ID {
+		t.Errorf("a second acceptance (another device) gave %s, want the booked appointment %s", again.ID, appt.ID)
 	}
 	var list struct {
 		Entries []struct {

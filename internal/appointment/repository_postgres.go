@@ -369,9 +369,12 @@ func (r *postgresRepository) PatientEntries(ctx context.Context, patientID strin
 	return out, nil
 }
 
-func (r *postgresRepository) ClinicEntries(ctx context.Context, org, roleID, specialty string) ([]WaitlistEntry, error) {
-	p := appointmentdb.ListClinicWaitlistEntriesParams{Specialty: text(specialty)}
-	if p.OrganizationID.Scan(org) != nil || (roleID != "" && p.PractitionerRoleID.Scan(roleID) != nil) {
+func (r *postgresRepository) ClinicEntries(ctx context.Context, q ClinicQuery) ([]WaitlistEntry, error) {
+	p := appointmentdb.ListClinicWaitlistEntriesParams{
+		Specialty: text(q.Specialty), Status: text(string(q.Status)), Now: ts(q.Now),
+		MaxRows: int32(q.Limit), SkipRows: int32(q.Offset), //nolint:gosec // bounded by the service
+	}
+	if p.OrganizationID.Scan(q.OrganizationID) != nil || (q.PractitionerRoleID != "" && p.PractitionerRoleID.Scan(q.PractitionerRoleID) != nil) {
 		return nil, nil
 	}
 	rows, err := r.q(ctx).ListClinicWaitlistEntries(ctx, p)
@@ -383,6 +386,10 @@ func (r *postgresRepository) ClinicEntries(ctx context.Context, org, roleID, spe
 		out = append(out, toEntryWithOffer(row))
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) LockEntries(ctx context.Context, patientID, org string) error {
+	return r.q(ctx).LockWaitlistEntries(ctx, appointmentdb.LockWaitlistEntriesParams{PatientID: patientID, OrganizationID: org})
 }
 
 func (r *postgresRepository) EntryForUpdate(ctx context.Context, id string) (WaitlistEntry, error) {

@@ -371,11 +371,25 @@ type ClinicEntry struct {
 	Named   bool
 }
 
-// WaitlistFilter narrows the clinic's waitlist: the entries a role could be offered (its own and its specialty's),
-// and a status; empty for all.
+// WaitlistFilter narrows the clinic's waitlist: the entries a role could be offered (its own and its specialty's), a
+// status (active when empty), and a page: Limit entries (a default when 0) after the first Offset.
 type WaitlistFilter struct {
 	PractitionerRoleID string
 	Status             WaitlistStatus
+	Limit              int
+	Offset             int
+}
+
+// ClinicQuery is a page of a clinic's waitlist as the repository reads it: the filter with the role's specialty, and
+// the instant that tells active entries from expired ones.
+type ClinicQuery struct {
+	Now                time.Time
+	OrganizationID     string
+	PractitionerRoleID string
+	Specialty          string
+	Status             WaitlistStatus
+	Limit              int
+	Offset             int
 }
 
 // Match is what a freed slot asks of an entry: its clinic, role and specialty, its day and times in the clinic's zone,

@@ -53,7 +53,9 @@ describe('Waitlist', () => {
     expect(rows[0].textContent).toContain('held until 10:15')
     expect(rows[1].textContent).toContain('Name not shown')
     expect(rows[1].textContent).toContain('Cardiology')
-    expect(new URL(fake.requests.find((r) => r.url.includes('/clinic/waitlist'))!.url).searchParams.get('status')).toBe('active')
+    const query = new URL(fake.requests.find((r) => r.url.includes('/clinic/waitlist'))!.url).searchParams
+    expect([query.get('status'), query.get('limit')]).toEqual(['active', '100'])
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
   })
 
   it('saves a priority and removes an entry after asking, then reads the list again', async () => {
@@ -83,6 +85,14 @@ describe('Waitlist', () => {
     fireEvent.click(within(rows[0]).getByRole('button', { name: 'Save priority' }))
     expect(await within(rows[0]).findByText('Enter a priority from 0 to 100.')).toBeTruthy()
     expect(fake.requests.some((r) => r.method === 'PUT')).toBe(false)
+  })
+
+  it('reads a longer page when there is more, and another status', async () => {
+    const fake = renderWaitlist({ 'GET /clinic/waitlist': () => Response.json({ ...entries, next_offset: 100 }) })
+    fireEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(fake.requests.map((r) => new URL(r.url).searchParams.get('limit'))).toContain('200'))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'booked' } })
+    await waitFor(() => expect(fake.requests.some((r) => new URL(r.url).searchParams.get('status') === 'booked')).toBe(true))
   })
 
   it('says when the list cannot be loaded, in Bosnian too', async () => {

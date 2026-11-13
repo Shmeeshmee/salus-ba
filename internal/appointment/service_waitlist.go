@@ -111,6 +111,9 @@ func (s *Service) join(ctx context.Context, c Caller, in NewEntry) (out Waitlist
 	if !consent.Active {
 		return WaitlistEntry{}, ErrConsentRequired, nil
 	}
+	if err := s.Waitlist.LockEntries(ctx, c.PatientID, org); err != nil { // concurrent joins count one after the other
+		return WaitlistEntry{}, nil, err
+	}
 	n, err := s.Waitlist.CountActiveEntries(ctx, c.PatientID, org, now)
 	if err != nil {
 		return WaitlistEntry{}, nil, err

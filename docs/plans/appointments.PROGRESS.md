@@ -88,17 +88,32 @@ As built (agent decisions, for the owner to review):
 | Offer visibility | The clinic's jobs see every offer of the clinic whatever the patient's consent (they must see an open offer of a slot to leave it held); entries stay consent-gated, and an offer is inserted only for an entry the clinic sees |
 | Offer's role | `waitlist_offer` gains `practitioner_role_id` (the slot's), so an acceptance books without reading the slot first |
 | `expired` | Not stored: an active entry past `ends_at` (the end of its last day in the clinic's zone) shows as `expired`, matches nothing and no longer counts towards the five; retention deletes it 30 days after `ends_at` |
-| Overlap check | "No other appointment of theirs overlapping" is checked in the clinic's scope, so only the same clinic's appointments count (row-level security hides the others) |
+| Overlap check | "No other appointment of theirs overlapping" is checked in the clinic's scope, so only the same clinic's appointments count (row-level security hides the others), as a direct booking checks none; noted in the plan |
 | Matching times | An entry's times are minutes after the clinic's midnight; a slot matches when it lies wholly inside them |
 | Staff | Any staff of the clinic list the waitlist, move an entry and remove one; names follow `access.Profile` |
-| Started slots | `Unoffer` frees a held slot even after its start (no offer can hold it, and retention deletes free slots only); the contract said "while ahead" |
+| Started slots | `Unoffer` frees a held slot even after its start (no offer can hold it, and retention deletes free slots only); the plan's contract is amended |
 | Audit of the entry | An entry is audited as `Appointment/<entry id>` (FHIR's waitlist is an Appointment status); the job's read of candidates as a search without an entity |
-| The five-entry limit | Counted in the join's transaction without a lock: two joins at the same instant could make six (harmless; no lock added without a measurement) |
-| Retry key | The acceptance's key `waitlist:<offer>` replays the first receipt on a retry after a refund, as the direct booking's key does: SAL-23 settles both |
+| Retry key | The acceptance's key `waitlist:<offer>` replays the first receipt on a retry after a refund, as the direct booking's key does: SAL-23 settles both. A concurrent acceptance shares the receipt: an offer accepted already gives its appointment again, and a failed acceptance does not refund when the offer is accepted |
 | Join entry point (mobile) | From a practitioner's free times, for that practitioner, over 7, 14, 30 or 90 days, any time, mornings (08:00 to 12:00) or afternoons (12:00 to 17:00); joining for a specialty is in the API only |
 
 Checks (compose project salus-appt35): `make lint`, `make test`, `make archcheck`, `make cover` (91.3%), `make e2e`, `make i18n-check`, `make web-lint`, `make web-typecheck`, `make web-test`, `make mobile-analyze`, `make mobile-test` pass; `make gen-clients` leaves no diff.
 
+Independent review of PR #93 (2026-11-13), all fixed test-first:
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| 1. Two acceptances share the receipt; the loser's refusal refunded it | An offer accepted already gives its appointment again (audited as a read, no purchase); a failed acceptance re-reads the offer and refunds only when it is not accepted | `TestAccept_AnOfferAcceptedOnAnotherDeviceGivesItsAppointment`, `TestWaitlist_TwoAcceptancesBookAndChargeOnce` (priced: one receipt per slot, no refund) |
+| 2. Accept locked offer then entry, withdraw entry then offer | Accept locks the entry first | `TestWaitlist_AnAcceptanceRacingAWithdrawalNeverDeadlocks` (deadlocked without the fix) |
+| 3. The five-entry limit had no lock | `pg_advisory_xact_lock` on (patient, clinic) before the count | `TestWaitlist_ConcurrentJoinsKeepTheLimitOfFive` (six of six joined without it) |
+| 4. The chosen entry was not locked | The matching query takes `FOR UPDATE OF e SKIP LOCKED`; the invariant now also checks that no open offer has a closed entry | `TestCandidates_PassOverAnEntryAnotherTransactionHolds`, `TestWaitlist_TwoSlotsFreedAtOnceOfferTheOneEntryOnce` |
+| 5. The clinic's list read every entry and named each one by one | Status filtered in SQL (`active` by default), pages (`limit` 100, at most 500, `offset`, `next_offset`), the practitioner's visits read once, each patient's consent and name once, every audit event in one insert (`RecordAll`) | `TestClinicEntries_FiltersTheStatusAndPages`, `TestClinicWaitlist_GivesAPageOfTheActiveEntriesByDefault`, `TestWaitlist_APageOfTheClinicsListAtTenThousandEntries`: a page of 100 at offset 5 000 of 10 000 entries, median 53 ms as the admin (100 names), 41 ms as a practitioner (48 to 63 ms, 40 to 61 ms over five runs) |
+| 6. An offer of a revoked patient in the staff's list | None was possible; now tested | `TestClinicEntries_NeverShowAnOfferOfARevokedPatient` |
+| 7. Copy | The second device gets the booking (finding 1), so "You stay on the waitlist" is no longer shown after a booking; the hold's end carries the zone's name, and its date when it ends on a later day | `TestNotifyOffer_AHoldPastMidnightGivesItsDate`, golden e-mails |
+| 8. The contract | The plan amends `Unoffer` (also after the start) and notes the same-clinic overlap check, the offer's `practitioner_role_id`, the list's pages and the repeated acceptance | |
+
 Copy waiting for the owner: the offer e-mail and push in ten languages
 (`internal/notification/templates/*/waitlist_offer*.txt`); the mobile `waitlist*` strings in ten languages (`legal`:
-`waitlistExplained`, `waitlistAcceptEffect`, `waitlistAccept`); the web `waitlist` area in five languages.
+`waitlistExplained`, `waitlistAcceptEffect`, `waitlistAccept`); the web `waitlist` area in five languages (after the
+review: `showMore` added, `statusAll` dropped, the status filter uses `status.expired`, `.booked`, `.withdrawn`); the
+offer e-mail's hold end now reads "until 09:10 (Europe/Sarajevo)", or with its date past midnight (Italian "fino alle"
+before a date reads awkwardly in that rare case: the owner's call).

@@ -311,14 +311,14 @@ func clinicOrdersAndCloses(ctx context.Context, r appointment.WaitlistRepository
 	if _, err := r.SetPriority(ctx, moved, 9, now); err != nil {
 		return err
 	}
-	all, err := r.ClinicEntries(ctx, clinicA, "", "")
+	all, err := r.ClinicEntries(ctx, clinicPage("", "", appointment.WaitlistActive))
 	if err != nil || len(all) != 2 || all[0].ID != moved || all[0].Priority != 9 {
 		return fmt.Errorf("ClinicEntries() = %+v, %v; want the moved one first", all, err)
 	}
-	if other, err := r.ClinicEntries(ctx, clinicA, w.roleOther, "394579002"); err != nil || len(other) != 0 {
+	if other, err := r.ClinicEntries(ctx, clinicPage(w.roleOther, "394579002", appointment.WaitlistActive)); err != nil || len(other) != 0 {
 		return fmt.Errorf("ClinicEntries(another role) = %+v, %v", other, err)
 	}
-	if role, err := r.ClinicEntries(ctx, clinicA, w.s.roleA1, generalPractice); err != nil || len(role) != 2 {
+	if role, err := r.ClinicEntries(ctx, clinicPage(w.s.roleA1, generalPractice, appointment.WaitlistActive)); err != nil || len(role) != 2 {
 		return fmt.Errorf("ClinicEntries(role A1 with its specialty) = %+v, %v", role, err)
 	}
 	if o, open, err := r.OpenOffer(ctx, slotFree, ""); err != nil || !open || o.ID != offer {
@@ -434,5 +434,108 @@ func TestCandidates_TenThousandEntriesInAClinic(t *testing.T) {
 	}
 	if took[len(took)/2] > 500*time.Millisecond {
 		t.Errorf("the matching query takes %v, want it well under a second", took[len(took)/2])
+	}
+}
+
+// clinicPage is clinic A's first page of 50 of the role's (or every) entry in the status, at now.
+func clinicPage(role, specialty string, status appointment.WaitlistStatus) appointment.ClinicQuery {
+	return appointment.ClinicQuery{Now: now, OrganizationID: clinicA, PractitionerRoleID: role, Specialty: specialty, Status: status, Limit: 50}
+}
+
+// The clinic's page filters the status in SQL: active ones not past their last day, expired ones past it, booked and
+// withdrawn by their status; a page and an offset (review of PR #93, finding 5).
+func TestClinicEntries_FiltersTheStatusAndPages(t *testing.T) {
+	t.Parallel()
+	w := newWaitlistDB(t)
+	p := w.s.patientA
+	active := []string{w.add(t, entry{patient: p, priority: 2}), w.add(t, entry{patient: p, priority: 1}), w.add(t, entry{patient: p})}
+	ended := w.add(t, entry{patient: p, endsAt: now})
+	booked := w.add(t, entry{patient: p, status: "booked"})
+	withdrawn := w.add(t, entry{patient: p, status: "withdrawn"})
+	for _, tt := range []struct {
+		status appointment.WaitlistStatus
+		want   []string
+		limit  int
+		offset int
+	}{
+		{status: appointment.WaitlistActive, limit: 50, want: active},
+		{status: appointment.WaitlistActive, limit: 1, offset: 1, want: active[1:2]},
+		{status: appointment.WaitlistExpired, limit: 50, want: []string{ended}},
+		{status: appointment.WaitlistBooked, limit: 50, want: []string{booked}},
+		{status: appointment.WaitlistWithdrawn, limit: 50, want: []string{withdrawn}},
+	} {
+		var got []string
+		err := w.in(t, "", func(ctx context.Context, r appointment.WaitlistRepository) error {
+			q := clinicPage("", "", tt.status)
+			q.Limit, q.Offset = tt.limit, tt.offset
+			entries, err := r.ClinicEntries(ctx, q)
+			for _, e := range entries {
+				got = append(got, e.ID)
+			}
+			return err
+		})
+		if err != nil || !slices.Equal(got, tt.want) {
+			t.Errorf("%s (%d from %d): %v, %v; want %v", tt.status, tt.limit, tt.offset, got, err, tt.want)
+		}
+	}
+}
+
+// The staff's list never shows an offer of a patient whose care consent is revoked: the clinic's jobs see every offer
+// of the clinic (decision c), but the list reaches an offer only through its entry, which the clinic no longer sees
+// (review of PR #93, finding 6).
+func TestClinicEntries_NeverShowAnOfferOfARevokedPatient(t *testing.T) {
+	t.Parallel()
+	w := newWaitlistDB(t)
+	revoked := w.patient(t, true)
+	id := w.add(t, entry{patient: revoked})
+	ownerExec(t, w.owner, `INSERT INTO waitlist_offer (entry_id, slot_id, organization_id, patient_id, practitioner_role_id, period, expires_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, tstzrange($6, $7), $8, $9)`, id, slotFree, clinicA, revoked, w.s.roleA1, start, start.Add(30*time.Minute), now.Add(15*time.Minute), now)
+	ownerExec(t, w.owner, `UPDATE consent SET status = 'inactive', revoked_at = $2 WHERE patient_id = $1`, revoked, now)
+	err := w.in(t, "", func(ctx context.Context, r appointment.WaitlistRepository) error {
+		for _, status := range []appointment.WaitlistStatus{appointment.WaitlistActive, appointment.WaitlistExpired, appointment.WaitlistBooked, appointment.WaitlistWithdrawn} {
+			entries, err := r.ClinicEntries(ctx, clinicPage("", "", status))
+			if err != nil {
+				return err
+			}
+			for _, e := range entries {
+				if e.ID == id || e.Offer.PatientID == revoked || e.PatientID == revoked {
+					return fmt.Errorf("the list shows the revoked patient's entry or offer: %+v", e)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+// An entry another transaction holds (a withdrawal, another slot's job) is passed over by the matching query, which
+// locks the ones it gives (review of PR #93, finding 4).
+func TestCandidates_PassOverAnEntryAnotherTransactionHolds(t *testing.T) {
+	t.Parallel()
+	w := newWaitlistDB(t)
+	held := w.add(t, entry{patient: w.s.patientA, priority: 9})
+	free := w.add(t, entry{patient: w.patient(t, true)})
+	locked, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		done <- w.in(t, w.s.patientA, func(ctx context.Context, r appointment.WaitlistRepository) error {
+			_, err := r.EntryForUpdate(ctx, held)
+			close(locked)
+			<-release
+			return err
+		})
+	}()
+	<-locked
+	got := w.candidates(t, w.slotMatch())
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{free}) {
+		t.Errorf("candidates %v, want only the entry nobody holds %s", got, free)
+	}
+	if got := w.candidates(t, w.slotMatch()); !slices.Equal(got, []string{held, free}) {
+		t.Errorf("candidates once released %v, want both in order", got)
 	}
 }

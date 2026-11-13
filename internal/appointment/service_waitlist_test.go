@@ -295,3 +295,38 @@ func TestWaitlistPurger_DeletesEntriesAndOffers(t *testing.T) {
 		t.Errorf("Purge() = %v, want the repository's error", err)
 	}
 }
+
+// Joins of one patient with one clinic are serialised before the count, so the limit of five holds at once too
+// (review of PR #93, finding 3; the lock itself is tested on Postgres in internal/api).
+func TestJoin_LocksThePatientsEntriesBeforeCounting(t *testing.T) {
+	t.Parallel()
+	w := newWaitlistFixture(now)
+	if _, err := w.svc.Join(t.Context(), me, joinA()); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{patientA + " " + clinicA}; !slices.Equal(w.wl.locked, want) {
+		t.Errorf("locked %v, want %v", w.wl.locked, want)
+	}
+}
+
+// The clinic's list is the active entries by default, a page at a time: the default and largest pages, and an offset
+// (review of PR #93, finding 5).
+func TestClinicWaitlist_GivesAPageOfTheActiveEntriesByDefault(t *testing.T) {
+	t.Parallel()
+	w := newWaitlistFixture(now)
+	for range 3 {
+		w.entry(patientA, roleA1, 0)
+	}
+	w.wl.entries[0].Status, w.wl.entries[0].ClosedAt = appointment.WaitlistBooked, now
+	got, err := w.svc.ClinicWaitlist(t.Context(), admin, appointment.WaitlistFilter{Limit: 1, Offset: 1})
+	if err != nil || len(got) != 1 || got[0].Entry.ID != w.wl.entries[2].ID {
+		t.Fatalf("ClinicWaitlist(page 2 of 1) = %+v, %v; want the third entry", got, err)
+	}
+	if _, err := w.svc.ClinicWaitlist(t.Context(), admin, appointment.WaitlistFilter{Limit: 10000, Offset: -3}); err != nil {
+		t.Fatal(err)
+	}
+	q := w.wl.queries
+	if q[0].Status != appointment.WaitlistActive || q[1].Limit != 100 || q[1].Offset != 0 || !q[1].Now.Equal(now) {
+		t.Errorf("queries %+v, want active by default, a page of 100 at most from 0", q)
+	}
+}

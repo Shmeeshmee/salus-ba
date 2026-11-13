@@ -81,9 +81,11 @@ func (s *Waitlist) NotifyOffer(ctx context.Context, id, org string) error {
 	if err != nil {
 		return fmt.Errorf("notification: waitlist offer: %w", err)
 	}
-	msg, err := l.message(to, "waitlist_offer", letter{
-		Clinic: clinic.Name, When: when, Until: n.Offer.ExpiresAt.In(loc).Format("15:04"), Link: s.PatientAppURL + "/waitlist",
-	})
+	until, err := holdEnd(l, n.Offer, loc, clinic.TimeZone)
+	if err != nil {
+		return fmt.Errorf("notification: waitlist offer: %w", err)
+	}
+	msg, err := l.message(to, "waitlist_offer", letter{Clinic: clinic.Name, When: when, Until: until, Link: s.PatientAppURL + "/waitlist"})
 	if err != nil {
 		return fmt.Errorf("notification: waitlist offer: %w", err)
 	}
@@ -91,6 +93,16 @@ func (s *Waitlist) NotifyOffer(ctx context.Context, id, org string) error {
 		return fmt.Errorf("notification: waitlist offer: %w", err)
 	}
 	return s.push(ctx, org, n.AccountID, l)
+}
+
+// holdEnd writes the end of o's hold in the clinic's zone loc (named zone) with the zone's name: its time when it ends
+// on the day the offer was made, and its date and time when it ends on a later day (a hold past midnight).
+func holdEnd(l letters, o appointment.Offer, loc *time.Location, zone string) (string, error) {
+	end, made := o.ExpiresAt.In(loc), o.Created.In(loc)
+	if end.YearDay() == made.YearDay() && end.Year() == made.Year() {
+		return end.Format("15:04") + " (" + zone + ")", nil
+	}
+	return l.when(end, zone)
 }
 
 // push sends the fixed offer alert in l to each device of the account, audited as a read of its devices.

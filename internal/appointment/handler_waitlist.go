@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -216,11 +219,8 @@ func (h *WaitlistHandler) clinic(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	q := r.URL.Query()
-	f := WaitlistFilter{PractitionerRoleID: q.Get("practitioner_role"), Status: WaitlistStatus(q.Get("status"))}
-	switch f.Status {
-	case "", WaitlistActive, WaitlistBooked, WaitlistWithdrawn, WaitlistExpired:
-	default:
+	f, ok := waitlistFilter(r.URL.Query())
+	if !ok {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
@@ -234,13 +234,47 @@ func (h *WaitlistHandler) clinic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := struct {
-		Entries []clinicEntryJSON `json:"entries"`
+		NextOffset *int              `json:"next_offset,omitempty"`
+		Entries    []clinicEntryJSON `json:"entries"`
 	}{Entries: make([]clinicEntryJSON, 0, len(all))}
 	for _, e := range all {
 		out.Entries = append(out.Entries, toClinicEntryJSON(e))
 	}
+	if len(all) == f.Limit { // a full page: there may be more
+		next := f.Offset + f.Limit
+		out.NextOffset = &next
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.JSON(w, http.StatusOK, out)
+}
+
+// waitlistFilter parses the clinic list's query: the role, a status (active when absent), and a page (limit 1 to 500,
+// 100 when absent; offset from 0); false for one that does not parse.
+func waitlistFilter(q url.Values) (WaitlistFilter, bool) {
+	f := WaitlistFilter{PractitionerRoleID: q.Get("practitioner_role"), Status: WaitlistStatus(q.Get("status")), Limit: defaultWaitlistPage}
+	switch f.Status {
+	case "":
+		f.Status = WaitlistActive
+	case WaitlistActive, WaitlistBooked, WaitlistWithdrawn, WaitlistExpired:
+	default:
+		return WaitlistFilter{}, false
+	}
+	for _, p := range []struct {
+		dst      *int
+		name     string
+		min, max int
+	}{{&f.Limit, "limit", 1, maxWaitlistPage}, {&f.Offset, "offset", 0, math.MaxInt32}} {
+		v := q.Get(p.name)
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < p.min || n > p.max {
+			return WaitlistFilter{}, false
+		}
+		*p.dst = n
+	}
+	return f, true
 }
 
 func (h *WaitlistHandler) priority(w http.ResponseWriter, r *http.Request) {

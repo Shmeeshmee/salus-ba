@@ -859,13 +859,22 @@ LEFT JOIN waitlist_offer o ON o.entry_id = e.id AND o.state = 'open'
 WHERE e.organization_id = $1
   AND ($2::uuid IS NULL OR e.practitioner_role_id = $2::uuid
        OR ($3::text IS NOT NULL AND e.specialty = $3::text))
+  AND ($4::text IS NULL
+       OR ($4::text = 'active' AND e.status = 'active' AND e.ends_at > $5::timestamptz)
+       OR ($4::text = 'expired' AND e.status = 'active' AND e.ends_at <= $5::timestamptz)
+       OR ($4::text IN ('booked', 'withdrawn') AND e.status = $4::text))
 ORDER BY e.priority DESC, e.created_at, e.id
+LIMIT $7 OFFSET $6
 `
 
 type ListClinicWaitlistEntriesParams struct {
 	OrganizationID     pgtype.UUID
 	PractitionerRoleID pgtype.UUID
 	Specialty          pgtype.Text
+	Status             pgtype.Text
+	Now                pgtype.Timestamptz
+	SkipRows           int32
+	MaxRows            int32
 }
 
 type ListClinicWaitlistEntriesRow struct {
@@ -890,10 +899,18 @@ type ListClinicWaitlistEntriesRow struct {
 	OfferEnd           pgtype.Timestamptz
 }
 
-// The clinic's entries in offer order, each with its open offer; with a role, those it could be offered: its own and
-// its specialty's.
+// A page of the clinic's entries in offer order, each with its open offer; with a role, those it could be offered: its
+// own and its specialty's; with a status, those in it (active and expired split by ends_at at now).
 func (q *Queries) ListClinicWaitlistEntries(ctx context.Context, arg ListClinicWaitlistEntriesParams) ([]ListClinicWaitlistEntriesRow, error) {
-	rows, err := q.db.Query(ctx, listClinicWaitlistEntries, arg.OrganizationID, arg.PractitionerRoleID, arg.Specialty)
+	rows, err := q.db.Query(ctx, listClinicWaitlistEntries,
+		arg.OrganizationID,
+		arg.PractitionerRoleID,
+		arg.Specialty,
+		arg.Status,
+		arg.Now,
+		arg.SkipRows,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1051,6 +1068,22 @@ func (q *Queries) ListPatientWaitlistEntries(ctx context.Context, patientID pgty
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockWaitlistEntries = `-- name: LockWaitlistEntries :exec
+SELECT pg_advisory_xact_lock(hashtextextended('waitlist:' || $1::text || ':' || $2::text, 0))
+`
+
+type LockWaitlistEntriesParams struct {
+	PatientID      string
+	OrganizationID string
+}
+
+// Joins of one patient with one clinic run one after the other, so the limit of active entries holds (an advisory
+// lock until the transaction ends).
+func (q *Queries) LockWaitlistEntries(ctx context.Context, arg LockWaitlistEntriesParams) error {
+	_, err := q.db.Exec(ctx, lockWaitlistEntries, arg.PatientID, arg.OrganizationID)
+	return err
 }
 
 const openWaitlistOffer = `-- name: OpenWaitlistOffer :many
@@ -1341,6 +1374,7 @@ WHERE e.organization_id = $1 AND e.status = 'active' AND e.ends_at > $2::timesta
   AND NOT EXISTS (SELECT 1 FROM appointment_change c WHERE c.patient_id = e.patient_id AND c.from_slot_id = $8)
 ORDER BY e.priority DESC, e.created_at, e.id
 LIMIT $11
+FOR UPDATE OF e SKIP LOCKED
 `
 
 type WaitlistCandidatesParams struct {
@@ -1378,6 +1412,7 @@ type WaitlistCandidatesRow struct {
 // (the clinic's zone, computed by the service), not past their last day; never offered this slot and without an open
 // offer; of a patient who never held the slot (an appointment of it in any status, or a reschedule away from it) and
 // has no booked appointment overlapping it. The service checks the care consent of each again.
+// The entries a concurrent job or withdrawal holds are passed over; the one chosen stays locked until the offer is stored.
 func (q *Queries) WaitlistCandidates(ctx context.Context, arg WaitlistCandidatesParams) ([]WaitlistCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, waitlistCandidates,
 		arg.OrganizationID,

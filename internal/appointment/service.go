@@ -28,6 +28,7 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
+	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope

@@ -135,8 +135,8 @@ WHERE e.patient_id = @patient_id
 ORDER BY e.created_at DESC, e.id;
 
 -- name: ListClinicWaitlistEntries :many
--- The clinic's entries in offer order, each with its open offer; with a role, those it could be offered: its own and
--- its specialty's.
+-- A page of the clinic's entries in offer order, each with its open offer; with a role, those it could be offered: its
+-- own and its specialty's; with a status, those in it (active and expired split by ends_at at now).
 SELECT e.id, e.created_at, e.ends_at, e.closed_at, e.patient_id, e.organization_id, e.practitioner_role_id, e.earliest, e.latest,
        e.times_start_minute, e.times_end_minute, e.priority, e.status, e.specialty,
        o.id AS offer_id, o.slot_id AS offer_slot_id, o.expires_at AS offer_expires_at,
@@ -146,7 +146,17 @@ LEFT JOIN waitlist_offer o ON o.entry_id = e.id AND o.state = 'open'
 WHERE e.organization_id = @organization_id
   AND (sqlc.narg(practitioner_role_id)::uuid IS NULL OR e.practitioner_role_id = sqlc.narg(practitioner_role_id)::uuid
        OR (sqlc.narg(specialty)::text IS NOT NULL AND e.specialty = sqlc.narg(specialty)::text))
-ORDER BY e.priority DESC, e.created_at, e.id;
+  AND (sqlc.narg(status)::text IS NULL
+       OR (sqlc.narg(status)::text = 'active' AND e.status = 'active' AND e.ends_at > @now::timestamptz)
+       OR (sqlc.narg(status)::text = 'expired' AND e.status = 'active' AND e.ends_at <= @now::timestamptz)
+       OR (sqlc.narg(status)::text IN ('booked', 'withdrawn') AND e.status = sqlc.narg(status)::text))
+ORDER BY e.priority DESC, e.created_at, e.id
+LIMIT @max_rows OFFSET @skip_rows;
+
+-- name: LockWaitlistEntries :exec
+-- Joins of one patient with one clinic run one after the other, so the limit of active entries holds (an advisory
+-- lock until the transaction ends).
+SELECT pg_advisory_xact_lock(hashtextextended('waitlist:' || @patient_id::text || ':' || @organization_id::text, 0));
 
 -- name: WaitlistEntryForUpdate :one
 SELECT id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
@@ -197,7 +207,9 @@ WHERE e.organization_id = @organization_id AND e.status = 'active' AND e.ends_at
                          OR (a.status = 'booked' AND a.period && tstzrange(@start_at::timestamptz, @end_at::timestamptz))))
   AND NOT EXISTS (SELECT 1 FROM appointment_change c WHERE c.patient_id = e.patient_id AND c.from_slot_id = @slot_id)
 ORDER BY e.priority DESC, e.created_at, e.id
-LIMIT @max_rows;
+LIMIT @max_rows
+-- The entries a concurrent job or withdrawal holds are passed over; the one chosen stays locked until the offer is stored.
+FOR UPDATE OF e SKIP LOCKED;
 
 -- name: InsertWaitlistOffer :one
 -- A job of the clinic offers the slot to an active entry it sees.

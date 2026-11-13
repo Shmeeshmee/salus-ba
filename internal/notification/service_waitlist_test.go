@@ -15,18 +15,20 @@ import (
 
 const offerID = "0f000000-0000-4000-8000-0000000000f0"
 
-// fakeOffers gives an offer of the state set, held until 10:15 UTC (11:15 in Sarajevo) on the day of start.
+// fakeOffers gives an offer of the state set, made at 07:55 UTC on the day of start and held until expires (08:10 UTC,
+// 09:10 in Sarajevo, by default).
 type fakeOffers struct {
-	err   error
-	state appointment.OfferState
-	asked []string
+	expires time.Time
+	err     error
+	state   appointment.OfferState
+	asked   []string
 }
 
 func (f *fakeOffers) OfferNotice(_ context.Context, agent, org, id string) (appointment.OfferNotice, error) {
 	f.asked = []string{agent, org, id}
 	return appointment.OfferNotice{AccountID: patientAccount, Offer: appointment.Offer{
 		ID: id, OrganizationID: org, PatientID: patientID, PractitionerRoleID: roleID, SlotID: "51000000-0000-4000-8000-000000000001",
-		Start: start, End: start.Add(30 * time.Minute), ExpiresAt: start.Add(-50 * time.Minute), State: f.state,
+		Start: start, End: start.Add(30 * time.Minute), Created: start.Add(-65 * time.Minute), ExpiresAt: f.expires, State: f.state,
 	}}, f.err
 }
 
@@ -42,7 +44,7 @@ type waitlistNotices struct {
 
 func newWaitlistNotices(language string) waitlistNotices {
 	n := waitlistNotices{
-		offers: &fakeOffers{state: appointment.OfferOpen}, accounts: &fakeAccounts{language: language}, sender: &fakeSender{},
+		offers: &fakeOffers{state: appointment.OfferOpen, expires: start.Add(-50 * time.Minute)}, accounts: &fakeAccounts{language: language}, sender: &fakeSender{},
 		pusher: &pushtest.Sender{}, repo: newFakeChatRepo(), audit: &fakeChatAudit{},
 	}
 	n.svc = notification.NewWaitlist(notification.WaitlistPorts{
@@ -72,7 +74,7 @@ func TestNotifyOffer_MailsAndPushesTheOfferAndNothingElse(t *testing.T) {
 		}
 		m := n.sender.sent[0]
 		golden(t, language+"/waitlist_offer.txt", mail(m))
-		for _, want := range []string{"Synthetic clinic", "10:00", "(Europe/Sarajevo)", "09:10", "https://patient.example.test/waitlist"} {
+		for _, want := range []string{"Synthetic clinic", "10:00", "(Europe/Sarajevo)", "09:10 (Europe/Sarajevo)", "https://patient.example.test/waitlist"} {
 			if !strings.Contains(m.Body, want) {
 				t.Errorf("%s: the body lacks %q", language, want)
 			}
@@ -116,5 +118,17 @@ func TestNotifyOffer_SendsNothingForAClosedOfferAndPassesFailuresOn(t *testing.T
 	n.sender.err = errors.New("smtp down")
 	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err == nil || strings.Contains(err.Error(), "ana@example.test") {
 		t.Errorf("NotifyOffer(smtp down) = %v, want its error without the address", err)
+	}
+}
+
+// A hold that ends after midnight in the clinic's zone gives its date too (review of PR #93, finding 7).
+func TestNotifyOffer_AHoldPastMidnightGivesItsDate(t *testing.T) {
+	n := newWaitlistNotices("en")
+	n.offers.expires = time.Date(2030, 1, 7, 23, 10, 0, 0, time.UTC) // 00:10 on Tuesday 8 January in Sarajevo
+	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err != nil {
+		t.Fatal(err)
+	}
+	if body := n.sender.sent[0].Body; !strings.Contains(body, "until Tuesday 8 January 2030, 00:10 (Europe/Sarajevo)") {
+		t.Errorf("the body lacks the hold's date:\n%s", body)
 	}
 }

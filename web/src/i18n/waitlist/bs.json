@@ -3,7 +3,6 @@
   "title": "Lista čekanja",
   "show": "Prikaži",
   "statusActive": "Na čekanju",
-  "statusAll": "Sve",
   "loadFailed": "Lista čekanja se nije mogla učitati. Ponovo učitajte stranicu.",
   "empty": "Na listi čekanja nema nikoga.",
   "aPractitioner": "Ljekar",
@@ -33,5 +32,6 @@
   "settingsSaveFailed": "Postavke se nisu mogle sačuvati. Pokušajte ponovo.",
   "settingsSaved": "Postavke liste čekanja su sačuvane.",
   "save": "Sačuvaj",
-  "saving": "Čuvanje"
+  "saving": "Čuvanje",
+  "showMore": "Prikaži više"
 }
