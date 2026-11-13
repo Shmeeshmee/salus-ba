@@ -99,6 +99,7 @@ app.{$SALUS_DOMAIN} {
 		path /document-templates*
 		path /drafts*
 		path /compositions*
+		path /conversations*
 		path /places*
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
@@ -109,7 +110,8 @@ app.{$SALUS_DOMAIN} {
 		not method GET
 	}
 
-	# The encounter's live events are a WebSocket under /encounters; reverse_proxy upgrades it.
+	# The encounter's live events are a WebSocket under /encounters, a conversation's under /conversations;
+	# reverse_proxy upgrades them.
 	handle @api {
 		reverse_proxy api:8080
 	}

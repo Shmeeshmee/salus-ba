@@ -1052,6 +1052,609 @@ class AppLocalizationsTr extends AppLocalizations {
   String get termClose => 'Kapat';
 
   @override
+  String get chatsTitle => 'Mesajlar';
+
+  @override
+  String get chatsEmpty => 'Henüz bir yazışmanız yok.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count okunmamış mesaj',
+      one: '$count okunmamış mesaj',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Sağlık uzmanınız';
+
+  @override
+  String get chatMessageHint => 'Bir mesaj yazın';
+
+  @override
+  String get chatSend => 'Gönder';
+
+  @override
+  String get chatAttach => 'Dosya ekle';
+
+  @override
+  String get chatSendFailed =>
+      'Mesaj gönderilmedi. Bağlantınızı kontrol edip tekrar deneyin.';
+
+  @override
+  String get chatFileRejected => 'Bu dosya kabul edilmedi.';
+
+  @override
+  String get chatFileRemove => 'Dosyayı kaldır';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Gönderilmeyi bekleyen $count dosyanız zaten var. Gönderilmeyen dosyalar 24 saat sonra kaldırılır; daha sonra tekrar deneyin.',
+      one:
+          'Gönderilmeyi bekleyen $count dosyanız zaten var. Gönderilmeyen dosyalar 24 saat sonra kaldırılır; daha sonra tekrar deneyin.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed => 'Dosya açılamadı. Tekrar deneyin.';
+
+  @override
+  String get chatEndedSession =>
+      'Oturumunuz sona erdi. Yeni mesajları görmek için tekrar giriş yapın.';
+
+  @override
+  String get chatEnded => 'Bu yazışmada yeni mesajlar artık gösterilemiyor.';
+
+  @override
+  String get chatHours => 'Mesaj saatleri';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'Klinik mesaj saatlerini belirlemedi.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Saatler kliniğin saat dilimindedir: $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Klinik genellikle $hours saat içinde yanıt verir.',
+      one: 'Klinik genellikle $hours saat içinde yanıt verir.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Klinik şu anda mesaj saatlerinin dışında. Yine de yazabilirsiniz; genellikle $hours saat içinde yanıt verir.',
+      one:
+          'Klinik şu anda mesaj saatlerinin dışında. Yine de yazabilirsiniz; genellikle $hours saat içinde yanıt verir.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Başka bir klinikten bir sağlık uzmanı ikinci görüş için bu yazışmaya davet edildi.',
+      'specialist_review': 'Başka bir klinikten bir sağlık uzmanı uzman değerlendirmesi için bu yazışmaya davet edildi.',
+      'handover': 'Başka bir klinikten bir sağlık uzmanı tedaviyi devralmak üzere bu yazışmaya davet edildi.',
+      'other':
+          'Başka bir klinikten bir sağlık uzmanı bu yazışmaya davet edildi.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion':
+          'Bir sağlık uzmanı ikinci görüş için yazışmaya katıldı.',
+      'specialist_review':
+          'Bir sağlık uzmanı uzman değerlendirmesi için yazışmaya katıldı.',
+      'handover':
+          'Bir sağlık uzmanı tedaviyi devralmak üzere yazışmaya katıldı.',
+      'other': 'Bir sağlık uzmanı yazışmaya katıldı.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved =>
+      'Bir sağlık uzmanı artık yazışmada yer almıyor.';
+
+  @override
+  String get chatSystemGranted =>
+      'Başka bir klinikten bir sağlık uzmanının yazışmaya katılmasına izin verdiniz.';
+
+  @override
+  String get chatSystemDeclined =>
+      'Başka bir klinikten bir sağlık uzmanını reddettiniz.';
+
+  @override
+  String get chatSystemOther => 'Yazışma güncellendi.';
+
+  @override
+  String get chatInviteTitle =>
+      'Başka bir klinikten bir sağlık uzmanı katılmak istiyor';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının ikinci görüş için bu yazışmaya katılmasını istiyor.',
+      'specialist_review': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının uzman değerlendirmesi için bu yazışmaya katılmasını istiyor.',
+      'handover': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının tedavinizi devralmak üzere bu yazışmaya katılmasını istiyor.',
+      'other': 'Kliniğiniz, başka bir klinikten bir sağlık uzmanının bu yazışmaya katılmasını istiyor.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Sağlık uzmanı: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Davet edilen sağlık uzmanının adı ve kliniği yüklenemedi. Erişime ancak bunlar gösterildiğinde izin verebilirsiniz.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Kabul ederseniz sağlık uzmanı, önceki mesajlar dahil yazışmanın tamamını görür ve yazışmaya yazabilir.',
+      'from': 'Kabul ederseniz sağlık uzmanı, yazışmayı kliniğinizin seçtiği bir mesajdan itibaren görür ve yazışmaya yazabilir.',
+      'other': 'Kabul ederseniz sağlık uzmanı yazışmayı görür ve yazışmaya yazabilir.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Reddedebilirsiniz. Kabul ederseniz sağlık uzmanının erişimini daha sonra bu yazışmadan geri alabilirsiniz; erişim hemen sona erer.';
+
+  @override
+  String get chatGrant => 'Erişim ver';
+
+  @override
+  String get chatDecline => 'Reddet';
+
+  @override
+  String get chatGranted =>
+      'Erişim verildi. İstediğiniz zaman bu yazışmadan geri alabilirsiniz.';
+
+  @override
+  String get chatDeclined =>
+      'Reddedildi. Sağlık uzmanı bu yazışmaya katılmıyor.';
+
+  @override
+  String get chatRevoke =>
+      'Diğer klinikteki sağlık uzmanının erişimini geri al';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Erişim verildi: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Başka bir klinikteki bir sağlık uzmanına erişim verildi.';
+
+  @override
+  String get chatRevokeBody =>
+      'Diğer klinikteki sağlık uzmanı bu yazışmaya erişimini hemen kaybeder. Daha önce yazılmış mesajlar yazışmada kalır.';
+
+  @override
+  String get chatRevokeConfirm => 'Erişimi geri al';
+
+  @override
+  String get chatRevoked => 'Erişim geri alındı.';
+
+  @override
+  String get allergies => 'Alerjiler';
+
+  @override
+  String get currentMedications => 'Kullandığım ilaçlar';
+
+  @override
+  String get allergiesIntro =>
+      'Onay verdiğiniz klinikler, onlarla randevunuz olduğunda profilinizdeki alerjileri görür.';
+
+  @override
+  String get medicationsIntro =>
+      'Onay verdiğiniz klinikler, onlarla randevunuz olduğunda profilinizdeki ilaçları görür.';
+
+  @override
+  String get noAllergies => 'Henüz bir alerji eklemediniz.';
+
+  @override
+  String get noMedications => 'Henüz bir ilaç eklemediniz.';
+
+  @override
+  String get addAllergy => 'Alerji ekle';
+
+  @override
+  String get addMedication => 'İlaç ekle';
+
+  @override
+  String get changeAllergy => 'Alerjiyi değiştir';
+
+  @override
+  String get changeMedication => 'İlacı değiştir';
+
+  @override
+  String get change => 'Değiştir';
+
+  @override
+  String get allergySubstance => 'Madde veya besin';
+
+  @override
+  String get medicationName => 'İlaç';
+
+  @override
+  String get termSearchHint =>
+      'Aramak için yazın veya kendi kelimelerinizle girin.';
+
+  @override
+  String get allergyCategory => 'Tür (isteğe bağlı)';
+
+  @override
+  String get notSpecified => 'Belirtilmedi';
+
+  @override
+  String get categoryFood => 'Besin';
+
+  @override
+  String get categoryMedication => 'İlaç';
+
+  @override
+  String get categoryEnvironment => 'Çevre';
+
+  @override
+  String get categoryBiologic => 'Biyolojik ürün';
+
+  @override
+  String get reactionOptional => 'Reaksiyon (isteğe bağlı)';
+
+  @override
+  String get severity => 'Şiddet';
+
+  @override
+  String get severityMild => 'Hafif';
+
+  @override
+  String get severityModerate => 'Orta';
+
+  @override
+  String get severitySevere => 'Şiddetli';
+
+  @override
+  String get entryStatus => 'Durum';
+
+  @override
+  String get allergyActive => 'Etkin';
+
+  @override
+  String get allergyInactive => 'Etkin değil';
+
+  @override
+  String get allergyResolved => 'Geçti';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Reaksiyon: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Reaksiyon: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Bir hekim tarafından doğrulandı';
+
+  @override
+  String get recordedByClinic =>
+      'Ziyaretlerinizden birinde bir klinik tarafından kaydedildi';
+
+  @override
+  String get confirmedChangeNote =>
+      'Bu kaydı değiştirirseniz artık hekim tarafından doğrulanmış olmaz.';
+
+  @override
+  String get nameRequired => 'En fazla 200 karakterlik bir ad girin.';
+
+  @override
+  String get addToProfile => 'Profilime ekle';
+
+  @override
+  String get addToProfileTitle => 'Profilinize eklensin mi?';
+
+  @override
+  String get addToProfileBody =>
+      'Bu durumda onay verdiğiniz her klinik bunu, kaydeden kliniğin adı olmadan görür.';
+
+  @override
+  String get addedToProfile => 'Artık profilinizde.';
+
+  @override
+  String get removeEntryTitle => 'Bu kayıt kaldırılsın mı?';
+
+  @override
+  String get removeEntryBody =>
+      'Artık size veya herhangi bir kliniğe gösterilmez. Bir klinik kaydettiyse veya doğruladıysa, kaldırıldı olarak işaretlenip tıbbi kaydınızda kalır.';
+
+  @override
+  String get entryRemoved => 'Kayıt kaldırıldı.';
+
+  @override
+  String get entrySaved => 'Profilinize kaydedildi.';
+
+  @override
+  String get entryChanged =>
+      'Bu kayıt bu arada değiştirildi. En güncel hâli gösteriliyor.';
+
+  @override
+  String get entryInvalid =>
+      'Bazı bilgiler geçerli değil. Kontrol edip yeniden deneyin.';
+
+  @override
+  String get entryNotAllowed => 'Bu kaydı değiştiremezsiniz.';
+
+  @override
+  String get entryNotFound => 'Bu kayda artık erişilemiyor.';
+
+  @override
+  String get doseHeading => 'Doz (isteğe bağlı)';
+
+  @override
+  String get doseAmount => 'Miktar';
+
+  @override
+  String get doseUnit => 'Birim';
+
+  @override
+  String get unitMg => 'miligram (mg)';
+
+  @override
+  String get unitG => 'gram (g)';
+
+  @override
+  String get unitUg => 'mikrogram (µg)';
+
+  @override
+  String get unitMl => 'mililitre (ml)';
+
+  @override
+  String get unitIu => 'uluslararası birim (IU)';
+
+  @override
+  String get unitTablet => 'tablet';
+
+  @override
+  String get unitCapsule => 'kapsül';
+
+  @override
+  String get unitDrop => 'damla';
+
+  @override
+  String get unitPuff => 'püskürtme (inhaler)';
+
+  @override
+  String get unitPatch => 'bant';
+
+  @override
+  String get doseBoth =>
+      'Miktarı ve birimi birlikte girin ya da ikisini de boş bırakın.';
+
+  @override
+  String get numberAboveZero => '0\'dan büyük bir sayı girin.';
+
+  @override
+  String get howOftenHeading => 'Ne sıklıkla (isteğe bağlı)';
+
+  @override
+  String get timesLabel => 'Kez';
+
+  @override
+  String get everyLabel => 'Her';
+
+  @override
+  String get periodUnitLabel => 'Zaman birimi';
+
+  @override
+  String get periodHours => 'saat';
+
+  @override
+  String get periodDays => 'gün';
+
+  @override
+  String get periodWeeks => 'hafta';
+
+  @override
+  String get periodMonths => 'ay';
+
+  @override
+  String get howOftenAll => 'Üç alanın hepsini doldurun ya da boş bırakın.';
+
+  @override
+  String get asNeeded => 'Gerektiğinde';
+
+  @override
+  String get medicationActive => 'Şu anda kullanıyorum';
+
+  @override
+  String get medicationStopped => 'Bıraktım';
+
+  @override
+  String doseMg(String value) {
+    return '$value mg';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value g';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µg';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value ml';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value IU';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value tablet',
+      one: '$value tablet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value kapsül',
+      one: '$value kapsül',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value damla',
+      one: '$value damla',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value püskürtme',
+      one: '$value püskürtme',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value bant',
+      one: '$value bant',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Doz: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return 'Saatte $frequency kez';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return 'Günde $frequency kez';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return 'Haftada $frequency kez';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return 'Ayda $frequency kez';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every saatte $frequency kez',
+      one: 'Her $every saatte $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every günde $frequency kez',
+      one: 'Her $every günde $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every haftada $frequency kez',
+      one: 'Her $every haftada $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: 'Her $every ayda $frequency kez',
+      one: 'Her $every ayda $frequency kez',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get myHistory => 'Geçmişim';
 
   @override

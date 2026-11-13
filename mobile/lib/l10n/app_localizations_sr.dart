@@ -1062,6 +1062,617 @@ class AppLocalizationsSr extends AppLocalizations {
   String get termClose => 'Затвори';
 
   @override
+  String get chatsTitle => 'Поруке';
+
+  @override
+  String get chatsEmpty => 'Још немате разговора.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count непрочитаних порука',
+      few: '$count непрочитане поруке',
+      one: '$count непрочитана порука',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Ваш љекар';
+
+  @override
+  String get chatMessageHint => 'Напишите поруку';
+
+  @override
+  String get chatSend => 'Пошаљи';
+
+  @override
+  String get chatAttach => 'Додај датотеку';
+
+  @override
+  String get chatSendFailed =>
+      'Порука није послата. Провјерите интернет везу и покушајте поново.';
+
+  @override
+  String get chatFileRejected => 'Ова датотека није прихваћена.';
+
+  @override
+  String get chatFileRemove => 'Уклони датотеку';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Већ имате $count датотека које чекају слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.',
+      few:
+          'Већ имате $count датотеке које чекају слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.',
+      one:
+          'Већ имате $count датотеку која чека слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed =>
+      'Датотека није могла да се отвори. Покушајте поново.';
+
+  @override
+  String get chatEndedSession =>
+      'Ваша сесија је истекла. Поново се пријавите да бисте видјели нове поруке.';
+
+  @override
+  String get chatEnded =>
+      'Нове поруке у овом разговору више не могу да се прикажу.';
+
+  @override
+  String get chatHours => 'Радно вријеме за поруке';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'Клиника није одредила радно вријеме за поруке.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Времена су у временској зони клинике, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Клиника обично одговара у року од $hours сати.',
+      few: 'Клиника обично одговара у року од $hours сата.',
+      one: 'Клиника обично одговара у року од $hours сата.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Клиника је тренутно ван радног времена за поруке. И даље можете да пишете; обично одговара у року од $hours сати.',
+      few:
+          'Клиника је тренутно ван радног времена за поруке. И даље можете да пишете; обично одговара у року од $hours сата.',
+      one:
+          'Клиника је тренутно ван радног времена за поруке. И даље можете да пишете; обично одговара у року од $hours сата.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Љекар из друге клинике је позван у овај разговор ради другог мишљења.',
+      'specialist_review': 'Љекар из друге клинике је позван у овај разговор ради специјалистичког прегледа.',
+      'handover': 'Љекар из друге клинике је позван у овај разговор да преузме лијечење.',
+      'other': 'Љекар из друге клинике је позван у овај разговор.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Љекар се придружио разговору ради другог мишљења.',
+      'specialist_review':
+          'Љекар се придружио разговору ради специјалистичког прегледа.',
+      'handover': 'Љекар се придружио разговору да преузме лијечење.',
+      'other': 'Љекар се придружио разговору.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved => 'Љекар више не учествује у разговору.';
+
+  @override
+  String get chatSystemGranted =>
+      'Дозволили сте љекару из друге клинике да се придружи разговору.';
+
+  @override
+  String get chatSystemDeclined => 'Одбили сте љекара из друге клинике.';
+
+  @override
+  String get chatSystemOther => 'Разговор је ажуриран.';
+
+  @override
+  String get chatInviteTitle =>
+      'Љекар из друге клинике тражи приступ разговору';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору ради другог мишљења.',
+      'specialist_review': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору ради специјалистичког прегледа.',
+      'handover': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору да преузме ваше лијечење.',
+      'other': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Љекар: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Име и клиника позваног љекара нису могли да се учитају. Приступ можете да одобрите тек када буду приказани.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Ако пристанете, љекар види цијели разговор, укључујући раније поруке, и може да пише у њему.',
+      'from': 'Ако пристанете, љекар види разговор од поруке коју је изабрала ваша клиника надаље и може да пише у њему.',
+      'other': 'Ако пристанете, љекар види разговор и може да пише у њему.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Можете да одбијете. Ако пристанете, приступ љекара можете касније да опозовете у овом разговору; престаје одмах.';
+
+  @override
+  String get chatGrant => 'Одобри приступ';
+
+  @override
+  String get chatDecline => 'Одбиј';
+
+  @override
+  String get chatGranted =>
+      'Приступ је одобрен. Можете да га опозовете у овом разговору у било ком тренутку.';
+
+  @override
+  String get chatDeclined => 'Одбијено. Љекар се не придружује овом разговору.';
+
+  @override
+  String get chatRevoke => 'Опозови приступ љекара из друге клинике';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Приступ је одобрен: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Приступ је одобрен љекару из друге клинике.';
+
+  @override
+  String get chatRevokeBody =>
+      'Љекар из друге клинике одмах губи приступ овом разговору. Већ написане поруке остају у њему.';
+
+  @override
+  String get chatRevokeConfirm => 'Опозови приступ';
+
+  @override
+  String get chatRevoked => 'Приступ је опозван.';
+
+  @override
+  String get allergies => 'Алергије';
+
+  @override
+  String get currentMedications => 'Тренутни лијекови';
+
+  @override
+  String get allergiesIntro =>
+      'Клинике којима сте дали сагласност виде алергије из вашег профила када имате термин код њих.';
+
+  @override
+  String get medicationsIntro =>
+      'Клинике којима сте дали сагласност виде лијекове из вашег профила када имате термин код њих.';
+
+  @override
+  String get noAllergies => 'Нисте додали ниједну алергију.';
+
+  @override
+  String get noMedications => 'Нисте додали ниједан лијек.';
+
+  @override
+  String get addAllergy => 'Додајте алергију';
+
+  @override
+  String get addMedication => 'Додајте лијек';
+
+  @override
+  String get changeAllergy => 'Измјена алергије';
+
+  @override
+  String get changeMedication => 'Измјена лијека';
+
+  @override
+  String get change => 'Измијените';
+
+  @override
+  String get allergySubstance => 'Супстанца или намирница';
+
+  @override
+  String get medicationName => 'Лијек';
+
+  @override
+  String get termSearchHint =>
+      'Почните да куцате за претрагу или упишите својим ријечима.';
+
+  @override
+  String get allergyCategory => 'Врста (није обавезно)';
+
+  @override
+  String get notSpecified => 'Није наведено';
+
+  @override
+  String get categoryFood => 'Храна';
+
+  @override
+  String get categoryMedication => 'Лијек';
+
+  @override
+  String get categoryEnvironment => 'Окружење';
+
+  @override
+  String get categoryBiologic => 'Биолошки препарат';
+
+  @override
+  String get reactionOptional => 'Реакција (није обавезно)';
+
+  @override
+  String get severity => 'Тежина';
+
+  @override
+  String get severityMild => 'Блага';
+
+  @override
+  String get severityModerate => 'Умјерена';
+
+  @override
+  String get severitySevere => 'Тешка';
+
+  @override
+  String get entryStatus => 'Статус';
+
+  @override
+  String get allergyActive => 'Активна';
+
+  @override
+  String get allergyInactive => 'Неактивна';
+
+  @override
+  String get allergyResolved => 'Прошла';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Реакција: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Реакција: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Потврдио љекар';
+
+  @override
+  String get recordedByClinic => 'Унијела клиника током једне од ваших посјета';
+
+  @override
+  String get confirmedChangeNote =>
+      'Ако измијените овај унос, више неће бити потврђен од љекара.';
+
+  @override
+  String get nameRequired => 'Унесите назив, највише 200 знакова.';
+
+  @override
+  String get addToProfile => 'Додајте у мој профил';
+
+  @override
+  String get addToProfileTitle => 'Додати у ваш профил?';
+
+  @override
+  String get addToProfileBody =>
+      'Тада ће га видјети свака клиника којој сте дали сагласност, без назива клинике која га је унијела.';
+
+  @override
+  String get addedToProfile => 'Сада је у вашем профилу.';
+
+  @override
+  String get removeEntryTitle => 'Уклонити овај унос?';
+
+  @override
+  String get removeEntryBody =>
+      'Више се неће приказивати ни вама ни било којој клиници. Ако га је клиника унијела или потврдила, остаје у вашем медицинском картону, означен као уклоњен.';
+
+  @override
+  String get entryRemoved => 'Унос је уклоњен.';
+
+  @override
+  String get entrySaved => 'Сачувано у вашем профилу.';
+
+  @override
+  String get entryChanged =>
+      'Овај унос је у међувремену измијењен. Приказана је најновија верзија.';
+
+  @override
+  String get entryInvalid =>
+      'Неки подаци нису исправни. Провјерите их и покушајте поново.';
+
+  @override
+  String get entryNotAllowed => 'Не можете измијенити овај унос.';
+
+  @override
+  String get entryNotFound => 'Овај унос више није доступан.';
+
+  @override
+  String get doseHeading => 'Доза (није обавезно)';
+
+  @override
+  String get doseAmount => 'Количина';
+
+  @override
+  String get doseUnit => 'Јединица';
+
+  @override
+  String get unitMg => 'милиграми (мг)';
+
+  @override
+  String get unitG => 'грами (г)';
+
+  @override
+  String get unitUg => 'микрограми (µг)';
+
+  @override
+  String get unitMl => 'милилитри (мл)';
+
+  @override
+  String get unitIu => 'интернационалне јединице (ИЈ)';
+
+  @override
+  String get unitTablet => 'таблете';
+
+  @override
+  String get unitCapsule => 'капсуле';
+
+  @override
+  String get unitDrop => 'капи';
+
+  @override
+  String get unitPuff => 'удисаји (инхалатор)';
+
+  @override
+  String get unitPatch => 'фластери';
+
+  @override
+  String get doseBoth => 'Унесите и количину и јединицу или ништа од тога.';
+
+  @override
+  String get numberAboveZero => 'Унесите број већи од 0.';
+
+  @override
+  String get howOftenHeading => 'Колико често (није обавезно)';
+
+  @override
+  String get timesLabel => 'Пута';
+
+  @override
+  String get everyLabel => 'Сваких';
+
+  @override
+  String get periodUnitLabel => 'Јединица времена';
+
+  @override
+  String get periodHours => 'сати';
+
+  @override
+  String get periodDays => 'дана';
+
+  @override
+  String get periodWeeks => 'недјеља';
+
+  @override
+  String get periodMonths => 'мјесеци';
+
+  @override
+  String get howOftenAll => 'Попуните сва три поља или их оставите празна.';
+
+  @override
+  String get asNeeded => 'По потреби';
+
+  @override
+  String get medicationActive => 'Тренутно узимам';
+
+  @override
+  String get medicationStopped => 'Више не узимам';
+
+  @override
+  String doseMg(String value) {
+    return '$value мг';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value г';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µг';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value мл';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value ИЈ';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value таблета',
+      few: '$value таблете',
+      one: '$value таблета',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value капсула',
+      few: '$value капсуле',
+      one: '$value капсула',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value капи',
+      few: '$value капи',
+      one: '$value кап',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value удисаја',
+      few: '$value удисаја',
+      one: '$value удисај',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value фластера',
+      few: '$value фластера',
+      one: '$value фластер',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Доза: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return '$frequency× на сат';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return '$frequency× дневно';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return '$frequency× недјељно';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return '$frequency× мјесечно';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every сати',
+      few: '$frequency× свака $every сата',
+      one: '$frequency× сваки $every сат',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every дана',
+      few: '$frequency× свака $every дана',
+      one: '$frequency× сваки $every дан',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every недјеља',
+      few: '$frequency× сваке $every недјеље',
+      one: '$frequency× сваке $every недјеље',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every мјесеци',
+      few: '$frequency× свака $every мјесеца',
+      one: '$frequency× сваки $every мјесец',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get myHistory => 'Моја историја';
 
   @override
@@ -2173,6 +2784,617 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String get termClose => 'Затвори';
 
   @override
+  String get chatsTitle => 'Поруке';
+
+  @override
+  String get chatsEmpty => 'Још немате разговора.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count непрочитаних порука',
+      few: '$count непрочитане поруке',
+      one: '$count непрочитана порука',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Ваш љекар';
+
+  @override
+  String get chatMessageHint => 'Напишите поруку';
+
+  @override
+  String get chatSend => 'Пошаљи';
+
+  @override
+  String get chatAttach => 'Додај датотеку';
+
+  @override
+  String get chatSendFailed =>
+      'Порука није послата. Провјерите интернет везу и покушајте поново.';
+
+  @override
+  String get chatFileRejected => 'Ова датотека није прихваћена.';
+
+  @override
+  String get chatFileRemove => 'Уклони датотеку';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Већ имате $count датотека које чекају слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.',
+      few:
+          'Већ имате $count датотеке које чекају слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.',
+      one:
+          'Већ имате $count датотеку која чека слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed =>
+      'Датотека није могла да се отвори. Покушајте поново.';
+
+  @override
+  String get chatEndedSession =>
+      'Ваша сесија је истекла. Поново се пријавите да бисте видјели нове поруке.';
+
+  @override
+  String get chatEnded =>
+      'Нове поруке у овом разговору више не могу да се прикажу.';
+
+  @override
+  String get chatHours => 'Радно вријеме за поруке';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'Клиника није одредила радно вријеме за поруке.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Времена су у временској зони клинике, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Клиника обично одговара у року од $hours сати.',
+      few: 'Клиника обично одговара у року од $hours сата.',
+      one: 'Клиника обично одговара у року од $hours сата.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Клиника је тренутно ван радног времена за поруке. И даље можете да пишете; обично одговара у року од $hours сати.',
+      few:
+          'Клиника је тренутно ван радног времена за поруке. И даље можете да пишете; обично одговара у року од $hours сата.',
+      one:
+          'Клиника је тренутно ван радног времена за поруке. И даље можете да пишете; обично одговара у року од $hours сата.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Љекар из друге клинике је позван у овај разговор ради другог мишљења.',
+      'specialist_review': 'Љекар из друге клинике је позван у овај разговор ради специјалистичког прегледа.',
+      'handover': 'Љекар из друге клинике је позван у овај разговор да преузме лијечење.',
+      'other': 'Љекар из друге клинике је позван у овај разговор.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Љекар се придружио разговору ради другог мишљења.',
+      'specialist_review':
+          'Љекар се придружио разговору ради специјалистичког прегледа.',
+      'handover': 'Љекар се придружио разговору да преузме лијечење.',
+      'other': 'Љекар се придружио разговору.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved => 'Љекар више не учествује у разговору.';
+
+  @override
+  String get chatSystemGranted =>
+      'Дозволили сте љекару из друге клинике да се придружи разговору.';
+
+  @override
+  String get chatSystemDeclined => 'Одбили сте љекара из друге клинике.';
+
+  @override
+  String get chatSystemOther => 'Разговор је ажуриран.';
+
+  @override
+  String get chatInviteTitle =>
+      'Љекар из друге клинике тражи приступ разговору';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору ради другог мишљења.',
+      'specialist_review': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору ради специјалистичког прегледа.',
+      'handover': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору да преузме ваше лијечење.',
+      'other': 'Ваша клиника тражи да се љекар из друге клинике придружи овом разговору.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Љекар: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Име и клиника позваног љекара нису могли да се учитају. Приступ можете да одобрите тек када буду приказани.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Ако пристанете, љекар види цијели разговор, укључујући раније поруке, и може да пише у њему.',
+      'from': 'Ако пристанете, љекар види разговор од поруке коју је изабрала ваша клиника надаље и може да пише у њему.',
+      'other': 'Ако пристанете, љекар види разговор и може да пише у њему.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Можете да одбијете. Ако пристанете, приступ љекара можете касније да опозовете у овом разговору; престаје одмах.';
+
+  @override
+  String get chatGrant => 'Одобри приступ';
+
+  @override
+  String get chatDecline => 'Одбиј';
+
+  @override
+  String get chatGranted =>
+      'Приступ је одобрен. Можете да га опозовете у овом разговору у било ком тренутку.';
+
+  @override
+  String get chatDeclined => 'Одбијено. Љекар се не придружује овом разговору.';
+
+  @override
+  String get chatRevoke => 'Опозови приступ љекара из друге клинике';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Приступ је одобрен: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Приступ је одобрен љекару из друге клинике.';
+
+  @override
+  String get chatRevokeBody =>
+      'Љекар из друге клинике одмах губи приступ овом разговору. Већ написане поруке остају у њему.';
+
+  @override
+  String get chatRevokeConfirm => 'Опозови приступ';
+
+  @override
+  String get chatRevoked => 'Приступ је опозван.';
+
+  @override
+  String get allergies => 'Алергије';
+
+  @override
+  String get currentMedications => 'Тренутни лијекови';
+
+  @override
+  String get allergiesIntro =>
+      'Клинике којима сте дали сагласност виде алергије из вашег профила када имате термин код њих.';
+
+  @override
+  String get medicationsIntro =>
+      'Клинике којима сте дали сагласност виде лијекове из вашег профила када имате термин код њих.';
+
+  @override
+  String get noAllergies => 'Нисте додали ниједну алергију.';
+
+  @override
+  String get noMedications => 'Нисте додали ниједан лијек.';
+
+  @override
+  String get addAllergy => 'Додајте алергију';
+
+  @override
+  String get addMedication => 'Додајте лијек';
+
+  @override
+  String get changeAllergy => 'Измјена алергије';
+
+  @override
+  String get changeMedication => 'Измјена лијека';
+
+  @override
+  String get change => 'Измијените';
+
+  @override
+  String get allergySubstance => 'Супстанца или намирница';
+
+  @override
+  String get medicationName => 'Лијек';
+
+  @override
+  String get termSearchHint =>
+      'Почните да куцате за претрагу или упишите својим ријечима.';
+
+  @override
+  String get allergyCategory => 'Врста (није обавезно)';
+
+  @override
+  String get notSpecified => 'Није наведено';
+
+  @override
+  String get categoryFood => 'Храна';
+
+  @override
+  String get categoryMedication => 'Лијек';
+
+  @override
+  String get categoryEnvironment => 'Окружење';
+
+  @override
+  String get categoryBiologic => 'Биолошки препарат';
+
+  @override
+  String get reactionOptional => 'Реакција (није обавезно)';
+
+  @override
+  String get severity => 'Тежина';
+
+  @override
+  String get severityMild => 'Блага';
+
+  @override
+  String get severityModerate => 'Умјерена';
+
+  @override
+  String get severitySevere => 'Тешка';
+
+  @override
+  String get entryStatus => 'Статус';
+
+  @override
+  String get allergyActive => 'Активна';
+
+  @override
+  String get allergyInactive => 'Неактивна';
+
+  @override
+  String get allergyResolved => 'Прошла';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Реакција: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Реакција: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Потврдио љекар';
+
+  @override
+  String get recordedByClinic => 'Унијела клиника током једне од ваших посјета';
+
+  @override
+  String get confirmedChangeNote =>
+      'Ако измијените овај унос, више неће бити потврђен од љекара.';
+
+  @override
+  String get nameRequired => 'Унесите назив, највише 200 знакова.';
+
+  @override
+  String get addToProfile => 'Додајте у мој профил';
+
+  @override
+  String get addToProfileTitle => 'Додати у ваш профил?';
+
+  @override
+  String get addToProfileBody =>
+      'Тада ће га видјети свака клиника којој сте дали сагласност, без назива клинике која га је унијела.';
+
+  @override
+  String get addedToProfile => 'Сада је у вашем профилу.';
+
+  @override
+  String get removeEntryTitle => 'Уклонити овај унос?';
+
+  @override
+  String get removeEntryBody =>
+      'Више се неће приказивати ни вама ни било којој клиници. Ако га је клиника унијела или потврдила, остаје у вашем медицинском картону, означен као уклоњен.';
+
+  @override
+  String get entryRemoved => 'Унос је уклоњен.';
+
+  @override
+  String get entrySaved => 'Сачувано у вашем профилу.';
+
+  @override
+  String get entryChanged =>
+      'Овај унос је у међувремену измијењен. Приказана је најновија верзија.';
+
+  @override
+  String get entryInvalid =>
+      'Неки подаци нису исправни. Провјерите их и покушајте поново.';
+
+  @override
+  String get entryNotAllowed => 'Не можете измијенити овај унос.';
+
+  @override
+  String get entryNotFound => 'Овај унос више није доступан.';
+
+  @override
+  String get doseHeading => 'Доза (није обавезно)';
+
+  @override
+  String get doseAmount => 'Количина';
+
+  @override
+  String get doseUnit => 'Јединица';
+
+  @override
+  String get unitMg => 'милиграми (мг)';
+
+  @override
+  String get unitG => 'грами (г)';
+
+  @override
+  String get unitUg => 'микрограми (µг)';
+
+  @override
+  String get unitMl => 'милилитри (мл)';
+
+  @override
+  String get unitIu => 'интернационалне јединице (ИЈ)';
+
+  @override
+  String get unitTablet => 'таблете';
+
+  @override
+  String get unitCapsule => 'капсуле';
+
+  @override
+  String get unitDrop => 'капи';
+
+  @override
+  String get unitPuff => 'удисаји (инхалатор)';
+
+  @override
+  String get unitPatch => 'фластери';
+
+  @override
+  String get doseBoth => 'Унесите и количину и јединицу или ништа од тога.';
+
+  @override
+  String get numberAboveZero => 'Унесите број већи од 0.';
+
+  @override
+  String get howOftenHeading => 'Колико често (није обавезно)';
+
+  @override
+  String get timesLabel => 'Пута';
+
+  @override
+  String get everyLabel => 'Сваких';
+
+  @override
+  String get periodUnitLabel => 'Јединица времена';
+
+  @override
+  String get periodHours => 'сати';
+
+  @override
+  String get periodDays => 'дана';
+
+  @override
+  String get periodWeeks => 'недјеља';
+
+  @override
+  String get periodMonths => 'мјесеци';
+
+  @override
+  String get howOftenAll => 'Попуните сва три поља или их оставите празна.';
+
+  @override
+  String get asNeeded => 'По потреби';
+
+  @override
+  String get medicationActive => 'Тренутно узимам';
+
+  @override
+  String get medicationStopped => 'Више не узимам';
+
+  @override
+  String doseMg(String value) {
+    return '$value мг';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value г';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µг';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value мл';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value ИЈ';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value таблета',
+      few: '$value таблете',
+      one: '$value таблета',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value капсула',
+      few: '$value капсуле',
+      one: '$value капсула',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value капи',
+      few: '$value капи',
+      one: '$value кап',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value удисаја',
+      few: '$value удисаја',
+      one: '$value удисај',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value фластера',
+      few: '$value фластера',
+      one: '$value фластер',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Доза: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return '$frequency× на сат';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return '$frequency× дневно';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return '$frequency× недјељно';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return '$frequency× мјесечно';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every сати',
+      few: '$frequency× свака $every сата',
+      one: '$frequency× сваки $every сат',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every дана',
+      few: '$frequency× свака $every дана',
+      one: '$frequency× сваки $every дан',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every недјеља',
+      few: '$frequency× сваке $every недјеље',
+      one: '$frequency× сваке $every недјеље',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× сваких $every мјесеци',
+      few: '$frequency× свака $every мјесеца',
+      one: '$frequency× сваки $every мјесец',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get myHistory => 'Моја историја';
 
   @override
@@ -3282,6 +4504,618 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get termClose => 'Zatvori';
+
+  @override
+  String get chatsTitle => 'Poruke';
+
+  @override
+  String get chatsEmpty => 'Još nemate razgovora.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count nepročitanih poruka',
+      few: '$count nepročitane poruke',
+      one: '$count nepročitana poruka',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Vaš ljekar';
+
+  @override
+  String get chatMessageHint => 'Napišite poruku';
+
+  @override
+  String get chatSend => 'Pošalji';
+
+  @override
+  String get chatAttach => 'Dodaj datoteku';
+
+  @override
+  String get chatSendFailed =>
+      'Poruka nije poslata. Provjerite internet vezu i pokušajte ponovo.';
+
+  @override
+  String get chatFileRejected => 'Ova datoteka nije prihvaćena.';
+
+  @override
+  String get chatFileRemove => 'Ukloni datoteku';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Već imate $count datoteka koje čekaju slanje. Neposlate datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+      few:
+          'Već imate $count datoteke koje čekaju slanje. Neposlate datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+      one:
+          'Već imate $count datoteku koja čeka slanje. Neposlate datoteke se uklanjaju nakon 24 sata; pokušajte ponovo kasnije.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed =>
+      'Datoteka nije mogla da se otvori. Pokušajte ponovo.';
+
+  @override
+  String get chatEndedSession =>
+      'Vaša sesija je istekla. Ponovo se prijavite da biste vidjeli nove poruke.';
+
+  @override
+  String get chatEnded =>
+      'Nove poruke u ovom razgovoru više ne mogu da se prikažu.';
+
+  @override
+  String get chatHours => 'Radno vrijeme za poruke';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone => 'Klinika nije odredila radno vrijeme za poruke.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Vremena su u vremenskoj zoni klinike, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Klinika obično odgovara u roku od $hours sati.',
+      few: 'Klinika obično odgovara u roku od $hours sata.',
+      one: 'Klinika obično odgovara u roku od $hours sata.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Klinika je trenutno van radnog vremena za poruke. I dalje možete da pišete; obično odgovara u roku od $hours sati.',
+      few:
+          'Klinika je trenutno van radnog vremena za poruke. I dalje možete da pišete; obično odgovara u roku od $hours sata.',
+      one:
+          'Klinika je trenutno van radnog vremena za poruke. I dalje možete da pišete; obično odgovara u roku od $hours sata.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ljekar iz druge klinike je pozvan u ovaj razgovor radi drugog mišljenja.',
+      'specialist_review': 'Ljekar iz druge klinike je pozvan u ovaj razgovor radi specijalističkog pregleda.',
+      'handover': 'Ljekar iz druge klinike je pozvan u ovaj razgovor da preuzme liječenje.',
+      'other': 'Ljekar iz druge klinike je pozvan u ovaj razgovor.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ljekar se pridružio razgovoru radi drugog mišljenja.',
+      'specialist_review':
+          'Ljekar se pridružio razgovoru radi specijalističkog pregleda.',
+      'handover': 'Ljekar se pridružio razgovoru da preuzme liječenje.',
+      'other': 'Ljekar se pridružio razgovoru.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved => 'Ljekar više ne učestvuje u razgovoru.';
+
+  @override
+  String get chatSystemGranted =>
+      'Dozvolili ste ljekaru iz druge klinike da se pridruži razgovoru.';
+
+  @override
+  String get chatSystemDeclined => 'Odbili ste ljekara iz druge klinike.';
+
+  @override
+  String get chatSystemOther => 'Razgovor je ažuriran.';
+
+  @override
+  String get chatInviteTitle =>
+      'Ljekar iz druge klinike traži pristup razgovoru';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru radi drugog mišljenja.',
+      'specialist_review': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru radi specijalističkog pregleda.',
+      'handover': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru da preuzme vaše liječenje.',
+      'other': 'Vaša klinika traži da se ljekar iz druge klinike pridruži ovom razgovoru.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Ljekar: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Ime i klinika pozvanog ljekara nisu mogli da se učitaju. Pristup možete da odobrite tek kada budu prikazani.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Ako pristanete, ljekar vidi cijeli razgovor, uključujući ranije poruke, i može da piše u njemu.',
+      'from': 'Ako pristanete, ljekar vidi razgovor od poruke koju je izabrala vaša klinika nadalje i može da piše u njemu.',
+      'other': 'Ako pristanete, ljekar vidi razgovor i može da piše u njemu.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Možete da odbijete. Ako pristanete, pristup ljekara možete kasnije da opozovete u ovom razgovoru; prestaje odmah.';
+
+  @override
+  String get chatGrant => 'Odobri pristup';
+
+  @override
+  String get chatDecline => 'Odbij';
+
+  @override
+  String get chatGranted =>
+      'Pristup je odobren. Možete da ga opozovete u ovom razgovoru u bilo kom trenutku.';
+
+  @override
+  String get chatDeclined =>
+      'Odbijeno. Ljekar se ne pridružuje ovom razgovoru.';
+
+  @override
+  String get chatRevoke => 'Opozovi pristup ljekara iz druge klinike';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Pristup je odobren: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Pristup je odobren ljekaru iz druge klinike.';
+
+  @override
+  String get chatRevokeBody =>
+      'Ljekar iz druge klinike odmah gubi pristup ovom razgovoru. Već napisane poruke ostaju u njemu.';
+
+  @override
+  String get chatRevokeConfirm => 'Opozovi pristup';
+
+  @override
+  String get chatRevoked => 'Pristup je opozvan.';
+
+  @override
+  String get allergies => 'Alergije';
+
+  @override
+  String get currentMedications => 'Trenutni lijekovi';
+
+  @override
+  String get allergiesIntro =>
+      'Klinike kojima ste dali saglasnost vide alergije iz vašeg profila kada imate termin kod njih.';
+
+  @override
+  String get medicationsIntro =>
+      'Klinike kojima ste dali saglasnost vide lijekove iz vašeg profila kada imate termin kod njih.';
+
+  @override
+  String get noAllergies => 'Niste dodali nijednu alergiju.';
+
+  @override
+  String get noMedications => 'Niste dodali nijedan lijek.';
+
+  @override
+  String get addAllergy => 'Dodajte alergiju';
+
+  @override
+  String get addMedication => 'Dodajte lijek';
+
+  @override
+  String get changeAllergy => 'Izmjena alergije';
+
+  @override
+  String get changeMedication => 'Izmjena lijeka';
+
+  @override
+  String get change => 'Izmijenite';
+
+  @override
+  String get allergySubstance => 'Supstanca ili namirnica';
+
+  @override
+  String get medicationName => 'Lijek';
+
+  @override
+  String get termSearchHint =>
+      'Počnite da kucate za pretragu ili upišite svojim riječima.';
+
+  @override
+  String get allergyCategory => 'Vrsta (nije obavezno)';
+
+  @override
+  String get notSpecified => 'Nije navedeno';
+
+  @override
+  String get categoryFood => 'Hrana';
+
+  @override
+  String get categoryMedication => 'Lijek';
+
+  @override
+  String get categoryEnvironment => 'Okruženje';
+
+  @override
+  String get categoryBiologic => 'Biološki preparat';
+
+  @override
+  String get reactionOptional => 'Reakcija (nije obavezno)';
+
+  @override
+  String get severity => 'Težina';
+
+  @override
+  String get severityMild => 'Blaga';
+
+  @override
+  String get severityModerate => 'Umjerena';
+
+  @override
+  String get severitySevere => 'Teška';
+
+  @override
+  String get entryStatus => 'Status';
+
+  @override
+  String get allergyActive => 'Aktivna';
+
+  @override
+  String get allergyInactive => 'Neaktivna';
+
+  @override
+  String get allergyResolved => 'Prošla';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Reakcija: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Reakcija: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Potvrdio ljekar';
+
+  @override
+  String get recordedByClinic => 'Unijela klinika tokom jedne od vaših posjeta';
+
+  @override
+  String get confirmedChangeNote =>
+      'Ako izmijenite ovaj unos, više neće biti potvrđen od ljekara.';
+
+  @override
+  String get nameRequired => 'Unesite naziv, najviše 200 znakova.';
+
+  @override
+  String get addToProfile => 'Dodajte u moj profil';
+
+  @override
+  String get addToProfileTitle => 'Dodati u vaš profil?';
+
+  @override
+  String get addToProfileBody =>
+      'Tada će ga vidjeti svaka klinika kojoj ste dali saglasnost, bez naziva klinike koja ga je unijela.';
+
+  @override
+  String get addedToProfile => 'Sada je u vašem profilu.';
+
+  @override
+  String get removeEntryTitle => 'Ukloniti ovaj unos?';
+
+  @override
+  String get removeEntryBody =>
+      'Više se neće prikazivati ni vama ni bilo kojoj klinici. Ako ga je klinika unijela ili potvrdila, ostaje u vašem medicinskom kartonu, označen kao uklonjen.';
+
+  @override
+  String get entryRemoved => 'Unos je uklonjen.';
+
+  @override
+  String get entrySaved => 'Sačuvano u vašem profilu.';
+
+  @override
+  String get entryChanged =>
+      'Ovaj unos je u međuvremenu izmijenjen. Prikazana je najnovija verzija.';
+
+  @override
+  String get entryInvalid =>
+      'Neki podaci nisu ispravni. Provjerite ih i pokušajte ponovo.';
+
+  @override
+  String get entryNotAllowed => 'Ne možete izmijeniti ovaj unos.';
+
+  @override
+  String get entryNotFound => 'Ovaj unos više nije dostupan.';
+
+  @override
+  String get doseHeading => 'Doza (nije obavezno)';
+
+  @override
+  String get doseAmount => 'Količina';
+
+  @override
+  String get doseUnit => 'Jedinica';
+
+  @override
+  String get unitMg => 'miligrami (mg)';
+
+  @override
+  String get unitG => 'grami (g)';
+
+  @override
+  String get unitUg => 'mikrogrami (µg)';
+
+  @override
+  String get unitMl => 'mililitri (ml)';
+
+  @override
+  String get unitIu => 'internacionalne jedinice (IJ)';
+
+  @override
+  String get unitTablet => 'tablete';
+
+  @override
+  String get unitCapsule => 'kapsule';
+
+  @override
+  String get unitDrop => 'kapi';
+
+  @override
+  String get unitPuff => 'udisaji (inhalator)';
+
+  @override
+  String get unitPatch => 'flasteri';
+
+  @override
+  String get doseBoth => 'Unesite i količinu i jedinicu ili ništa od toga.';
+
+  @override
+  String get numberAboveZero => 'Unesite broj veći od 0.';
+
+  @override
+  String get howOftenHeading => 'Koliko često (nije obavezno)';
+
+  @override
+  String get timesLabel => 'Puta';
+
+  @override
+  String get everyLabel => 'Svakih';
+
+  @override
+  String get periodUnitLabel => 'Jedinica vremena';
+
+  @override
+  String get periodHours => 'sati';
+
+  @override
+  String get periodDays => 'dana';
+
+  @override
+  String get periodWeeks => 'nedjelja';
+
+  @override
+  String get periodMonths => 'mjeseci';
+
+  @override
+  String get howOftenAll => 'Popunite sva tri polja ili ih ostavite prazna.';
+
+  @override
+  String get asNeeded => 'Po potrebi';
+
+  @override
+  String get medicationActive => 'Trenutno uzimam';
+
+  @override
+  String get medicationStopped => 'Više ne uzimam';
+
+  @override
+  String doseMg(String value) {
+    return '$value mg';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value g';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µg';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value ml';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value IJ';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value tableta',
+      few: '$value tablete',
+      one: '$value tableta',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value kapsula',
+      few: '$value kapsule',
+      one: '$value kapsula',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value kapi',
+      few: '$value kapi',
+      one: '$value kap',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value udisaja',
+      few: '$value udisaja',
+      one: '$value udisaj',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value flastera',
+      few: '$value flastera',
+      one: '$value flaster',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Doza: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return '$frequency× na sat';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return '$frequency× dnevno';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return '$frequency× nedjeljno';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return '$frequency× mjesečno';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× svakih $every sati',
+      few: '$frequency× svaka $every sata',
+      one: '$frequency× svaki $every sat',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× svakih $every dana',
+      few: '$frequency× svaka $every dana',
+      one: '$frequency× svaki $every dan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× svakih $every nedjelja',
+      few: '$frequency× svake $every nedjelje',
+      one: '$frequency× svake $every nedjelje',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× svakih $every mjeseci',
+      few: '$frequency× svaka $every mjeseca',
+      one: '$frequency× svaki $every mjesec',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get myHistory => 'Moja istorija';

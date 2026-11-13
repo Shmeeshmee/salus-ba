@@ -1,11 +1,16 @@
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ConsultSide } from './ConsultPanels'
-import { useConsult, type Template } from './consult'
+import { useConsult, type DraftEvent, type Template } from './consult'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { newApiClient } from './api/client'
+import { newFhirClient } from './api/fhir'
+import { allergiesOf, type PatientEntries } from './entries'
+import { consultSocket } from './live'
+import { allergyBundle, ownAllergy } from './test/entries'
 import { draft, fakeActions, fakeLive, segment, templates } from './test/fakeConsult'
-import { fakeFetch } from './test/fakeFetch'
+import { fakeFetch, fhirJSON } from './test/fakeFetch'
 import { ExplanationsProvider } from './terminology/Explain'
 import type { Explanation } from './terminology/terms'
 
@@ -413,5 +418,69 @@ describe('Documents: diagnosis codes', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sign' }))
 
     expect(await screen.findByRole('checkbox', { name: 'I confirm this diagnosis code' })).toBeTruthy()
+  })
+})
+
+// ADR 0014 "No AI": the allergy warning is shown above the drafting editor and never sent. The drafting runs
+// on the real actions (live.ts) over a fake API, so every request they make is read.
+describe('Documents: the allergy warning (SAL-41)', () => {
+  const encounter = 'e2000000-0000-4000-8000-000000000001'
+  const stored = draft().payload as DraftEvent
+  const templateRow = {
+    id: summary.id,
+    title: summary.title,
+    language: 'en',
+    status: 'active',
+    typeCode: '11488-4',
+    fields: summary.fields.map((f) => ({ ...f, type: 'text' })),
+    translations: [],
+    lastUpdated: '2026-11-09T09:00:00Z',
+    versionId: 1,
+  }
+
+  function Drafting({ fake, failed = false }: { fake: ReturnType<typeof fakeFetch>; failed?: boolean }) {
+    const [{ live, actions }] = useState(() => consultSocket({ api: newApiClient(fake.fetch), fhir: newFhirClient(fake.fetch), open: () => ({ close() {} }) as unknown as WebSocket }))
+    const [state, dispatch] = useConsult(live, id, false)
+    const entries: PatientEntries = { entries: { allergies: allergiesOf(allergyBundle(ownAllergy())), medications: [] }, failed: false, reload() {} }
+    return <ConsultSide appointmentId={id} state={state} dispatch={dispatch} actions={actions} zone="Europe/Sarajevo" entries={{ state: failed ? { failed: true, reload() {} } : entries, panel: null }} />
+  }
+
+  it('says above the editor when the allergies could not be loaded', () => {
+    const fake = fakeFetch({ 'GET /document-templates': () => Response.json({ templates: [templateRow] }) })
+    renderInLanguage(<Drafting fake={fake} failed />, 'en')
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('alert').textContent).toContain('Allergies could not be loaded. Do not assume the patient has none.')
+  })
+
+  it('is shown above the editor and is in no drafting request', async () => {
+    const fake = fakeFetch({
+      'GET /document-templates': () => Response.json({ templates: [templateRow] }),
+      'GET /fhir/R4/Encounter': () => fhirJSON({ resourceType: 'Bundle', type: 'searchset', entry: [{ fullUrl: `Encounter/${encounter}`, resource: { id: encounter } }] }),
+      [`POST /encounters/${encounter}/drafts`]: () => Response.json(stored),
+      [`POST /drafts/${stored.draft_id}/sign`]: () => Response.json({ ...stored, status: 'final', version_id: 2 }),
+      [`GET /compositions/${stored.draft_id}/terms`]: () => Response.json({ sections: [] }),
+      'GET /terminology/explanations': () => Response.json({ explanations: [] }),
+    })
+    renderInLanguage(<Drafting fake={fake} />, 'en')
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Documents' })
+    expect(within(panel).getByRole('region', { name: 'Active allergies' }).textContent).toContain('Placeholder substance A')
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: summary.id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Placeholder reason' }), { target: { value: 'Placeholder reason typed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Sign this document?' })).getByRole('button', { name: 'Sign' }))
+    await screen.findByText('Signed. This document is final.')
+    expect(within(panel).getByRole('region', { name: 'Active allergies' })).toBeTruthy()
+
+    const sent = await Promise.all(fake.requests.map(async (r) => `${r.url} ${await r.text()}`))
+    expect(sent.filter((s) => s.includes('/drafts')).length).toBe(2)
+    for (const s of sent) {
+      expect(s).not.toContain('Placeholder substance A')
+      expect(s).not.toContain('Placeholder reaction')
+      expect(s).not.toContain('J01CA04')
+    }
   })
 })

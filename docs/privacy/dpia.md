@@ -1807,6 +1807,31 @@ admin, with its dead letters. `webhook_dead_letter`: 30 days.
 **Open before production.** The DPAs and transfer basis of Google (FCM) and Apple (APNs) before either is switched
 on (docs/deploy/push.md).
 
+### SAL-31: the chat's screens and the AI summary
+
+**Processing added.** No new table or stored field. The web app (doctors) and the patient app show the conversations
+of SAL-27 to SAL-30; nothing of a message is kept on the device beyond the screen's memory (no local database, no
+browser storage of message text). `POST /conversations/{id}/summary` gives a practitioner who may read a long
+conversation (at least 50 messages they read) a summary of its latest 500 messages, generated on demand, never stored,
+labelled AI generated, shown above the messages, which stay as written; its read of the rows is audited as a read
+(`AuditEvent`, the patient, the number of rows).
+
+**Lawful basis.** The summary runs on the fake engine only (`llmtest.Summarizer`: a placeholder naming how many
+messages it covers; no text leaves the api process). `config.LoadChatSummary` refuses any other engine
+(`CHAT_SUMMARY_ENGINE`), whatever `LLM_ENGINE` says, because the patient's messages may reach a third-party model only
+under a basis the owner has not decided yet: SAL-12's transcription consent covers the consultation, not the chat.
+Waiting for the owner: the basis (a granular AI consent, or another), then the processor's DPA and an entry in
+`processors.md`, before a real engine is wired.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient's messages sent to a hosted model without a basis | The summary's engine is the fake and the config refuses another; the Summarizer port is the only path |
+| The summary taken for the record, or for a diagnosis | Not stored; always labelled AI generated; the messages stay below it unchanged; the copy states what was written, never a diagnosis |
+| The patient sees the doctors' summary or side threads | The summary is refused to the patient (403); the patient app has no summary or thread screen; side threads stay hidden by row-level security (SAL-28) |
+| A cross-clinic doctor joins without the patient knowing, or keeps access the patient cannot find to withdraw | The patient app's consent prompt (strings tagged `legal`) names the doctor and their clinic (grant stays disabled until they are shown), why, and what they would read; grant or decline; the chat view lists every granted doctor of the conversation from the API (`status=active`), so each can be revoked at any time, also after a restart (SAL-28's consent) |
+
 ## Analytics (`docs/plans/analytics.md`, ADR 0013)
 
 ### SAL-19: coded diagnoses and diagnosis groups

@@ -1,5 +1,5 @@
 // Package llm holds the ports of the language-model tasks: translating a segment, suggesting from a
-// transcript, and filling a document's fields from it. It knows nothing of consultations; a caller maps its
+// transcript, filling a document's fields from it, and summarising a conversation. It knows nothing of consultations; a caller maps its
 // own types in and out. llmtest has in-memory fakes. An implementation that sends text to a hosted model
 // needs its DPA and an entry in docs/privacy/processors.md first (CLAUDE.md "GDPR and health data").
 package llm
@@ -98,4 +98,17 @@ type DraftField struct {
 // Drafter fills a document's fields from a transcript, one result per requested field, in order.
 type Drafter interface {
 	Draft(ctx context.Context, req DraftRequest) ([]DraftField, error)
+}
+
+// SummarizeRequest is a conversation's messages, oldest first, each with its sender's role as Speaker, and the
+// language to write the summary in (a BCP 47 tag).
+type SummarizeRequest struct {
+	Lang     string
+	Messages []Utterance
+}
+
+// Summarizer summarises a conversation for the practitioner who reads it. The summary stands beside the messages,
+// never in place of them, and states what was written, not a diagnosis.
+type Summarizer interface {
+	Summarize(ctx context.Context, req SummarizeRequest) (string, error)
 }

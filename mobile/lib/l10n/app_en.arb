@@ -1422,6 +1422,765 @@
   "@termClose": {
     "description": "SAL-13: button: closes a medical term's explanation."
   },
+  "chatsTitle": "Messages",
+  "@chatsTitle": {
+    "description": "Home button and the conversation list title (SAL-31)."
+  },
+  "chatsEmpty": "You have no conversations yet.",
+  "@chatsEmpty": {
+    "description": "The conversation list without a conversation."
+  },
+  "chatUnread": "{count, plural, one{{count} unread message} other{{count} unread messages}}",
+  "@chatUnread": {
+    "description": "The unread badge of a conversation, read out.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatDoctorUnknown": "Your doctor",
+  "@chatDoctorUnknown": {
+    "description": "A conversation's title when the doctor's name is not known."
+  },
+  "chatMessageHint": "Write a message",
+  "@chatMessageHint": {
+    "description": "The composer field."
+  },
+  "chatSend": "Send",
+  "@chatSend": {
+    "description": "The composer: send button tooltip."
+  },
+  "chatAttach": "Add a file",
+  "@chatAttach": {
+    "description": "The composer: add a file from the camera or the files, tooltip."
+  },
+  "chatSendFailed": "The message was not sent. Check your connection and try again.",
+  "@chatSendFailed": {
+    "description": "A message that did not reach the API; the text stays in the composer."
+  },
+  "chatFileRejected": "This file was not accepted.",
+  "@chatFileRejected": {
+    "description": "An attachment the clinic's scan refused."
+  },
+  "chatFileRemove": "Remove the file",
+  "@chatFileRemove": {
+    "description": "The composer: remove a file not yet sent, tooltip."
+  },
+  "chatTooManyFiles": "{count, plural, one{You already have {count} file waiting to be sent. Files not sent are removed after 24 hours; try again later.} other{You already have {count} files waiting to be sent. Files not sent are removed after 24 hours; try again later.}}",
+  "@chatTooManyFiles": {
+    "description": "An upload refused because the patient already has the most files waiting to be sent (SAL-30 too_many_files); count is the limit.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatOpenFailed": "The file could not be opened. Try again.",
+  "@chatOpenFailed": {
+    "description": "An attachment that could not be read."
+  },
+  "chatEndedSession": "Your session has ended. Sign in again to see new messages.",
+  "@chatEndedSession": {
+    "description": "The live connection ended because the session ended (4401)."
+  },
+  "chatEnded": "New messages can no longer be shown in this conversation.",
+  "@chatEnded": {
+    "description": "The live connection ended because access ended (4403, 4404)."
+  },
+  "chatHours": "Chat hours",
+  "@chatHours": {
+    "description": "The clinic's chat hours: button tooltip and dialog title."
+  },
+  "chatHoursDay": "{day}: {start}–{end}",
+  "@chatHoursDay": {
+    "description": "One weekday of the chat hours; day is the weekday name, start and end are HH:MM.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "chatHoursNone": "The clinic has not set chat hours.",
+  "@chatHoursNone": {
+    "description": "The clinic has no chat hours."
+  },
+  "chatHoursZone": "Times are in the clinic's time zone, {zone}.",
+  "@chatHoursZone": {
+    "description": "The chat hours dialog: the clinic's IANA time zone the hours are in (shown as given, not converted).",
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "chatResponseTime": "{hours, plural, one{The clinic usually answers within {hours} hour.} other{The clinic usually answers within {hours} hours.}}",
+  "@chatResponseTime": {
+    "description": "The clinic's expected response time, in the chat hours dialog.",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "chatOutOfHours": "{hours, plural, one{The clinic is outside its chat hours. You can still write; it usually answers within {hours} hour.} other{The clinic is outside its chat hours. You can still write; it usually answers within {hours} hours.}}",
+  "@chatOutOfHours": {
+    "description": "The notice above the composer outside the chat hours (SAL-29 open_now false).",
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "chatSystemInvited": "{reason, select, second_opinion{A doctor from another clinic was invited to this conversation for a second opinion.} specialist_review{A doctor from another clinic was invited to this conversation for a specialist review.} handover{A doctor from another clinic was invited to this conversation to take over the care.} other{A doctor from another clinic was invited to this conversation.}}",
+  "@chatSystemInvited": {
+    "description": "System message participant_invited; reason is second_opinion, specialist_review or handover.",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSystemAdded": "{reason, select, second_opinion{A doctor joined the conversation for a second opinion.} specialist_review{A doctor joined the conversation for a specialist review.} handover{A doctor joined the conversation to take over the care.} other{A doctor joined the conversation.}}",
+  "@chatSystemAdded": {
+    "description": "System message participant_added.",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSystemRemoved": "A doctor no longer takes part in the conversation.",
+  "@chatSystemRemoved": {
+    "description": "System message participant_removed."
+  },
+  "chatSystemGranted": "You allowed a doctor from another clinic to join the conversation.",
+  "@chatSystemGranted": {
+    "description": "System message consent_granted: the patient agreed."
+  },
+  "chatSystemDeclined": "You declined a doctor from another clinic.",
+  "@chatSystemDeclined": {
+    "description": "System message consent_declined: the patient declined."
+  },
+  "chatSystemOther": "The conversation was updated.",
+  "@chatSystemOther": {
+    "description": "A system message the app does not know."
+  },
+  "chatInviteTitle": "A doctor from another clinic asks to join",
+  "@chatInviteTitle": {
+    "description": "[legal] The consent prompt: its heading."
+  },
+  "chatInviteBody": "{reason, select, second_opinion{Your clinic asks a doctor from another clinic to join this conversation for a second opinion.} specialist_review{Your clinic asks a doctor from another clinic to join this conversation for a specialist review.} handover{Your clinic asks a doctor from another clinic to join this conversation to take over your care.} other{Your clinic asks a doctor from another clinic to join this conversation.}}",
+  "@chatInviteBody": {
+    "description": "[legal] The consent prompt: who asks and why.",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInviteWho": "Doctor: {doctor}, {clinic}",
+  "@chatInviteWho": {
+    "description": "[legal] The consent prompt: the invited doctor's name and clinic, when known.",
+    "placeholders": {
+      "doctor": {
+        "type": "String"
+      },
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInviteUnresolved": "The invited doctor's name and clinic could not be loaded. Access can be granted only once they are shown.",
+  "@chatInviteUnresolved": {
+    "description": "[legal] The consent prompt while the invited doctor's name and clinic are not known: the grant waits for them."
+  },
+  "chatInviteSees": "{history, select, full{If you agree, the doctor sees the whole conversation, including the earlier messages, and can write in it.} from{If you agree, the doctor sees the conversation from a message your clinic chose onwards, and can write in it.} other{If you agree, the doctor sees the conversation and can write in it.}}",
+  "@chatInviteSees": {
+    "description": "[legal] The consent prompt: what the doctor would see; history is full, from or unknown.",
+    "placeholders": {
+      "history": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInviteChoice": "You may decline. If you agree, you can revoke the doctor's access later in this conversation; it ends at once.",
+  "@chatInviteChoice": {
+    "description": "[legal] The consent prompt: declining and revoking."
+  },
+  "chatGrant": "Grant access",
+  "@chatGrant": {
+    "description": "[legal] The consent prompt: grant button."
+  },
+  "chatDecline": "Decline",
+  "@chatDecline": {
+    "description": "[legal] The consent prompt: decline button."
+  },
+  "chatGranted": "Access granted. You can revoke it in this conversation at any time.",
+  "@chatGranted": {
+    "description": "[legal] After a grant."
+  },
+  "chatDeclined": "Declined. The doctor does not join this conversation.",
+  "@chatDeclined": {
+    "description": "[legal] After a decline."
+  },
+  "chatRevoke": "Revoke the access of the doctor from another clinic",
+  "@chatRevoke": {
+    "description": "[legal] The chat view's menu: revoke a granted invitation."
+  },
+  "chatGrantedTo": "Access granted to {doctor}, {clinic}.",
+  "@chatGrantedTo": {
+    "description": "[legal] The chat view's line for a doctor of another clinic the patient granted access, beside the revoke button.",
+    "placeholders": {
+      "doctor": {
+        "type": "String"
+      },
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "chatGrantedToUnknown": "Access granted to a doctor from another clinic.",
+  "@chatGrantedToUnknown": {
+    "description": "[legal] The granted doctor's line while their name and clinic are not known."
+  },
+  "chatRevokeBody": "The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.",
+  "@chatRevokeBody": {
+    "description": "[legal] The revocation dialog: its effect."
+  },
+  "chatRevokeConfirm": "Revoke access",
+  "@chatRevokeConfirm": {
+    "description": "[legal] The revocation dialog: confirm button."
+  },
+  "chatRevoked": "Access revoked.",
+  "@chatRevoked": {
+    "description": "[legal] After a revocation."
+  },
+  "allergies": "Allergies",
+  "@allergies": {
+    "description": "SAL-41: Profile button and screen title."
+  },
+  "currentMedications": "Current medications",
+  "@currentMedications": {
+    "description": "SAL-41: Profile button and screen title."
+  },
+  "allergiesIntro": "Clinics you have given your consent to see the allergies in your profile when you have an appointment with them.",
+  "@allergiesIntro": {
+    "description": "[legal] SAL-41: Allergies screen: who sees the profile's allergies."
+  },
+  "medicationsIntro": "Clinics you have given your consent to see the medications in your profile when you have an appointment with them.",
+  "@medicationsIntro": {
+    "description": "[legal] SAL-41: Medications screen: who sees the profile's medications."
+  },
+  "noAllergies": "You have not added any allergies.",
+  "@noAllergies": {
+    "description": "SAL-41: Allergies screen, empty."
+  },
+  "noMedications": "You have not added any medications.",
+  "@noMedications": {
+    "description": "SAL-41: Medications screen, empty."
+  },
+  "addAllergy": "Add an allergy",
+  "@addAllergy": {
+    "description": "SAL-41: Button and form title."
+  },
+  "addMedication": "Add a medication",
+  "@addMedication": {
+    "description": "SAL-41: Button and form title."
+  },
+  "changeAllergy": "Change allergy",
+  "@changeAllergy": {
+    "description": "SAL-41: Form title when changing an allergy."
+  },
+  "changeMedication": "Change medication",
+  "@changeMedication": {
+    "description": "SAL-41: Form title when changing a medication."
+  },
+  "change": "Change",
+  "@change": {
+    "description": "SAL-41: Button on the patient's own allergy or medication: opens the form."
+  },
+  "allergySubstance": "Substance or food",
+  "@allergySubstance": {
+    "description": "SAL-41: Allergy form: what the patient is allergic to."
+  },
+  "medicationName": "Medication",
+  "@medicationName": {
+    "description": "SAL-41: Medication form: the medication's name."
+  },
+  "termSearchHint": "Type to search, or write it in your own words.",
+  "@termSearchHint": {
+    "description": "SAL-41: Under the substance or medication field, which suggests terms."
+  },
+  "allergyCategory": "Type (optional)",
+  "@allergyCategory": {
+    "description": "SAL-41: Allergy form: the allergy's category."
+  },
+  "notSpecified": "Not specified",
+  "@notSpecified": {
+    "description": "SAL-41: A drop-down's empty choice."
+  },
+  "categoryFood": "Food",
+  "@categoryFood": {
+    "description": "SAL-41: Allergy category."
+  },
+  "categoryMedication": "Medication",
+  "@categoryMedication": {
+    "description": "SAL-41: Allergy category."
+  },
+  "categoryEnvironment": "Environment",
+  "@categoryEnvironment": {
+    "description": "SAL-41: Allergy category (for example pollen or dust)."
+  },
+  "categoryBiologic": "Biological product",
+  "@categoryBiologic": {
+    "description": "SAL-41: Allergy category (FHIR biologic: for example a vaccine or a blood product)."
+  },
+  "reactionOptional": "Reaction (optional)",
+  "@reactionOptional": {
+    "description": "SAL-41: Allergy form: the reaction, up to 200 characters."
+  },
+  "severity": "Severity",
+  "@severity": {
+    "description": "SAL-41: Allergy form: the reaction's severity; only with a reaction."
+  },
+  "severityMild": "Mild",
+  "@severityMild": {
+    "description": "SAL-41: Reaction severity."
+  },
+  "severityModerate": "Moderate",
+  "@severityModerate": {
+    "description": "SAL-41: Reaction severity."
+  },
+  "severitySevere": "Severe",
+  "@severitySevere": {
+    "description": "SAL-41: Reaction severity."
+  },
+  "entryStatus": "Status",
+  "@entryStatus": {
+    "description": "SAL-41: Allergy and medication form: the status drop-down."
+  },
+  "allergyActive": "Active",
+  "@allergyActive": {
+    "description": "SAL-41: Allergy clinical status."
+  },
+  "allergyInactive": "Inactive",
+  "@allergyInactive": {
+    "description": "SAL-41: Allergy clinical status."
+  },
+  "allergyResolved": "Resolved",
+  "@allergyResolved": {
+    "description": "SAL-41: Allergy clinical status."
+  },
+  "reactionLine": "Reaction: {reaction}",
+  "@reactionLine": {
+    "description": "SAL-41: Allergy card; the reaction as written.",
+    "placeholders": {
+      "reaction": {
+        "type": "String"
+      }
+    }
+  },
+  "reactionWithSeverity": "Reaction: {reaction} ({severity})",
+  "@reactionWithSeverity": {
+    "description": "SAL-41: Allergy card; the reaction as written and its severity (severityMild...).",
+    "placeholders": {
+      "reaction": {
+        "type": "String"
+      },
+      "severity": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmedByClinician": "Confirmed by a clinician",
+  "@confirmedByClinician": {
+    "description": "SAL-41: Allergy or medication card: a clinician confirmed it."
+  },
+  "recordedByClinic": "Recorded by a clinic during one of your visits",
+  "@recordedByClinic": {
+    "description": "SAL-41: Allergy or medication card: a clinic's entry, not the patient's."
+  },
+  "confirmedChangeNote": "If you change this entry, it is no longer confirmed by a clinician.",
+  "@confirmedChangeNote": {
+    "description": "SAL-41: Form of a confirmed entry."
+  },
+  "nameRequired": "Enter a name, up to 200 characters.",
+  "@nameRequired": {
+    "description": "SAL-41: Substance or medication field: empty or too long."
+  },
+  "addToProfile": "Add to my profile",
+  "@addToProfile": {
+    "description": "SAL-41: Button on a clinic's entry, and the confirmation dialog's button."
+  },
+  "addToProfileTitle": "Add to your profile?",
+  "@addToProfileTitle": {
+    "description": "SAL-41: Dialog title before a clinic's entry is added to the profile."
+  },
+  "addToProfileBody": "Every clinic you have given your consent to will then see it, without the name of the clinic that recorded it.",
+  "@addToProfileBody": {
+    "description": "[legal] SAL-41: Dialog text: the effect of adding a clinic's entry to the profile."
+  },
+  "addedToProfile": "It is now in your profile.",
+  "@addedToProfile": {
+    "description": "SAL-41: After a clinic's entry was added to the profile."
+  },
+  "removeEntryTitle": "Remove this entry?",
+  "@removeEntryTitle": {
+    "description": "SAL-41: Dialog title before an allergy or medication is removed."
+  },
+  "removeEntryBody": "It will no longer be shown to you or to any clinic. If a clinic recorded or confirmed it, it stays in your medical record, marked as removed.",
+  "@removeEntryBody": {
+    "description": "[legal] SAL-41: Dialog text: the effect of a removal."
+  },
+  "entryRemoved": "The entry is removed.",
+  "@entryRemoved": {
+    "description": "SAL-41: After a removal."
+  },
+  "entrySaved": "Saved to your profile.",
+  "@entrySaved": {
+    "description": "SAL-41: After an allergy or medication was added or changed."
+  },
+  "entryChanged": "This entry was changed in the meantime. The latest version is shown.",
+  "@entryChanged": {
+    "description": "SAL-41: Write refused: the entry changed since it was read (412)."
+  },
+  "entryInvalid": "Some details are not valid. Check them and try again.",
+  "@entryInvalid": {
+    "description": "SAL-41: Write refused: invalid input (400)."
+  },
+  "entryNotAllowed": "You cannot change this entry.",
+  "@entryNotAllowed": {
+    "description": "SAL-41: Write refused (403)."
+  },
+  "entryNotFound": "This entry is no longer available.",
+  "@entryNotFound": {
+    "description": "SAL-41: Write refused: no such entry (404)."
+  },
+  "doseHeading": "Dose (optional)",
+  "@doseHeading": {
+    "description": "SAL-41: Medication form heading."
+  },
+  "doseAmount": "Amount",
+  "@doseAmount": {
+    "description": "SAL-41: Medication form: the dose's number."
+  },
+  "doseUnit": "Unit",
+  "@doseUnit": {
+    "description": "SAL-41: Medication form: the dose's unit."
+  },
+  "unitMg": "milligrams (mg)",
+  "@unitMg": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitG": "grams (g)",
+  "@unitG": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitUg": "micrograms (µg)",
+  "@unitUg": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitMl": "millilitres (mL)",
+  "@unitMl": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitIu": "international units (IU)",
+  "@unitIu": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitTablet": "tablets",
+  "@unitTablet": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitCapsule": "capsules",
+  "@unitCapsule": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitDrop": "drops",
+  "@unitDrop": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitPuff": "puffs (inhaler)",
+  "@unitPuff": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "unitPatch": "patches",
+  "@unitPatch": {
+    "description": "SAL-41: Dose unit choice."
+  },
+  "doseBoth": "Enter both the amount and the unit, or neither.",
+  "@doseBoth": {
+    "description": "SAL-41: Medication form: only one part of the dose."
+  },
+  "numberAboveZero": "Enter a number above 0.",
+  "@numberAboveZero": {
+    "description": "SAL-41: A number field: 0 or less."
+  },
+  "howOftenHeading": "How often (optional)",
+  "@howOftenHeading": {
+    "description": "SAL-41: Medication form heading."
+  },
+  "timesLabel": "Times",
+  "@timesLabel": {
+    "description": "SAL-41: Medication form: how many times per period."
+  },
+  "everyLabel": "Every",
+  "@everyLabel": {
+    "description": "SAL-41: Medication form: the period's number."
+  },
+  "periodUnitLabel": "Unit of time",
+  "@periodUnitLabel": {
+    "description": "SAL-41: Medication form: the period's unit."
+  },
+  "periodHours": "hours",
+  "@periodHours": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "periodDays": "days",
+  "@periodDays": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "periodWeeks": "weeks",
+  "@periodWeeks": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "periodMonths": "months",
+  "@periodMonths": {
+    "description": "SAL-41: Unit of time choice."
+  },
+  "howOftenAll": "Fill in all three, or leave them empty.",
+  "@howOftenAll": {
+    "description": "SAL-41: Medication form: how often only partly filled in."
+  },
+  "asNeeded": "As needed",
+  "@asNeeded": {
+    "description": "SAL-41: Medication form checkbox and card line."
+  },
+  "medicationActive": "Taking it now",
+  "@medicationActive": {
+    "description": "SAL-41: Medication status."
+  },
+  "medicationStopped": "Stopped",
+  "@medicationStopped": {
+    "description": "SAL-41: Medication status."
+  },
+  "doseMg": "{value} mg",
+  "@doseMg": {
+    "description": "SAL-41: A dose; value is the number written for the language.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseG": "{value} g",
+  "@doseG": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseUg": "{value} µg",
+  "@doseUg": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseMl": "{value} mL",
+  "@doseMl": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseIu": "{value} IU",
+  "@doseIu": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseTablet": "{count, plural, one{{value} tablet} other{{value} tablets}}",
+  "@doseTablet": {
+    "description": "SAL-41: A dose; count is the number, value the number written for the language.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseCapsule": "{count, plural, one{{value} capsule} other{{value} capsules}}",
+  "@doseCapsule": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseDrop": "{count, plural, one{{value} drop} other{{value} drops}}",
+  "@doseDrop": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "dosePuff": "{count, plural, one{{value} puff} other{{value} puffs}}",
+  "@dosePuff": {
+    "description": "SAL-41: A dose (inhaler).",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "dosePatch": "{count, plural, one{{value} patch} other{{value} patches}}",
+  "@dosePatch": {
+    "description": "SAL-41: A dose.",
+    "placeholders": {
+      "count": {
+        "type": "num"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "doseLine": "Dose: {dose}",
+  "@doseLine": {
+    "description": "SAL-41: Medication card; the dose (doseMg...).",
+    "placeholders": {
+      "dose": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenPerHour": "{frequency}× an hour",
+  "@howOftenPerHour": {
+    "description": "SAL-41: Medication card: how many times per hour.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenPerDay": "{frequency}× a day",
+  "@howOftenPerDay": {
+    "description": "SAL-41: Medication card: how many times per day.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenPerWeek": "{frequency}× a week",
+  "@howOftenPerWeek": {
+    "description": "SAL-41: Medication card: how many times per week.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenPerMonth": "{frequency}× a month",
+  "@howOftenPerMonth": {
+    "description": "SAL-41: Medication card: how many times per month.",
+    "placeholders": {
+      "frequency": {
+        "type": "int"
+      }
+    }
+  },
+  "howOftenEveryHours": "{period, plural, one{{frequency}× every {every} hour} other{{frequency}× every {every} hours}}",
+  "@howOftenEveryHours": {
+    "description": "SAL-41: Medication card: times per a period other than 1; every is the period written for the language.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenEveryDays": "{period, plural, one{{frequency}× every {every} day} other{{frequency}× every {every} days}}",
+  "@howOftenEveryDays": {
+    "description": "SAL-41: As howOftenEveryHours.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenEveryWeeks": "{period, plural, one{{frequency}× every {every} week} other{{frequency}× every {every} weeks}}",
+  "@howOftenEveryWeeks": {
+    "description": "SAL-41: As howOftenEveryHours.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
+  "howOftenEveryMonths": "{period, plural, one{{frequency}× every {every} month} other{{frequency}× every {every} months}}",
+  "@howOftenEveryMonths": {
+    "description": "SAL-41: As howOftenEveryHours.",
+    "placeholders": {
+      "period": {
+        "type": "num"
+      },
+      "frequency": {
+        "type": "int"
+      },
+      "every": {
+        "type": "String"
+      }
+    }
+  },
   "myHistory": "My history",
   "@myHistory": {
     "description": "SAL-39: the home screen button and the title of the patient's history across every clinic."

@@ -6,6 +6,7 @@ import 'package:salus_api/api.dart';
 
 import 'booking.dart';
 import 'call.dart';
+import 'chat.dart';
 import 'files.dart';
 import 'home_screen.dart';
 import 'l10n/app_localizations.dart';
@@ -32,6 +33,7 @@ class SalusApp extends StatefulWidget {
     super.key,
     required this.session,
     required this.booking,
+    this.chats,
     required this.now,
     required this.media,
     required this.files,
@@ -42,6 +44,10 @@ class SalusApp extends StatefulWidget {
 
   final Session session;
   final Booking booking;
+
+  /// The patient's conversations (lib/chat_client.dart); null in the tests that do not need them, which leaves the
+  /// home screen without its Messages entry.
+  final Chats? chats;
 
   /// The clock, injected so tests fix it.
   final DateTime Function() now;
@@ -215,6 +221,7 @@ class _SalusAppState extends State<SalusApp> {
       _Screen.home => HomeScreen(
         session: session,
         booking: widget.booking,
+        chats: widget.chats,
         now: widget.now,
         media: widget.media,
         files: widget.files,

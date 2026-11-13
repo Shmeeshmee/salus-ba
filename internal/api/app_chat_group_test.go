@@ -31,7 +31,7 @@ func newGroupConsult(t *testing.T) groupConsult {
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
 	logs := &syncBuffer{}
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.NewJSONHandler(logs, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

@@ -15,6 +15,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/riverqueue/river"
 
+	"github.com/Shmeeshmee/salus/internal/allergyintolerance"
 	"github.com/Shmeeshmee/salus/internal/api/router"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -26,6 +27,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/history"
+	"github.com/Shmeeshmee/salus/internal/medicationstatement"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
@@ -62,8 +64,9 @@ const minRateLimitKey = 32
 
 // New connects to the dependencies and builds the handler; lk is the video server (config.LoadLiveKit), files
 // the object store and the key-encryption key of the questionnaire attachments (config.LoadObjectStore), drafter
-// the language model that drafts documents (config.LoadLLM's engine).
-func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, drafter llm.Drafter, log *slog.Logger) (*App, error) {
+// the language model that drafts documents (config.LoadLLM's engine), summarizer the one that summarises a long chat
+// (config.LoadChatSummary's: the fake).
+func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config.ObjectStore, drafter llm.Drafter, summarizer llm.Summarizer, log *slog.Logger) (*App, error) {
 	k, err := checkKeys(cfg, files)
 	if err != nil {
 		return nil, err
@@ -110,8 +113,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		kek:   kek,
 	}, fhirBase, log)
 	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
-		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active}, log)
-	chatNotifications := chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)
+		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active, summarizer: summarizer}, log)
+	entries := newProfileEntries(profilePorts{pool, audit, tx, consents, appointmentRepo, roles, encounters, accounts, patients}, fhirBase, log)
 	h := router.New(router.Config{
 		Logger:  log,
 		Checks:  readiness(pool, rdb),
@@ -134,7 +137,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			history.NewHTTPHandler(history.NewService(history.Ports{Visits: encounters, Documents: documents, Responses: timeline.Responses, Files: timeline.Files, Clinics: clinics, Roles: roles, Audit: audit, Tx: tx}), appointmentCaller(accounts, patients), log).Routes,
-		}, append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), chatNotifications...)...),
+		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
@@ -160,6 +163,47 @@ func connect(ctx context.Context, cfg config.Config) (*pgxpool.Pool, *goredis.Cl
 		return nil, nil, nil, err
 	}
 	return pool, rdb, jobs, nil
+}
+
+// profilePorts are what the allergies and the medications of the patient's profile are built on.
+type profilePorts struct {
+	pool         *pgxpool.Pool
+	audit        *auditevent.Service
+	tx           *postgres.Transactor
+	consents     *consent.Service
+	appointments appointment.Repository
+	roles        *practitionerrole.Service
+	encounters   *encounter.Service
+	accounts     *auth.Service
+	patients     *patient.Service
+}
+
+// profileEntries are the allergies and the current medications of the patient's profile (SAL-41,
+// docs/plans/patient-history.md), which the history reads through their Seen, and their routes.
+type profileEntries struct {
+	allergies   *allergyintolerance.Service
+	medications *medicationstatement.Service
+	routes      []func(*http.ServeMux)
+}
+
+// newProfileEntries builds the profileEntries.
+func newProfileEntries(p profilePorts, fhirBase string, log *slog.Logger) profileEntries {
+	visits, caller := appointment.NewFacts(p.appointments), appointmentCaller(p.accounts, p.patients)
+	terms := terminology.NewService(terminology.NewPostgresRepository(p.pool), uiLanguage(p.accounts))
+	allergies := allergyintolerance.NewService(allergyintolerance.Ports{
+		Repo: allergyintolerance.NewPostgresRepository(p.pool), Consents: p.consents, Visits: visits, Roles: p.roles,
+		Encounters: p.encounters, Terms: terms, Audit: p.audit, Tx: p.tx, Clock: clock.System{},
+	})
+	medications := medicationstatement.NewService(medicationstatement.Ports{
+		Repo: medicationstatement.NewPostgresRepository(p.pool), Consents: p.consents, Visits: visits, Roles: p.roles,
+		Encounters: p.encounters, Terms: terms, Audit: p.audit, Tx: p.tx, Clock: clock.System{},
+	})
+	return profileEntries{allergies: allergies, medications: medications, routes: []func(*http.ServeMux){
+		allergyintolerance.NewHTTPHandler(allergies, caller, log).Routes,
+		allergyintolerance.NewFHIRHandler(allergies, caller, fhirBase, log).Routes,
+		medicationstatement.NewHTTPHandler(medications, caller, log).Routes,
+		medicationstatement.NewFHIRHandler(medications, caller, fhirBase, log).Routes,
+	}}
 }
 
 // readiness are the dependencies /readyz pings.

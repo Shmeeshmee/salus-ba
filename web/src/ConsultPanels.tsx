@@ -1,6 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode } from 'react'
 import type { ConsultActions, ConsultMessage, ConsultState, End, SuggestionEvent, TranscriptEvent } from './consult'
+import { AllergyWarning } from './AllergiesPanel'
 import { Documents } from './Documents'
+import type { PatientEntries } from './entries'
 import { useFormat, useT } from './i18n/useT'
 import { TermList, TermText } from './terminology/Explain'
 import { explained, useExplain } from './terminology/terms'
@@ -54,7 +56,7 @@ export function Captions({ caption }: { caption?: TranscriptEvent }) {
   )
 }
 
-type Tab = 'transcript' | 'suggestions' | 'documents'
+type Tab = 'transcript' | 'suggestions' | 'documents' | 'entries'
 
 type SideProps = {
   appointmentId: string
@@ -63,19 +65,22 @@ type SideProps = {
   actions: ConsultActions
   zone: string
   end?: End
+  // entries are the patient's allergies, warned of above the drafting editor (shown, never sent: ADR 0014 "No AI"),
+  // and the panel of their allergies and medications, a tab of its own (SAL-41). Without them neither is shown.
+  entries?: { state: PatientEntries; panel: ReactNode }
 }
 
 // ConsultSide is the panel beside the video. A suggestion's or a field's sources open the transcript at
 // those lines, highlighted. Every tab stays mounted, so the transcript keeps its scroll while hidden.
-export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end }: SideProps) {
+export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end, entries }: SideProps) {
   const t = useT()
   const { number } = useFormat()
   const id = useId()
   const [tab, setTab] = useState<Tab>('transcript')
   const [cited, setCited] = useState<{ ids: string[]; at: number }>({ ids: [], at: 0 })
   const active = state.suggestions.filter((s) => s.status !== 'dismissed').length
-  const tabs: Tab[] = ['transcript', 'suggestions', 'documents']
-  const label = { transcript: 'tabTranscript', suggestions: 'tabSuggestions', documents: 'tabDocuments' } as const
+  const tabs: Tab[] = entries ? ['transcript', 'suggestions', 'documents', 'entries'] : ['transcript', 'suggestions', 'documents']
+  const label = { transcript: 'consultation.live.tabTranscript', suggestions: 'consultation.live.tabSuggestions', documents: 'consultation.live.tabDocuments', entries: 'allergies.tab' } as const
 
   function show(ids: string[]) {
     setTab('transcript')
@@ -115,7 +120,7 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
             tabIndex={tab === name ? 0 : -1}
             onClick={() => setTab(name)}
           >
-            {t(`consultation.live.${label[name]}`)}
+            {t(label[name])}
             {name === 'suggestions' && active > 0 && (
               <>
                 {' '}
@@ -132,8 +137,14 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
         <Suggestions suggestions={state.suggestions} dispatch={dispatch} actions={actions} onSources={show} />
       </div>
       <div className="side-panel" role="tabpanel" id={`${id}-documents`} aria-labelledby={`${id}-documents-tab`} hidden={tab !== 'documents'}>
+        {entries && <AllergyWarning entries={entries.state} />}
         <Documents appointmentId={appointmentId} drafts={state.drafts} dispatch={dispatch} actions={actions} onSources={show} />
       </div>
+      {entries && (
+        <div className="side-panel" role="tabpanel" id={`${id}-entries`} aria-labelledby={`${id}-entries-tab`} hidden={tab !== 'entries'}>
+          {entries.panel}
+        </div>
+      )}
     </aside>
   )
 }

@@ -93,3 +93,10 @@ type Seen struct {
 	MedicationStatement
 	Attributed bool
 }
+
+// EntryWritten is the answer to a write (api/openapi.yaml EntryWritten): the entry's id and its version, which its
+// ETag repeats; the entry itself is read through the FHIR API.
+type EntryWritten struct {
+	ID        string `json:"id"`
+	VersionID string `json:"versionId"`
+}

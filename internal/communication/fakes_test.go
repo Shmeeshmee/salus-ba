@@ -18,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
@@ -73,6 +74,7 @@ type fixture struct {
 	repo    *fakeRepo
 	audit   *fakeAudit
 	pub     *fakePublisher
+	sum     *llmtest.Summarizer
 	jobs    *fakeJobs
 	clock   *testClock
 	sal30   sal30Fakes                // the files, terms, languages and presence (SAL-30)
@@ -92,7 +94,7 @@ func newFixture(t *testing.T) *fixture {
 func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.Transactor) *fixture {
 	t.Helper()
 	f := &fixture{
-		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, jobs: &fakeJobs{}, clock: &testClock{t: start},
+		repo: newFakeRepo(), audit: &fakeAudit{}, pub: &fakePublisher{}, jobs: &fakeJobs{}, sum: &llmtest.Summarizer{}, clock: &testClock{t: start},
 		consent: map[string]access.Consent{patientA + clinicA: {Active: true}},
 		visits:  map[string][]access.Visit{patientA + clinicA: {{PractitionerRole: roleA1, Start: start.Add(-48 * time.Hour)}}},
 		chat:    map[string]bool{},
@@ -104,7 +106,7 @@ func newFixtureOn(t *testing.T, repo communication.Repository, tx communication.
 	f.sal30 = newSAL30Fakes(f, tx)
 	f.svc = communication.NewService(communication.Ports{
 		Repo: repo, Publisher: f.pub, Consents: fakeConsents{f}, Visits: fakeVisits{f}, Roles: fakeRoles{},
-		Encounters: fakeEncounters{}, ChatConsents: fakeChatConsents{f}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock,
+		Encounters: fakeEncounters{}, ChatConsents: fakeChatConsents{f}, Directory: fakeDirectory{}, Audit: f.audit, Tx: tx, Clock: f.clock, Summarizer: f.sum,
 		Jobs:  f.jobs,
 		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Files: f.sal30.files, Terms: f.sal30.terms, Languages: f.sal30.languages, Presence: f.sal30.presence,

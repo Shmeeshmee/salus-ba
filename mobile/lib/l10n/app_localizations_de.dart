@@ -1073,6 +1073,610 @@ class AppLocalizationsDe extends AppLocalizations {
   String get termClose => 'Schließen';
 
   @override
+  String get chatsTitle => 'Nachrichten';
+
+  @override
+  String get chatsEmpty => 'Sie haben noch keine Unterhaltungen.';
+
+  @override
+  String chatUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ungelesene Nachrichten',
+      one: '$count ungelesene Nachricht',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDoctorUnknown => 'Ihr Behandler';
+
+  @override
+  String get chatMessageHint => 'Nachricht schreiben';
+
+  @override
+  String get chatSend => 'Senden';
+
+  @override
+  String get chatAttach => 'Datei hinzufügen';
+
+  @override
+  String get chatSendFailed =>
+      'Die Nachricht wurde nicht gesendet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.';
+
+  @override
+  String get chatFileRejected => 'Diese Datei wurde nicht angenommen.';
+
+  @override
+  String get chatFileRemove => 'Datei entfernen';
+
+  @override
+  String chatTooManyFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Sie haben bereits $count Dateien, die auf das Senden warten. Nicht gesendete Dateien werden nach 24 Stunden entfernt; versuchen Sie es später erneut.',
+      one:
+          'Sie haben bereits $count Datei, die auf das Senden wartet. Nicht gesendete Dateien werden nach 24 Stunden entfernt; versuchen Sie es später erneut.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatOpenFailed =>
+      'Die Datei konnte nicht geöffnet werden. Versuchen Sie es erneut.';
+
+  @override
+  String get chatEndedSession =>
+      'Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um neue Nachrichten zu sehen.';
+
+  @override
+  String get chatEnded =>
+      'Neue Nachrichten können in dieser Unterhaltung nicht mehr angezeigt werden.';
+
+  @override
+  String get chatHours => 'Erreichbarkeit für Nachrichten';
+
+  @override
+  String chatHoursDay(String day, String start, String end) {
+    return '$day: $start–$end';
+  }
+
+  @override
+  String get chatHoursNone =>
+      'Die Klinik hat keine Zeiten für Nachrichten festgelegt.';
+
+  @override
+  String chatHoursZone(String zone) {
+    return 'Die Zeiten gelten in der Zeitzone der Klinik, $zone.';
+  }
+
+  @override
+  String chatResponseTime(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other: 'Die Klinik antwortet in der Regel innerhalb von $hours Stunden.',
+      one: 'Die Klinik antwortet in der Regel innerhalb von $hours Stunde.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatOutOfHours(int hours) {
+    String _temp0 = intl.Intl.pluralLogic(
+      hours,
+      locale: localeName,
+      other:
+          'Die Klinik ist gerade außerhalb ihrer Zeiten für Nachrichten. Sie können trotzdem schreiben; sie antwortet in der Regel innerhalb von $hours Stunden.',
+      one:
+          'Die Klinik ist gerade außerhalb ihrer Zeiten für Nachrichten. Sie können trotzdem schreiben; sie antwortet in der Regel innerhalb von $hours Stunde.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemInvited(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ein Behandler einer anderen Klinik wurde für eine Zweitmeinung zu dieser Unterhaltung eingeladen.',
+      'specialist_review': 'Ein Behandler einer anderen Klinik wurde für eine fachärztliche Beurteilung zu dieser Unterhaltung eingeladen.',
+      'handover': 'Ein Behandler einer anderen Klinik wurde zu dieser Unterhaltung eingeladen, um die Behandlung zu übernehmen.',
+      'other': 'Ein Behandler einer anderen Klinik wurde zu dieser Unterhaltung eingeladen.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatSystemAdded(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ein Behandler ist der Unterhaltung für eine Zweitmeinung beigetreten.',
+      'specialist_review': 'Ein Behandler ist der Unterhaltung für eine fachärztliche Beurteilung beigetreten.',
+      'handover': 'Ein Behandler ist der Unterhaltung beigetreten, um die Behandlung zu übernehmen.',
+      'other': 'Ein Behandler ist der Unterhaltung beigetreten.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatSystemRemoved =>
+      'Ein Behandler nimmt nicht mehr an der Unterhaltung teil.';
+
+  @override
+  String get chatSystemGranted =>
+      'Sie haben einem Behandler einer anderen Klinik erlaubt, der Unterhaltung beizutreten.';
+
+  @override
+  String get chatSystemDeclined =>
+      'Sie haben einen Behandler einer anderen Klinik abgelehnt.';
+
+  @override
+  String get chatSystemOther => 'Die Unterhaltung wurde aktualisiert.';
+
+  @override
+  String get chatInviteTitle =>
+      'Ein Behandler einer anderen Klinik möchte teilnehmen';
+
+  @override
+  String chatInviteBody(String reason) {
+    String _temp0 = intl.Intl.selectLogic(reason, {
+      'second_opinion': 'Ihre Klinik möchte einen Behandler einer anderen Klinik für eine Zweitmeinung zu dieser Unterhaltung hinzuziehen.',
+      'specialist_review': 'Ihre Klinik möchte einen Behandler einer anderen Klinik für eine fachärztliche Beurteilung zu dieser Unterhaltung hinzuziehen.',
+      'handover': 'Ihre Klinik möchte einen Behandler einer anderen Klinik zu dieser Unterhaltung hinzuziehen, der Ihre Behandlung übernimmt.',
+      'other': 'Ihre Klinik möchte einen Behandler einer anderen Klinik zu dieser Unterhaltung hinzuziehen.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String chatInviteWho(String doctor, String clinic) {
+    return 'Behandler: $doctor, $clinic';
+  }
+
+  @override
+  String get chatInviteUnresolved =>
+      'Name und Klinik des eingeladenen Behandlers konnten nicht geladen werden. Sie können den Zugang erst gewähren, wenn sie angezeigt werden.';
+
+  @override
+  String chatInviteSees(String history) {
+    String _temp0 = intl.Intl.selectLogic(history, {
+      'full': 'Wenn Sie zustimmen, sieht der Behandler die ganze Unterhaltung, auch die früheren Nachrichten, und kann darin schreiben.',
+      'from': 'Wenn Sie zustimmen, sieht der Behandler die Unterhaltung ab einer Nachricht, die Ihre Klinik gewählt hat, und kann darin schreiben.',
+      'other': 'Wenn Sie zustimmen, sieht der Behandler die Unterhaltung und kann darin schreiben.',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get chatInviteChoice =>
+      'Sie können ablehnen. Wenn Sie zustimmen, können Sie den Zugang später in dieser Unterhaltung widerrufen; er endet sofort.';
+
+  @override
+  String get chatGrant => 'Zugang gewähren';
+
+  @override
+  String get chatDecline => 'Ablehnen';
+
+  @override
+  String get chatGranted =>
+      'Zugang gewährt. Sie können ihn jederzeit in dieser Unterhaltung widerrufen.';
+
+  @override
+  String get chatDeclined =>
+      'Abgelehnt. Der Behandler nimmt nicht an dieser Unterhaltung teil.';
+
+  @override
+  String get chatRevoke =>
+      'Zugang des Behandlers der anderen Klinik widerrufen';
+
+  @override
+  String chatGrantedTo(String doctor, String clinic) {
+    return 'Zugang gewährt: $doctor, $clinic.';
+  }
+
+  @override
+  String get chatGrantedToUnknown =>
+      'Zugang einem Behandler einer anderen Klinik gewährt.';
+
+  @override
+  String get chatRevokeBody =>
+      'Der Behandler der anderen Klinik verliert sofort den Zugang zu dieser Unterhaltung. Die bereits geschriebenen Nachrichten bleiben darin.';
+
+  @override
+  String get chatRevokeConfirm => 'Zugang widerrufen';
+
+  @override
+  String get chatRevoked => 'Zugang widerrufen.';
+
+  @override
+  String get allergies => 'Allergien';
+
+  @override
+  String get currentMedications => 'Aktuelle Medikamente';
+
+  @override
+  String get allergiesIntro =>
+      'Kliniken, denen Sie Ihre Einwilligung erteilt haben, sehen die Allergien in Ihrem Profil, wenn Sie dort einen Termin haben.';
+
+  @override
+  String get medicationsIntro =>
+      'Kliniken, denen Sie Ihre Einwilligung erteilt haben, sehen die Medikamente in Ihrem Profil, wenn Sie dort einen Termin haben.';
+
+  @override
+  String get noAllergies => 'Sie haben noch keine Allergien hinzugefügt.';
+
+  @override
+  String get noMedications => 'Sie haben noch keine Medikamente hinzugefügt.';
+
+  @override
+  String get addAllergy => 'Allergie hinzufügen';
+
+  @override
+  String get addMedication => 'Medikament hinzufügen';
+
+  @override
+  String get changeAllergy => 'Allergie ändern';
+
+  @override
+  String get changeMedication => 'Medikament ändern';
+
+  @override
+  String get change => 'Ändern';
+
+  @override
+  String get allergySubstance => 'Stoff oder Lebensmittel';
+
+  @override
+  String get medicationName => 'Medikament';
+
+  @override
+  String get termSearchHint =>
+      'Tippen Sie, um zu suchen, oder schreiben Sie es in eigenen Worten.';
+
+  @override
+  String get allergyCategory => 'Art (optional)';
+
+  @override
+  String get notSpecified => 'Keine Angabe';
+
+  @override
+  String get categoryFood => 'Lebensmittel';
+
+  @override
+  String get categoryMedication => 'Medikament';
+
+  @override
+  String get categoryEnvironment => 'Umwelt';
+
+  @override
+  String get categoryBiologic => 'Biologisches Produkt';
+
+  @override
+  String get reactionOptional => 'Reaktion (optional)';
+
+  @override
+  String get severity => 'Schweregrad';
+
+  @override
+  String get severityMild => 'Leicht';
+
+  @override
+  String get severityModerate => 'Mittel';
+
+  @override
+  String get severitySevere => 'Schwer';
+
+  @override
+  String get entryStatus => 'Status';
+
+  @override
+  String get allergyActive => 'Aktiv';
+
+  @override
+  String get allergyInactive => 'Inaktiv';
+
+  @override
+  String get allergyResolved => 'Abgeklungen';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Reaktion: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Reaktion: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Ärztlich bestätigt';
+
+  @override
+  String get recordedByClinic =>
+      'Von einer Klinik bei einem Ihrer Termine erfasst';
+
+  @override
+  String get confirmedChangeNote =>
+      'Wenn Sie diesen Eintrag ändern, ist er nicht mehr ärztlich bestätigt.';
+
+  @override
+  String get nameRequired =>
+      'Geben Sie einen Namen mit höchstens 200 Zeichen ein.';
+
+  @override
+  String get addToProfile => 'Zu meinem Profil hinzufügen';
+
+  @override
+  String get addToProfileTitle => 'Zu Ihrem Profil hinzufügen?';
+
+  @override
+  String get addToProfileBody =>
+      'Dann sieht ihn jede Klinik, der Sie Ihre Einwilligung erteilt haben, ohne den Namen der Klinik, die ihn erfasst hat.';
+
+  @override
+  String get addedToProfile => 'Der Eintrag ist jetzt in Ihrem Profil.';
+
+  @override
+  String get removeEntryTitle => 'Diesen Eintrag entfernen?';
+
+  @override
+  String get removeEntryBody =>
+      'Er wird weder Ihnen noch einer Klinik mehr angezeigt. Hat eine Klinik ihn erfasst oder bestätigt, bleibt er in Ihrer Patientenakte, als entfernt markiert.';
+
+  @override
+  String get entryRemoved => 'Der Eintrag ist entfernt.';
+
+  @override
+  String get entrySaved => 'In Ihrem Profil gespeichert.';
+
+  @override
+  String get entryChanged =>
+      'Dieser Eintrag wurde inzwischen geändert. Angezeigt wird die neueste Fassung.';
+
+  @override
+  String get entryInvalid =>
+      'Einige Angaben sind ungültig. Prüfen Sie sie und versuchen Sie es erneut.';
+
+  @override
+  String get entryNotAllowed => 'Sie können diesen Eintrag nicht ändern.';
+
+  @override
+  String get entryNotFound => 'Dieser Eintrag ist nicht mehr verfügbar.';
+
+  @override
+  String get doseHeading => 'Dosis (optional)';
+
+  @override
+  String get doseAmount => 'Menge';
+
+  @override
+  String get doseUnit => 'Einheit';
+
+  @override
+  String get unitMg => 'Milligramm (mg)';
+
+  @override
+  String get unitG => 'Gramm (g)';
+
+  @override
+  String get unitUg => 'Mikrogramm (µg)';
+
+  @override
+  String get unitMl => 'Milliliter (ml)';
+
+  @override
+  String get unitIu => 'Internationale Einheiten (I.E.)';
+
+  @override
+  String get unitTablet => 'Tabletten';
+
+  @override
+  String get unitCapsule => 'Kapseln';
+
+  @override
+  String get unitDrop => 'Tropfen';
+
+  @override
+  String get unitPuff => 'Hübe (Inhalator)';
+
+  @override
+  String get unitPatch => 'Pflaster';
+
+  @override
+  String get doseBoth =>
+      'Geben Sie Menge und Einheit an oder keines von beiden.';
+
+  @override
+  String get numberAboveZero => 'Geben Sie eine Zahl über 0 ein.';
+
+  @override
+  String get howOftenHeading => 'Wie oft (optional)';
+
+  @override
+  String get timesLabel => 'Mal';
+
+  @override
+  String get everyLabel => 'Alle';
+
+  @override
+  String get periodUnitLabel => 'Zeiteinheit';
+
+  @override
+  String get periodHours => 'Stunden';
+
+  @override
+  String get periodDays => 'Tage';
+
+  @override
+  String get periodWeeks => 'Wochen';
+
+  @override
+  String get periodMonths => 'Monate';
+
+  @override
+  String get howOftenAll =>
+      'Füllen Sie alle drei Felder aus oder lassen Sie sie leer.';
+
+  @override
+  String get asNeeded => 'Bei Bedarf';
+
+  @override
+  String get medicationActive => 'Nehme ich derzeit';
+
+  @override
+  String get medicationStopped => 'Abgesetzt';
+
+  @override
+  String doseMg(String value) {
+    return '$value mg';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value g';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µg';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value ml';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value I.E.';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value Tabletten',
+      one: '$value Tablette',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value Kapseln',
+      one: '$value Kapsel',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value Tropfen',
+      one: '$value Tropfen',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value Hübe',
+      one: '$value Hub',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value Pflaster',
+      one: '$value Pflaster',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Dosis: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return '$frequency× pro Stunde';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return '$frequency× täglich';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return '$frequency× pro Woche';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return '$frequency× pro Monat';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× alle $every Stunden',
+      one: '$frequency× alle $every Stunde',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× alle $every Tage',
+      one: '$frequency× alle $every Tag',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× alle $every Wochen',
+      one: '$frequency× alle $every Woche',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× alle $every Monate',
+      one: '$frequency× alle $every Monat',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get myHistory => 'Mein Verlauf';
 
   @override
