@@ -69,10 +69,21 @@ Decisions within the plan:
 Measurements: none taken; the plan asks no benchmark of SAL-41 (`Seen` is one indexed read by patient, then the
 consent state and the clinic's appointments).
 
-Open: Provenance for the clinical writes (`Record`, `Confirm`, a clinic's `Update` and `Remove`) is not written yet:
-how to store it (composition keeps one Provenance id on its row; an entry has several clinical writes, and
-`GET /fhir/R4/Provenance/{id}` is composition's route) was put to the owner, who decided (2026-11-13) that it comes in a follow-up PR after
-SAL-41 merges.
+Open item closed (follow-up PR, branch `fix-entry-provenance`, migration 00053, 2026-11-13): Provenance for the
+clinical writes. A practitioner's `Record` (CREATE, agent author), `Update` (UPDATE, author), `Confirm` (UPDATE,
+verifier) and `Remove` (NULLIFY, author: kept as entered-in-error) append one FHIR Provenance in the write's
+transaction, audited: target the entry's version written, agent the PractitionerRole on behalf of its Organization,
+for a change the revised version as an entity (v3-DataOperation, provenance-participant-type). The patient's own
+writes write none: patient-reported, the entry names the patient as its source and the AuditEvent records who did
+what. Stored append-only in `allergy_intolerance_provenance` and `medication_statement_provenance`, one per entry
+table, owned by the entry's domain (retention `keep`, with the entry; `ON DELETE CASCADE` when the patient deletes
+their own unconfirmed entry). Row-level security: the patient's scope those of their entries, a clinic's scope only
+its own Provenances of entries it sees, so another clinic never learns the recording or confirming clinic (ADR 0014,
+`access.Attributed`, also the service's rule); a clinic inserts only its own, at the entry's current version. No
+policy reads back into these tables. `GET /fhir/R4/Provenance/{id}`: one route, several sources, declared in the
+router (`Config.Provenances`, asked in turn): the entries' sources answer only ids in their store (nothing audited
+otherwise), composition's signatures last (it audits any id). Composition's store is unchanged. No search or
+`_revinclude` (the CapabilityStatement's Provenance read documents both sources).
 
 Copy waiting for the owner:
 
