@@ -42,6 +42,8 @@ function renderDetail(account: Account, routes: Record<string, Route>, now = aft
     ...clinicRoute,
     [statusGet]: () => apiError(404, 'not_found'),
     [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
+    [`GET /patients/${patientId}/history`]: () => Response.json({ items: [] }),
+    [`GET /patients/${patientId}/history/summary`]: () => Response.json({ allergies: [], medications: [], openItems: [] }),
     ...routes,
   })
   renderInLanguage(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />, language)
@@ -147,7 +149,8 @@ describe('AppointmentDetail', () => {
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
 
     expect(await screen.findByText('Fulfilled')).toBeTruthy()
-    expect(screen.queryByRole('button')).toBeNull()
+    // Only the history's toggle, which opens a view, not an action on the appointment.
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history'])
   })
 
   it.each([
@@ -290,6 +293,42 @@ describe('AppointmentDetail', () => {
       await screen.findByRole('button', { name: 'Mark fulfilled' })
       await vi.waitFor(() => expect(screen.queryByText('Loading')).toBeNull())
       expect(screen.queryByRole('region', { name: 'Consultation' })).toBeNull()
+    })
+  })
+
+  describe("the patient's history", () => {
+    const routes = { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') }
+
+    it("opens for the appointment's own practitioner on request, with the summary for this appointment", async () => {
+      const fake = renderDetail(practitioner, routes)
+
+      // Read (and audited) only once asked for: opening the booking does not read the history.
+      fireEvent.click(await screen.findByRole('button', { name: 'Show history' }))
+      expect(await screen.findByRole('region', { name: 'Patient history' })).toBeTruthy()
+      expect(await screen.findByText('No history to show')).toBeTruthy()
+      const summary = fake.requests.map((r) => new URL(r.url)).find((u) => u.pathname === `/patients/${patientId}/history/summary`)
+      expect(summary?.searchParams.get('appointment')).toBe(id)
+      fireEvent.click(screen.getByRole('button', { name: 'Hide history' }))
+      expect(screen.queryByRole('region', { name: 'Patient history' })).toBeNull()
+    })
+
+    it('is not read until asked for', async () => {
+      const fake = renderDetail(practitioner, routes)
+
+      await screen.findByRole('button', { name: 'Show history' })
+      expect(screen.queryByRole('region', { name: 'Patient history' })).toBeNull()
+      expect(paths(fake.requests).some((p) => p.includes('/history'))).toBe(false)
+    })
+
+    it('is not shown to an admin or another practitioner, and not asked for', async () => {
+      for (const account of [admin, { ...practitioner, practitionerId: dee.practitionerId }]) {
+        const fake = renderDetail(account, routes)
+        await screen.findByRole('region', { name: 'Questionnaires' })
+        expect(screen.queryByRole('region', { name: 'Patient history' })).toBeNull()
+        expect(screen.queryByRole('button', { name: 'Show history' })).toBeNull()
+        expect(paths(fake.requests).some((p) => p.includes('/history'))).toBe(false)
+        cleanup()
+      }
     })
   })
 

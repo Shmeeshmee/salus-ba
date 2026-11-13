@@ -2040,3 +2040,33 @@ clinics of the patient's own items only (no personal data in a clinic). Chats ar
 | A draft or another patient's item in the timeline | Each owning domain reads in the patient's scope, filters by the patient and applies its own rule (`access.HistoryVisit`, `access.SignedDocument`, `access.QuestionnaireResponse`, binary's own check); service and repository tests per domain, the e2e journey checks the open draft is absent |
 | A read that is not audited | Every item a source returns is audited by its owning domain in its transaction (an empty source is one event without an entity). Each source is asked for one item more than the page and the page is cut from their merge, so what a source returned past the cut is audited without being shown (the next page shows it, audited again): the record errs towards more, never less |
 | History details in logs or the cursor | The cursor is an opaque date and reference (no personal data beyond the patient's own resource id); the handler logs nothing of the query or the items |
+
+### SAL-40: the practitioner's view and the pre-visit summary (migration 00051)
+
+**Processing added.** No new personal data and no new table: the practitioner's view of the patient's history
+(`GET /patients/{id}/history`) and the pre-visit summary of one of their appointments (`.../history/summary`) read
+what the owning domains already hold, in the web app on the appointment (opened on request) and the call page.
+Migration 00051 adds two `SECURITY DEFINER` lookups. `history_questionnaire` lets a practitioner read the questions of a
+completed response that was shared with their clinic: it returns that questionnaire version only (clinic content, no
+personal data), never another of the other clinic's versions, and nothing of any response.
+`history_confirmed_conditions` says which coded fields of a shared signed document have a confirmed Condition (the
+document and field key only), so a code that was never confirmed (00042's backfill) is not shown as a diagnosis. Both
+answer only a practitioner with an appointment with the patient at the clinic.
+
+**Who sees what.** Only a practitioner of the clinic with an appointment with the patient under an active care
+consent has a view (`access.Profile` at Full, then `access.HistoryVisit` per visit, in `encounter.Service.History`);
+the clinic's admin, the patient and anyone else get 404. The view lists only those visits and what belongs to them;
+a visit that is not shared is in no item, count, summary or empty state. A shared visit's signed documents, completed
+answers, their questions and their clean files open for that practitioner through the same rule; never its drafts.
+
+**Audit.** Every view writes an AuditEvent of the view (the patient as entity, purpose TREAT) and one per item shown,
+by its owning domain, in the same transaction; reading another clinic's shared document or file is audited under the
+reader's clinic, so the visit's clinic is not told whom the patient shared it with.
+
+| Risk | Measure |
+| --- | --- |
+| A colleague's visit or an unshared visit shows in the view, its count or the summary | Filtered by `access.HistoryVisit` before anything is listed (service tests over every viewer; API test on the real database: the unshared visit's ids and diagnosis are nowhere in the answer) |
+| The view outlives a removal or a revocation | It is read anew on every page and every open (API test: after the removal the visit and its document are gone at once) |
+| The questions of another clinic leak beyond the shared response | `history_questionnaire` returns only a version a completed, shared response answers, and only to the receiving clinic's scope and a practitioner there with an appointment with the patient (migration test) |
+| An unconfirmed code reads as a diagnosis | Each coded field carries its label and its Condition's confirmation; an unconfirmed one is marked "Not confirmed" (service, API and migration tests) |
+| An unread allergy list reads as "no allergies" | A failed read marks the section unavailable, never empty; the empty text says "shown to you", since the visit-scoped rule may hide a colleague's entry (service, handler and web tests) |

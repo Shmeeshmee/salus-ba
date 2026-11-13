@@ -325,3 +325,34 @@ func event(interaction string, action auditevent.Action, c Caller, id string, ou
 	}
 	return e
 }
+
+// ScopeNames returns the names of the clinics ids, by id, as the scope of the clinic org shows them (its own, and those
+// of other clinics' visits shared with it: organization_shared), for the history's items; one it does not show is
+// left out. It sets that scope on the transaction in ctx, joining one already there. Not audited: nothing in a
+// clinic is personal data.
+func (s *Service) ScopeNames(ctx context.Context, org string, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if _, done := out[id]; done {
+				continue
+			}
+			o, err := s.repo.ByID(ctx, id)
+			switch {
+			case errors.Is(err, ErrNotFound):
+				continue
+			case err != nil:
+				return err
+			}
+			out[id] = o.Name
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("organization: scope names: %w", err)
+	}
+	return out, nil
+}

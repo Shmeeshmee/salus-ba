@@ -36,6 +36,7 @@ type fakeRepository struct {
 	orgs      map[string]organization.Organization
 	clinic    string   // set by SetOrganization
 	calls     []string // the calls, "outside:" prefixed when made outside a transaction
+	shared    []string // other clinics the scope shows through organization_shared (the history)
 	directory bool     // the public directory scope is set
 }
 
@@ -65,7 +66,7 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (organization.Orga
 		return organization.Organization{}, r.err
 	}
 	o, ok := r.orgs[id]
-	if !ok || id != r.clinic {
+	if !ok || (id != r.clinic && !slices.Contains(r.shared, id)) {
 		return organization.Organization{}, organization.ErrNotFound
 	}
 	return o, nil

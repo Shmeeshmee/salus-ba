@@ -109,10 +109,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		RateLimitKey: cfg.RateLimitKey, Hasher: auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes),
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies).WithFeatures(features(cfg.Analytics))
-	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
+	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners, roles, appointment.NewFacts(appointmentRepo))
 	consultAPI, consultStream, documents := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
 	questionnaireAPI, streams, timeline := questionnaireRoutes(questionnairePorts{
-		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
+		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients, encounters: encounters,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
 	}, fhirBase, log)
@@ -140,8 +140,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-			history.NewHTTPHandler(history.NewService(history.Ports{Visits: encounters, Documents: documents, Responses: timeline.Responses, Files: timeline.Files, Clinics: clinics, Roles: roles, Audit: audit, Tx: tx}), appointmentCaller(accounts, patients), log).Routes,
-		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
@@ -254,9 +253,11 @@ func checkKeys(cfg config.Config, files config.ObjectStore) (keys, error) {
 // and finish it; the first join enqueues the window's close in its transaction.
 func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[pgx.Tx], audit *auditevent.Service, tx *postgres.Transactor,
 	appointments *appointment.Service, consents *consent.Service, patients *patient.Service, practitioners *practitioner.Service,
+	roles *practitionerrole.Service, visits *appointment.Facts,
 ) (*encounter.Service, *videosession.Service) {
 	encounters := encounter.NewService(encounter.Ports{
 		Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Appointments: appointments,
+		Consents: consents, Visits: visits, Roles: roles, // the history's rule (SAL-40)
 	})
 	return encounters, videosession.NewService(videosession.Ports{
 		Repo: videosession.NewPostgresRepository(pool), Provider: videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret),
@@ -283,7 +284,7 @@ type consultPorts struct {
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
 // documents (templates, drafting, signing, the signed PDF and their FHIR reads), for its practitioner; it
 // returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream, and the
-// documents (a source of the patient's timeline).
+// documents (for the history: a source of the patient's timeline and of the practitioner's view).
 func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux), documents *composition.Service) {
 	terms := terminology.NewService(terminology.NewPostgresRepository(p.pool), nil) // the tagging only (SAL-13)
 	transcripts := transcript.NewService(transcript.Ports{
@@ -327,14 +328,16 @@ type questionnairePorts struct {
 	accounts     *auth.Service
 	appointments *appointment.Service
 	patients     *patient.Service
+	encounters   *encounter.Service // a shared visit's responses (the history)
 	store        binary.Store
 	kek          *envelope.KEK
 }
 
 // questionnaireRoutes builds the clinic's questionnaire library, the patients' responses and the files
 // attached to them, and returns their JSON and FHIR routes, and the files' streaming routes. The responses are
-// built first: they are the files' holder (docs/attachments/SPEC.md §2 "Dependency direction"). The responses and
-// the files are sources of the patient's timeline too (timeline).
+// built first: they are the files' holder (docs/attachments/SPEC.md §2 "Dependency direction"). The responses, the
+// files and the questionnaires are sources of the history too (timeline: the patient's timeline and the
+// practitioner's view).
 func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger) (routes, streams []func(*http.ServeMux), timeline history.Ports) {
 	questionnaires := questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, Roles: p.roles,
@@ -342,7 +345,7 @@ func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger
 	})
 	responses := questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: questionnaireresponse.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{},
-		Appointments: p.appointments, Questionnaires: questionnaires,
+		Appointments: p.appointments, Questionnaires: questionnaires, Encounters: p.encounters,
 		Jobs: questionnaireresponse.NewRiverJobs(p.jobs), // a withdrawal or a submit enqueues its files' discard in its transaction
 	})
 	files := binary.NewService(binary.Ports{
@@ -357,7 +360,7 @@ func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger
 		questionnaireresponse.NewHTTPHandler(responses, responseCaller, log).Routes,
 		questionnaireresponse.NewHandler(responses, questionnaires, responseCaller, fhirBase, log).Routes,
 		filesHandler.Routes,
-	}, []func(*http.ServeMux){filesHandler.StreamRoutes}, history.Ports{Responses: responses, Files: files}
+	}, []func(*http.ServeMux){filesHandler.StreamRoutes}, history.Ports{Responses: responses, Files: files, VisitResponses: responses, Questionnaires: questionnaires}
 }
 
 // binaryCaller is the files' view of the signed-in session: the appointment's (who is staff of which clinic

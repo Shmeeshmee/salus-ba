@@ -7022,9 +7022,27 @@ components:
           type: string
           description: The SNOMED CT code of the visit's practitioner role (`/specialties`).
         title: {type: string}
+        questionnaire:
+          type: string
+          format: uuid
+          description: Of a questionnaire response, the Questionnaire version it answers, to read its questions.
+        diagnoses:
+          type: array
+          description: A signed document's filled coded fields, in the template's order.
+          items: {$ref: "#/components/schemas/HistoryDiagnosis"}
         shared:
           type: boolean
           description: For a practitioner, a visit of another clinic the patient shared, and everything of it.
+    HistoryDiagnosis:
+      type: object
+      required: [code, label, confirmed]
+      description: >-
+        A filled coded field of a signed document. Shown as a diagnosis only when confirmed; one signed before coded
+        diagnoses were confirmed (SAL-19) is not. Health data.
+      properties:
+        code: {type: string, description: "ICD-10 (http://hl7.org/fhir/sid/icd-10)", examples: ["J06.9"]}
+        label: {type: string, description: The field's label in the document's template.}
+        confirmed: {type: boolean, description: Whether its Condition is confirmed.}
     HistoryPage:
       type: object
       required: [items]
@@ -7050,6 +7068,12 @@ components:
         openItems:
           type: array
           items: {$ref: "#/components/schemas/OpenItem"}
+        allergiesUnavailable:
+          type: boolean
+          description: The allergies could not be read; the empty list means nothing is known, not none recorded.
+        medicationsUnavailable:
+          type: boolean
+          description: The medications could not be read; the empty list means nothing is known, not none recorded.
     SummaryAllergy:
       type: object
       required: [reference, text, confirmed]

@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { newApiClient } from './api/client'
 import { Captions, ConsultSide } from './ConsultPanels'
 import { captionOf, useConsult } from './consult'
+import { I18nProvider } from './i18n/I18nProvider'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Language } from './i18n/languages'
 import { fakeActions, fakeLive, segment, suggestion } from './test/fakeConsult'
@@ -353,3 +355,69 @@ describe('ConsultPanels: explained terms', () => {
     expect(tip.textContent).toContain('Informational, not a diagnosis · Not reviewed yet')
   })
 })
+
+describe('ConsultPanels: history', () => {
+  function Probe({ refresh, seen }: { refresh: string; seen: (r: string) => void }) {
+    seen(refresh)
+    return <p>Placeholder history</p>
+  }
+
+  type Entries = NonNullable<Parameters<typeof ConsultSide>[0]['entries']>
+
+  function SideWithHistory({ seen, entries }: { seen: (r: string) => void; entries?: Entries }) {
+    const fake = fakeLive()
+    const [state, dispatch] = useConsult(fake.live, id, true)
+    return (
+      <ConsultSide appointmentId={id} state={state} dispatch={dispatch} actions={fakeActions().actions} zone={zone} entries={entries}
+        history={(refresh) => <Probe refresh={refresh} seen={seen} />} />
+    )
+  }
+
+  const entriesOf = (allergies: string[]): Entries => ({
+    state: { failed: false, reload: () => {}, entries: { allergies: allergies.map((text) => ({ id: text, text })) as never, medications: [] } },
+    panel: <p>Placeholder entries</p>,
+  })
+
+  it("has the patient's history as a tab, read only once it is opened", () => {
+    const seen = vi.fn()
+    renderInLanguage(<SideWithHistory seen={seen} />, 'en')
+    expect(seen).not.toHaveBeenCalled()
+    expect(screen.queryByText('Placeholder history')).toBeNull()
+
+    fireEvent.click(tab('History'))
+    expect(screen.getByText('Placeholder history')).toBeTruthy()
+    fireEvent.click(tab('Transcript'))
+    fireEvent.click(tab('History'))
+    expect(screen.getByText('Placeholder history')).toBeTruthy()
+  })
+
+  it('asks the history to read the summary again each time its tab is shown and when the entries change', () => {
+    const seen = vi.fn()
+    const { rerender } = renderInLanguage(<SideWithHistory seen={seen} entries={entriesOf(['Placeholder allergen'])} />, 'en')
+    fireEvent.click(tab('History'))
+    const first = seen.mock.lastCall?.[0]
+    fireEvent.click(tab('Transcript'))
+    fireEvent.click(tab('History'))
+    const second = seen.mock.lastCall?.[0]
+    expect(second).not.toBe(first)
+
+    rerender(inEnglish(<SideWithHistory seen={seen} entries={entriesOf(['Placeholder allergen'])} />))
+    expect(seen.mock.lastCall?.[0]).toBe(second) // the same entries read again: nothing new
+    rerender(inEnglish(<SideWithHistory seen={seen} entries={entriesOf(['Placeholder allergen', 'Placeholder other'])} />))
+    expect(seen.mock.lastCall?.[0]).not.toBe(second)
+  })
+
+  it('has no history tab without one', () => {
+    renderPanels()
+    expect(screen.queryByRole('tab', { name: 'History' })).toBeNull()
+  })
+})
+
+// inEnglish is ui as renderInLanguage wraps it, for a rerender.
+function inEnglish(ui: ReactNode) {
+  return (
+    <I18nProvider initial="en" browser={['en']}>
+      {ui}
+    </I18nProvider>
+  )
+}

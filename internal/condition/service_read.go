@@ -136,3 +136,26 @@ func (s *Reads) allowed(ctx context.Context, c appointment.Caller, id string) (C
 	}
 	return Condition{ID: cond.ID}, cond.OrganizationID, ErrForbidden
 }
+
+// Confirmed returns, by document, the coded fields (key and code) of the signed documents documentIDs whose
+// Condition is confirmed, for the practitioner's view of a patient's history (SAL-40), which has applied access.HistoryVisit to
+// those documents: their clinic's own, and a shared visit's. Read in the caller's clinic scope and unaudited: the
+// documents it qualifies are audited by the history. None for anyone but a practitioner of a clinic.
+func (s *Reads) Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]FieldCode, error) {
+	out := map[string][]FieldCode{}
+	if c.OrganizationID == "" || c.PractitionerID == "" || c.Admin || len(documentIDs) == 0 {
+		return out, nil
+	}
+	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.p.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		var err error
+		out, err = s.p.Repo.Confirmed(ctx, c.OrganizationID, c.PractitionerID, documentIDs)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("condition: confirmed: %w", err)
+	}
+	return out, nil
+}
