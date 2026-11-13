@@ -334,6 +334,28 @@ type ChatConsent struct {
 	Status                     string
 }
 
+type ClinicAppointmentStat struct {
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Day                pgtype.Date
+	Count              int32
+	Hour               int16
+	SpecialtyCode      string
+	Status             string
+}
+
+type ClinicDiagnosisStat struct {
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Day                pgtype.Date
+	Count              int32
+	Hour               int16
+	SpecialtyCode      string
+	GroupCode          string
+	SubgroupCode       pgtype.Text
+	Code               string
+}
+
 type Communication struct {
 	ID                  pgtype.UUID
 	SentAt              pgtype.Timestamptz

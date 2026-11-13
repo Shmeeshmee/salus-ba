@@ -79,3 +79,72 @@ Copy waiting for the owner:
 Mobile (ten languages, `mobile/lib/l10n/app_<language>.arb`): `allergies` Allergies; `currentMedications` Current medications; `allergiesIntro` Clinics you have given your consent to see the allergies in your profile when you have an appointment with them.; `medicationsIntro` Clinics you have given your consent to see the medications in your profile when you have an appointment with them.; `noAllergies` You have not added any allergies.; `noMedications` You have not added any medications.; `addAllergy` Add an allergy; `addMedication` Add a medication; `changeAllergy` Change allergy; `changeMedication` Change medication; `change` Change; `allergySubstance` Substance or food; `medicationName` Medication; `termSearchHint` Type to search, or write it in your own words.; `allergyCategory` Type (optional); `notSpecified` Not specified; `categoryFood` Food; `categoryMedication` Medication; `categoryEnvironment` Environment; `categoryBiologic` Biological product; `reactionOptional` Reaction (optional); `severity` Severity; `severityMild` Mild; `severityModerate` Moderate; `severitySevere` Severe; `entryStatus` Status; `allergyActive` Active; `allergyInactive` Inactive; `allergyResolved` Resolved; `reactionLine` Reaction: {reaction}; `reactionWithSeverity` Reaction: {reaction} ({severity}); `confirmedByClinician` Confirmed by a clinician; `recordedByClinic` Recorded by a clinic during one of your visits; `confirmedChangeNote` If you change this entry, it is no longer confirmed by a clinician.; `nameRequired` Enter a name, up to 200 characters.; `addToProfile` Add to my profile; `addToProfileTitle` Add to your profile?; `addToProfileBody` Every clinic you have given your consent to will then see it, without the name of the clinic that recorded it.; `addedToProfile` It is now in your profile.; `removeEntryTitle` Remove this entry?; `removeEntryBody` It will no longer be shown to you or to any clinic. If a clinic recorded or confirmed it, it stays in your medical record, marked as removed.; `entryRemoved` The entry is removed.; `entrySaved` Saved to your profile.; `entryChanged` This entry was changed in the meantime. The latest version is shown.; `entryInvalid` Some details are not valid. Check them and try again.; `entryNotAllowed` You cannot change this entry.; `entryNotFound` This entry is no longer available.; `doseHeading` Dose (optional); `doseAmount` Amount; `doseUnit` Unit; `unitMg` milligrams (mg); `unitG` grams (g); `unitUg` micrograms (µg); `unitMl` millilitres (mL); `unitIu` international units (IU); `unitTablet` tablets; `unitCapsule` capsules; `unitDrop` drops; `unitPuff` puffs (inhaler); `unitPatch` patches; `doseBoth` Enter both the amount and the unit, or neither.; `numberAboveZero` Enter a number above 0.; `howOftenHeading` How often (optional); `timesLabel` Times; `everyLabel` Every; `periodUnitLabel` Unit of time; `periodHours` hours; `periodDays` days; `periodWeeks` weeks; `periodMonths` months; `howOftenAll` Fill in all three, or leave them empty.; `asNeeded` As needed; `medicationActive` Taking it now; `medicationStopped` Stopped; `doseMg` {value} mg; `doseG` {value} g; `doseUg` {value} µg; `doseMl` {value} mL; `doseIu` {value} IU; `doseTablet` {count, plural, one{{value} tablet} other{{value} tablets}}; `doseCapsule` {count, plural, one{{value} capsule} other{{value} capsules}}; `doseDrop` {count, plural, one{{value} drop} other{{value} drops}}; `dosePuff` {count, plural, one{{value} puff} other{{value} puffs}}; `dosePatch` {count, plural, one{{value} patch} other{{value} patches}}; `doseLine` Dose: {dose}; `howOftenPerHour` {frequency}× an hour; `howOftenPerDay` {frequency}× a day; `howOftenPerWeek` {frequency}× a week; `howOftenPerMonth` {frequency}× a month; `howOftenEveryHours` {period, plural, one{{frequency}× every {every} hour} other{{frequency}× every {every} hours}}; `howOftenEveryDays` {period, plural, one{{frequency}× every {every} day} other{{frequency}× every {every} days}}; `howOftenEveryWeeks` {period, plural, one{{frequency}× every {every} week} other{{frequency}× every {every} weeks}}; `howOftenEveryMonths` {period, plural, one{{frequency}× every {every} month} other{{frequency}× every {every} months}}.
 
 Web (five staff languages, `web/src/i18n/allergies/<language>.json`, keys under `allergies.`): `warningTitle` Active allergies; `reactionSeverity` {reaction} ({severity, select, mild {mild} moderate {moderate} severe {severe} other {}}); `warningLoading` Loading allergies…; `warningFailed` Allergies could not be loaded. Do not assume the patient has none.; `retry` Try again; `tab` Allergies and medications; `allergies` Allergies; `medications` Medications; `noAllergies` No allergies recorded.; `noMedications` No medications recorded.; `loading` Loading allergies and medications…; `loadFailed` Allergies and medications could not be loaded.; `confirmed` Confirmed; `unconfirmed` Not confirmed; `confirm` Confirm; `confirmLabel` Confirm {text}; `confirmChanged` This entry changed since it was read. The list is updated: check it and confirm again.; `confirmForbidden` You cannot confirm this entry.; `confirmFailed` The entry could not be confirmed. Try again.; `category.food` Food; `category.medication` Medication; `category.environment` Environment; `category.biologic` Biologic; `severity.mild` Mild; `severity.moderate` Moderate; `severity.severe` Severe; `clinicalStatus.active` Active; `clinicalStatus.inactive` Inactive; `clinicalStatus.resolved` Resolved; `status.active` Current; `status.stopped` Stopped; `dose.mg` {value, number} mg; `unit.mg` mg; `dose.g` {value, number} g; `unit.g` g; `dose.ug` {value, number} µg; `unit.ug` µg; `dose.mL` {value, number} mL; `unit.mL` mL; `dose.iU` {value, number} IU; `unit.iU` IU; `dose.tablet` {value, plural, one {# tablet} other {# tablets}}; `unit.tablet` Tablet; `dose.capsule` {value, plural, one {# capsule} other {# capsules}}; `unit.capsule` Capsule; `dose.drop` {value, plural, one {# drop} other {# drops}}; `unit.drop` Drop; `dose.puff` {value, plural, one {# puff} other {# puffs}}; `unit.puff` Puff; `dose.patch` {value, plural, one {# patch} other {# patches}}; `unit.patch` Patch; `timing.h` {frequency, plural, one {once} other {# times}} {period, plural, one {an hour} other {every # hours}}; `timing.d` {frequency, plural, one {once} other {# times}} {period, plural, one {a day} other {every # days}}; `timing.wk` {frequency, plural, one {once} other {# times}} {period, plural, one {a week} other {every # weeks}}; `timing.mo` {frequency, plural, one {once} other {# times}} {period, plural, one {a month} other {every # months}}; `periodUnit.h` Hours; `periodUnit.d` Days; `periodUnit.wk` Weeks; `periodUnit.mo` Months; `asNeeded` As needed; `addAllergy` Add an allergy; `addMedication` Add a medication; `substance` Substance; `substanceHint` Choose a term from the list, or type the substance.; `medication` Medication; `medicationHint` Choose a term from the list, or type the medication.; `fromTerms` From the medical terms list; `terms` Matching terms; `categoryLabel` Category; `notSpecified` Not specified; `reaction` Reaction; `severityLabel` Severity; `severityHint` Enter a reaction to choose its severity.; `statusLabel` Status; `doseLabel` Dose; `unitLabel` Unit; `noUnit` No unit; `frequency` Times; `period` Every; `periodUnitLabel` Unit of time; `save` Save; `saving` Saving…; `cancel` Cancel; `noVisit` Join the consultation before you record an entry.; `invalid` Check the entry: a value is missing or not allowed.; `doseBoth` Enter both the dose and its unit, or neither.; `timingAll` Fill in Times, Every and Unit of time, or leave all three empty.; `saveFailed` The entry could not be saved. Try again.; `saveForbidden` You cannot record entries in this consultation..
+
+## SAL-39: the patient's timeline (2026-11-12)
+
+Branch `sal-39-timeline`. `history.Service.Timeline` over four sources (encounter, composition, questionnaireresponse,
+binary for the files' state), `GET /me/history`, the mobile history screen, e2e over two clinics.
+
+**Audit in one insert, sources at once.** Each source audited every item it returned with its own `INSERT` (up to
+31 a source, about 120 a page), and the sources ran one after another. Now each source writes its page's events with
+`auditevent.Service.RecordAll` (one `INSERT … SELECT FROM jsonb_to_recordset`, same columns and stamping as
+`Record`, in the source's transaction), and `Timeline` asks the sources at the same time (each is its own
+transaction in its domain).
+
+Measured with `make bench-history` (`internal/api/history_load_test.go`: a patient with 2 000 items, 250 visits at
+each of two clinics with a signed document, a completed response and a clean file each; 400 other patients with 20
+visits each; pages of 30; 300 samples; the timeline as `api.New` composes it, every source real). The machine was
+shared with other stacks throughout (load average 15 to 80 on 28 cores), so the absolute numbers are far above what a
+quiet server gives; run 2 ran both versions at the same time to share the same noise.
+
+| Read | Run 1 before (load 15) | Run 1 after (load 69) | Run 2 before | Run 2 after (concurrent, load 80) |
+| --- | --- | --- | --- | --- |
+| first page p50 / p95 | 195 / 512 ms | 133 / 220 ms | 310 / 793 ms | 105 / 404 ms |
+| any page p50 / p95 | 170 / 289 ms | 173 / 358 ms | 283 / 427 ms | 148 / 297 ms |
+| one clinic p50 / p95 | 122 / 179 ms | 165 / 486 ms | 183 / 233 ms | 129 / 322 ms |
+| documents only p50 / p95 | 64 / 92 ms | 116 / 165 ms | 116 / 177 ms | 123 / 226 ms |
+| binary's files check, mean | 37.4 ms | 13.5 ms | 19.9 ms | 13.8 ms |
+
+After merging main (00046's lookups, 00047), with the batched and concurrent version, at load average 15 to 20:
+first page p50 72 / p95 118 ms, any page 93 / 176 ms, one clinic 52 / 74 ms, documents only 60 / 95 ms; mean per
+source: documents 60 ms, attachments 31 ms, responses 30 ms, visits 17 ms, the files check 9 ms.
+
+The full timeline gains in both runs (first page p50 1.5 to 3 times faster); a read of one source (the documents)
+gains nothing measurable under this noise, as expected with nothing to run beside it. The plan's target (p95 under
+50 ms) is not shown on this machine: it needs a run on a quiet one. Each source costs 30 to 150 ms here for 31 rows,
+which points at the row-level security of the patient's scope rather than at the audit; that is the next thing to
+profile (EXPLAIN ANALYZE per source) if the quiet run misses the target.
+
+**Review (fresh subagent), 2026-11-13:** ten findings, no access hole; 1, 2, 4 to 10 fixed test-first, 3 measured
+and fixed differently (below).
+
+- Audit (1, 2, 8): the sources read unaudited, in the one transaction `Timeline` opens, one after the other; the
+  transaction then audits the page it returns (after the cut and binary's check), each item once with its own
+  reference and clinic, in one `RecordAll`. The concurrent sources and the per-domain batches above are gone.
+- 00050 (4): history_shared's own scope conditions in front of the call in `encounter_shared`,
+  `document_draft_shared`, `questionnaire_response_shared`, `binary_shared`. A patient's read of the four tables
+  called history_shared 44 times on the test fixture, now never
+  (`TestHistorySharing_APatientsReadDoesNotCallHistoryShared`); the policies admit exactly 00043's rows in twelve
+  scopes and seven sharing states (`TestHistorySharing_TheGuardedPoliciesAdmitWhat00043Admitted`).
+- 3: reading every encounter of the patient costs 0.7 ms of execution (EXPLAIN ANALYZE, 500 encounters); the cost
+  was planning, since `Own` used the FHIR search's query, re-planned on every call for its optional parameters. A
+  read of the documents in the patient's scope without the encounter list was tried and dropped: its policy tree
+  is costed at 390 000, above `jit_above_cost`, and each call spent 950 ms in JIT for a 5 ms scan. `Own` now has
+  its own fixed query (`EncountersOfPatient`): 7.4 to 2.8 ms a call, documents 10.0 to 6.1 ms.
+- 5: clinic names in one transaction, the roles in one `LookupAll`. 9: `FilesOf` lists a file once. 10: the
+  cursor's length is checked before it is decoded; neither Caddy (no access log, URIs dropped) nor the API's request
+  log (the route pattern only) records a query string. 6: the app opens a questionnaire's answers by reading that
+  response and its version (`Questionnaire?url=&version=`), not every response of the patient. 7: an empty page
+  with a next page shows Show more, not "nothing yet".
+
+`make bench-history` (same seed as above), load average in brackets:
+
+| Read, p50 / p95 | Before (one tx, audit fixed) [12 → 9] | After 00050, `Own`, 5 [12 → 9] |
+| --- | --- | --- |
+| first page | 125.5 / 168.4 ms | 21.3 / 35.0 ms |
+| any page | 124.9 / 175.8 ms | 21.9 / 33.8 ms |
+| one clinic | 79.6 / 99.2 ms | 19.2 / 31.1 ms |
+| documents only | 73.6 / 124.2 ms | 15.0 / 24.1 ms |
+| mean per source: visits, documents, responses, attachments | 13.6, 60.6, 26.7, 27.2 ms | 1.0, 6.4, 1.9, 2.2 ms |
+
+The first page is under the plan's 50 ms at p95.

@@ -298,6 +298,32 @@ func (s *Service) Lookup(ctx context.Context, org, id string) (PractitionerRole,
 	return s.lookup(ctx, org, func(ctx context.Context) (PractitionerRole, error) { return s.repo.ByID(ctx, id) })
 }
 
+// LookupAll returns the roles ids names of each clinic, by role id, in one transaction, each read in its clinic's
+// scope, unaudited, as Lookup: the specialties of a page of a patient's timeline (SAL-39). A role that is not the
+// clinic's, or none, is left out.
+func (s *Service) LookupAll(ctx context.Context, ids map[string][]string) (map[string]PractitionerRole, error) {
+	out := map[string]PractitionerRole{}
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		for org, roles := range ids {
+			for _, id := range roles {
+				p, err := s.Lookup(ctx, org, id)
+				switch {
+				case errors.Is(err, ErrNotFound):
+					continue
+				case err != nil:
+					return err
+				}
+				out[id] = p
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("practitionerrole: lookup all: %w", err)
+	}
+	return out, nil
+}
+
 // OfPractitioner returns the role of the practitioner practitionerID in the clinic org, or ErrNotFound: to
 // know which role a signed-in practitioner acts in, or which one a search names. Like Lookup, unaudited.
 func (s *Service) OfPractitioner(ctx context.Context, org, practitionerID string) (PractitionerRole, error) {

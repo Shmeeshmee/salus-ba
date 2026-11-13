@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"time"
+
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Repository stores the templates (document_template, document_template_translation) and the drafts
@@ -41,6 +43,9 @@ type Repository interface {
 	Drafts(ctx context.Context, encounterID string) ([]Draft, error)
 	// Signed returns the encounter's final (signed) drafts, in the order they were signed.
 	Signed(ctx context.Context, encounterID string) ([]Draft, error)
+	// SignedOf returns the final (signed) drafts of the encounters after the page's position (by signature, then
+	// "Composition/<id>"), newest first, p.Limit at most.
+	SignedOf(ctx context.Context, encounterIDs []string, p keyset.Page) ([]Draft, error)
 	// Sign stores d's fields, status final and signature, at at, as the version after d.VersionID.
 	Sign(ctx context.Context, d Draft, at time.Time) (Draft, error)
 }

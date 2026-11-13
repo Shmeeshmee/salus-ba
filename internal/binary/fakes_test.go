@@ -177,6 +177,22 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (binary.Binary, er
 	return b, nil
 }
 
+func (r *fakeRepository) Clean(ctx context.Context, ids []string) ([]binary.Binary, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []binary.Binary
+	for _, id := range ids {
+		if b, ok := r.files[id]; ok && r.visible(b) && b.Status == binary.StatusClean {
+			out = append(out, b)
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeRepository) OfItem(ctx context.Context, responseID, linkID string) ([]binary.Binary, error) {
 	var out []binary.Binary
 	for _, b := range r.files {

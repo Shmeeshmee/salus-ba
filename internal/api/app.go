@@ -21,11 +21,13 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
+	"github.com/Shmeeshmee/salus/internal/history"
 	"github.com/Shmeeshmee/salus/internal/medicationstatement"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -71,19 +73,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		return nil, err
 	}
 	box, kek, fhirBase := k.box, k.kek, k.fhirBase
-	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
+	pool, rdb, jobs, err := connect(ctx, cfg)
 	if err != nil {
-		return nil, err
-	}
-	rdb, err := redis.Open(ctx, cfg.RedisURL)
-	if err != nil {
-		pool.Close()
-		return nil, err
-	}
-	jobs, err := worker.NewInserter(pool) // invites enqueue their e-mail in their transaction
-	if err != nil {
-		pool.Close()
-		_ = rdb.Close()
 		return nil, err
 	}
 	tx := postgres.NewTransactor(pool)
@@ -106,7 +97,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	appointments := appointment.NewService(appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
 		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
-		Jobs: appointment.NewRiverJobs(jobs), // a booking or cancellation enqueues its e-mails in its transaction
+		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
 	})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
@@ -116,8 +107,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners)
-	consultAPI, consultStream, signatures := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
-	questionnaireAPI, streams := questionnaireRoutes(questionnairePorts{
+	consultAPI, consultStream, documents, signatures := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
+	questionnaireAPI, streams, timeline := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
@@ -146,11 +137,33 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
+			history.NewHTTPHandler(history.NewService(history.Ports{Visits: encounters, Documents: documents, Responses: timeline.Responses, Files: timeline.Files, Clinics: clinics, Roles: roles, Audit: audit, Tx: tx}), appointmentCaller(accounts, patients), log).Routes,
+		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})
 	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil
+}
+
+// connect opens the database, Redis and the job inserter (invites and bookings enqueue their e-mail in their
+// transaction); on an error nothing stays open.
+func connect(ctx context.Context, cfg config.Config) (*pgxpool.Pool, *goredis.Client, *river.Client[pgx.Tx], error) {
+	pool, err := postgres.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	rdb, err := redis.Open(ctx, cfg.RedisURL)
+	if err != nil {
+		pool.Close()
+		return nil, nil, nil, err
+	}
+	jobs, err := worker.NewInserter(pool)
+	if err != nil {
+		pool.Close()
+		_ = rdb.Close()
+		return nil, nil, nil, err
+	}
+	return pool, rdb, jobs, nil
 }
 
 // profilePorts are what the allergies and the medications of the patient's profile are built on.
@@ -269,18 +282,19 @@ type consultPorts struct {
 
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
 // documents (templates, drafting, signing, the signed PDF and their FHIR reads), for its practitioner; it
-// returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream, and the
-// signatures' source of GET /fhir/R4/Provenance/{id}.
-func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux), signatures func(http.ResponseWriter, *http.Request) bool) {
+// returns their routes and the stream's, with the suggestions' statuses the practitioner sets on the stream, the
+// documents (a source of the patient's timeline), and the signatures' source of GET /fhir/R4/Provenance/{id}.
+func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointment.Caller, bool, error), fhirBase string, log *slog.Logger) (routes []func(*http.ServeMux), stream func(*http.ServeMux), documents *composition.Service, signatures func(http.ResponseWriter, *http.Request) bool) {
 	terms := terminology.NewService(terminology.NewPostgresRepository(p.pool), nil) // the tagging only (SAL-13)
 	transcripts := transcript.NewService(transcript.Ports{
 		Repo: transcript.NewPostgresRepository(p.pool), Stream: transcript.NewRedisStream(p.rdb), Encounters: p.encounters, Consents: p.consents,
 		Sharing: p.clinics, Audit: p.audit, Tx: p.tx, Terms: terms,
 	})
-	documents := composition.NewService(composition.Ports{
+	documents = composition.NewService(composition.Ports{
 		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: p.drafter,
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
 		Publisher: transcript.NewRedisPublisher(p.rdb), Jobs: composition.NewRiverJobs(p.jobs), // a signature enqueues the patient's e-mail
+		Stats:      clinicstats.NewRiverQueue(p.jobs),                             // and, with diagnoses, its clinic-day's statistics (SAL-20)
 		Conditions: condition.NewService(condition.NewPostgresRepository(p.pool)), // the diagnoses of a signature (SAL-19)
 		Audit:      p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log, Tagger: terms,
 	})
@@ -297,7 +311,7 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		condition.NewFHIRHandler(condition.NewReads(condition.ReadPorts{
 			Repo: condition.NewPostgresReadRepository(p.pool), Encounters: p.encounters, Audit: p.audit, Tx: p.tx,
 		}), caller, log).Routes,
-	}, transcriptHandler.StreamRoutes, documentsFHIR.Provenance
+	}, transcriptHandler.StreamRoutes, documents, documentsFHIR.Provenance
 }
 
 // s3PageSize is the object store listing's page, S3's largest.
@@ -320,8 +334,9 @@ type questionnairePorts struct {
 
 // questionnaireRoutes builds the clinic's questionnaire library, the patients' responses and the files
 // attached to them, and returns their JSON and FHIR routes, and the files' streaming routes. The responses are
-// built first: they are the files' holder (docs/attachments/SPEC.md §2 "Dependency direction").
-func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger) (routes, streams []func(*http.ServeMux)) {
+// built first: they are the files' holder (docs/attachments/SPEC.md §2 "Dependency direction"). The responses and
+// the files are sources of the patient's timeline too (timeline).
+func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger) (routes, streams []func(*http.ServeMux), timeline history.Ports) {
 	questionnaires := questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{}, Roles: p.roles,
 		Clinics: p.clinics,
@@ -343,7 +358,7 @@ func questionnaireRoutes(p questionnairePorts, fhirBase string, log *slog.Logger
 		questionnaireresponse.NewHTTPHandler(responses, responseCaller, log).Routes,
 		questionnaireresponse.NewHandler(responses, questionnaires, responseCaller, fhirBase, log).Routes,
 		filesHandler.Routes,
-	}, []func(*http.ServeMux){filesHandler.StreamRoutes}
+	}, []func(*http.ServeMux){filesHandler.StreamRoutes}, history.Ports{Responses: responses, Files: files}
 }
 
 // binaryCaller is the files' view of the signed-in session: the appointment's (who is staff of which clinic
@@ -487,6 +502,47 @@ func patientReadCaller(accounts *auth.Service, roles *practitionerrole.Service) 
 		case errors.Is(err, practitionerrole.ErrNotFound):
 		case err != nil:
 			return patient.Caller{}, false, err
+		default:
+			c.PractitionerRoleID = role.ID
+		}
+		return c, true, nil
+	}
+}
+
+// clinicStatsRoutes are the clinic's own statistics' (SAL-20), read on pool (salus_app) in the caller's clinic.
+func clinicStatsRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor,
+	caller func(ctx context.Context) (clinicstats.Caller, bool, error), log *slog.Logger,
+) func(*http.ServeMux) {
+	svc := clinicstats.NewService(clinicstats.Ports{Repo: clinicstats.NewPostgresRepository(pool), Audit: audit, Tx: tx})
+	return clinicstats.NewHTTPHandler(svc, caller, log).Routes
+}
+
+// clinicStatsCaller is the clinic statistics' view of the signed-in session: for staff, whether the account is the
+// clinic's admin and whether it is a practitioner there with their role, as read from the database (the session
+// holds neither).
+func clinicStatsCaller(accounts *auth.Service, roles *practitionerrole.Service) func(ctx context.Context) (clinicstats.Caller, bool, error) {
+	return func(ctx context.Context) (clinicstats.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return clinicstats.Caller{}, false, nil
+		}
+		c := clinicstats.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID == "" {
+			return c, true, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return clinicstats.Caller{}, false, err
+		}
+		c.Admin, c.Practitioner = m.Admin, m.PractitionerID != ""
+		if !c.Practitioner {
+			return c, true, nil
+		}
+		role, err := roles.OfPractitioner(ctx, c.OrganizationID, m.PractitionerID)
+		switch {
+		case errors.Is(err, practitionerrole.ErrNotFound):
+		case err != nil:
+			return clinicstats.Caller{}, false, err
 		default:
 			c.PractitionerRoleID = role.ID
 		}

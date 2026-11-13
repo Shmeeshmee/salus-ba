@@ -7,6 +7,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 )
 
 // River's reindexer runs REINDEX INDEX CONCURRENTLY, which only a table's owner may run; the worker logs in
@@ -34,11 +35,13 @@ func TestWorkConfig_NeverLeads(t *testing.T) {
 }
 
 // cmd/worker works the default queue, the scan queue, which runs 2 files at a time: clamd holds each stream it
-// scans (docs/attachments/SPEC.md §2 "Scan"), and the clinics' webhooks (SAL-29).
+// scans (docs/attachments/SPEC.md §2 "Scan"), the clinics' webhooks (SAL-29), and the clinic statistics' builds 2 at
+// a time: each holds a salus_stats connection, waiting on its clinic's lock or through a 35-day pass.
 func TestWorkerQueues_ScanTwoFilesAtATime(t *testing.T) {
 	q := workerQueues()
 
-	if len(q) != 3 || q[river.QueueDefault].MaxWorkers != maxWorkers || q[binary.QueueScan].MaxWorkers != 2 || q[webhookQueue].MaxWorkers != maxWorkers {
-		t.Errorf("queues %+v, want the default and %s with %d workers and %s with 2", q, webhookQueue, maxWorkers, binary.QueueScan)
+	if len(q) != 4 || q[river.QueueDefault].MaxWorkers != maxWorkers || q[binary.QueueScan].MaxWorkers != 2 || q[webhookQueue].MaxWorkers != maxWorkers ||
+		q[clinicstats.QueueStats].MaxWorkers != 2 {
+		t.Errorf("queues %+v, want the default and %s with %d workers, %s and %s with 2", q, webhookQueue, maxWorkers, binary.QueueScan, clinicstats.QueueStats)
 	}
 }

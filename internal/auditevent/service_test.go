@@ -14,6 +14,7 @@ import (
 type fakeRepository struct {
 	err     error
 	inserts []auditevent.AuditEvent
+	batches [][]auditevent.AuditEvent
 	inTx    []bool
 	counted []time.Time // the cut-offs of CountRecordedBefore
 	count   int64
@@ -30,6 +31,15 @@ func (r *fakeRepository) Insert(ctx context.Context, e auditevent.AuditEvent) er
 	r.inserts = append(r.inserts, e)
 	r.inTx = append(r.inTx, ctx.Value(txKey{}) != nil)
 	return r.err
+}
+
+func (r *fakeRepository) InsertAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	r.inTx = append(r.inTx, ctx.Value(txKey{}) != nil)
+	if r.err != nil {
+		return r.err
+	}
+	r.batches = append(r.batches, es)
+	return nil
 }
 
 // fakeTransactor marks the context it hands fn, as postgres.Transactor carries its transaction.

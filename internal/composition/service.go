@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -33,6 +34,8 @@ type Auditor interface {
 // scope, unaudited (encounter.Service): composition applies its own rule and audits its decision.
 type Encounters interface {
 	Access(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, appointment.Attendance, error)
+	// Own gives the calling patient's own encounters, at the clinic org when set (none to staff).
+	Own(ctx context.Context, c appointment.Caller, org string) ([]encounter.Encounter, error)
 }
 
 // Transcripts gives the encounter's stored transcript to its practitioner (transcript.Service), auditing the
@@ -46,6 +49,12 @@ type Conditions interface {
 	Record(ctx context.Context, cs []condition.Condition) error
 }
 
+// StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
+// ctx (clinicstats' River queue, docs/plans/analytics.md §4): a signature with diagnoses enqueues its day.
+type StatsQueue interface {
+	EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo        Repository
@@ -55,6 +64,7 @@ type Ports struct {
 	Store       Store
 	Publisher   Publisher
 	Jobs        Jobs
+	Stats       StatsQueue // the signing; not needed by a Service that only keeps templates
 	Conditions  Conditions
 	Audit       Auditor
 	Tx          Transactor
@@ -155,7 +165,10 @@ type entry struct {
 }
 
 // record audits e, with treatment as the purpose for staff and the patient's own request for a patient.
-func (s *Service) record(ctx context.Context, e entry) error {
+func (s *Service) record(ctx context.Context, e entry) error { return s.Audit.Record(ctx, e.event()) }
+
+// event is the audit event of e, as record writes it.
+func (e entry) event() auditevent.AuditEvent {
 	action := map[string]auditevent.Action{
 		auditevent.CodeCreate: auditevent.ActionCreate, auditevent.CodeUpdate: auditevent.ActionUpdate,
 		auditevent.CodeRead: auditevent.ActionRead, auditevent.CodeSearchType: auditevent.ActionRead,
@@ -184,7 +197,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 			a.EntityCount = 0
 		}
 	}
-	return s.Audit.Record(ctx, a)
+	return a
 }
 
 // encounterRef is the reference of the encounter id, or "" for none.

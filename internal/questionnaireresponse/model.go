@@ -81,6 +81,13 @@ type Seen struct {
 	Level    access.Level
 }
 
+// Attached is a file of a completed response as the patient's timeline lists it (SAL-39): the response, without
+// its answers, and the file as the response lists it.
+type Attached struct {
+	Response Response
+	File     binary.Attachment
+}
+
 // Filter narrows a search: the appointment, the patient and the status, when set.
 type Filter struct {
 	AppointmentID string
