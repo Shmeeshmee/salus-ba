@@ -8,6 +8,7 @@ import 'package:salus_api/api.dart' as api;
 
 import 'fhir.dart';
 import 'file_prep.dart' show Prepared;
+import 'health_profile.dart';
 import 'session.dart';
 
 /// How long an upload may go without sending a byte or hearing its answer before it is stopped (COPY M5).
@@ -27,6 +28,7 @@ class Booking {
   Booking(api.ApiClient client)
     : _client = client,
       fhir = Fhir(client),
+      health = HealthProfile(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
@@ -35,6 +37,9 @@ class Booking {
 
   final api.ApiClient _client;
   final Fhir fhir;
+
+  /// The allergies and medications of the profile (SAL-41).
+  final HealthProfile health;
   final api.PatientApi _patient;
   final api.ConsentsApi _consents;
   final api.AppointmentsApi _appointments;

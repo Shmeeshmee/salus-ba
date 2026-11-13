@@ -69,7 +69,8 @@ import 'app_localizations_tr.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -77,7 +78,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -89,12 +91,13 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -1856,9 +1859,820 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get termClose;
+
+  /// Home button and the conversation list title (SAL-31).
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get chatsTitle;
+
+  /// The conversation list without a conversation.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no conversations yet.'**
+  String get chatsEmpty;
+
+  /// The unread badge of a conversation, read out.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} unread message} other{{count} unread messages}}'**
+  String chatUnread(int count);
+
+  /// A conversation's title when the doctor's name is not known.
+  ///
+  /// In en, this message translates to:
+  /// **'Your doctor'**
+  String get chatDoctorUnknown;
+
+  /// The composer field.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message'**
+  String get chatMessageHint;
+
+  /// The composer: send button tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get chatSend;
+
+  /// The composer: add a file from the camera or the files, tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a file'**
+  String get chatAttach;
+
+  /// A message that did not reach the API; the text stays in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'The message was not sent. Check your connection and try again.'**
+  String get chatSendFailed;
+
+  /// An attachment the clinic's scan refused.
+  ///
+  /// In en, this message translates to:
+  /// **'This file was not accepted.'**
+  String get chatFileRejected;
+
+  /// The composer: remove a file not yet sent, tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove the file'**
+  String get chatFileRemove;
+
+  /// An upload refused because the patient already has the most files waiting to be sent (SAL-30 too_many_files); count is the limit.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{You already have {count} file waiting to be sent. Files not sent are removed after 24 hours; try again later.} other{You already have {count} files waiting to be sent. Files not sent are removed after 24 hours; try again later.}}'**
+  String chatTooManyFiles(int count);
+
+  /// An attachment that could not be read.
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be opened. Try again.'**
+  String get chatOpenFailed;
+
+  /// The live connection ended because the session ended (4401).
+  ///
+  /// In en, this message translates to:
+  /// **'Your session has ended. Sign in again to see new messages.'**
+  String get chatEndedSession;
+
+  /// The live connection ended because access ended (4403, 4404).
+  ///
+  /// In en, this message translates to:
+  /// **'New messages can no longer be shown in this conversation.'**
+  String get chatEnded;
+
+  /// The clinic's chat hours: button tooltip and dialog title.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat hours'**
+  String get chatHours;
+
+  /// One weekday of the chat hours; day is the weekday name, start and end are HH:MM.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}: {start}–{end}'**
+  String chatHoursDay(String day, String start, String end);
+
+  /// The clinic has no chat hours.
+  ///
+  /// In en, this message translates to:
+  /// **'The clinic has not set chat hours.'**
+  String get chatHoursNone;
+
+  /// The chat hours dialog: the clinic's IANA time zone the hours are in (shown as given, not converted).
+  ///
+  /// In en, this message translates to:
+  /// **'Times are in the clinic\'s time zone, {zone}.'**
+  String chatHoursZone(String zone);
+
+  /// The clinic's expected response time, in the chat hours dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours, plural, one{The clinic usually answers within {hours} hour.} other{The clinic usually answers within {hours} hours.}}'**
+  String chatResponseTime(int hours);
+
+  /// The notice above the composer outside the chat hours (SAL-29 open_now false).
+  ///
+  /// In en, this message translates to:
+  /// **'{hours, plural, one{The clinic is outside its chat hours. You can still write; it usually answers within {hours} hour.} other{The clinic is outside its chat hours. You can still write; it usually answers within {hours} hours.}}'**
+  String chatOutOfHours(int hours);
+
+  /// System message participant_invited; reason is second_opinion, specialist_review or handover.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, second_opinion{A doctor from another clinic was invited to this conversation for a second opinion.} specialist_review{A doctor from another clinic was invited to this conversation for a specialist review.} handover{A doctor from another clinic was invited to this conversation to take over the care.} other{A doctor from another clinic was invited to this conversation.}}'**
+  String chatSystemInvited(String reason);
+
+  /// System message participant_added.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, second_opinion{A doctor joined the conversation for a second opinion.} specialist_review{A doctor joined the conversation for a specialist review.} handover{A doctor joined the conversation to take over the care.} other{A doctor joined the conversation.}}'**
+  String chatSystemAdded(String reason);
+
+  /// System message participant_removed.
+  ///
+  /// In en, this message translates to:
+  /// **'A doctor no longer takes part in the conversation.'**
+  String get chatSystemRemoved;
+
+  /// System message consent_granted: the patient agreed.
+  ///
+  /// In en, this message translates to:
+  /// **'You allowed a doctor from another clinic to join the conversation.'**
+  String get chatSystemGranted;
+
+  /// System message consent_declined: the patient declined.
+  ///
+  /// In en, this message translates to:
+  /// **'You declined a doctor from another clinic.'**
+  String get chatSystemDeclined;
+
+  /// A system message the app does not know.
+  ///
+  /// In en, this message translates to:
+  /// **'The conversation was updated.'**
+  String get chatSystemOther;
+
+  /// [legal] The consent prompt: its heading.
+  ///
+  /// In en, this message translates to:
+  /// **'A doctor from another clinic asks to join'**
+  String get chatInviteTitle;
+
+  /// [legal] The consent prompt: who asks and why.
+  ///
+  /// In en, this message translates to:
+  /// **'{reason, select, second_opinion{Your clinic asks a doctor from another clinic to join this conversation for a second opinion.} specialist_review{Your clinic asks a doctor from another clinic to join this conversation for a specialist review.} handover{Your clinic asks a doctor from another clinic to join this conversation to take over your care.} other{Your clinic asks a doctor from another clinic to join this conversation.}}'**
+  String chatInviteBody(String reason);
+
+  /// [legal] The consent prompt: the invited doctor's name and clinic, when known.
+  ///
+  /// In en, this message translates to:
+  /// **'Doctor: {doctor}, {clinic}'**
+  String chatInviteWho(String doctor, String clinic);
+
+  /// [legal] The consent prompt while the invited doctor's name and clinic are not known: the grant waits for them.
+  ///
+  /// In en, this message translates to:
+  /// **'The invited doctor\'s name and clinic could not be loaded. Access can be granted only once they are shown.'**
+  String get chatInviteUnresolved;
+
+  /// [legal] The consent prompt: what the doctor would see; history is full, from or unknown.
+  ///
+  /// In en, this message translates to:
+  /// **'{history, select, full{If you agree, the doctor sees the whole conversation, including the earlier messages, and can write in it.} from{If you agree, the doctor sees the conversation from a message your clinic chose onwards, and can write in it.} other{If you agree, the doctor sees the conversation and can write in it.}}'**
+  String chatInviteSees(String history);
+
+  /// [legal] The consent prompt: declining and revoking.
+  ///
+  /// In en, this message translates to:
+  /// **'You may decline. If you agree, you can revoke the doctor\'s access later in this conversation; it ends at once.'**
+  String get chatInviteChoice;
+
+  /// [legal] The consent prompt: grant button.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant access'**
+  String get chatGrant;
+
+  /// [legal] The consent prompt: decline button.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get chatDecline;
+
+  /// [legal] After a grant.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted. You can revoke it in this conversation at any time.'**
+  String get chatGranted;
+
+  /// [legal] After a decline.
+  ///
+  /// In en, this message translates to:
+  /// **'Declined. The doctor does not join this conversation.'**
+  String get chatDeclined;
+
+  /// [legal] The chat view's menu: revoke a granted invitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke the access of the doctor from another clinic'**
+  String get chatRevoke;
+
+  /// [legal] The chat view's line for a doctor of another clinic the patient granted access, beside the revoke button.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted to {doctor}, {clinic}.'**
+  String chatGrantedTo(String doctor, String clinic);
+
+  /// [legal] The granted doctor's line while their name and clinic are not known.
+  ///
+  /// In en, this message translates to:
+  /// **'Access granted to a doctor from another clinic.'**
+  String get chatGrantedToUnknown;
+
+  /// [legal] The revocation dialog: its effect.
+  ///
+  /// In en, this message translates to:
+  /// **'The doctor from the other clinic loses access to this conversation at once. The messages already written stay in it.'**
+  String get chatRevokeBody;
+
+  /// [legal] The revocation dialog: confirm button.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke access'**
+  String get chatRevokeConfirm;
+
+  /// [legal] After a revocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Access revoked.'**
+  String get chatRevoked;
+
+  /// SAL-41: Profile button and screen title.
+  ///
+  /// In en, this message translates to:
+  /// **'Allergies'**
+  String get allergies;
+
+  /// SAL-41: Profile button and screen title.
+  ///
+  /// In en, this message translates to:
+  /// **'Current medications'**
+  String get currentMedications;
+
+  /// [legal] SAL-41: Allergies screen: who sees the profile's allergies.
+  ///
+  /// In en, this message translates to:
+  /// **'Clinics you have given your consent to see the allergies in your profile when you have an appointment with them.'**
+  String get allergiesIntro;
+
+  /// [legal] SAL-41: Medications screen: who sees the profile's medications.
+  ///
+  /// In en, this message translates to:
+  /// **'Clinics you have given your consent to see the medications in your profile when you have an appointment with them.'**
+  String get medicationsIntro;
+
+  /// SAL-41: Allergies screen, empty.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not added any allergies.'**
+  String get noAllergies;
+
+  /// SAL-41: Medications screen, empty.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not added any medications.'**
+  String get noMedications;
+
+  /// SAL-41: Button and form title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an allergy'**
+  String get addAllergy;
+
+  /// SAL-41: Button and form title.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a medication'**
+  String get addMedication;
+
+  /// SAL-41: Form title when changing an allergy.
+  ///
+  /// In en, this message translates to:
+  /// **'Change allergy'**
+  String get changeAllergy;
+
+  /// SAL-41: Form title when changing a medication.
+  ///
+  /// In en, this message translates to:
+  /// **'Change medication'**
+  String get changeMedication;
+
+  /// SAL-41: Button on the patient's own allergy or medication: opens the form.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get change;
+
+  /// SAL-41: Allergy form: what the patient is allergic to.
+  ///
+  /// In en, this message translates to:
+  /// **'Substance or food'**
+  String get allergySubstance;
+
+  /// SAL-41: Medication form: the medication's name.
+  ///
+  /// In en, this message translates to:
+  /// **'Medication'**
+  String get medicationName;
+
+  /// SAL-41: Under the substance or medication field, which suggests terms.
+  ///
+  /// In en, this message translates to:
+  /// **'Type to search, or write it in your own words.'**
+  String get termSearchHint;
+
+  /// SAL-41: Allergy form: the allergy's category.
+  ///
+  /// In en, this message translates to:
+  /// **'Type (optional)'**
+  String get allergyCategory;
+
+  /// SAL-41: A drop-down's empty choice.
+  ///
+  /// In en, this message translates to:
+  /// **'Not specified'**
+  String get notSpecified;
+
+  /// SAL-41: Allergy category.
+  ///
+  /// In en, this message translates to:
+  /// **'Food'**
+  String get categoryFood;
+
+  /// SAL-41: Allergy category.
+  ///
+  /// In en, this message translates to:
+  /// **'Medication'**
+  String get categoryMedication;
+
+  /// SAL-41: Allergy category (for example pollen or dust).
+  ///
+  /// In en, this message translates to:
+  /// **'Environment'**
+  String get categoryEnvironment;
+
+  /// SAL-41: Allergy category (FHIR biologic: for example a vaccine or a blood product).
+  ///
+  /// In en, this message translates to:
+  /// **'Biological product'**
+  String get categoryBiologic;
+
+  /// SAL-41: Allergy form: the reaction, up to 200 characters.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction (optional)'**
+  String get reactionOptional;
+
+  /// SAL-41: Allergy form: the reaction's severity; only with a reaction.
+  ///
+  /// In en, this message translates to:
+  /// **'Severity'**
+  String get severity;
+
+  /// SAL-41: Reaction severity.
+  ///
+  /// In en, this message translates to:
+  /// **'Mild'**
+  String get severityMild;
+
+  /// SAL-41: Reaction severity.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderate'**
+  String get severityModerate;
+
+  /// SAL-41: Reaction severity.
+  ///
+  /// In en, this message translates to:
+  /// **'Severe'**
+  String get severitySevere;
+
+  /// SAL-41: Allergy and medication form: the status drop-down.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get entryStatus;
+
+  /// SAL-41: Allergy clinical status.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get allergyActive;
+
+  /// SAL-41: Allergy clinical status.
+  ///
+  /// In en, this message translates to:
+  /// **'Inactive'**
+  String get allergyInactive;
+
+  /// SAL-41: Allergy clinical status.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolved'**
+  String get allergyResolved;
+
+  /// SAL-41: Allergy card; the reaction as written.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction: {reaction}'**
+  String reactionLine(String reaction);
+
+  /// SAL-41: Allergy card; the reaction as written and its severity (severityMild...).
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction: {reaction} ({severity})'**
+  String reactionWithSeverity(String reaction, String severity);
+
+  /// SAL-41: Allergy or medication card: a clinician confirmed it.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed by a clinician'**
+  String get confirmedByClinician;
+
+  /// SAL-41: Allergy or medication card: a clinic's entry, not the patient's.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded by a clinic during one of your visits'**
+  String get recordedByClinic;
+
+  /// SAL-41: Form of a confirmed entry.
+  ///
+  /// In en, this message translates to:
+  /// **'If you change this entry, it is no longer confirmed by a clinician.'**
+  String get confirmedChangeNote;
+
+  /// SAL-41: Substance or medication field: empty or too long.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name, up to 200 characters.'**
+  String get nameRequired;
+
+  /// SAL-41: Button on a clinic's entry, and the confirmation dialog's button.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to my profile'**
+  String get addToProfile;
+
+  /// SAL-41: Dialog title before a clinic's entry is added to the profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to your profile?'**
+  String get addToProfileTitle;
+
+  /// [legal] SAL-41: Dialog text: the effect of adding a clinic's entry to the profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Every clinic you have given your consent to will then see it, without the name of the clinic that recorded it.'**
+  String get addToProfileBody;
+
+  /// SAL-41: After a clinic's entry was added to the profile.
+  ///
+  /// In en, this message translates to:
+  /// **'It is now in your profile.'**
+  String get addedToProfile;
+
+  /// SAL-41: Dialog title before an allergy or medication is removed.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this entry?'**
+  String get removeEntryTitle;
+
+  /// [legal] SAL-41: Dialog text: the effect of a removal.
+  ///
+  /// In en, this message translates to:
+  /// **'It will no longer be shown to you or to any clinic. If a clinic recorded or confirmed it, it stays in your medical record, marked as removed.'**
+  String get removeEntryBody;
+
+  /// SAL-41: After a removal.
+  ///
+  /// In en, this message translates to:
+  /// **'The entry is removed.'**
+  String get entryRemoved;
+
+  /// SAL-41: After an allergy or medication was added or changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to your profile.'**
+  String get entrySaved;
+
+  /// SAL-41: Write refused: the entry changed since it was read (412).
+  ///
+  /// In en, this message translates to:
+  /// **'This entry was changed in the meantime. The latest version is shown.'**
+  String get entryChanged;
+
+  /// SAL-41: Write refused: invalid input (400).
+  ///
+  /// In en, this message translates to:
+  /// **'Some details are not valid. Check them and try again.'**
+  String get entryInvalid;
+
+  /// SAL-41: Write refused (403).
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot change this entry.'**
+  String get entryNotAllowed;
+
+  /// SAL-41: Write refused: no such entry (404).
+  ///
+  /// In en, this message translates to:
+  /// **'This entry is no longer available.'**
+  String get entryNotFound;
+
+  /// SAL-41: Medication form heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Dose (optional)'**
+  String get doseHeading;
+
+  /// SAL-41: Medication form: the dose's number.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get doseAmount;
+
+  /// SAL-41: Medication form: the dose's unit.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit'**
+  String get doseUnit;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'milligrams (mg)'**
+  String get unitMg;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'grams (g)'**
+  String get unitG;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'micrograms (µg)'**
+  String get unitUg;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'millilitres (mL)'**
+  String get unitMl;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'international units (IU)'**
+  String get unitIu;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'tablets'**
+  String get unitTablet;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'capsules'**
+  String get unitCapsule;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'drops'**
+  String get unitDrop;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'puffs (inhaler)'**
+  String get unitPuff;
+
+  /// SAL-41: Dose unit choice.
+  ///
+  /// In en, this message translates to:
+  /// **'patches'**
+  String get unitPatch;
+
+  /// SAL-41: Medication form: only one part of the dose.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter both the amount and the unit, or neither.'**
+  String get doseBoth;
+
+  /// SAL-41: A number field: 0 or less.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a number above 0.'**
+  String get numberAboveZero;
+
+  /// SAL-41: Medication form heading.
+  ///
+  /// In en, this message translates to:
+  /// **'How often (optional)'**
+  String get howOftenHeading;
+
+  /// SAL-41: Medication form: how many times per period.
+  ///
+  /// In en, this message translates to:
+  /// **'Times'**
+  String get timesLabel;
+
+  /// SAL-41: Medication form: the period's number.
+  ///
+  /// In en, this message translates to:
+  /// **'Every'**
+  String get everyLabel;
+
+  /// SAL-41: Medication form: the period's unit.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit of time'**
+  String get periodUnitLabel;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'hours'**
+  String get periodHours;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'days'**
+  String get periodDays;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'weeks'**
+  String get periodWeeks;
+
+  /// SAL-41: Unit of time choice.
+  ///
+  /// In en, this message translates to:
+  /// **'months'**
+  String get periodMonths;
+
+  /// SAL-41: Medication form: how often only partly filled in.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill in all three, or leave them empty.'**
+  String get howOftenAll;
+
+  /// SAL-41: Medication form checkbox and card line.
+  ///
+  /// In en, this message translates to:
+  /// **'As needed'**
+  String get asNeeded;
+
+  /// SAL-41: Medication status.
+  ///
+  /// In en, this message translates to:
+  /// **'Taking it now'**
+  String get medicationActive;
+
+  /// SAL-41: Medication status.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped'**
+  String get medicationStopped;
+
+  /// SAL-41: A dose; value is the number written for the language.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} mg'**
+  String doseMg(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} g'**
+  String doseG(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} µg'**
+  String doseUg(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} mL'**
+  String doseMl(String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{value} IU'**
+  String doseIu(String value);
+
+  /// SAL-41: A dose; count is the number, value the number written for the language.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} tablet} other{{value} tablets}}'**
+  String doseTablet(num count, String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} capsule} other{{value} capsules}}'**
+  String doseCapsule(num count, String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} drop} other{{value} drops}}'**
+  String doseDrop(num count, String value);
+
+  /// SAL-41: A dose (inhaler).
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} puff} other{{value} puffs}}'**
+  String dosePuff(num count, String value);
+
+  /// SAL-41: A dose.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{value} patch} other{{value} patches}}'**
+  String dosePatch(num count, String value);
+
+  /// SAL-41: Medication card; the dose (doseMg...).
+  ///
+  /// In en, this message translates to:
+  /// **'Dose: {dose}'**
+  String doseLine(String dose);
+
+  /// SAL-41: Medication card: how many times per hour.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× an hour'**
+  String howOftenPerHour(int frequency);
+
+  /// SAL-41: Medication card: how many times per day.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× a day'**
+  String howOftenPerDay(int frequency);
+
+  /// SAL-41: Medication card: how many times per week.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× a week'**
+  String howOftenPerWeek(int frequency);
+
+  /// SAL-41: Medication card: how many times per month.
+  ///
+  /// In en, this message translates to:
+  /// **'{frequency}× a month'**
+  String howOftenPerMonth(int frequency);
+
+  /// SAL-41: Medication card: times per a period other than 1; every is the period written for the language.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} hour} other{{frequency}× every {every} hours}}'**
+  String howOftenEveryHours(num period, int frequency, String every);
+
+  /// SAL-41: As howOftenEveryHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} day} other{{frequency}× every {every} days}}'**
+  String howOftenEveryDays(num period, int frequency, String every);
+
+  /// SAL-41: As howOftenEveryHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} week} other{{frequency}× every {every} weeks}}'**
+  String howOftenEveryWeeks(num period, int frequency, String every);
+
+  /// SAL-41: As howOftenEveryHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{period, plural, one{{frequency}× every {every} month} other{{frequency}× every {every} months}}'**
+  String howOftenEveryMonths(num period, int frequency, String every);
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -1867,8 +2681,17 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['ar', 'bs', 'de', 'en', 'fr', 'hr', 'it', 'sr', 'tr'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'ar',
+    'bs',
+    'de',
+    'en',
+    'fr',
+    'hr',
+    'it',
+    'sr',
+    'tr',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

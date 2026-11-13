@@ -32,6 +32,7 @@ const staff = (account: Account): Record<string, Route> => ({
   'GET /fhir/R4/Questionnaire': emptyBundle,
   'GET /invites': () => Response.json({ invites: [] }),
   'GET /specialties': () => Response.json({ specialties: [] }),
+  'GET /conversations': () => Response.json({ conversations: [] }),
   [`GET /fhir/R4/Organization/${org}`]: organization,
 })
 
@@ -71,6 +72,7 @@ describe('App', () => {
     ['Working hours', '/availability'],
     ['Practitioners', '/practitioners'],
     ['Questionnaires', '/questionnaires'],
+    ['Messages', '/chats'],
   ])('gives staff the calendar and %s', async (screenName, path) => {
     renderAt('/', staff({ ...admin, role: 'practitioner', practitionerId: 'a3000000-0000-4000-8000-0000000000a1' }))
 
@@ -133,6 +135,13 @@ describe('App', () => {
 
     expect(await screen.findByText('The web app is for clinic staff. Patients use the Salus mobile app.')).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Calendar' })).toBeNull()
+  })
+
+  it('gives an admin no messages: the chat is for the doctors who take part', async () => {
+    renderAt('/chats', staff(admin))
+
+    expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
   })
 
   it('says when a page does not exist', async () => {

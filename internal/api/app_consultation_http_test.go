@@ -54,7 +54,7 @@ func newConsultationApp(t *testing.T) consultationApp {
 	t.Helper()
 	cfg := testConfig(t)
 	c := consultationApp{log: &syncBuffer{}, lk: composeLiveKitConfig(t), redisURL: cfg.RedisURL}
-	app, err := api.New(t.Context(), cfg, c.lk, testObjectStore(t), testDrafter(), slog.New(slog.NewJSONHandler(c.log, nil)))
+	app, err := api.New(t.Context(), cfg, c.lk, testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewJSONHandler(c.log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

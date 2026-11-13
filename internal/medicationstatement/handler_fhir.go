@@ -1,6 +1,12 @@
 package medicationstatement
 
 import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/fhir"
@@ -103,4 +109,91 @@ func toDosage(d Dosage) (dosage, bool) {
 		out.AsNeededBoolean = &asNeeded
 	}
 	return out, out.DoseAndRate != nil || out.Timing != nil || out.AsNeededBoolean != nil
+}
+
+// Reader reads and searches the medications for a caller (Service).
+type Reader interface {
+	Get(ctx context.Context, c Caller, id string) (Seen, error)
+	Seen(ctx context.Context, c Caller, patientID string) ([]Seen, error)
+}
+
+// FHIRHandler serves the MedicationStatement read and search by patient of the FHIR API
+// (api/fhir/CapabilityStatement.json). The writes are the JSON API's (HTTPHandler).
+type FHIRHandler struct {
+	svc Reader
+	// caller is who is signed in for the request, and false for nobody (internal/api).
+	caller func(ctx context.Context) (Caller, bool, error)
+	log    *slog.Logger
+	base   string // the FHIR API's absolute base URL (FHIR_BASE_URL)
+}
+
+// NewFHIRHandler returns the handler on svc. base is the FHIR API's absolute base URL (https://…/fhir/R4).
+func NewFHIRHandler(svc Reader, caller func(ctx context.Context) (Caller, bool, error), base string, log *slog.Logger) *FHIRHandler {
+	return &FHIRHandler{svc: svc, caller: caller, base: base, log: log}
+}
+
+// Routes declares the MedicationStatement routes on mux.
+func (h *FHIRHandler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /fhir/R4/MedicationStatement/{id}", h.read)
+	mux.HandleFunc("GET /fhir/R4/MedicationStatement", h.search)
+}
+
+func (h *FHIRHandler) read(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	a, err := h.svc.Get(r.Context(), c, r.PathValue("id"))
+	switch {
+	case errors.Is(err, ErrNotFound):
+		fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")
+		return
+	case err != nil:
+		fhir.InternalError(w, r, h.log, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(a.VersionID), 10)))
+	fhir.Write(w, http.StatusOK, toFHIR(a.MedicationStatement, a.Attributed))
+}
+
+// search answers MedicationStatement?patient=…, the one search there is.
+func (h *FHIRHandler) search(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	q, err := url.ParseQuery(r.URL.RawQuery)
+	values := q["patient"]
+	var patientID string
+	if ok = err == nil && len(q) == 1 && len(values) == 1; ok {
+		patientID, ok = fhir.ReferenceID(values[0], "Patient")
+	}
+	if !ok {
+		fhir.WriteError(w, http.StatusBadRequest, "not-supported", "Search by patient, once.")
+		return
+	}
+	all, err := h.svc.Seen(r.Context(), c, patientID)
+	if err != nil {
+		fhir.InternalError(w, r, h.log, err)
+		return
+	}
+	matches := make([]fhir.BundleEntry, 0, len(all))
+	for _, a := range all {
+		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/MedicationStatement/" + a.ID, Resource: toFHIR(a.MedicationStatement, a.Attributed)})
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	fhir.Write(w, http.StatusOK, fhir.NewSearchset(h.base+"/MedicationStatement?"+q.Encode(), matches, nil))
+}
+
+// signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.
+func (h *FHIRHandler) signedIn(w http.ResponseWriter, r *http.Request) (Caller, bool) {
+	c, ok, err := h.caller(r.Context())
+	switch {
+	case err != nil:
+		fhir.InternalError(w, r, h.log, err)
+	case !ok:
+		fhir.WriteError(w, http.StatusUnauthorized, "login", "Sign in to use this resource.")
+	}
+	return c, ok && err == nil
 }

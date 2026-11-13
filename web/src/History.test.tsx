@@ -34,7 +34,8 @@ const page = {
 const fullSummary = {
   lastVisit: page.items[1],
   allergies: [{ reference: 'AllergyIntolerance/a1', text: 'Placeholder substance', reaction: 'Placeholder reaction', severity: 'severe', confirmed: true }],
-  medications: [{ reference: 'MedicationStatement/m1', text: 'Placeholder medicine', dosage: {}, confirmed: false }],
+  medications: [{ reference: 'MedicationStatement/m1', text: 'Placeholder medicine',
+    dosage: { doseValue: 2, doseUnit: '{tablet}', frequency: 3, period: 1, periodUnit: 'd', asNeeded: true }, confirmed: false }],
   openItems: [{ type: 'questionnaire_pending', reference: 'QuestionnaireResponse/q1' }],
 }
 
@@ -55,6 +56,9 @@ describe('PatientHistory', () => {
     expect(screen.getByText('Placeholder reaction, severe')).toBeTruthy()
     expect(screen.getAllByText('Confirmed by a clinician')).toHaveLength(1)
     expect(screen.getByText('Placeholder medicine')).toBeTruthy()
+    expect(screen.getByText('2 tablets')).toBeTruthy()
+    expect(screen.getByText('3 times a day')).toBeTruthy()
+    expect(screen.getByText('As needed')).toBeTruthy()
     expect(screen.getByText('Questionnaire not completed')).toBeTruthy()
     expect(screen.getByText('Placeholder report')).toBeTruthy()
     expect(screen.getByText('Placeholder diagnosis: J06.9')).toBeTruthy()

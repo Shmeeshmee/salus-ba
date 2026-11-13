@@ -504,6 +504,10 @@ class ApiClient {
           return SummaryAllergy.fromJson(value);
         case 'SummaryMedication':
           return SummaryMedication.fromJson(value);
+        case 'SummaryRequest':
+          return SummaryRequest.fromJson(value);
+        case 'SummaryResponse':
+          return SummaryResponse.fromJson(value);
         case 'SystemMessage':
           return SystemMessage.fromJson(value);
         case 'Term':

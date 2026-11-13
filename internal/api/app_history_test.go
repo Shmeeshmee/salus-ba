@@ -159,11 +159,15 @@ func TestNew_ServesThePractitionerThePatientsHistory(t *testing.T) {
 	}
 
 	expectHTTP(t, c.d.practitioner, http.MethodGet, path+"/summary?appointment="+h.appointment, http.StatusOK,
-		`"lastVisit":{`, `"reference":"Encounter/`+h.own+`"`, `"allergies":[]`, `"medications":[]`)
-	// Until SAL-41 is wired the stand-ins fail closed: both sections unavailable, never "none recorded". One
-	// string per call: expectHTTP negates the status once per missing string, so two missing would cancel out.
-	for _, want := range []string{`"allergiesUnavailable":true`, `"medicationsUnavailable":true`} {
-		expectHTTP(t, c.d.practitioner, http.MethodGet, path+"/summary?appointment="+h.appointment, http.StatusOK, want)
+		`"lastVisit":{`, `"reference":"Encounter/`+h.own+`"`, `"medications":[]`)
+	// SAL-41's services read the profile: an allergy the patient added is in the summary, and no section is
+	// unavailable after a real read.
+	if rec := c.d.patient.do(http.MethodPost, "/me/allergies", `{"text":"Placeholder allergen","reaction":"Placeholder reaction","severity":"severe","clinicalStatus":"active"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("POST /me/allergies = %d %s", rec.Code, rec.Body)
+	}
+	body = expectHTTP(t, c.d.practitioner, http.MethodGet, path+"/summary?appointment="+h.appointment, http.StatusOK, `"text":"Placeholder allergen"`)
+	if strings.Contains(body, "Unavailable") {
+		t.Errorf("summary %s, want both sections read", body)
 	}
 
 	if _, err := c.owner.Exec(t.Context(), `UPDATE history_consent_encounter SET removed_at = now() WHERE consent_id = $1`, h.consent); err != nil {

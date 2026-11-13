@@ -529,3 +529,34 @@ p.hint.join { margin-bottom: 20px; }
 .history-items li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
 .history-document { width: 100%; margin: 8px 0 0; }
 .history-document dd { margin: 0 0 8px; white-space: pre-line; }
+/* SAL-41: the allergy warning on the call page and in drafting, and the allergies and medications panel. */
+.allergy-warning { display: grid; gap: 6px; padding: 12px 14px; color: var(--color-error); background: var(--color-error-faint); border: 1px solid var(--color-error); border-left-width: 6px; border-radius: var(--radius-control); }
+.allergy-warning h2 { margin: 0; font-size: 16px; }
+.allergy-warning ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.allergy-warning li { color: var(--color-ink); }
+.allergy-warning li span + span::before { content: ' '; }
+.side-panel .allergy-warning { margin-bottom: 12px; }
+.allergy-warning p { margin: 0; }
+.allergy-warning.failed { justify-items: start; }
+.allergy-warning.pending { color: var(--color-text-muted); background: none; border-color: var(--color-border); }
+.call-side .tabs { flex-wrap: wrap; }
+.entries { display: grid; gap: 14px; }
+.entry-group { display: grid; gap: 8px; }
+.entry-group h3 { margin: 0; font-size: 15px; }
+.entry-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.entry-list li { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+.entry-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--color-text-muted); }
+.entry-meta:empty { display: none; }
+.entry-confirm { display: flex; align-items: center; gap: 8px; }
+.entry-list .tag { justify-self: start; font-size: 12px; }
+.tag.confirmed { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.entries > button { justify-self: start; }
+.entry-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); }
+.entry-form h4 { margin: 0; font-size: 15px; }
+.entry-form input, .entry-form select { width: 100%; box-sizing: border-box; }
+.entry-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.term-field { position: relative; }
+.term-options { list-style: none; margin: 0; padding: 4px; position: absolute; top: 100%; left: 0; right: 0; z-index: 2; max-height: 220px; overflow: auto; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); }
+.term-options li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.term-options li[aria-selected='true'], .term-options li:hover { background: var(--color-mint-faint); }
+.allergy-warning .strong, .entry-list .strong { font-weight: 600; }

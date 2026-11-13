@@ -6,6 +6,7 @@ import type { components } from './api/schema'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
 import { Answers } from './AppointmentQuestionnaires'
+import { unitKey } from './entries'
 import { requestsOf, type Request } from './responses'
 import { Alert } from './ui'
 
@@ -112,6 +113,7 @@ function SummaryView({ summary, zone }: { summary: Summary; zone: string }) {
           {summary.medications.map((m) => (
             <li key={m.reference}>
               <span className="history-name">{m.text}</span>
+              <Dosage dosage={m.dosage} />
               {m.confirmed && <span className="tag">{t('history.confirmed')}</span>}
             </li>
           ))}
@@ -130,6 +132,21 @@ function SummaryView({ summary, zone }: { summary: Summary; zone: string }) {
         </ul>
       )}
     </div>
+  )
+}
+
+// Dosage is how a medication is taken, in SAL-41's words for it (the allergies catalog): the dose, how often, as
+// needed; each only when recorded.
+function Dosage({ dosage: d }: { dosage: Summary['medications'][number]['dosage'] }) {
+  const t = useT()
+  return (
+    <>
+      {d.doseValue !== undefined && d.doseUnit && <span>{t(`allergies.dose.${unitKey(d.doseUnit)}`, { value: d.doseValue })}</span>}
+      {d.frequency !== undefined && d.period !== undefined && d.periodUnit && (
+        <span>{t(`allergies.timing.${d.periodUnit}`, { frequency: d.frequency, period: d.period })}</span>
+      )}
+      {d.asNeeded && <span>{t('allergies.asNeeded')}</span>}
+    </>
   )
 }
 

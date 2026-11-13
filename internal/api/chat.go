@@ -25,6 +25,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/redis"
 )
@@ -46,6 +47,7 @@ type chatPorts struct {
 	jobs       *river.Client[pgx.Tx] // a send enqueues its notifications (SAL-29)
 	caller     func(ctx context.Context) (appointment.Caller, bool, error)
 	active     func(r *http.Request) (bool, error) // the socket's session is still open (auth.Handler.Active)
+	summarizer llm.Summarizer                      // the AI summary's engine (config.LoadChatSummary: the fake)
 	// SAL-30, each optional: the conversations' files (binary with a conversation as their parent), and the caller's
 	// UI language for the terms' tagging (English without it).
 	files    *binary.Service
@@ -59,7 +61,7 @@ func newChat(p chatPorts, log *slog.Logger) (routes, stream func(*http.ServeMux)
 	ports := communication.Ports{
 		Repo: communication.NewPostgresRepository(p.db), Publisher: hub, Consents: p.consents, Visits: p.visits,
 		Roles: p.roles, Encounters: p.encounters, ChatConsents: p.consents, Directory: p.roles, Audit: p.audit, Tx: p.tx,
-		Clock: clock.System{}, Log: log, Jobs: communication.NewRiverJobs(p.jobs),
+		Clock: clock.System{}, Summarizer: p.summarizer, Log: log, Jobs: communication.NewRiverJobs(p.jobs),
 		Presence: communication.NewRedisPresence(p.rdb), Terms: terminology.NewService(terminology.NewPostgresRepository(p.db), nil),
 	}
 	if p.files != nil {

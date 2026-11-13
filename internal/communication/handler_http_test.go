@@ -26,11 +26,12 @@ type stubChats struct {
 	next         *communication.ListCursor
 	sub          communication.Subscription
 	page         communication.Page
-	revs         []communication.Revision
 	list         []communication.Conversation
+	revs         []communication.Revision
 	after        [][]communication.Message // successive answers of After; then afterErr, then nothing
 	asked        []string
 	sent         communication.Message
+	summary      communication.Summary
 	conv         communication.Conversation
 	mu           sync.Mutex
 	sessionEnded bool
@@ -106,6 +107,11 @@ func (s *stubChats) After(context.Context, communication.Caller, string, communi
 		return next, nil
 	}
 	return nil, s.afterErr
+}
+
+func (s *stubChats) Summarize(_ context.Context, _ communication.Caller, _, lang string) (communication.Summary, error) {
+	s.ask("summary " + lang)
+	return s.summary, s.err
 }
 
 // sessionOpen is the socket's session check: open until the test ends it.

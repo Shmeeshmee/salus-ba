@@ -43,7 +43,7 @@ func run(t *testing.T, steps []step) {
 func TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt(t *testing.T) {
 	cfg := testConfig(t)
 	var log syncBuffer
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.NewTextHandler(&log, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
