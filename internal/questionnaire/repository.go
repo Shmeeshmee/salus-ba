@@ -20,7 +20,7 @@ type Repository interface {
 	ByIDs(ctx context.Context, ids []string) ([]Questionnaire, error)
 	// Shared returns the versions of ids that completed responses of another clinic's visits shared with the clinic
 	// set answer, when the practitioner practitionerID has an appointment with their patient there
-	// (history_questionnaire, migration 00052), whatever row-level security shows. Their translations stay closed.
+	// (history_questionnaire, migration 00051), whatever row-level security shows. Their translations stay closed.
 	Shared(ctx context.Context, practitionerID string, ids []string) ([]Questionnaire, error)
 	// Lock returns the version id, locked until the transaction ends so lifecycle steps of one version run
 	// one after the other, or ErrNotFound.

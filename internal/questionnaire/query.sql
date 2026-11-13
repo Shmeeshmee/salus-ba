@@ -108,7 +108,7 @@ WHERE practitioner_role_id = @practitioner_role_id;
 
 -- name: SharedQuestionnaires :many
 -- The versions of ids another clinic's completed responses answer, of visits shared with the scope's clinic, for a
--- practitioner with an appointment with their patient there (migration 00052).
+-- practitioner with an appointment with their patient there (migration 00051).
 SELECT id, updated_at, published_at, retired_at, series_id, organization_id, version, version_id, status, title, description, items, language
 FROM history_questionnaire(@ids::uuid[], @practitioner_id::uuid);
 

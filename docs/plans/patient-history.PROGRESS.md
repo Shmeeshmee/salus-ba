@@ -157,7 +157,7 @@ Full) and one read per owning domain for those visits (`composition.Service.Hist
 `questionnaireresponse.Service.History`), each domain auditing the items a page shows (`Disclosed`) and the history
 auditing the view itself (`Patient/<id>`, TREAT). A shared visit's signed documents, completed responses, their files
 and the questions they answer open for that practitioner through `encounter.Service.Shared`/`SharedAppointment`; the
-questions through migration 00052's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
+questions through migration 00051's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
 not a chained policy. `migrations/language_test.go` runs in its usual time with it (about 17 s per test, parallel,
 as before). Diagnoses: the ICD-10 codes of the signed documents' coded fields (`HistoryItem.diagnoses`, added to
 the schema and the Go type), for own and shared visits alike: `condition.Service` has no read of a visit's
@@ -190,11 +190,11 @@ unavailable on a failed read instead of empty, read after the summary's own tran
 the rest nor its audit, the empty text says "shown to you", and the SAL-41 stand-ins fail closed
 (`TestHistory_TheProfileStandInsGoOnceSAL41IsHere` fails once SAL-41's services are on the branch); a diagnosis
 carries its field's label and its Condition's confirmation, through `condition.Reads.Confirmed` for the clinic's own
-and 00052's `history_confirmed_conditions` for a shared visit (a deviation from the plan's "without changing
+and 00051's `history_confirmed_conditions` for a shared visit (a deviation from the plan's "without changing
 condition's code", asked by the review: a read was added, nothing else changed); the history on the appointment
 opens on request; the summary reads only the open responses; a file is audited as its Binary; the titles are one read
 per page (`questionnaire.Service.Titles`); the shared-version read needs a practitioner with an appointment with the
-patient (00052's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
+patient (00051's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
 name still says it is shared. Not done: ICD-10 names, no lookup by code exists; a visit has nothing to open
 beyond the items listed with it. Audit rows are one INSERT each (about 30 per page): `auditevent` has no batch insert
 on main, so none was added. The bench was rerun after SAL-41's wiring on a quieter host (load average 4.3 to 4.7):
@@ -216,9 +216,9 @@ Entries recorded in visits you cannot see are not included; ask the patient.", a
 the last visit); the call page's summary is read again each time its tab is shown and when SAL-41's entries change,
 and a failed summary or history read has "Try again"; `expectHTTP` fails on every missing string (`missing`, tested);
 the dosage keeps only SAL-41's known units; a diagnosis is confirmed only by a Condition of that field and that code
-(00052's `history_confirmed_conditions` returns the code). Accepted: `Seen` audits every entry it returns, inactive
+(00051's `history_confirmed_conditions` returns the code). Accepted: `Seen` audits every entry it returns, inactive
 allergies and stopped medications included, which the summary does not show: over-audit, the safe direction; an
 active-only read would change SAL-41's services, so it was not added. Not adopted: deriving the practitioner in
-00052's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
+00051's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
 questionnaire's and the condition's scopes set the clinic only, and the caller carries the practitioner, not a role
 (a practitioner has one per clinic). The argument comes from the session's caller in the service, never the request.

@@ -22,7 +22,7 @@ FROM condition WHERE id = @id;
 
 -- name: ConfirmedFields :many
 -- The coded fields of the signed documents ids whose Condition is confirmed: the clinic's own (condition_clinic),
--- and a visit's shared with it, for a practitioner with an appointment with its patient there (migration 00052).
+-- and a visit's shared with it, for a practitioner with an appointment with its patient there (migration 00051).
 SELECT document_draft_id, field_key, code FROM condition
 WHERE document_draft_id = ANY(@ids::uuid[]) AND verification_status = 'confirmed' AND organization_id = @organization_id
 UNION
