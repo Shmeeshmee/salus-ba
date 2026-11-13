@@ -77,7 +77,10 @@ func (s *Service) Record(ctx context.Context, c Caller, encounterID string, in I
 		if err := s.apply(ctx, &a, in); err != nil {
 			return AllergyIntolerance{}, err
 		}
-		return a, s.Repo.Insert(ctx, a)
+		if err := s.Repo.Insert(ctx, a); err != nil {
+			return a, err
+		}
+		return s.attest(ctx, c, e.PractitionerRoleID, a, fhir.ActivityCreate, fhir.AgentAuthor)
 	})
 }
 
@@ -105,7 +108,10 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, version int32
 		if content(a) != before && !a.Confirmation.At.IsZero() && (v.Role == access.RolePatient || a.Confirmation.OrganizationID != c.OrganizationID) {
 			a.Confirmation, a.VerificationStatus = Confirmation{}, VerificationUnconfirmed
 		}
-		return s.update(ctx, a)
+		if a, err = s.update(ctx, a); err != nil || v.Role == access.RolePatient {
+			return a, err
+		}
+		return s.attest(ctx, c, v.PractitionerRole, a, fhir.ActivityUpdate, fhir.AgentAuthor)
 	})
 }
 
@@ -124,7 +130,10 @@ func (s *Service) Remove(ctx context.Context, c Caller, id string, version int32
 			return a, s.Repo.Delete(ctx, a.ID, version)
 		}
 		a.VerificationStatus = VerificationEnteredInError
-		return s.update(ctx, a)
+		if a, err = s.update(ctx, a); err != nil || v.Role == access.RolePatient {
+			return a, err
+		}
+		return s.attest(ctx, c, v.PractitionerRole, a, fhir.ActivityNullify, fhir.AgentAuthor)
 	})
 	return err
 }
@@ -147,7 +156,10 @@ func (s *Service) Confirm(ctx context.Context, c Caller, id string, version int3
 		}
 		a.Confirmation = Confirmation{At: s.Clock.Now().UTC(), RoleID: v.PractitionerRole, OrganizationID: c.OrganizationID}
 		a.VerificationStatus = VerificationConfirmed
-		return s.update(ctx, a)
+		if a, err = s.update(ctx, a); err != nil {
+			return a, err
+		}
+		return s.attest(ctx, c, v.PractitionerRole, a, fhir.ActivityUpdate, fhir.AgentVerifier)
 	})
 }
 

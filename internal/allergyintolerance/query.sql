@@ -26,3 +26,12 @@ RETURNING version_id;
 
 -- name: DeleteAllergy :execrows
 DELETE FROM allergy_intolerance WHERE id = @id AND version_id = @version_id;
+
+-- name: InsertAllergyProvenance :exec
+INSERT INTO allergy_intolerance_provenance (id, recorded, allergy_intolerance_id, practitioner_role_id, organization_id,
+                                            target_version, activity, agent_type)
+VALUES (@id, @recorded, @allergy_intolerance_id, @practitioner_role_id, @organization_id, @target_version, @activity, @agent_type);
+
+-- A Provenance as the transaction's scope (00053) shows it.
+-- name: AllergyProvenanceByID :one
+SELECT * FROM allergy_intolerance_provenance WHERE id = @id;

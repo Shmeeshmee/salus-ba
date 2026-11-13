@@ -38,7 +38,11 @@ type Config struct {
 	// timeout, whose buffered writer would hold the whole body and cut a long transfer, and set their own
 	// deadlines through http.ResponseController.
 	Streams []func(mux *http.ServeMux)
-	Timeout time.Duration // per request
+	// Provenances are the sources of GET /fhir/R4/Provenance/{id}, asked in turn (such as
+	// allergyintolerance.FHIRHandler.Provenance): each answers and reports true when the id is its own, or writes
+	// nothing and reports false. One that audits a read of any id it is given (composition's) goes last.
+	Provenances []func(w http.ResponseWriter, r *http.Request) bool
+	Timeout     time.Duration // per request
 }
 
 // New returns the API's handler: request id, access log, recover, timeout (but for the streams) and the
@@ -49,6 +53,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /readyz", readyz(cfg.Logger, cfg.Checks))
 	mux.HandleFunc("GET /fhir/R4/metadata", metadata)
 	mux.HandleFunc("/fhir/R4/", fhirNotFound)
+	mux.HandleFunc("GET /fhir/R4/Provenance/{id}", firstOf(cfg.Provenances))
 	for _, routes := range cfg.Routes {
 		routes(mux)
 	}
@@ -105,6 +110,18 @@ func readyz(log *slog.Logger, checks []Check) http.HandlerFunc {
 func metadata(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", fhir.ContentType)
 	_, _ = io.WriteString(w, fhirapi.CapabilityStatement())
+}
+
+// firstOf serves a read from the first of sources that answers it, and not found when none does.
+func firstOf(sources []func(w http.ResponseWriter, r *http.Request) bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, answer := range sources {
+			if answer(w, r) {
+				return
+			}
+		}
+		fhirNotFound(w, r)
+	}
 }
 
 // fhirNotFound answers every FHIR path the CapabilityStatement does not list.

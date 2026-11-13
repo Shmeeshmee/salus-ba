@@ -211,6 +211,16 @@ func historyRules() []Rule {
 			Then:  ThenKeep,
 		},
 		{
+			Table: "allergy_intolerance_provenance",
+			Basis: "Who of a clinic recorded, changed, confirmed or removed an allergy and when (FHIR Provenance, GDPR Art. 9(2)(h)); kept with its entry as allergy_intolerance is, and deleted with the patient's own entry when they delete it; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "medication_statement_provenance",
+			Basis: "Who of a clinic recorded, changed, confirmed or removed a medication and when (FHIR Provenance, GDPR Art. 9(2)(h)); kept as allergy_intolerance_provenance is; needs a legal decision before production (docs/plans/patient-history.md, \"Personal data\")",
+			Then:  ThenKeep,
+		},
+		{
 			Table: "history_consent",
 			Basis: "Proof of the patient's decision to share visits from other clinics with a clinic (GDPR Art. 7(1)), kept with the clinical record like consent (Art. 9(2)(h)); needs a legal decision before production (docs/plans/patient-history.md)",
 			Then:  ThenKeep,

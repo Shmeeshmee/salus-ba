@@ -86,6 +86,37 @@ func (q *Queries) InsertMedication(ctx context.Context, arg InsertMedicationPara
 	return err
 }
 
+const insertMedicationProvenance = `-- name: InsertMedicationProvenance :exec
+INSERT INTO medication_statement_provenance (id, recorded, medication_statement_id, practitioner_role_id, organization_id,
+                                             target_version, activity, agent_type)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`
+
+type InsertMedicationProvenanceParams struct {
+	ID                    pgtype.UUID
+	Recorded              pgtype.Timestamptz
+	MedicationStatementID pgtype.UUID
+	PractitionerRoleID    pgtype.UUID
+	OrganizationID        pgtype.UUID
+	TargetVersion         int32
+	Activity              string
+	AgentType             string
+}
+
+func (q *Queries) InsertMedicationProvenance(ctx context.Context, arg InsertMedicationProvenanceParams) error {
+	_, err := q.db.Exec(ctx, insertMedicationProvenance,
+		arg.ID,
+		arg.Recorded,
+		arg.MedicationStatementID,
+		arg.PractitionerRoleID,
+		arg.OrganizationID,
+		arg.TargetVersion,
+		arg.Activity,
+		arg.AgentType,
+	)
+	return err
+}
+
 const medicationByID = `-- name: MedicationByID :one
 SELECT id, created_at, updated_at, date_asserted, confirmed_at, patient_id, organization_id, encounter_id, recorder_role_id, confirmed_by_role_id, confirmed_organization_id, term_id, dose_value, period, version_id, frequency, in_profile, as_needed, medication_text, dose_unit, period_unit, status FROM medication_statement WHERE id = $1
 `
@@ -116,6 +147,28 @@ func (q *Queries) MedicationByID(ctx context.Context, id pgtype.UUID) (Medicatio
 		&i.DoseUnit,
 		&i.PeriodUnit,
 		&i.Status,
+	)
+	return i, err
+}
+
+const medicationProvenanceByID = `-- name: MedicationProvenanceByID :one
+SELECT id, created_at, recorded, medication_statement_id, practitioner_role_id, organization_id, target_version, activity, agent_type FROM medication_statement_provenance WHERE id = $1
+`
+
+// A Provenance as the transaction's scope (00053) shows it.
+func (q *Queries) MedicationProvenanceByID(ctx context.Context, id pgtype.UUID) (MedicationStatementProvenance, error) {
+	row := q.db.QueryRow(ctx, medicationProvenanceByID, id)
+	var i MedicationStatementProvenance
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Recorded,
+		&i.MedicationStatementID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.TargetVersion,
+		&i.Activity,
+		&i.AgentType,
 	)
 	return i, err
 }

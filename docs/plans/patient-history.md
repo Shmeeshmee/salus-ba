@@ -174,6 +174,7 @@ Every field is health data (Art. 9); the patient is the data subject.
 | --- | --- | --- |
 | `allergy_intolerance` | patient, the recording clinic, visit and role (for a clinic's entry), the term, the substance's text, category, reaction, severity, clinical and verification status, who confirmed and when, in the profile or not | The allergies every treating doctor must know (safety); the source and confirmation for the record and for the visit-scoped rule |
 | `medication_statement` | patient, the source as above, the term, the medication's text, the dose and its unit, how often, as needed, status, the confirmation | The current medications, for safe prescribing |
+| `allergy_intolerance_provenance`, `medication_statement_provenance` (00053) | the entry and the version written, when, the activity (record, change, confirm, remove), the practitioner role and its clinic | Who did what to the record (FHIR Provenance for clinical writes, CLAUDE.md); seen only by the patient and the writing clinic (`access.Attributed`) |
 | `history_consent` | patient, the receiving clinic, granted, revoked, status, version | Proof of the patient's decision (Art. 7(1)) and the access check |
 | `history_consent_encounter` | the consent, the visit, when added, when removed | Which visits were shared when: the access check and its proof |
 

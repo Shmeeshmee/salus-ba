@@ -232,3 +232,33 @@ func instant(t time.Time) pgtype.Timestamptz {
 }
 
 func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+
+func (r *postgresRepository) InsertProvenance(ctx context.Context, p Provenance) error {
+	ids, err := uuids(p.ID, p.EntryID, p.RoleID, p.OrganizationID)
+	if err != nil {
+		return err
+	}
+	return refusal(r.q(ctx).InsertMedicationProvenance(ctx, medicationstatementdb.InsertMedicationProvenanceParams{
+		ID: ids[0], Recorded: instant(p.Recorded), MedicationStatementID: ids[1], PractitionerRoleID: ids[2], OrganizationID: ids[3],
+		TargetVersion: p.Version, Activity: p.Activity, AgentType: p.AgentType,
+	}))
+}
+
+func (r *postgresRepository) Provenance(ctx context.Context, id string) (Provenance, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Provenance{}, ErrNotFound
+	}
+	row, err := r.q(ctx).MedicationProvenanceByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Provenance{}, ErrNotFound
+	case err != nil:
+		return Provenance{}, err
+	}
+	return Provenance{
+		Recorded: row.Recorded.Time.UTC(), ID: row.ID.String(), EntryID: row.MedicationStatementID.String(),
+		RoleID: row.PractitionerRoleID.String(), OrganizationID: row.OrganizationID.String(),
+		Activity: row.Activity, AgentType: row.AgentType, Version: row.TargetVersion,
+	}, nil
+}

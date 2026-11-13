@@ -1912,3 +1912,21 @@ practitioner. Every read, grant, change and revocation is audited.
 | The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
 | A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
 | History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
+
+### SAL-41 follow-up: the Provenance of the clinical writes (migration 00053)
+
+**Processing added.** Who of a clinic recorded, changed, confirmed or removed an allergy or a medication, and when:
+one FHIR Provenance per practitioner's write (`allergy_intolerance_provenance`, `medication_statement_provenance`),
+written in the write's transaction, append-only. Lawful basis: care (Art. 9(2)(h)), as the entry it attests. No
+processor is added. The patient's own writes have none (the entry names the patient as its source, the AuditEvent
+records the write).
+
+**Personal data added.** The entry, the version written, when, the activity, and the practitioner role and its clinic.
+Kept with the entry (retention `keep`), deleted with the patient's own unconfirmed entry when they delete it.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A Provenance tells another clinic where the patient was treated (an entry in the profile, or one of a shared visit) | It is read only by the patient and by the writing clinic's staff who see the entry (`access.Attributed`); row-level security shows a clinic only its own Provenances of entries it sees (migration and service tests) |
+| A Provenance outlives what it attests | It goes with its entry (`ON DELETE CASCADE`); the application can neither change nor delete one (no grant, tested) |

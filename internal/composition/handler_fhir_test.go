@@ -102,7 +102,13 @@ func getFHIR(t *testing.T, svc *stubReader, signedIn bool, path string) *httptes
 	t.Helper()
 	mux := http.NewServeMux()
 	caller := func(context.Context) (appointment.Caller, bool, error) { return pract, signedIn, nil }
-	composition.NewFHIRHandler(svc, caller, "https://api.example.test/fhir/R4", slog.New(slog.DiscardHandler)).Routes(mux)
+	h := composition.NewFHIRHandler(svc, caller, "https://api.example.test/fhir/R4", slog.New(slog.DiscardHandler))
+	h.Routes(mux)
+	mux.HandleFunc("GET /fhir/R4/Provenance/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if !h.Provenance(w, r) {
+			t.Error("the signatures' Provenance did not answer: it is the route's last source and answers every id")
+		}
+	})
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 	return rec
