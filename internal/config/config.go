@@ -24,6 +24,9 @@ type Config struct {
 	// PatientAppURL is the patient app's link base, for appointment e-mails (PATIENT_APP_URL): they link to
 	// <PatientAppURL>/appointments. The notifier requires it; its SMTP server is LoadSMTP's.
 	PatientAppURL string
+	// AppointmentLinkURL is the base of the reminders' one-time links (APPOINTMENT_LINK_URL, the api's public origin):
+	// <AppointmentLinkURL>/a/<token> (docs/plans/appointments.md, SAL-33). The notifier requires it.
+	AppointmentLinkURL string
 	// FHIRBaseURL is the FHIR API's absolute public base, https://…/fhir/R4, for the links and fullUrls of
 	// a search's Bundle (FHIR_BASE_URL; the api requires it).
 	FHIRBaseURL string
@@ -51,6 +54,7 @@ func Load() (Config, error) {
 		AppDatabasePassword: os.Getenv("APP_DATABASE_PASSWORD"),
 		WebBaseURL:          os.Getenv("WEB_BASE_URL"),
 		PatientAppURL:       os.Getenv("PATIENT_APP_URL"),
+		AppointmentLinkURL:  os.Getenv("APPOINTMENT_LINK_URL"),
 		FHIRBaseURL:         os.Getenv("FHIR_BASE_URL"),
 	}
 	if cfg.DatabaseURL == "" {

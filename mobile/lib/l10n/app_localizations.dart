@@ -2879,6 +2879,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Visits shared from other clinics'**
   String get consentForHistory;
+
+  /// SAL-33: home button and screen title of the notification settings. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders'**
+  String get reminders;
+
+  /// SAL-33: notification settings, the sentence under the title. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how your clinics remind you of your appointments.'**
+  String get remindersIntro;
+
+  /// SAL-33: notification settings, the push switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications'**
+  String get remindersPush;
+
+  /// SAL-33: notification settings, the e-mail switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'E-mail'**
+  String get remindersEmail;
+
+  /// SAL-33: notification settings, the SMS switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'SMS'**
+  String get remindersSms;
+
+  /// [legal] SAL-33: notification settings, under the SMS switch: the SMS opt-in, what goes by SMS, to which number, where, and never advertising. Draft, waiting for the owner and the lawyer.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders and waitlist offers by SMS to the phone number in your profile, only at clinics that offer SMS. Never used for advertising.'**
+  String get remindersSmsHint;
+
+  /// SAL-33: notification settings, the quiet hours switch. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours'**
+  String get quietHours;
+
+  /// SAL-33: notification settings, under the quiet hours switch: push and SMS wait, e-mail is not held. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications and SMS wait until quiet hours end. E-mails are not held.'**
+  String get quietHoursHint;
+
+  /// SAL-33: notification settings, the start of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get quietHoursFrom;
+
+  /// SAL-33: notification settings, the end of the quiet hours (a 24-hour time beside it). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Until'**
+  String get quietHoursUntil;
+
+  /// SAL-33: notification settings saved. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your choices are saved.'**
+  String get remindersSaved;
+
+  /// SAL-33: notification settings refused, 409 phone_required. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'SMS needs a phone number in your profile. Add one in My profile, then try again.'**
+  String get remindersPhoneRequired;
+
+  /// SAL-33: notification settings refused, 400. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'These settings could not be saved. Check them and try again.'**
+  String get remindersInvalid;
 }
 
 class _AppLocalizationsDelegate

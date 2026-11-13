@@ -460,5 +460,18 @@
   "sharingStopped": "Vous ne partagez plus votre historique avec cette clinique.",
   "sharingChanged": "Vos visites partagées ont changé entre-temps. Vérifiez-les et enregistrez à nouveau.",
   "bookedNotShared": "Votre rendez-vous est réservé, mais votre historique n’a pas pu être partagé. Vous pouvez le partager dans Historique partagé.",
-  "consentForHistory": "Visites partagées d’autres cliniques"
+  "consentForHistory": "Visites partagées d’autres cliniques",
+  "reminders": "Rappels",
+  "remindersIntro": "Choisissez comment vos cliniques vous rappellent vos rendez-vous.",
+  "remindersPush": "Notifications push",
+  "remindersEmail": "E-mail",
+  "remindersSms": "SMS",
+  "remindersSmsHint": "Rappels et offres de la liste d'attente par SMS au numéro de téléphone de votre profil, uniquement dans les cliniques qui proposent les SMS. Jamais à des fins publicitaires.",
+  "quietHours": "Heures calmes",
+  "quietHoursHint": "Les notifications push et les SMS attendent la fin des heures calmes. Les e-mails ne sont pas retenus.",
+  "quietHoursFrom": "De",
+  "quietHoursUntil": "À",
+  "remindersSaved": "Vos choix sont enregistrés.",
+  "remindersPhoneRequired": "Les SMS nécessitent un numéro de téléphone dans votre profil. Ajoutez-le dans Mon profil, puis réessayez.",
+  "remindersInvalid": "Ces paramètres n'ont pas pu être enregistrés. Vérifiez-les et réessayez."
 }

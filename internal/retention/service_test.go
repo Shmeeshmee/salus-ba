@@ -52,20 +52,20 @@ func (a *fakeAudit) CountRecordedBefore(_ context.Context, before time.Time) (in
 }
 
 type appliers struct {
-	sessions, invites, slots, videoSessions, responses, binaries, deadLetters, trendCells, trendRises, tokens *fakePurger
-	audit                                                                                                     *fakeAudit
+	sessions, invites, slots, videoSessions, responses, binaries, deadLetters, trendCells, trendRises, tokens, reminders, deliveries *fakePurger
+	audit                                                                                                                            *fakeAudit
 }
 
 func newAppliers() appliers {
 	return appliers{sessions: &fakePurger{rows: 4}, invites: &fakePurger{rows: 1}, slots: &fakePurger{rows: 9}, videoSessions: &fakePurger{rows: 2},
 		responses: &fakePurger{rows: 3}, binaries: &fakePurger{rows: 5}, deadLetters: &fakePurger{rows: 6}, trendCells: &fakePurger{rows: 7},
-		trendRises: &fakePurger{rows: 1}, tokens: &fakePurger{rows: 8}, audit: &fakeAudit{}}
+		trendRises: &fakePurger{rows: 1}, tokens: &fakePurger{rows: 8}, reminders: &fakePurger{rows: 10}, deliveries: &fakePurger{rows: 11}, audit: &fakeAudit{}}
 }
 
 func (a appliers) purgers() map[string]retention.Purger {
 	return map[string]retention.Purger{"session": a.sessions, "invite": a.invites, "slot": a.slots, "video_session": a.videoSessions,
 		"questionnaire_response": a.responses, "binary": a.binaries, "webhook_dead_letter": a.deadLetters, "trends_cell": a.trendCells,
-		"trends_rise": a.trendRises, "appointment_action_token": a.tokens}
+		"trends_rise": a.trendRises, "appointment_action_token": a.tokens, "appointment_reminder": a.reminders, "notification_delivery": a.deliveries}
 }
 
 func (a appliers) service(t *testing.T) *retention.Service {
@@ -109,7 +109,8 @@ func TestApply_CallsEachApplierOnceWithItsRulesCutOffAndCountsTheRows(t *testing
 	// have no result.
 	want := []retention.Result{{Table: "audit_event"}, {Table: "session", Deleted: 4}, {Table: "invite", Deleted: 1}, {Table: "slot", Deleted: 9}, {Table: "video_session", Deleted: 2},
 		{Table: "questionnaire_response", Deleted: 3}, {Table: "binary", Deleted: 5}, {Table: "webhook_dead_letter", Deleted: 6},
-		{Table: "trends_cell", Deleted: 7}, {Table: "trends_rise", Deleted: 1}, {Table: "appointment_action_token", Deleted: 8}}
+		{Table: "trends_cell", Deleted: 7}, {Table: "trends_rise", Deleted: 1}, {Table: "appointment_action_token", Deleted: 8},
+		{Table: "appointment_reminder", Deleted: 10}, {Table: "notification_delivery", Deleted: 11}}
 	if !slices.Equal(results, want) {
 		t.Errorf("results %+v, want %+v", results, want)
 	}
@@ -138,7 +139,7 @@ func TestApply_AuditsEachDeleteRuleOnceWithItsTableAndRowCount(t *testing.T) {
 	}
 	want := []auditevent.AuditEvent{event("session", 4), event("invite", 1), event("slot", 0), event("video_session", 2), event("questionnaire_response", 3), event("binary", 5),
 		event("webhook_dead_letter", 6), event("trends_cell", 7), event("trends_rise", 1),
-		event("appointment_action_token", 8)}
+		event("appointment_action_token", 8), event("appointment_reminder", 10), event("notification_delivery", 11)}
 	if !slices.Equal(a.audit.events, want) {
 		t.Errorf("recorded %+v,\nwant %+v", a.audit.events, want)
 	}
@@ -185,7 +186,7 @@ func TestApply_StopsAtAnApplierThatFails(t *testing.T) {
 // purgersBut is p for every table whose rule is delete but the table without, and for each extra table.
 func purgersBut(p retention.Purger, without string, extra ...string) map[string]retention.Purger {
 	out := map[string]retention.Purger{}
-	for _, table := range append([]string{"session", "invite", "slot", "video_session", "questionnaire_response", "binary", "webhook_dead_letter", "appointment_action_token", "trends_cell", "trends_rise"}, extra...) {
+	for _, table := range append([]string{"session", "invite", "slot", "video_session", "questionnaire_response", "binary", "webhook_dead_letter", "appointment_action_token", "trends_cell", "trends_rise", "appointment_reminder", "notification_delivery"}, extra...) {
 		if table != without {
 			out[table] = p
 		}

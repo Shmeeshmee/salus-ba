@@ -148,7 +148,6 @@ func TestNotifier_MentionsAnOutstandingQuestionnaireWithoutItsTitle(t *testing.T
 		}
 	}
 	booked := appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID}
-	reminder := appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID}
 	for _, tt := range []struct {
 		setup func()
 		args  river.JobArgs
@@ -156,8 +155,9 @@ func TestNotifier_MentionsAnOutstandingQuestionnaireWithoutItsTitle(t *testing.T
 		want  bool
 	}{
 		{name: "the confirmation before the default's request", args: booked, want: true, setup: func() {}},
-		{name: "the reminder with the default in progress", args: reminder, want: true, setup: func() { setResponse("in-progress") }},
-		{name: "the reminder with the default submitted", args: reminder, want: false, setup: func() { setResponse("completed") }},
+		// The reminder (SAL-33) asks the same check: notification's TestEmails_AreWrittenInEveryLanguage.
+		{name: "the confirmation with the default in progress", args: booked, want: true, setup: func() { setResponse("in-progress") }},
+		{name: "the confirmation with the default submitted", args: booked, want: false, setup: func() { setResponse("completed") }},
 		{name: "the confirmation without a default", args: booked, want: false, setup: func() {
 			if _, err := db.owner.Exec(t.Context(), "DELETE FROM questionnaire_response; DELETE FROM questionnaire_default"); err != nil {
 				t.Fatal(err)

@@ -107,3 +107,45 @@ FROM appointment
 WHERE organization_id = @organization_id AND status = 'fulfilled'
   AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
 ORDER BY lower(period);
+
+-- SAL-33 (docs/plans/appointments.md): the reminders.
+
+-- name: InsertReminder :one
+-- A scheduled reminder; none when the appointment has one of that offset for that start already.
+INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
+VALUES (@appointment_id, @organization_id, @patient_id, @offset_minutes, @start_at, @due_at)
+ON CONFLICT ON CONSTRAINT appointment_reminder_once DO NOTHING
+RETURNING id, created_at;
+
+-- name: CancelReminders :execrows
+UPDATE appointment_reminder SET state = 'cancelled'
+WHERE appointment_id = @appointment_id AND state = 'scheduled';
+
+-- name: LockReminder :one
+SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
+FROM appointment_reminder
+WHERE id = @id
+FOR UPDATE;
+
+-- name: ReminderByID :one
+SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
+FROM appointment_reminder
+WHERE id = @id;
+
+-- name: SetReminderState :execrows
+UPDATE appointment_reminder SET state = @state, dispatched_at = sqlc.narg(dispatched_at)
+WHERE id = @id AND state = 'scheduled';
+
+-- name: OverdueReminders :many
+-- The sweep's page, of every clinic (the view reads with its owner's rights): due by at, the start still ahead.
+SELECT id, organization_id, due_at
+FROM appointment_reminder_scheduled
+WHERE due_at <= @at::timestamptz AND start_at > @at::timestamptz
+  AND (due_at, id) > (@after_due::timestamptz, @after_id::uuid)
+ORDER BY due_at, id
+LIMIT @max::integer;
+
+-- name: DeleteRemindersDueBefore :execrows
+-- Retention, as salus_retention.
+DELETE FROM appointment_reminder
+WHERE due_at < @before::timestamptz;

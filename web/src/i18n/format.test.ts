@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatCalendarDate, formatDate, formatDateTime, formatNumber, formatTime } from './format'
+import { formatCalendarDate, formatDate, formatDateTime, formatMonth, formatNumber, formatTime } from './format'
 import type { Language } from './languages'
 
 const afternoon = new Date('2026-11-09T14:05:00Z') // 15:05 in Sarajevo
@@ -40,6 +40,18 @@ describe.each(Object.entries(formats) as [Language, (typeof formats)[Language]][
 
   it('writes a date with its time', () => {
     expect(formatDateTime(tuesday, 'Europe/Sarajevo', language)).toBe(want.dateTime)
+  })
+})
+
+describe('formatMonth', () => {
+  it.each([
+    ['bs', 'novembar 2026.'],
+    ['hr', 'studeni 2026.'],
+    ['sr-Latn', 'novembar 2026.'],
+    ['sr-Cyrl', 'новембар 2026.'],
+    ['en', 'November 2026'],
+  ] as const)('names the month in %s', (language, want) => {
+    expect(formatMonth('2026-11', language)).toBe(want)
   })
 })
 

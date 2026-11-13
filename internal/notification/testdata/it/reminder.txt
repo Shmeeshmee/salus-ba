@@ -3,5 +3,8 @@ Subject: Promemoria del suo appuntamento
 Le ricordiamo il suo appuntamento presso Synthetic clinic.
 Data e ora: lunedì 7 gennaio 2030, ore 10:00 (Europe/Sarajevo)
 
+Per confermare o annullare l'appuntamento, apra questo link:
+https://api.salus.invalid/a/0000000000000000000000000000000000000000001
+
 Per vedere l'appuntamento, apra l'app Salus:
 https://patient.example.test/appointments

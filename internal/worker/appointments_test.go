@@ -32,7 +32,7 @@ type booking struct {
 // seedBooking creates, as the owner, the listed clinic with a practitioner, a schedule and two busy slots, a
 // patient (Ana Example, a fresh synthetic address) with an active consent and an active transcription consent
 // (SAL-12), and their two appointments: one a week ahead and one that started an hour ago.
-func seedBooking(t *testing.T, owner *pgxpool.Pool) booking {
+func seedBooking(t testing.TB, owner *pgxpool.Pool) booking {
 	t.Helper()
 	ctx := t.Context()
 	b := booking{email: "patient-" + strings.ToLower(rand.Text()) + "@example.test"}
@@ -125,7 +125,7 @@ func TestConsentRevoked_CancelsTheFutureAppointmentsFreesTheirSlotsAndEnqueuesTh
 // runEmailJob starts the notifier, enqueues args on the email queue, and returns the job's final state.
 func runEmailJob(t *testing.T, app *pgxpool.Pool, args river.JobArgs) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), &pushtest.Sender{}, "https://app.example.test", "https://patient.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), testNotifier(mailpitSender(t), &pushtest.Sender{}))
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}
@@ -152,9 +152,13 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	owner, app := pgtest.NewAppDatabase(t)
 	b := seedBooking(t, owner)
 
+	// The legacy reminder e-mail enqueued before SAL-33 completes without sending (its reminders are the
+	// appointment_reminder rows now): the booking's e-mail below is the only one.
+	if state := runEmailJob(t, app, appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID}); state != rivertype.JobStateCompleted {
+		t.Fatalf("the legacy reminder: job state %s, want completed", state)
+	}
 	for _, args := range []river.JobArgs{
 		appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
-		appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
 	} {
 		if state := runEmailJob(t, app, args); state != rivertype.JobStateCompleted {
 			t.Fatalf("%s: job state %s, want completed", args.Kind(), state)
@@ -171,13 +175,13 @@ func TestNotifier_SendsTheAppointmentEmailsToThePatient(t *testing.T) {
 	}
 	var n int
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
-		AND purpose_code = 'HOPERAT' AND subtype_code = 'read'`).Scan(&n); err != nil || n != 8 {
-		t.Errorf("%d audit events of the jobs' reads (%v), want 8: the appointment, the patient, the account and the "+
-			"role's default (the questionnaire check, docs/questionnaire package 7), twice", n, err)
+		AND purpose_code = 'HOPERAT' AND subtype_code = 'read'`).Scan(&n); err != nil || n != 4 {
+		t.Errorf("%d audit events of the jobs' reads (%v), want 4: the appointment, the patient, the account and the "+
+			"role's default (the questionnaire check, docs/questionnaire package 7)", n, err)
 	}
 	if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM audit_event WHERE agent_name IN ('appointment_booked_email', 'appointment_reminder_email')
-		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 2 {
-		t.Errorf("%d audit events of the role's default read by the jobs (%v), want 2", n, err)
+		AND subtype_code = 'read' AND entity_reference LIKE 'PractitionerRole/%'`).Scan(&n); err != nil || n != 1 {
+		t.Errorf("%d audit events of the role's default read by the job (%v), want 1", n, err)
 	}
 }
 

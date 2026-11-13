@@ -28,12 +28,13 @@ const styles = {
   long: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
   short: { weekday: 'short', day: 'numeric', month: 'short' },
   calendar: { day: 'numeric', month: 'long', year: 'numeric' },
+  month: { month: 'long', year: 'numeric' },
   dateTime: { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' },
 } satisfies Record<string, Intl.DateTimeFormatOptions>
 
 type Style = keyof typeof styles
 
-const monthsOf: Record<Style, keyof typeof bosnianMonths | null> = { time: null, long: 'long', short: 'short', calendar: 'long', dateTime: 'short' }
+const monthsOf: Record<Style, keyof typeof bosnianMonths | null> = { time: null, long: 'long', short: 'short', calendar: 'long', dateTime: 'short', month: 'long' }
 
 const cache = new Map<string, Intl.DateTimeFormat>()
 
@@ -72,6 +73,11 @@ export function formatDate(instant: Date, zone: string, language: Language, styl
 // "9 November 2026".
 export function formatCalendarDate(date: string, language: Language): string {
   return format(new Date(`${date}T00:00:00Z`), 'UTC', language, 'calendar')
+}
+
+// formatMonth is a calendar month written YYYY-MM, as the usage figures give it: "November 2026".
+export function formatMonth(month: string, language: Language): string {
+  return format(new Date(`${month}-01T00:00:00Z`), 'UTC', language, 'month')
 }
 
 // formatDateTime is instant in zone with its time: "9 Nov 2026, 15:05".

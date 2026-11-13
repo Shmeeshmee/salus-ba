@@ -1,0 +1,1 @@
+Термин {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}}. у {{.Time}}. Потврда/отказ: {{.ActionLink}}

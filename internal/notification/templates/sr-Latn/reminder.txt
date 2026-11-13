@@ -2,8 +2,12 @@ Podsjetnik na vaš termin
 
 Podsjećamo vas na termin u ustanovi {{.Clinic}}.
 Datum i vrijeme: {{.When}}
-
+{{if .WhenLocal}}U vašoj vremenskoj zoni: {{.WhenLocal}}
+{{end}}
 {{if .Questionnaire}}Prije termina treba da popunite upitnik. Naći ćete ga u aplikaciji Salus.
 
-{{end}}Da biste pogledali termin, otvorite aplikaciju Salus:
+{{end}}Da biste potvrdili ili otkazali termin, otvorite ovaj link:
+{{.ActionLink}}
+
+Da biste pogledali termin, otvorite aplikaciju Salus:
 {{.Link}}

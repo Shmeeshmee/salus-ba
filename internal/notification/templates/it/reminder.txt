@@ -2,8 +2,12 @@ Promemoria del suo appuntamento
 
 Le ricordiamo il suo appuntamento presso {{.Clinic}}.
 Data e ora: {{.When}}
-
+{{if .WhenLocal}}Nel suo fuso orario: {{.WhenLocal}}
+{{end}}
 {{if .Questionnaire}}Prima dell'appuntamento c'è un questionario da compilare. Lo trova nell'app Salus.
 
-{{end}}Per vedere l'appuntamento, apra l'app Salus:
+{{end}}Per confermare o annullare l'appuntamento, apra questo link:
+{{.ActionLink}}
+
+Per vedere l'appuntamento, apra l'app Salus:
 {{.Link}}

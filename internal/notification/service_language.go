@@ -36,6 +36,15 @@ type letter struct {
 	// When is the appointment's start in the clinic's zone, written by the language's date.txt.
 	When string
 	Link string
+	// The reminders' (SAL-33): WhenLocal is the start in the patient's zone when it differs from the clinic's ("" when
+	// not), ActionLink the one-time link to confirm or cancel, and Day, Month, Year and Time the start in the clinic's
+	// zone for an SMS.
+	WhenLocal  string
+	ActionLink string
+	Time       string
+	Day        string // two digits
+	Month      string // two digits
+	Year       int
 	// Questionnaire adds COPY E1 (docs/questionnaire/COPY.md), never which questionnaire.
 	Questionnaire bool
 }
@@ -86,6 +95,15 @@ func (l letters) message(to, kind string, data letter) (Message, error) {
 		return Message{}, errors.New("the " + kind + " template has no subject line")
 	}
 	return Message{To: to, Subject: subject, Body: body}, nil
+}
+
+// text fills the template kind with data: a message without a subject (an SMS), trailing newline dropped.
+func (l letters) text(kind string, data letter) (string, error) {
+	var b strings.Builder
+	if err := l.templates.ExecuteTemplate(&b, kind+".txt", data); err != nil {
+		return "", fmt.Errorf("the %s template: %w", kind, err)
+	}
+	return strings.TrimSpace(b.String()), nil
 }
 
 // when writes t, already in the clinic's zone, with the zone's name: 24-hour time and Latin digits in every

@@ -36,6 +36,7 @@ export default defineConfig({
       '/places': apiUrl, // the places of a clinic's location (SAL-19); no screen is under it
       '/analytics/platform': apiUrl, // the All of Salus figures (SAL-21); no screen is under it
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
+      '/clinic/': apiUrl, // the admin's clinic settings and SMS usage (SAL-32, SAL-33); /clinic itself is a screen
     },
   },
   test: {

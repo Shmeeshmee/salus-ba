@@ -42,6 +42,24 @@ func (q *Queries) AddDeadLetter(ctx context.Context, arg AddDeadLetterParams) er
 	return err
 }
 
+const addSMSUsage = `-- name: AddSMSUsage :exec
+INSERT INTO sms_usage (organization_id, month, messages, segments)
+VALUES ($1, $2, 1, $3)
+ON CONFLICT (organization_id, month) DO UPDATE SET messages = sms_usage.messages + 1, segments = sms_usage.segments + excluded.segments
+`
+
+type AddSMSUsageParams struct {
+	OrganizationID pgtype.UUID
+	Month          pgtype.Date
+	Segments       int32
+}
+
+// In the clinic's scope (row-level security), in the SMS send's transaction.
+func (q *Queries) AddSMSUsage(ctx context.Context, arg AddSMSUsageParams) error {
+	_, err := q.db.Exec(ctx, addSMSUsage, arg.OrganizationID, arg.Month, arg.Segments)
+	return err
+}
+
 const createWebhookEndpoint = `-- name: CreateWebhookEndpoint :one
 INSERT INTO webhook_endpoint (id, organization_id, created_by, include_clinical, url, events, secret_sealed)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -80,6 +98,19 @@ DELETE FROM webhook_dead_letter WHERE created_at < $1
 // The retention role only (it bypasses row-level security).
 func (q *Queries) DeleteDeadLettersBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDeadLettersBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDeliveriesBefore = `-- name: DeleteDeliveriesBefore :execrows
+DELETE FROM notification_delivery WHERE coalesce(sent_at, created_at) < $1::timestamptz
+`
+
+// The retention role only.
+func (q *Queries) DeleteDeliveriesBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDeliveriesBefore, before)
 	if err != nil {
 		return 0, err
 	}
@@ -172,6 +203,70 @@ func (q *Queries) DevicesOfAccount(ctx context.Context, accountID pgtype.UUID) (
 	return items, nil
 }
 
+const insertDelivery = `-- name: InsertDelivery :one
+
+INSERT INTO notification_delivery (kind, source_id, organization_id, account_id, channel, device_id)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT ON CONSTRAINT notification_delivery_once DO NOTHING
+RETURNING id, created_at
+`
+
+type InsertDeliveryParams struct {
+	Kind           string
+	SourceID       pgtype.UUID
+	OrganizationID pgtype.UUID
+	AccountID      pgtype.UUID
+	Channel        string
+	DeviceID       pgtype.UUID
+}
+
+type InsertDeliveryRow struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+}
+
+// SAL-33 (docs/plans/appointments.md): the deliveries of reminders and offers, the patients' settings, SMS usage.
+// A pending delivery; none when its source has one on that channel and device already.
+func (q *Queries) InsertDelivery(ctx context.Context, arg InsertDeliveryParams) (InsertDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, insertDelivery,
+		arg.Kind,
+		arg.SourceID,
+		arg.OrganizationID,
+		arg.AccountID,
+		arg.Channel,
+		arg.DeviceID,
+	)
+	var i InsertDeliveryRow
+	err := row.Scan(&i.ID, &i.CreatedAt)
+	return i, err
+}
+
+const lockDelivery = `-- name: LockDelivery :one
+SELECT id, created_at, sent_at, source_id, organization_id, account_id, device_id, segments, kind, channel, state
+FROM notification_delivery
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) LockDelivery(ctx context.Context, id pgtype.UUID) (NotificationDelivery, error) {
+	row := q.db.QueryRow(ctx, lockDelivery, id)
+	var i NotificationDelivery
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.SentAt,
+		&i.SourceID,
+		&i.OrganizationID,
+		&i.AccountID,
+		&i.DeviceID,
+		&i.Segments,
+		&i.Kind,
+		&i.Channel,
+		&i.State,
+	)
+	return i, err
+}
+
 const lockWebhookEndpoints = `-- name: LockWebhookEndpoints :exec
 SELECT pg_advisory_xact_lock(hashtextextended('webhook_endpoint:' || $1::text, 0))
 `
@@ -180,6 +275,35 @@ SELECT pg_advisory_xact_lock(hashtextextended('webhook_endpoint:' || $1::text, 0
 func (q *Queries) LockWebhookEndpoints(ctx context.Context, organizationID string) error {
 	_, err := q.db.Exec(ctx, lockWebhookEndpoints, organizationID)
 	return err
+}
+
+const notificationPreference = `-- name: NotificationPreference :one
+SELECT push, email, sms, quiet_start, quiet_end, time_zone
+FROM notification_preference
+WHERE account_id = $1
+`
+
+type NotificationPreferenceRow struct {
+	Push       bool
+	Email      bool
+	Sms        bool
+	QuietStart pgtype.Time
+	QuietEnd   pgtype.Time
+	TimeZone   pgtype.Text
+}
+
+func (q *Queries) NotificationPreference(ctx context.Context, accountID pgtype.UUID) (NotificationPreferenceRow, error) {
+	row := q.db.QueryRow(ctx, notificationPreference, accountID)
+	var i NotificationPreferenceRow
+	err := row.Scan(
+		&i.Push,
+		&i.Email,
+		&i.Sms,
+		&i.QuietStart,
+		&i.QuietEnd,
+		&i.TimeZone,
+	)
+	return i, err
 }
 
 const registerDevice = `-- name: RegisterDevice :exec
@@ -205,6 +329,102 @@ func (q *Queries) RegisterDevice(ctx context.Context, arg RegisterDeviceParams) 
 		arg.AccountID,
 		arg.Platform,
 		arg.Token,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const sMSUsage = `-- name: SMSUsage :many
+SELECT month, messages, segments
+FROM sms_usage
+WHERE organization_id = $1 AND month >= $2::date AND month <= $3::date
+ORDER BY month
+`
+
+type SMSUsageParams struct {
+	OrganizationID pgtype.UUID
+	FromMonth      pgtype.Date
+	ToMonth        pgtype.Date
+}
+
+type SMSUsageRow struct {
+	Month    pgtype.Date
+	Messages int32
+	Segments int32
+}
+
+func (q *Queries) SMSUsage(ctx context.Context, arg SMSUsageParams) ([]SMSUsageRow, error) {
+	rows, err := q.db.Query(ctx, sMSUsage, arg.OrganizationID, arg.FromMonth, arg.ToMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SMSUsageRow
+	for rows.Next() {
+		var i SMSUsageRow
+		if err := rows.Scan(&i.Month, &i.Messages, &i.Segments); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setDeliveryState = `-- name: SetDeliveryState :execrows
+UPDATE notification_delivery SET state = $1, sent_at = $2, segments = $3
+WHERE id = $4 AND state = 'pending'
+`
+
+type SetDeliveryStateParams struct {
+	State    string
+	SentAt   pgtype.Timestamptz
+	Segments pgtype.Int4
+	ID       pgtype.UUID
+}
+
+func (q *Queries) SetDeliveryState(ctx context.Context, arg SetDeliveryStateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDeliveryState,
+		arg.State,
+		arg.SentAt,
+		arg.Segments,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setNotificationPreference = `-- name: SetNotificationPreference :exec
+INSERT INTO notification_preference (account_id, push, email, sms, quiet_start, quiet_end, time_zone, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (account_id) DO UPDATE SET push = excluded.push, email = excluded.email, sms = excluded.sms,
+    quiet_start = excluded.quiet_start, quiet_end = excluded.quiet_end, time_zone = excluded.time_zone, updated_at = excluded.updated_at
+`
+
+type SetNotificationPreferenceParams struct {
+	AccountID  pgtype.UUID
+	Push       bool
+	Email      bool
+	Sms        bool
+	QuietStart pgtype.Time
+	QuietEnd   pgtype.Time
+	TimeZone   pgtype.Text
+	UpdatedAt  pgtype.Timestamptz
+}
+
+func (q *Queries) SetNotificationPreference(ctx context.Context, arg SetNotificationPreferenceParams) error {
+	_, err := q.db.Exec(ctx, setNotificationPreference,
+		arg.AccountID,
+		arg.Push,
+		arg.Email,
+		arg.Sms,
+		arg.QuietStart,
+		arg.QuietEnd,
+		arg.TimeZone,
 		arg.UpdatedAt,
 	)
 	return err

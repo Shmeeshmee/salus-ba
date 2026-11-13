@@ -24,15 +24,11 @@ func TestRiverJobs_EnqueueTheEmailsInTheTransactionWithOnlyTheTwoIDs(t *testing.
 	jobs := appointment.NewRiverJobs(client)
 	tr := postgres.NewTransactor(app)
 	ctx := t.Context()
-	remindAt := start.Add(-24 * time.Hour)
 	enqueueAll := func(ctx context.Context) error {
 		if err := jobs.EnqueueBooked(ctx, apptA, clinicA); err != nil {
 			return err
 		}
-		if err := jobs.EnqueueCancelled(ctx, apptA, clinicA); err != nil {
-			return err
-		}
-		return jobs.EnqueueReminder(ctx, apptA, clinicA, remindAt)
+		return jobs.EnqueueCancelled(ctx, apptA, clinicA)
 	}
 
 	errRollBack := errors.New("the booking failed")
@@ -56,7 +52,7 @@ func TestRiverJobs_EnqueueTheEmailsInTheTransactionWithOnlyTheTwoIDs(t *testing.
 	}
 	defer rows.Close()
 	args := `{"appointment_id": "` + apptA + `", "organization_id": "` + clinicA + `"}`
-	want := []string{"appointment_booked_email", "appointment_cancelled_email", "appointment_reminder_email"}
+	want := []string{"appointment_booked_email", "appointment_cancelled_email"}
 	var i int
 	for rows.Next() {
 		var kind, queue, got string
@@ -67,9 +63,6 @@ func TestRiverJobs_EnqueueTheEmailsInTheTransactionWithOnlyTheTwoIDs(t *testing.
 		if i >= len(want) || kind != want[i] || queue != "email" || got != args {
 			t.Errorf("job %d: %s on %s with %s; want %v on email with %s", i, kind, queue, got, want, args)
 		}
-		if kind == "appointment_reminder_email" && !at.Equal(remindAt) {
-			t.Errorf("the reminder is scheduled at %v, want %v", at, remindAt)
-		}
 		i++
 	}
 	if i != len(want) {
@@ -79,7 +72,7 @@ func TestRiverJobs_EnqueueTheEmailsInTheTransactionWithOnlyTheTwoIDs(t *testing.
 	for name, err := range map[string]error{
 		"EnqueueBooked":    jobs.EnqueueBooked(ctx, apptA, clinicA),
 		"EnqueueCancelled": jobs.EnqueueCancelled(ctx, apptA, clinicA),
-		"EnqueueReminder":  jobs.EnqueueReminder(ctx, apptA, clinicA, remindAt),
+		"EnqueueReminders": jobs.EnqueueReminders(ctx, []appointment.Reminder{{ID: apptA, OrganizationID: clinicA, DueAt: start}}),
 	} {
 		if !errors.Is(err, postgres.ErrNoTx) {
 			t.Errorf("%s outside a transaction = %v, want postgres.ErrNoTx", name, err)
@@ -191,5 +184,49 @@ func TestRiverJobs_EnqueueTheQuestionnaireJobsOnTheDefaultQueueInTheTransactionW
 		if !errors.Is(err, postgres.ErrNoTx) {
 			t.Errorf("%s outside a transaction = %v, want postgres.ErrNoTx", name, err)
 		}
+	}
+}
+
+// A reminder's dispatch is enqueued on the notifier's push queue at its due time with the two ids only, once per
+// reminder: enqueued again (the sweep), the job already there is kept.
+func TestRiverJobs_EnqueueEachRemindersDispatchOnceAtItsDueTime(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	client, err := river.NewClient(riverpgxv5.New(app), &river.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := appointment.NewRiverJobs(client)
+	tr := postgres.NewTransactor(app)
+	ctx := t.Context()
+	rs := []appointment.Reminder{
+		{ID: apptA, OrganizationID: clinicA, DueAt: start.Add(-24 * time.Hour)},
+		{ID: apptB, OrganizationID: clinicA, DueAt: start.Add(-time.Hour)},
+	}
+	for range 2 {
+		if err := tr.WithTx(ctx, func(ctx context.Context) error { return jobs.EnqueueReminders(ctx, rs) }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, err := owner.Query(ctx, "SELECT kind, queue, args::text, scheduled_at FROM river_job ORDER BY scheduled_at")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var i int
+	for rows.Next() {
+		var kind, queue, args string
+		var at time.Time
+		if err := rows.Scan(&kind, &queue, &args, &at); err != nil {
+			t.Fatal(err)
+		}
+		want := `{"reminder_id": "` + rs[i].ID + `", "organization_id": "` + clinicA + `"}`
+		if kind != "appointment_reminder" || queue != "push" || args != want || !at.Equal(rs[i].DueAt) {
+			t.Errorf("job %d: %s on %s with %s at %v; want appointment_reminder on push with %s at %v", i, kind, queue, args, at, want, rs[i].DueAt)
+		}
+		i++
+	}
+	if i != len(rs) {
+		t.Errorf("%d jobs, want %d (one per reminder)", i, len(rs))
 	}
 }

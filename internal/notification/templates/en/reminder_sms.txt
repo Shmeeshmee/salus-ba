@@ -1,0 +1,1 @@
+Reminder: {{.Clinic}}, {{.Day}}/{{.Month}}/{{.Year}} at {{.Time}}. Confirm or cancel: {{.ActionLink}}

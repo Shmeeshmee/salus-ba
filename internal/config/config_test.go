@@ -107,10 +107,11 @@ func TestLoad_ReadsTheNotifiersSettings(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
 	t.Setenv("WEB_BASE_URL", "http://localhost:5173")
 	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
+	t.Setenv("APPOINTMENT_LINK_URL", "https://api.example.test")
 
 	cfg, err := config.Load()
-	if err != nil || cfg.WebBaseURL != "http://localhost:5173" || cfg.PatientAppURL != "https://patient.example.test" {
-		t.Errorf("Load() = WebBaseURL %q, PatientAppURL %q, %v", cfg.WebBaseURL, cfg.PatientAppURL, err)
+	if err != nil || cfg.WebBaseURL != "http://localhost:5173" || cfg.PatientAppURL != "https://patient.example.test" || cfg.AppointmentLinkURL != "https://api.example.test" {
+		t.Errorf("Load() = WebBaseURL %q, PatientAppURL %q, AppointmentLinkURL %q, %v", cfg.WebBaseURL, cfg.PatientAppURL, cfg.AppointmentLinkURL, err)
 	}
 }
 

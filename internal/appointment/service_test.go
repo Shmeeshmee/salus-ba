@@ -36,21 +36,11 @@ func TestBook_HoldsTheSlotStoresTheAppointmentEnqueuesItsEmailsAndAuditsIt(t *te
 	if !slices.Equal(f.slots.held, []string{slotFree}) {
 		t.Errorf("held %v, want the slot", f.slots.held)
 	}
-	wantJobs := []string{"booked " + newID + " " + clinicA, "questionnaire_request " + newID + " " + clinicA, "reminder " + newID + " " + clinicA + " at " + start.Add(-24*time.Hour).Format(time.RFC3339)}
+	wantJobs := []string{"booked " + newID + " " + clinicA, "questionnaire_request " + newID + " " + clinicA, reminderJob(1, clinicA, start.Add(-24*time.Hour)), reminderJob(2, clinicA, start.Add(-time.Hour))}
 	if !slices.Equal(f.jobs.enqueued, wantJobs) {
 		t.Errorf("enqueued %v,\nwant %v", f.jobs.enqueued, wantJobs)
 	}
 	checkEvents(t, "Book", f.audit, event(me, auditevent.CodeCreate, "Appointment", newID, auditevent.OutcomeSuccess))
-}
-
-func TestBook_LessThan24HoursAheadEnqueuesNoReminder(t *testing.T) {
-	f := newFixture()
-	if _, err := f.svc.Book(t.Context(), me, slotSoon); err != nil {
-		t.Fatalf("Book() error = %v", err)
-	}
-	if want := []string{"booked " + newID + " " + clinicA, "questionnaire_request " + newID + " " + clinicA}; !slices.Equal(f.jobs.enqueued, want) {
-		t.Errorf("enqueued %v, want only the confirmation and the questionnaire request %v", f.jobs.enqueued, want)
-	}
 }
 
 func TestBook_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {

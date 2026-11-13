@@ -190,6 +190,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:?SMTP_FROM is required}
       WEB_BASE_URL: https://app.${SALUS_DOMAIN}
       PATIENT_APP_URL: ${PATIENT_APP_URL:?PATIENT_APP_URL is required}
+      APPOINTMENT_LINK_URL: https://api.${SALUS_DOMAIN} # the reminders' one-time links (SAL-33)
     depends_on: *migrate-only # Postgres only (cmd/notifier)
     mem_limit: ${SALUS_MEM_NOTIFIER:-128m}
 

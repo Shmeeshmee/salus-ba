@@ -5,5 +5,8 @@ Date et heure : lundi 7 janvier 2030 à 10:00 (Europe/Sarajevo)
 
 Un questionnaire est à remplir avant votre rendez-vous. Vous le trouverez dans l'application Salus.
 
+Pour confirmer ou annuler votre rendez-vous, ouvrez ce lien :
+https://api.salus.invalid/a/0000000000000000000000000000000000000000001
+
 Pour consulter votre rendez-vous, ouvrez l'application Salus :
 https://patient.example.test/appointments

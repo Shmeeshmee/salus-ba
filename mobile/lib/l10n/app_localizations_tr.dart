@@ -1781,4 +1781,48 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Diğer kliniklerden paylaşılan ziyaretler';
+
+  @override
+  String get reminders => 'Hatırlatmalar';
+
+  @override
+  String get remindersIntro =>
+      'Kliniklerin size randevularınızı nasıl hatırlatacağını seçin.';
+
+  @override
+  String get remindersPush => 'Anlık bildirimler';
+
+  @override
+  String get remindersEmail => 'E-posta';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Hatırlatmalar ve bekleme listesi teklifleri, yalnızca SMS sunan kliniklerde, profilinizdeki telefon numarasına SMS ile gönderilir. Asla reklam için kullanılmaz.';
+
+  @override
+  String get quietHours => 'Sessiz saatler';
+
+  @override
+  String get quietHoursHint =>
+      'Anlık bildirimler ve SMS\'ler sessiz saatler bitene kadar bekler. E-postalar bekletilmez.';
+
+  @override
+  String get quietHoursFrom => 'Başlangıç';
+
+  @override
+  String get quietHoursUntil => 'Bitiş';
+
+  @override
+  String get remindersSaved => 'Seçimleriniz kaydedildi.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'SMS için profilinizde bir telefon numarası gerekir. Profilim bölümünden ekleyip tekrar deneyin.';
+
+  @override
+  String get remindersInvalid =>
+      'Bu ayarlar kaydedilemedi. Kontrol edip tekrar deneyin.';
 }

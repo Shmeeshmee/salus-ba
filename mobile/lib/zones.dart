@@ -34,6 +34,10 @@ class Zone {
 
   String get name => _location.name;
 
+  /// Whether [name] is an IANA zone such as Europe/Sarajevo: an area and a place, known to the zone database. The
+  /// database also has abbreviations (CET), which a device may report but which are not the patient's zone.
+  static bool isIana(String name) => name.contains('/') && _database.locations.containsKey(name);
+
   static tz.Location _find(String name) => _database.locations[name] ?? _database.get('UTC');
 
   /// The local date [instant] falls on.

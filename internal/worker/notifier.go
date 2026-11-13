@@ -20,6 +20,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/push"
+	"github.com/Shmeeshmee/salus/pkg/sms"
 )
 
 // emailQueue is the only queue the notifier works (ADR 0007); cmd/worker keeps the default one.
@@ -31,16 +32,28 @@ func NewInserter(pool *pgxpool.Pool) (*river.Client[pgx.Tx], error) {
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{})
 }
 
+// Notifier is what the notifier sends through and links to: the SMTP server of config.LoadSMTP; the push sender (the
+// fake, pkg/push/pushtest, until the platforms' credentials are set: config.LoadPush); the SMS sender (the fake,
+// pkg/sms/smstest, until an SMS provider is chosen: config.LoadSMS); WEB_BASE_URL (invites), PATIENT_APP_URL
+// (appointments) and APPOINTMENT_LINK_URL (the reminders' one-time links, the api's public origin).
+type Notifier struct {
+	Sender        notification.Sender
+	Pusher        push.Sender
+	SMS           sms.Sender
+	WebBaseURL    string
+	PatientAppURL string
+	LinkURL       string
+}
+
 // NewNotifier returns the River client cmd/notifier runs: it works the email queue with the invite_email and
-// appointment e-mail workers, which send through sender (the SMTP server of config.LoadSMTP) with links to
-// webBaseURL (WEB_BASE_URL, invites) and patientAppURL (PATIENT_APP_URL, appointments), and the chat's
-// notifications (SAL-29): the push queue's fan-out and pushes through pusher (the fake, pkg/push/pushtest, until
-// the platforms' credentials are set: config.LoadPush), and the unread e-mails.
-func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sender, pusher push.Sender, webBaseURL, patientAppURL string) (*river.Client[pgx.Tx], error) {
-	if sender == nil || pusher == nil || webBaseURL == "" || patientAppURL == "" {
-		return nil, errors.New("worker: the notifier needs an SMTP sender, a push sender, WEB_BASE_URL and PATIENT_APP_URL")
+// appointment e-mail workers, the chat's notifications (SAL-29) on the push queue (the fan-out and the pushes) and
+// the unread e-mails, and the reminders (SAL-33): their dispatch on the push queue and their sends on the email, push
+// and sms queues.
+func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Client[pgx.Tx], error) {
+	if n.Sender == nil || n.Pusher == nil || n.SMS == nil || n.WebBaseURL == "" || n.PatientAppURL == "" || n.LinkURL == "" {
+		return nil, errors.New("worker: the notifier needs an SMTP sender, a push sender, an SMS sender, WEB_BASE_URL, PATIENT_APP_URL and APPOINTMENT_LINK_URL")
 	}
-	inserter, err := NewInserter(pool) // the fan-out enqueues the pushes, the unread e-mails and the webhooks in its transaction
+	inserter, err := NewInserter(pool) // the fan-out and the dispatch enqueue their sends in their transaction
 	if err != nil {
 		return nil, err
 	}
@@ -55,22 +68,29 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sende
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, nil, nil)
 	appointments := appointment.NewService(appointment.Ports{
 		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk, Patients: patients,
+		Reminders: appointment.NewPostgresReminderRepository(pool), Tokens: appointment.NewPostgresTokenRepository(pool), LinkURL: n.LinkURL,
 	})
 	mail := notification.NewService(notification.Ports{
 		Invites: accounts, Appointments: appointments, Accounts: accounts, Clinics: clinics,
-		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: sender, WebBaseURL: webBaseURL, PatientAppURL: patientAppURL,
+		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: n.Sender, WebBaseURL: n.WebBaseURL, PatientAppURL: n.PatientAppURL,
+		Deliveries: notification.NewPostgresDeliveryRepository(pool), DeliveryJobs: notification.NewRiverDeliveryJobs(inserter),
+		Devices: notification.NewPostgresRepository(pool), Reminders: appointments,
+		Rules:     organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
+		Languages: accounts, Phones: patients, Pusher: n.Pusher, SMS: n.SMS, Audit: audit, Tx: tx, Clock: clk,
 	})
 
 	chat := newChatNotifier(chatNotifierPorts{
-		pool: pool, inserter: inserter, audit: audit, tx: tx, accounts: accounts, sender: sender, pusher: pusher,
-		webBaseURL: webBaseURL, patientAppURL: patientAppURL,
+		pool: pool, inserter: inserter, audit: audit, tx: tx, accounts: accounts, sender: n.Sender, pusher: n.Pusher,
+		webBaseURL: n.WebBaseURL, patientAppURL: n.PatientAppURL,
 	}, clk)
 
 	workers := river.NewWorkers()
 	addEmailWorkers(workers, mail)
 	addChatWorkers(workers, chat)
+	addReminderWorkers(workers, mail)
 	cfg := workConfig(log, emailQueue, workers)
 	cfg.Queues[pushQueue] = river.QueueConfig{MaxWorkers: maxWorkers}
+	cfg.Queues[smsQueue] = river.QueueConfig{MaxWorkers: maxWorkers}
 	return river.NewClient(riverpgxv5.New(pool), cfg)
 }
 
@@ -83,9 +103,6 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 	}})
 	river.AddWorker(workers, &appointmentEmailWorker[appointment.CancelledEmailArgs]{send: func(ctx context.Context, a appointment.CancelledEmailArgs) error {
 		return mail.SendAppointmentCancelled(ctx, a.AppointmentID, a.OrganizationID)
-	}})
-	river.AddWorker(workers, &appointmentEmailWorker[appointment.ReminderEmailArgs]{send: func(ctx context.Context, a appointment.ReminderEmailArgs) error {
-		return mail.SendAppointmentReminder(ctx, a.AppointmentID, a.OrganizationID)
 	}})
 	river.AddWorker(workers, &appointmentEmailWorker[composition.SignedEmailArgs]{send: func(ctx context.Context, a composition.SignedEmailArgs) error {
 		return mail.SendDocumentSigned(ctx, a.AppointmentID, a.OrganizationID)

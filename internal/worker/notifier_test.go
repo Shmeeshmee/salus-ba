@@ -24,7 +24,9 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/push"
 	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
+	"github.com/Shmeeshmee/salus/pkg/sms/smstest"
 )
 
 const clinicID = "c0000000-0000-4000-8000-00000000000c"
@@ -63,7 +65,7 @@ func seedInviteTo(t *testing.T, owner *pgxpool.Pool, email string, accepted bool
 // job's final state.
 func runJob(t *testing.T, app *pgxpool.Pool, inviteID string) rivertype.JobState {
 	t.Helper()
-	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), mailpitSender(t), &pushtest.Sender{}, "https://app.example.test", "https://patient.example.test")
+	client, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), testNotifier(mailpitSender(t), &pushtest.Sender{}))
 	if err != nil {
 		t.Fatalf("NewNotifier() error = %v", err)
 	}
@@ -133,20 +135,29 @@ func TestNotifier_CancelsTheJobOfAnInviteToAnAddressSMTPCannotCarry(t *testing.T
 	}
 }
 
-func TestNewNotifier_NeedsTheSMTPServerAndTheWebAndPatientAppAddresses(t *testing.T) {
+func TestNewNotifier_NeedsTheSMTPServerTheSMSSenderAndTheWebPatientAppAndLinkAddresses(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
-	sender := mailpitSender(t)
-	for _, cfg := range []struct {
-		sender          notification.Sender
-		web, patientApp string
-	}{
-		{nil, "https://app.example.test", "https://patient.example.test"},
-		{sender, "", "https://patient.example.test"},
-		{sender, "https://app.example.test", ""},
+	full := testNotifier(mailpitSender(t), &pushtest.Sender{})
+	for name, change := range map[string]func(n *worker.Notifier){
+		"no SMTP sender":          func(n *worker.Notifier) { n.Sender = nil },
+		"no SMS sender":           func(n *worker.Notifier) { n.SMS = nil },
+		"no WEB_BASE_URL":         func(n *worker.Notifier) { n.WebBaseURL = "" },
+		"no PATIENT_APP_URL":      func(n *worker.Notifier) { n.PatientAppURL = "" },
+		"no APPOINTMENT_LINK_URL": func(n *worker.Notifier) { n.LinkURL = "" },
 	} {
-		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), cfg.sender, &pushtest.Sender{}, cfg.web, cfg.patientApp); err == nil {
-			t.Errorf("NewNotifier(sender %v, %q, %q): error = nil", cfg.sender != nil, cfg.web, cfg.patientApp)
+		n := full
+		change(&n)
+		if _, err := worker.NewNotifier(app, slog.New(slog.DiscardHandler), n); err == nil {
+			t.Errorf("%s: error = nil", name)
 		}
+	}
+}
+
+// testNotifier is the notifier's configuration of the tests: the SMS fake and synthetic addresses.
+func testNotifier(sender notification.Sender, pusher push.Sender) worker.Notifier {
+	return worker.Notifier{
+		Sender: sender, Pusher: pusher, SMS: &smstest.Sender{}, WebBaseURL: "https://app.example.test",
+		PatientAppURL: "https://patient.example.test", LinkURL: "https://api.example.test",
 	}
 }
 
