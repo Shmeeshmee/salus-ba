@@ -3,157 +3,118 @@ package history_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/history"
 )
 
-// stubViews answers with what the test set and keeps what it was asked.
-type stubViews struct {
-	err     error
-	page    history.Page
-	asked   []string
-	cursor  history.Cursor
-	summary history.Summary
-	limit   int
+// stubTimelines answers Timeline with out and err, and keeps what it was asked.
+type stubTimelines struct {
+	err    error
+	caller appointment.Caller
+	filter history.Filter
+	cursor history.Cursor
+	out    history.Page
+	limit  int
+	calls  int
 }
 
-func (s *stubViews) ForPractitioner(_ context.Context, c appointment.Caller, patientID string, at history.Cursor, limit int) (history.Page, error) {
-	s.asked = append(s.asked, c.AccountID+" history "+patientID)
-	s.cursor, s.limit = at, limit
-	return s.page, s.err
+func (s *stubTimelines) Timeline(_ context.Context, c appointment.Caller, f history.Filter, cur history.Cursor, limit int) (history.Page, error) {
+	s.calls++
+	s.caller, s.filter, s.cursor, s.limit = c, f, cur, limit
+	return s.out, s.err
 }
 
-func (s *stubViews) Summary(_ context.Context, c appointment.Caller, patientID, appointmentID string) (history.Summary, error) {
-	s.asked = append(s.asked, c.AccountID+" summary "+patientID+" "+appointmentID)
-	return s.summary, s.err
-}
-
-func serve(t *testing.T, views *stubViews, signedIn bool, target string) (*httptest.ResponseRecorder, string) {
+// serve runs the request on the handler with the caller signed in (none when nil).
+func serve(t *testing.T, svc *stubTimelines, c *appointment.Caller, target string) (*httptest.ResponseRecorder, string) {
 	t.Helper()
-	logs := &bytes.Buffer{}
-	caller := func(context.Context) (appointment.Caller, bool, error) { return pract, signedIn, nil }
+	var logs bytes.Buffer
+	caller := func(context.Context) (appointment.Caller, bool, error) {
+		if c == nil {
+			return appointment.Caller{}, false, nil
+		}
+		return *c, true, nil
+	}
 	mux := http.NewServeMux()
-	history.NewHTTPHandler(views, caller, slog.New(slog.NewTextHandler(logs, nil))).Routes(mux)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, nil))
-	return w, logs.String()
+	history.NewHTTPHandler(svc, caller, slog.New(slog.NewTextHandler(&logs, nil))).Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, nil))
+	return rec, logs.String()
 }
 
-func TestHTTPHandler_ServesAPageOfThePatientsHistory(t *testing.T) {
-	t.Parallel()
-	views := &stubViews{page: history.Page{Next: "abc", Items: []history.Item{{Date: day(1, 9), Clinic: history.Clinic{ID: clinicB, Name: "Synthetic clinic B"},
-		Type: history.TypeVisit, Reference: "Encounter/" + visit2, EncounterID: visit2, Shared: true}}}}
-	at := history.Cursor{Date: day(1, 10), Reference: "Encounter/" + visit1}
-	w, _ := serve(t, views, true, "/patients/"+patientA+"/history?limit=5&cursor="+at.String())
-	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("status %d, Cache-Control %q", w.Code, w.Header().Get("Cache-Control"))
+// GET /me/history gives the page as JSON, not cached, with the default limit and no filter.
+func TestHTTP_ListMyHistoryGivesThePage(t *testing.T) {
+	svc := &stubTimelines{out: history.Page{Next: "bmV4dA", Items: []history.Item{{
+		Date: day, Clinic: history.Clinic{ID: clinicA, Name: "Synthetic clinic A"}, Type: history.TypeVisit,
+		Reference: "Encounter/" + visitA, EncounterID: visitA, Specialty: "394579002",
+	}}}}
+	rec, _ := serve(t, svc, &me, "/me/history")
+	want := `{"next":"bmV4dA","items":[{"date":"2030-01-07T09:00:00Z","clinic":{"id":"` + clinicA + `","name":"Synthetic clinic A"},` +
+		`"type":"visit","reference":"Encounter/` + visitA + `","encounterId":"` + visitA + `","specialty":"394579002"}]}`
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Errorf("GET = %d %s, Cache-Control %q;\nwant 200 %s, no-store", rec.Code, rec.Body, rec.Header().Get("Cache-Control"), want)
 	}
-	want := `{"next":"abc","items":[{"date":"2026-10-01T09:00:00Z","clinic":{"id":"` + clinicB + `","name":"Synthetic clinic B"},"type":"visit",` +
-		`"reference":"Encounter/` + visit2 + `","encounterId":"` + visit2 + `","shared":true}]}`
-	if got := strings.TrimSpace(w.Body.String()); got != want {
-		t.Errorf("body %s,\nwant %s", got, want)
-	}
-	if views.cursor != at || views.limit != 5 || views.asked[0] != practAcc+" history "+patientA {
-		t.Errorf("asked %v at %+v limit %d", views.asked, views.cursor, views.limit)
-	}
-}
-
-func TestHTTPHandler_AnEmptyHistoryIsAnEmptyList(t *testing.T) {
-	t.Parallel()
-	views := &stubViews{}
-	w, _ := serve(t, views, true, "/patients/"+patientA+"/history")
-	if got := strings.TrimSpace(w.Body.String()); w.Code != http.StatusOK || got != `{"items":[]}` {
-		t.Errorf("status %d, body %s; want an empty list", w.Code, got)
-	}
-	if views.limit != 30 {
-		t.Errorf("limit %d, want the default 30", views.limit)
+	if svc.caller != me || svc.limit != 30 || svc.cursor != (history.Cursor{}) || svc.filter.OrganizationID != "" || svc.filter.Types != nil {
+		t.Errorf("asked %+v %+v %+v %d, want the patient's first page of 30, unfiltered", svc.caller, svc.filter, svc.cursor, svc.limit)
 	}
 }
 
-func TestHTTPHandler_RefusesABadRequestBeforeTheService(t *testing.T) {
-	t.Parallel()
-	for _, q := range []string{"?limit=0", "?limit=101", "?limit=x", "?cursor=nope", "?limit=1&limit=2"} {
-		views := &stubViews{}
-		w, _ := serve(t, views, true, "/patients/"+patientA+"/history"+q)
-		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"invalid_request"`) || len(views.asked) != 0 {
-			t.Errorf("%s: status %d, body %s, asked %v; want invalid_request", q, w.Code, w.Body.String(), views.asked)
-		}
+// The query's cursor, limit, clinic, types and range reach the service; an empty page is an empty list.
+func TestHTTP_ListMyHistoryPassesTheQuery(t *testing.T) {
+	svc := &stubTimelines{out: history.Page{}}
+	cur := history.Cursor{Date: day, Reference: "Encounter/" + visitA}
+	rec, _ := serve(t, svc, &me, "/me/history?cursor="+cur.String()+"&limit=5&organization="+clinicB+
+		"&type=visit&type=attachment&from=2030-01-01T00:00:00%2B01:00&to=2030-02-01T00:00:00Z")
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"items":[]}` {
+		t.Fatalf("GET = %d %s, want 200 and an empty list", rec.Code, rec.Body)
+	}
+	from := time.Date(2029, 12, 31, 23, 0, 0, 0, time.UTC)
+	if svc.cursor != cur || svc.limit != 5 || svc.filter.OrganizationID != clinicB || !svc.filter.From.Equal(from) ||
+		!svc.filter.To.Equal(time.Date(2030, 2, 1, 0, 0, 0, 0, time.UTC)) ||
+		!slices.Equal(svc.filter.Types, []history.ItemType{history.TypeVisit, history.TypeAttachment}) {
+		t.Errorf("asked %+v %+v %d", svc.filter, svc.cursor, svc.limit)
 	}
 }
 
-func TestHTTPHandler_MapsErrors(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		err    error
-		code   string
-		status int
-	}{
-		{history.ErrNotFound, "not_found", http.StatusNotFound},
-		{io.ErrUnexpectedEOF, "internal", http.StatusInternalServerError},
+// A query this API did not make is 400 invalid_request, before the service is asked.
+func TestHTTP_ListMyHistoryRefusesABadQuery(t *testing.T) {
+	for _, q := range []string{
+		"cursor=x", "cursor=" + strings.Repeat("a", 513), "limit=0", "limit=101", "limit=x", "organization=x", "type=chat",
+		"from=2030-01-01", "to=yesterday", "from=2030-01-01T00:00:00", "limit=1&limit=2",
 	} {
-		for _, target := range []string{"/patients/" + patientA + "/history", "/patients/" + patientA + "/history/summary?appointment=" + apptNow} {
-			w, logs := serve(t, &stubViews{err: tt.err}, true, target)
-			if w.Code != tt.status || (tt.status == http.StatusNotFound && !strings.Contains(w.Body.String(), `"not_found"`)) {
-				t.Errorf("%s with %v: status %d, body %s", target, tt.err, w.Code, w.Body.String())
-			}
-			if tt.status == http.StatusInternalServerError && (strings.Contains(w.Body.String(), "unexpected EOF") || !strings.Contains(logs, "unexpected EOF")) {
-				t.Errorf("%s: the internal error reached the client or missed the log", target)
-			}
-		}
-	}
-	for _, target := range []string{"/patients/" + patientA + "/history", "/patients/" + patientA + "/history/summary?appointment=" + apptNow} {
-		if w, _ := serve(t, &stubViews{}, false, target); w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"unauthenticated"`) {
-			t.Errorf("%s signed out: status %d", target, w.Code)
+		svc := &stubTimelines{}
+		rec, _ := serve(t, svc, &me, "/me/history?"+q)
+		if rec.Code != http.StatusBadRequest || strings.TrimSpace(rec.Body.String()) != `{"error":"invalid_request"}` || svc.calls != 0 {
+			t.Errorf("%s: GET = %d %s, called %d; want 400 invalid_request before the service", q, rec.Code, rec.Body, svc.calls)
 		}
 	}
 }
 
-func TestHTTPHandler_ServesTheSummary(t *testing.T) {
-	t.Parallel()
-	views := &stubViews{summary: history.Summary{
-		Allergies:   []history.SummaryAllergy{{Reference: "AllergyIntolerance/" + allergy1, Text: "Placeholder substance", Confirmed: true}},
-		Medications: []history.SummaryMedication{},
-		OpenItems:   []history.OpenItem{{Type: history.OpenDraft, Reference: "Composition/" + draftNow}},
-	}}
-	w, _ := serve(t, views, true, "/patients/"+patientA+"/history/summary?appointment="+apptNow)
-	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("status %d", w.Code)
+// Nobody signed in is 401; staff 403; a failure 500 with a fixed message and nothing of the history logged.
+func TestHTTP_ListMyHistoryErrors(t *testing.T) {
+	if rec, _ := serve(t, &stubTimelines{}, nil, "/me/history"); rec.Code != http.StatusUnauthorized ||
+		strings.TrimSpace(rec.Body.String()) != `{"error":"unauthenticated"}` {
+		t.Errorf("signed out: GET = %d %s, want 401", rec.Code, rec.Body)
 	}
-	var got map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
+	if rec, _ := serve(t, &stubTimelines{err: history.ErrForbidden}, &pract, "/me/history"); rec.Code != http.StatusForbidden ||
+		strings.TrimSpace(rec.Body.String()) != `{"error":"forbidden"}` {
+		t.Errorf("staff: GET = %d %s, want 403", rec.Code, rec.Body)
 	}
-	if _, ok := got["lastVisit"]; ok || len(got["allergies"].([]any)) != 1 || len(got["openItems"].([]any)) != 1 {
-		t.Errorf("body %s", w.Body.String())
+	if rec, _ := serve(t, &stubTimelines{err: history.ErrLimit}, &me, "/me/history"); rec.Code != http.StatusBadRequest {
+		t.Errorf("ErrLimit: GET = %d, want 400", rec.Code)
 	}
-	if views.asked[0] != practAcc+" summary "+patientA+" "+apptNow {
-		t.Errorf("asked %v", views.asked)
+	rec, logs := serve(t, &stubTimelines{err: errBackend}, &me, "/me/history?organization="+clinicA)
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "database") {
+		t.Errorf("failure: GET = %d %s, want 500 with a fixed message", rec.Code, rec.Body)
 	}
-	if w, _ := serve(t, &stubViews{}, true, "/patients/"+patientA+"/history/summary"); w.Code != http.StatusNotFound {
-		t.Errorf("without an appointment: status %d, want 404", w.Code)
-	}
-}
-
-// A summary with a section unavailable is served, the section marked, and the failure logged, not sent.
-func TestHTTPHandler_ServesAPartialSummaryAndLogsTheFailure(t *testing.T) {
-	t.Parallel()
-	views := &stubViews{err: fmt.Errorf("%w: allergies: %w", history.ErrPartial, io.ErrUnexpectedEOF), summary: history.Summary{
-		Allergies: []history.SummaryAllergy{}, Medications: []history.SummaryMedication{}, OpenItems: []history.OpenItem{}, AllergiesUnavailable: true,
-	}}
-	w, logs := serve(t, views, true, "/patients/"+patientA+"/history/summary?appointment="+apptNow)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"allergiesUnavailable":true`) || strings.Contains(w.Body.String(), "medicationsUnavailable") {
-		t.Errorf("status %d, body %s", w.Code, w.Body.String())
-	}
-	if strings.Contains(w.Body.String(), "unexpected EOF") || !strings.Contains(logs, "unexpected EOF") {
-		t.Errorf("the failure reached the client or missed the log: %s", logs)
+	if strings.Contains(logs, clinicA) {
+		t.Errorf("the log holds the query: %s", logs)
 	}
 }

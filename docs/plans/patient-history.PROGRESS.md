@@ -80,6 +80,75 @@ Mobile (ten languages, `mobile/lib/l10n/app_<language>.arb`): `allergies` Allerg
 
 Web (five staff languages, `web/src/i18n/allergies/<language>.json`, keys under `allergies.`): `warningTitle` Active allergies; `reactionSeverity` {reaction} ({severity, select, mild {mild} moderate {moderate} severe {severe} other {}}); `warningLoading` Loading allergies…; `warningFailed` Allergies could not be loaded. Do not assume the patient has none.; `retry` Try again; `tab` Allergies and medications; `allergies` Allergies; `medications` Medications; `noAllergies` No allergies recorded.; `noMedications` No medications recorded.; `loading` Loading allergies and medications…; `loadFailed` Allergies and medications could not be loaded.; `confirmed` Confirmed; `unconfirmed` Not confirmed; `confirm` Confirm; `confirmLabel` Confirm {text}; `confirmChanged` This entry changed since it was read. The list is updated: check it and confirm again.; `confirmForbidden` You cannot confirm this entry.; `confirmFailed` The entry could not be confirmed. Try again.; `category.food` Food; `category.medication` Medication; `category.environment` Environment; `category.biologic` Biologic; `severity.mild` Mild; `severity.moderate` Moderate; `severity.severe` Severe; `clinicalStatus.active` Active; `clinicalStatus.inactive` Inactive; `clinicalStatus.resolved` Resolved; `status.active` Current; `status.stopped` Stopped; `dose.mg` {value, number} mg; `unit.mg` mg; `dose.g` {value, number} g; `unit.g` g; `dose.ug` {value, number} µg; `unit.ug` µg; `dose.mL` {value, number} mL; `unit.mL` mL; `dose.iU` {value, number} IU; `unit.iU` IU; `dose.tablet` {value, plural, one {# tablet} other {# tablets}}; `unit.tablet` Tablet; `dose.capsule` {value, plural, one {# capsule} other {# capsules}}; `unit.capsule` Capsule; `dose.drop` {value, plural, one {# drop} other {# drops}}; `unit.drop` Drop; `dose.puff` {value, plural, one {# puff} other {# puffs}}; `unit.puff` Puff; `dose.patch` {value, plural, one {# patch} other {# patches}}; `unit.patch` Patch; `timing.h` {frequency, plural, one {once} other {# times}} {period, plural, one {an hour} other {every # hours}}; `timing.d` {frequency, plural, one {once} other {# times}} {period, plural, one {a day} other {every # days}}; `timing.wk` {frequency, plural, one {once} other {# times}} {period, plural, one {a week} other {every # weeks}}; `timing.mo` {frequency, plural, one {once} other {# times}} {period, plural, one {a month} other {every # months}}; `periodUnit.h` Hours; `periodUnit.d` Days; `periodUnit.wk` Weeks; `periodUnit.mo` Months; `asNeeded` As needed; `addAllergy` Add an allergy; `addMedication` Add a medication; `substance` Substance; `substanceHint` Choose a term from the list, or type the substance.; `medication` Medication; `medicationHint` Choose a term from the list, or type the medication.; `fromTerms` From the medical terms list; `terms` Matching terms; `categoryLabel` Category; `notSpecified` Not specified; `reaction` Reaction; `severityLabel` Severity; `severityHint` Enter a reaction to choose its severity.; `statusLabel` Status; `doseLabel` Dose; `unitLabel` Unit; `noUnit` No unit; `frequency` Times; `period` Every; `periodUnitLabel` Unit of time; `save` Save; `saving` Saving…; `cancel` Cancel; `noVisit` Join the consultation before you record an entry.; `invalid` Check the entry: a value is missing or not allowed.; `doseBoth` Enter both the dose and its unit, or neither.; `timingAll` Fill in Times, Every and Unit of time, or leave all three empty.; `saveFailed` The entry could not be saved. Try again.; `saveForbidden` You cannot record entries in this consultation..
 
+## SAL-39: the patient's timeline (2026-11-12)
+
+Branch `sal-39-timeline`. `history.Service.Timeline` over four sources (encounter, composition, questionnaireresponse,
+binary for the files' state), `GET /me/history`, the mobile history screen, e2e over two clinics.
+
+**Audit in one insert, sources at once.** Each source audited every item it returned with its own `INSERT` (up to
+31 a source, about 120 a page), and the sources ran one after another. Now each source writes its page's events with
+`auditevent.Service.RecordAll` (one `INSERT … SELECT FROM jsonb_to_recordset`, same columns and stamping as
+`Record`, in the source's transaction), and `Timeline` asks the sources at the same time (each is its own
+transaction in its domain).
+
+Measured with `make bench-history` (`internal/api/history_load_test.go`: a patient with 2 000 items, 250 visits at
+each of two clinics with a signed document, a completed response and a clean file each; 400 other patients with 20
+visits each; pages of 30; 300 samples; the timeline as `api.New` composes it, every source real). The machine was
+shared with other stacks throughout (load average 15 to 80 on 28 cores), so the absolute numbers are far above what a
+quiet server gives; run 2 ran both versions at the same time to share the same noise.
+
+| Read | Run 1 before (load 15) | Run 1 after (load 69) | Run 2 before | Run 2 after (concurrent, load 80) |
+| --- | --- | --- | --- | --- |
+| first page p50 / p95 | 195 / 512 ms | 133 / 220 ms | 310 / 793 ms | 105 / 404 ms |
+| any page p50 / p95 | 170 / 289 ms | 173 / 358 ms | 283 / 427 ms | 148 / 297 ms |
+| one clinic p50 / p95 | 122 / 179 ms | 165 / 486 ms | 183 / 233 ms | 129 / 322 ms |
+| documents only p50 / p95 | 64 / 92 ms | 116 / 165 ms | 116 / 177 ms | 123 / 226 ms |
+| binary's files check, mean | 37.4 ms | 13.5 ms | 19.9 ms | 13.8 ms |
+
+After merging main (00046's lookups, 00047), with the batched and concurrent version, at load average 15 to 20:
+first page p50 72 / p95 118 ms, any page 93 / 176 ms, one clinic 52 / 74 ms, documents only 60 / 95 ms; mean per
+source: documents 60 ms, attachments 31 ms, responses 30 ms, visits 17 ms, the files check 9 ms.
+
+The full timeline gains in both runs (first page p50 1.5 to 3 times faster); a read of one source (the documents)
+gains nothing measurable under this noise, as expected with nothing to run beside it. The plan's target (p95 under
+50 ms) is not shown on this machine: it needs a run on a quiet one. Each source costs 30 to 150 ms here for 31 rows,
+which points at the row-level security of the patient's scope rather than at the audit; that is the next thing to
+profile (EXPLAIN ANALYZE per source) if the quiet run misses the target.
+
+**Review (fresh subagent), 2026-11-13:** ten findings, no access hole; 1, 2, 4 to 10 fixed test-first, 3 measured
+and fixed differently (below).
+
+- Audit (1, 2, 8): the sources read unaudited, in the one transaction `Timeline` opens, one after the other; the
+  transaction then audits the page it returns (after the cut and binary's check), each item once with its own
+  reference and clinic, in one `RecordAll`. The concurrent sources and the per-domain batches above are gone.
+- 00050 (4): history_shared's own scope conditions in front of the call in `encounter_shared`,
+  `document_draft_shared`, `questionnaire_response_shared`, `binary_shared`. A patient's read of the four tables
+  called history_shared 44 times on the test fixture, now never
+  (`TestHistorySharing_APatientsReadDoesNotCallHistoryShared`); the policies admit exactly 00043's rows in twelve
+  scopes and seven sharing states (`TestHistorySharing_TheGuardedPoliciesAdmitWhat00043Admitted`).
+- 3: reading every encounter of the patient costs 0.7 ms of execution (EXPLAIN ANALYZE, 500 encounters); the cost
+  was planning, since `Own` used the FHIR search's query, re-planned on every call for its optional parameters. A
+  read of the documents in the patient's scope without the encounter list was tried and dropped: its policy tree
+  is costed at 390 000, above `jit_above_cost`, and each call spent 950 ms in JIT for a 5 ms scan. `Own` now has
+  its own fixed query (`EncountersOfPatient`): 7.4 to 2.8 ms a call, documents 10.0 to 6.1 ms.
+- 5: clinic names in one transaction, the roles in one `LookupAll`. 9: `FilesOf` lists a file once. 10: the
+  cursor's length is checked before it is decoded; neither Caddy (no access log, URIs dropped) nor the API's request
+  log (the route pattern only) records a query string. 6: the app opens a questionnaire's answers by reading that
+  response and its version (`Questionnaire?url=&version=`), not every response of the patient. 7: an empty page
+  with a next page shows Show more, not "nothing yet".
+
+`make bench-history` (same seed as above), load average in brackets:
+
+| Read, p50 / p95 | Before (one tx, audit fixed) [12 → 9] | After 00050, `Own`, 5 [12 → 9] |
+| --- | --- | --- |
+| first page | 125.5 / 168.4 ms | 21.3 / 35.0 ms |
+| any page | 124.9 / 175.8 ms | 21.9 / 33.8 ms |
+| one clinic | 79.6 / 99.2 ms | 19.2 / 31.1 ms |
+| documents only | 73.6 / 124.2 ms | 15.0 / 24.1 ms |
+| mean per source: visits, documents, responses, attachments | 13.6, 60.6, 26.7, 27.2 ms | 1.0, 6.4, 1.9, 2.2 ms |
+
+The first page is under the plan's 50 ms at p95.
+
 ## SAL-40: the practitioner's view and the pre-visit summary (2026-11-12)
 
 Branch `sal-40-doctor-history`. `history.Service.ForPractitioner` and `Summary` (`service_practitioner.go`), on
@@ -88,7 +157,7 @@ Full) and one read per owning domain for those visits (`composition.Service.Hist
 `questionnaireresponse.Service.History`), each domain auditing the items a page shows (`Disclosed`) and the history
 auditing the view itself (`Patient/<id>`, TREAT). A shared visit's signed documents, completed responses, their files
 and the questions they answer open for that practitioner through `encounter.Service.Shared`/`SharedAppointment`; the
-questions through migration 00051's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
+questions through migration 00052's `history_questionnaire` (`SECURITY DEFINER`, owned by `salus_history_lookup`),
 not a chained policy. `migrations/language_test.go` runs in its usual time with it (about 17 s per test, parallel,
 as before). Diagnoses: the ICD-10 codes of the signed documents' coded fields (`HistoryItem.diagnoses`, added to
 the schema and the Go type), for own and shared visits alike: `condition.Service` has no read of a visit's
@@ -97,7 +166,7 @@ history panel on the appointment detail (its own practitioner) and as a tab of t
 once opened. Allergies and medications through the ports, stood in by `noAllergies`/`noMedications` in
 `internal/api/history.go` until SAL-41's services are wired at the merge.
 
-Readings (`make bench-history`, compose Postgres on the shared dev machine, other stacks running): a patient with
+Readings (`make bench-history-practitioner`, compose Postgres on the shared dev machine, other stacks running): a patient with
 300 visits with the practitioner and 100 shared from another clinic, each with a signed document, and 500 more
 visits there not shared (read by the clinic's scope through `history_shared`, left out by the rule).
 
@@ -121,11 +190,11 @@ unavailable on a failed read instead of empty, read after the summary's own tran
 the rest nor its audit, the empty text says "shown to you", and the SAL-41 stand-ins fail closed
 (`TestHistory_TheProfileStandInsGoOnceSAL41IsHere` fails once SAL-41's services are on the branch); a diagnosis
 carries its field's label and its Condition's confirmation, through `condition.Reads.Confirmed` for the clinic's own
-and 00051's `history_confirmed_conditions` for a shared visit (a deviation from the plan's "without changing
+and 00052's `history_confirmed_conditions` for a shared visit (a deviation from the plan's "without changing
 condition's code", asked by the review: a read was added, nothing else changed); the history on the appointment
 opens on request; the summary reads only the open responses; a file is audited as its Binary; the titles are one read
 per page (`questionnaire.Service.Titles`); the shared-version read needs a practitioner with an appointment with the
-patient (00051's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
+patient (00052's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
 name still says it is shared. Not done: ICD-10 names, no lookup by code exists; a visit has nothing to open
 beyond the items listed with it. Audit rows are one INSERT each (about 30 per page): `auditevent` has no batch insert
 on main, so none was added. The bench was rerun after SAL-41's wiring on a quieter host (load average 4.3 to 4.7):
@@ -147,9 +216,9 @@ Entries recorded in visits you cannot see are not included; ask the patient.", a
 the last visit); the call page's summary is read again each time its tab is shown and when SAL-41's entries change,
 and a failed summary or history read has "Try again"; `expectHTTP` fails on every missing string (`missing`, tested);
 the dosage keeps only SAL-41's known units; a diagnosis is confirmed only by a Condition of that field and that code
-(00051's `history_confirmed_conditions` returns the code). Accepted: `Seen` audits every entry it returns, inactive
+(00052's `history_confirmed_conditions` returns the code). Accepted: `Seen` audits every entry it returns, inactive
 allergies and stopped medications included, which the summary does not show: over-audit, the safe direction; an
 active-only read would change SAL-41's services, so it was not added. Not adopted: deriving the practitioner in
-00051's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
+00052's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
 questionnaire's and the condition's scopes set the clinic only, and the caller carries the practitioner, not a role
 (a practitioner has one per clinic). The argument comes from the session's caller in the service, never the request.

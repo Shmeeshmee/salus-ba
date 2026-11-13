@@ -653,7 +653,7 @@ type SharedQuestionnairesRow struct {
 }
 
 // The versions of ids another clinic's completed responses answer, of visits shared with the scope's clinic, for a
-// practitioner with an appointment with their patient there (migration 00051).
+// practitioner with an appointment with their patient there (migration 00052).
 func (q *Queries) SharedQuestionnaires(ctx context.Context, arg SharedQuestionnairesParams) ([]SharedQuestionnairesRow, error) {
 	rows, err := q.db.Query(ctx, sharedQuestionnaires, arg.Ids, arg.PractitionerID)
 	if err != nil {

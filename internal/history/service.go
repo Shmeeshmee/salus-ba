@@ -5,7 +5,6 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/allergyintolerance"
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -17,7 +16,7 @@ import (
 // The ports of the history shared by the tickets that build it (docs/plans/patient-history.md "Contract"): each is
 // implemented by the owning domain's service with this exact method, which applies access.ProfileEntry and
 // access.Attributed and audits every entry it returns. The service methods of the history and their other ports come
-// with SAL-39 (the patient's timeline) and SAL-40 (the practitioner's view and summary).
+// with SAL-39 (the patient's timeline, service_patient.go) and SAL-40 (the practitioner's view and summary).
 
 // Allergies gives the allergies of the patient the caller may see, entered-in-error ones left out
 // (allergyintolerance.Service.Seen, SAL-41).
@@ -29,16 +28,6 @@ type Allergies interface {
 // (medicationstatement.Service.Seen, SAL-41).
 type Medications interface {
 	Seen(ctx context.Context, c appointment.Caller, patientID string) ([]medicationstatement.Seen, error)
-}
-
-// Transactor runs fn in a transaction carried by the context, joining one already there (postgres.Transactor).
-type Transactor interface {
-	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
-}
-
-// Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
-type Auditor interface {
-	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
 // Encounters gives the visits of the patient a practitioner may see in their history (access.HistoryVisit), audits
@@ -57,9 +46,9 @@ type Compositions interface {
 	Drafts(ctx context.Context, c appointment.Caller, encounterID string) ([]composition.Draft, error)
 }
 
-// Responses gives the completed questionnaire responses of the visits with their scanned files, audits the ones a
+// VisitResponses gives the completed questionnaire responses of the visits with their scanned files, audits the ones a
 // view shows and their files, and the responses of the appointment for the summary (questionnaireresponse.Service).
-type Responses interface {
+type VisitResponses interface {
 	History(ctx context.Context, c appointment.Caller, visits []encounter.Visit) ([]questionnaireresponse.Response, error)
 	Disclosed(ctx context.Context, c appointment.Caller, ids []string) error
 	DisclosedFiles(ctx context.Context, c appointment.Caller, ids []string) error
@@ -78,13 +67,13 @@ type Conditions interface {
 	Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]condition.FieldCode, error)
 }
 
-// Clinics gives the names of the clinics a clinic's scope shows (organization.Service).
-type Clinics interface {
-	Names(ctx context.Context, org string, ids []string) (map[string]string, error)
+// ScopeClinics gives the names of the clinics a clinic's scope shows (organization.Service).
+type ScopeClinics interface {
+	ScopeNames(ctx context.Context, org string, ids []string) (map[string]string, error)
 }
 
-// Roles gives the specialties of the practitioner roles a clinic's scope shows (practitionerrole.Service).
-type Roles interface {
+// RoleSpecialties gives the specialties of the practitioner roles a clinic's scope shows (practitionerrole.Service).
+type RoleSpecialties interface {
 	Specialties(ctx context.Context, org string, ids []string) (map[string]string, error)
 }
 
@@ -96,22 +85,33 @@ type Appointments interface {
 
 // Ports are the Service's dependencies.
 type Ports struct {
-	Tx             Transactor
-	Audit          Auditor
-	Encounters     Encounters
-	Compositions   Compositions
-	Responses      Responses
-	Questionnaires Questionnaires
-	Clinics        Clinics
-	Roles          Roles
-	Appointments   Appointments
-	Allergies      Allergies
-	Medications    Medications
-	Conditions     Conditions
+	// The sources of the patient's timeline (service_patient.go).
+	Visits    Visits
+	Documents Documents
+	Responses Responses
+	Files     Files
+	Clinics   Clinics
+	Roles     Roles
+	Audit     Auditor
+	Tx        Transactor
+
+	// The sources of the practitioner's view and the summary (service_practitioner.go).
+	Encounters      Encounters
+	Compositions    Compositions
+	VisitResponses  VisitResponses
+	Questionnaires  Questionnaires
+	ScopeClinics    ScopeClinics
+	RoleSpecialties RoleSpecialties
+	Appointments    Appointments
+	Allergies       Allergies
+	Medications     Medications
+	Conditions      Conditions
 }
 
-// Service builds the history views. It owns no table: every item comes from its owning domain's service.
+// Service builds the history from the services of the domains that own it; it holds no data of its own.
 type Service struct{ Ports }
 
 // NewService returns a Service on its ports.
-func NewService(p Ports) *Service { return &Service{Ports: p} }
+func NewService(p Ports) *Service {
+	return &Service{Ports: p}
+}

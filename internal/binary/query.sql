@@ -55,6 +55,10 @@ SELECT id FROM "binary" WHERE id = ANY(@ids::uuid[])
 UNION ALL
 SELECT thumbnail_id FROM "binary" WHERE thumbnail_id = ANY(@ids::uuid[]);
 
+-- name: CleanBinaries :many
+-- The clean files among ids that the scope shows: the patient's timeline (SAL-39).
+SELECT * FROM "binary" WHERE id = ANY(@ids::uuid[]) AND status = 'clean' ORDER BY id;
+
 -- name: AttachChatBinaries :many
 -- A send attaches the participant's files of the conversation that are neither attached nor rejected, in the
 -- conversation's scope, to its message.

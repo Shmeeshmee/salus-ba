@@ -20,8 +20,8 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 )
 
-// entry is an item while a view is built, with what completing and auditing it needs.
-type entry struct {
+// viewEntry is an item while the practitioner's view is built, with what completing and auditing it needs.
+type viewEntry struct {
 	role     string                   // the visit's practitioner role, for the specialty
 	response string                   // the response a response or a file is part of, audited by its domain
 	coded    []composition.DraftField // a document's filled coded fields, its diagnoses once their Conditions are read
@@ -71,16 +71,16 @@ func (s *Service) ForPractitioner(ctx context.Context, c appointment.Caller, pat
 }
 
 // entries are the items of the visits, newest first (the reference breaking a tie, as Cursor.Before reads it).
-func (s *Service) entries(ctx context.Context, c appointment.Caller, visits []encounter.Visit) ([]entry, error) {
+func (s *Service) entries(ctx context.Context, c appointment.Caller, visits []encounter.Visit) ([]viewEntry, error) {
 	docs, err := s.Compositions.History(ctx, c, visits)
 	if err != nil {
 		return nil, err
 	}
-	responses, err := s.Responses.History(ctx, c, visits)
+	responses, err := s.VisitResponses.History(ctx, c, visits)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]entry, 0, len(visits)+len(docs)+2*len(responses))
+	out := make([]viewEntry, 0, len(visits)+len(docs)+2*len(responses))
 	byAppointment := make(map[string]encounter.Encounter, len(visits))
 	for _, v := range visits {
 		byAppointment[v.AppointmentID] = v.Encounter
@@ -105,15 +105,15 @@ func (s *Service) entries(ctx context.Context, c appointment.Caller, visits []en
 			out = append(out, file)
 		}
 	}
-	slices.SortFunc(out, func(a, b entry) int {
+	slices.SortFunc(out, func(a, b viewEntry) int {
 		return cmp.Or(b.Date.Compare(a.Date), strings.Compare(b.Reference, a.Reference))
 	})
 	return out, nil
 }
 
-// of is an entry of the visit v, shared when v is another clinic's.
-func of(c appointment.Caller, v encounter.Encounter, typ ItemType, ref string, at time.Time) entry {
-	return entry{role: v.PractitionerRoleID, Item: Item{
+// of is an viewEntry of the visit v, shared when v is another clinic's.
+func of(c appointment.Caller, v encounter.Encounter, typ ItemType, ref string, at time.Time) viewEntry {
+	return viewEntry{role: v.PractitionerRoleID, Item: Item{
 		Date: at, Clinic: Clinic{ID: v.OrganizationID}, Type: typ, Reference: ref, EncounterID: v.ID,
 		Shared: v.OrganizationID != c.OrganizationID,
 	}}
@@ -131,8 +131,8 @@ func coded(d composition.Draft) []composition.DraftField {
 }
 
 // cut is the entries after the cursor at, at most limit, and the cursor of the next page ("" on the last).
-func cut(all []entry, at Cursor, limit int) ([]entry, string) {
-	var out []entry
+func cut(all []viewEntry, at Cursor, limit int) ([]viewEntry, string) {
+	var out []viewEntry
 	for _, e := range all {
 		if at.Before(e.Item) {
 			out = append(out, e)
@@ -144,7 +144,7 @@ func cut(all []entry, at Cursor, limit int) ([]entry, string) {
 	return out, ""
 }
 
-func items(es []entry) []Item {
+func items(es []viewEntry) []Item {
 	out := make([]Item, len(es))
 	for i, e := range es {
 		out[i] = e.Item
@@ -152,10 +152,10 @@ func items(es []entry) []Item {
 	return out
 }
 
-// complete fills in the clinic name and specialty of each entry, a response's title and a document's diagnoses, as
+// complete fills in the clinic name and specialty of each viewEntry, a response's title and a document's diagnoses, as
 // the caller's clinic scope shows them: the titles read (and audited) through the questionnaire's service, the
 // diagnoses' confirmation through the conditions, each in one read for the page.
-func (s *Service) complete(ctx context.Context, c appointment.Caller, es []entry) error {
+func (s *Service) complete(ctx context.Context, c appointment.Caller, es []viewEntry) error {
 	if len(es) == 0 {
 		return nil
 	}
@@ -169,11 +169,11 @@ func (s *Service) complete(ctx context.Context, c appointment.Caller, es []entry
 			docs = append(docs, strings.TrimPrefix(e.Reference, "Composition/"))
 		}
 	}
-	names, err := s.Clinics.Names(ctx, c.OrganizationID, distinct(clinics))
+	names, err := s.ScopeClinics.ScopeNames(ctx, c.OrganizationID, distinct(clinics))
 	if err != nil {
 		return err
 	}
-	specialties, err := s.Roles.Specialties(ctx, c.OrganizationID, distinct(roles))
+	specialties, err := s.RoleSpecialties.Specialties(ctx, c.OrganizationID, distinct(roles))
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func (s *Service) titlesAndConfirmed(ctx context.Context, c appointment.Caller, 
 
 // disclose has each owning domain audit the entries it gave that are shown: the visits, the documents, the
 // responses (a file as part of its response).
-func (s *Service) disclose(ctx context.Context, c appointment.Caller, es []entry) error {
+func (s *Service) disclose(ctx context.Context, c appointment.Caller, es []viewEntry) error {
 	var visits, docs, responses, files []string
 	for _, e := range es {
 		switch e.Type {
@@ -236,7 +236,7 @@ func (s *Service) disclose(ctx context.Context, c appointment.Caller, es []entry
 	for _, d := range []struct {
 		disclosed func(ctx context.Context, c appointment.Caller, ids []string) error
 		ids       []string
-	}{{s.Encounters.Disclosed, visits}, {s.Compositions.Disclosed, docs}, {s.Responses.Disclosed, distinct(responses)}, {s.Responses.DisclosedFiles, files}} {
+	}{{s.Encounters.Disclosed, visits}, {s.Compositions.Disclosed, docs}, {s.VisitResponses.Disclosed, distinct(responses)}, {s.VisitResponses.DisclosedFiles, files}} {
 		if len(d.ids) == 0 {
 			continue
 		}
@@ -277,7 +277,7 @@ func (s *Service) recordView(ctx context.Context, c appointment.Caller, interact
 	if patientID != "" {
 		e.EntityReference = "Patient/" + patientID
 	}
-	return s.Audit.Record(ctx, e)
+	return s.Audit.RecordAll(ctx, []auditevent.AuditEvent{e})
 }
 
 // Summary returns the pre-visit summary of the patient for the appointment appointmentID, one of the practitioner
@@ -372,7 +372,7 @@ func (s *Service) summaryAccess(ctx context.Context, c appointment.Caller, patie
 func (s *Service) summary(ctx context.Context, c appointment.Caller, appointmentID string, visits []encounter.Visit) (Summary, error) {
 	out := Summary{Allergies: []SummaryAllergy{}, Medications: []SummaryMedication{}, OpenItems: []OpenItem{}}
 	if len(visits) > 0 { // History gives them newest first
-		last := []entry{of(c, visits[0].Encounter, TypeVisit, "Encounter/"+visits[0].ID, visits[0].PeriodStart)}
+		last := []viewEntry{of(c, visits[0].Encounter, TypeVisit, "Encounter/"+visits[0].ID, visits[0].PeriodStart)}
 		if err := s.complete(ctx, c, last); err != nil {
 			return Summary{}, err
 		}
@@ -392,7 +392,7 @@ func (s *Service) summary(ctx context.Context, c appointment.Caller, appointment
 // its consultation not signed, each read (and audited) by its owning domain.
 func (s *Service) open(ctx context.Context, c appointment.Caller, appointmentID string) ([]OpenItem, error) {
 	out := []OpenItem{}
-	responses, err := s.Responses.Search(ctx, c, questionnaireresponse.Filter{AppointmentID: appointmentID, Status: questionnaireresponse.StatusInProgress})
+	responses, err := s.VisitResponses.Search(ctx, c, questionnaireresponse.Filter{AppointmentID: appointmentID, Status: questionnaireresponse.StatusInProgress})
 	if err != nil {
 		return nil, err
 	}

@@ -72,7 +72,7 @@ type ConfirmedFieldsRow struct {
 }
 
 // The coded fields of the signed documents ids whose Condition is confirmed: the clinic's own (condition_clinic),
-// and a visit's shared with it, for a practitioner with an appointment with its patient there (migration 00051).
+// and a visit's shared with it, for a practitioner with an appointment with its patient there (migration 00052).
 func (q *Queries) ConfirmedFields(ctx context.Context, arg ConfirmedFieldsParams) ([]ConfirmedFieldsRow, error) {
 	rows, err := q.db.Query(ctx, confirmedFields, arg.Ids, arg.OrganizationID, arg.PractitionerID)
 	if err != nil {

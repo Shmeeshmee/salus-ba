@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Synthetic ids.
@@ -85,7 +86,9 @@ func inTx(ctx context.Context) error {
 	return nil
 }
 
-type fakeAudit struct{ events []auditevent.AuditEvent }
+type fakeAudit struct {
+	events []auditevent.AuditEvent
+}
 
 func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 	if err := inTx(ctx); err != nil {
@@ -101,6 +104,7 @@ type fakeRepository struct {
 	err         error
 	consents    map[string]access.Consent      // by patient + clinic, the appointments' (the clinic's UPDATE policy)
 	attachments map[string][]binary.Attachment // the files of each response, by id
+	history     historyAsk
 	patient     string
 	clinic      string
 	notice      string // the appointment set by SetNotice
@@ -275,6 +279,68 @@ func (r *fakeRepository) Search(ctx context.Context, f questionnaireresponse.Fil
 		}
 	}
 	return out, nil
+}
+
+// historyAsk is what CompletedOf or FilesOf was last asked.
+type historyAsk struct {
+	patient string
+	org     string
+	page    keyset.Page
+}
+
+// CompletedOf gives the patient's completed responses the scope shows, without their answers, after the page's
+// position, newest first by submission.
+func (r *fakeRepository) CompletedOf(ctx context.Context, patientID, org string, p keyset.Page) ([]questionnaireresponse.Response, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	r.history = historyAsk{page: p, patient: patientID, org: org}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []questionnaireresponse.Response
+	for _, x := range r.responses {
+		if r.completedOf(x, patientID, org) && inPage(p, x.AuthoredAt, "QuestionnaireResponse/"+x.ID) {
+			x.Answers = nil
+			out = append(out, x)
+		}
+	}
+	slices.SortFunc(out, func(a, b questionnaireresponse.Response) int { return b.AuthoredAt.Compare(a.AuthoredAt) })
+	return out[:min(len(out), p.Limit)], nil
+}
+
+// FilesOf gives the files of the patient's completed responses that are not pending, as CompletedOf.
+func (r *fakeRepository) FilesOf(ctx context.Context, patientID, org string, p keyset.Page) ([]questionnaireresponse.Attached, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	r.history = historyAsk{page: p, patient: patientID, org: org}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []questionnaireresponse.Attached
+	for _, x := range r.responses {
+		if !r.completedOf(x, patientID, org) {
+			continue
+		}
+		x.Answers = nil
+		for _, a := range r.attachments[x.ID] {
+			if !a.Pending && inPage(p, x.AuthoredAt, "Binary/"+a.BinaryID) {
+				out = append(out, questionnaireresponse.Attached{Response: x, File: a})
+			}
+		}
+	}
+	return out[:min(len(out), p.Limit)], nil
+}
+
+func (r *fakeRepository) completedOf(x questionnaireresponse.Response, patientID, org string) bool {
+	return r.visible(x) && x.PatientID == patientID && x.Status == questionnaireresponse.StatusCompleted && (org == "" || x.OrganizationID == org)
+}
+
+// inPage reports whether an item at at with the reference ref is in the page: after its position, in its range.
+func inPage(p keyset.Page, at time.Time, ref string) bool {
+	after := p.At.IsZero() || at.Before(p.At) || (at.Equal(p.At) && ref < p.Ref)
+	return after && (p.From.IsZero() || !at.Before(p.From)) && (p.To.IsZero() || at.Before(p.To))
 }
 
 func (r *fakeRepository) DeleteUnsubmittedBefore(context.Context, time.Time) (int64, error) {

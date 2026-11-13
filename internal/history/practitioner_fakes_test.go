@@ -22,56 +22,56 @@ import (
 // Synthetic ids of the practitioner's view: patient A's visit V1 at clinic A with practitioner A1, and V2 at clinic B,
 // which the patient shared with clinic A; a signed document of each, a completed response with a file in V1.
 const (
-	clinicA   = "a0000000-0000-4000-8000-00000000000a"
-	clinicB   = "b0000000-0000-4000-8000-00000000000b"
-	patientA  = "aa000000-0000-4000-8000-0000000000aa"
-	roleA1    = "a1000000-0000-4000-8000-0000000000a1"
-	roleB1    = "b1000000-0000-4000-8000-0000000000b1"
-	practAcc  = "ac100000-0000-4000-8000-0000000000a1"
-	visit1    = "c1000000-0000-4000-8000-0000000000a1"
-	visit2    = "c2000000-0000-4000-8000-0000000000b1"
-	appt1     = "e1000000-0000-4000-8000-0000000000a1"
-	appt2     = "e2000000-0000-4000-8000-0000000000b1"
-	apptNow   = "e3000000-0000-4000-8000-0000000000a3" // the appointment the summary is for
-	visitNow  = "c3000000-0000-4000-8000-0000000000a3"
-	doc1      = "d1000000-0000-4000-8000-0000000000a1"
-	doc2      = "d2000000-0000-4000-8000-0000000000b1"
-	draftNow  = "d3000000-0000-4000-8000-0000000000a3"
-	resp1     = "f1000000-0000-4000-8000-0000000000a1"
-	respNow   = "f3000000-0000-4000-8000-0000000000a3"
-	version1  = "91000000-0000-4000-8000-0000000000a1"
-	file1     = "b0000000-0000-4000-8000-0000000000f1"
-	allergy1  = "a7000000-0000-4000-8000-000000000001"
-	allergy2  = "a7000000-0000-4000-8000-000000000002"
-	medicine1 = "a8000000-0000-4000-8000-000000000001"
-	medicine2 = "a8000000-0000-4000-8000-000000000002"
+	pvClinicA  = "a0000000-0000-4000-8000-00000000000a"
+	pvClinicB  = "b0000000-0000-4000-8000-00000000000b"
+	pvPatientA = "aa000000-0000-4000-8000-0000000000aa"
+	roleA1     = "a1000000-0000-4000-8000-0000000000a1"
+	roleB1     = "b1000000-0000-4000-8000-0000000000b1"
+	practAcc   = "ac100000-0000-4000-8000-0000000000a1"
+	visit1     = "c1000000-0000-4000-8000-0000000000a1"
+	visit2     = "c2000000-0000-4000-8000-0000000000b1"
+	appt1      = "e1000000-0000-4000-8000-0000000000a1"
+	appt2      = "e2000000-0000-4000-8000-0000000000b1"
+	apptNow    = "e3000000-0000-4000-8000-0000000000a3" // the appointment the summary is for
+	visitNow   = "c3000000-0000-4000-8000-0000000000a3"
+	doc1       = "d1000000-0000-4000-8000-0000000000a1"
+	doc2       = "d2000000-0000-4000-8000-0000000000b1"
+	draftNow   = "d3000000-0000-4000-8000-0000000000a3"
+	resp1      = "f1000000-0000-4000-8000-0000000000a1"
+	respNow    = "f3000000-0000-4000-8000-0000000000a3"
+	version1   = "91000000-0000-4000-8000-0000000000a1"
+	file1      = "b0000000-0000-4000-8000-0000000000f1"
+	allergy1   = "a7000000-0000-4000-8000-000000000001"
+	allergy2   = "a7000000-0000-4000-8000-000000000002"
+	medicine1  = "a8000000-0000-4000-8000-000000000001"
+	medicine2  = "a8000000-0000-4000-8000-000000000002"
 )
 
 var (
-	pract      = appointment.Caller{AccountID: practAcc, OrganizationID: clinicA, PractitionerID: "p1000000-0000-4000-8000-0000000000a1"}
-	errBackend = errors.New("the database is down")
-	day        = func(d, h int) time.Time { return time.Date(2026, 10, d, h, 0, 0, 0, time.UTC) }
+	pvPract      = appointment.Caller{AccountID: practAcc, OrganizationID: pvClinicA, PractitionerID: "p1000000-0000-4000-8000-0000000000a1"}
+	errPvBackend = errors.New("the database is down")
+	pvDay        = func(d, h int) time.Time { return time.Date(2026, 10, d, h, 0, 0, 0, time.UTC) }
 )
 
-type txKey struct{}
+type pvTxKey struct{}
 
 // fakeTransactor runs fn in a "transaction"; what was audited in one that fails is dropped, as a rollback does.
 type fakeTransactor struct{ f *practFixture }
 
 func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
-	if ctx.Value(txKey{}) != nil {
+	if ctx.Value(pvTxKey{}) != nil {
 		return fn(ctx)
 	}
 	n := len(t.f.audit.events)
-	err := fn(context.WithValue(ctx, txKey{}, true))
+	err := fn(context.WithValue(ctx, pvTxKey{}, true))
 	if err != nil {
 		t.f.audit.events = t.f.audit.events[:n]
 	}
 	return err
 }
 
-func inTx(ctx context.Context) error {
-	if ctx.Value(txKey{}) == nil {
+func pvInTx(ctx context.Context) error {
+	if ctx.Value(pvTxKey{}) == nil {
 		return errors.New("called outside a transaction")
 	}
 	return nil
@@ -84,8 +84,17 @@ type fakeAuditor struct {
 	events []auditevent.AuditEvent
 }
 
-func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error {
-	if err := inTx(ctx); err != nil {
+func (a *fakeAuditor) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
+	for _, e := range es {
+		if err := a.record(ctx, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *fakeAuditor) record(ctx context.Context, e auditevent.AuditEvent) error {
+	if err := pvInTx(ctx); err != nil {
 		return err
 	}
 	if a.err != nil {
@@ -98,7 +107,7 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 
 // disclosed records each domain's Disclosed call in the shared log.
 func disclosed(ctx context.Context, log *[]string, domain string, err error, ids []string) error {
-	if e := inTx(ctx); e != nil {
+	if e := pvInTx(ctx); e != nil {
 		return e
 	}
 	if err != nil {
@@ -120,7 +129,7 @@ type fakeEncounters struct {
 }
 
 func (e *fakeEncounters) History(ctx context.Context, c appointment.Caller, patientID string) ([]encounter.Visit, error) {
-	if err := inTx(ctx); err != nil {
+	if err := pvInTx(ctx); err != nil {
 		return nil, err
 	}
 	e.asked = append(e.asked, c.AccountID+" "+patientID)
@@ -136,7 +145,7 @@ func (e *fakeEncounters) Disclosed(ctx context.Context, _ appointment.Caller, id
 
 func (e *fakeEncounters) Search(ctx context.Context, _ appointment.Caller, f encounter.Filter) ([]encounter.Encounter, error) {
 	*e.log = append(*e.log, "encounter search "+f.AppointmentID)
-	return e.byAppt[f.AppointmentID], inTx(ctx)
+	return e.byAppt[f.AppointmentID], pvInTx(ctx)
 }
 
 type fakeCompositions struct {
@@ -148,7 +157,7 @@ type fakeCompositions struct {
 }
 
 func (f *fakeCompositions) History(ctx context.Context, _ appointment.Caller, visits []encounter.Visit) ([]composition.Document, error) {
-	if err := inTx(ctx); err != nil {
+	if err := pvInTx(ctx); err != nil {
 		return nil, err
 	}
 	var out []composition.Document
@@ -166,7 +175,7 @@ func (f *fakeCompositions) Disclosed(ctx context.Context, _ appointment.Caller, 
 
 func (f *fakeCompositions) Drafts(ctx context.Context, _ appointment.Caller, encounterID string) ([]composition.Draft, error) {
 	*f.log = append(*f.log, "composition drafts "+encounterID)
-	return f.drafts[encounterID], cmpOr(inTx(ctx), f.draftErr)
+	return f.drafts[encounterID], cmpOr(pvInTx(ctx), f.draftErr)
 }
 
 func cmpOr(errs ...error) error {
@@ -178,15 +187,15 @@ func cmpOr(errs ...error) error {
 	return nil
 }
 
-type fakeResponses struct {
+type pvFakeResponses struct {
 	err       error
 	completed map[string][]questionnaireresponse.Response // by appointment
 	all       map[string][]questionnaireresponse.Response
 	log       *[]string
 }
 
-func (f *fakeResponses) History(ctx context.Context, _ appointment.Caller, visits []encounter.Visit) ([]questionnaireresponse.Response, error) {
-	if err := inTx(ctx); err != nil {
+func (f *pvFakeResponses) History(ctx context.Context, _ appointment.Caller, visits []encounter.Visit) ([]questionnaireresponse.Response, error) {
+	if err := pvInTx(ctx); err != nil {
 		return nil, err
 	}
 	var out []questionnaireresponse.Response
@@ -196,18 +205,18 @@ func (f *fakeResponses) History(ctx context.Context, _ appointment.Caller, visit
 	return out, f.err
 }
 
-func (f *fakeResponses) Disclosed(ctx context.Context, _ appointment.Caller, ids []string) error {
+func (f *pvFakeResponses) Disclosed(ctx context.Context, _ appointment.Caller, ids []string) error {
 	return disclosed(ctx, f.log, "questionnaireresponse", nil, ids)
 }
 
 // DisclosedFiles records the files the view shows, as the response's domain audits them.
-func (f *fakeResponses) DisclosedFiles(ctx context.Context, _ appointment.Caller, ids []string) error {
+func (f *pvFakeResponses) DisclosedFiles(ctx context.Context, _ appointment.Caller, ids []string) error {
 	return disclosed(ctx, f.log, "binary", nil, ids)
 }
 
 // Search gives the appointment's responses of the filter's status, each logged as audited (Search audits every
 // response it returns).
-func (f *fakeResponses) Search(ctx context.Context, _ appointment.Caller, flt questionnaireresponse.Filter) ([]questionnaireresponse.Seen, error) {
+func (f *pvFakeResponses) Search(ctx context.Context, _ appointment.Caller, flt questionnaireresponse.Filter) ([]questionnaireresponse.Seen, error) {
 	var out []questionnaireresponse.Seen
 	for _, r := range f.all[flt.AppointmentID] {
 		if flt.Status == "" || r.Status == flt.Status {
@@ -215,7 +224,7 @@ func (f *fakeResponses) Search(ctx context.Context, _ appointment.Caller, flt qu
 			out = append(out, questionnaireresponse.Seen{Response: r})
 		}
 	}
-	return out, inTx(ctx)
+	return out, pvInTx(ctx)
 }
 
 type fakeQuestionnaires struct {
@@ -224,13 +233,13 @@ type fakeQuestionnaires struct {
 }
 
 func (f *fakeQuestionnaires) Titles(ctx context.Context, c questionnaire.Caller, ids []string) (map[string]string, error) {
-	if err := inTx(ctx); err != nil {
+	if err := pvInTx(ctx); err != nil {
 		return nil, err
 	}
 	out := map[string]string{}
 	for _, id := range ids {
 		*f.log = append(*f.log, "questionnaire "+id)
-		if title, ok := f.titles[id]; ok && c.OrganizationID == clinicA && c.PractitionerID != "" {
+		if title, ok := f.titles[id]; ok && c.OrganizationID == pvClinicA && c.PractitionerID != "" {
 			out[id] = title
 		}
 	}
@@ -245,7 +254,7 @@ type fakeConditions struct {
 }
 
 func (f *fakeConditions) Confirmed(ctx context.Context, c appointment.Caller, documentIDs []string) (map[string][]condition.FieldCode, error) {
-	if err := inTx(ctx); err != nil {
+	if err := pvInTx(ctx); err != nil {
 		return nil, err
 	}
 	for _, id := range documentIDs {
@@ -263,31 +272,31 @@ func (f *fakeConditions) Confirmed(ctx context.Context, c appointment.Caller, do
 	return out, nil
 }
 
-type fakeClinics struct{}
+type pvFakeClinics struct{}
 
-func (fakeClinics) Names(ctx context.Context, org string, ids []string) (map[string]string, error) {
-	all := map[string]string{clinicA: "Synthetic clinic A", clinicB: "Synthetic clinic B"}
+func (pvFakeClinics) ScopeNames(ctx context.Context, org string, ids []string) (map[string]string, error) {
+	all := map[string]string{pvClinicA: "Synthetic clinic A", pvClinicB: "Synthetic clinic B"}
 	out := map[string]string{}
 	for _, id := range ids {
 		out[id] = all[id]
 	}
-	if org != clinicA {
+	if org != pvClinicA {
 		return nil, errors.New("not clinic A's scope")
 	}
-	return out, inTx(ctx)
+	return out, pvInTx(ctx)
 }
 
-type fakeRoles struct{}
+type pvFakeRoles struct{}
 
-func (fakeRoles) Specialties(ctx context.Context, org string, ids []string) (map[string]string, error) {
+func (pvFakeRoles) Specialties(ctx context.Context, org string, ids []string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, id := range ids {
 		out[id] = map[string]string{roleA1: "394579002", roleB1: "419192003"}[id]
 	}
-	if org != clinicA {
+	if org != pvClinicA {
 		return nil, errors.New("not clinic A's scope")
 	}
-	return out, inTx(ctx)
+	return out, pvInTx(ctx)
 }
 
 type fakeAppointments struct {
@@ -295,7 +304,7 @@ type fakeAppointments struct {
 }
 
 func (f *fakeAppointments) Attendance(ctx context.Context, c appointment.Caller, id string) (appointment.Attendance, error) {
-	if err := inTx(ctx); err != nil {
+	if err := pvInTx(ctx); err != nil {
 		return appointment.Attendance{}, err
 	}
 	att, ok := f.attendance[c.AccountID+id]
@@ -310,7 +319,7 @@ type practFixture struct {
 	audit        *fakeAuditor
 	encounters   *fakeEncounters
 	compositions *fakeCompositions
-	responses    *fakeResponses
+	responses    *pvFakeResponses
 	allergies    *fakeAllergies
 	medications  *fakeMedications
 	conditions   *fakeConditions
@@ -320,13 +329,13 @@ type practFixture struct {
 // newPractFixture is patient A's history as practitioner A1 of clinic A may see it.
 func newPractFixture() *practFixture {
 	log := &[]string{}
-	v1 := encounter.Visit{Encounter: encounter.Encounter{ID: visit1, AppointmentID: appt1, OrganizationID: clinicA, PatientID: patientA,
-		PractitionerRoleID: roleA1, Status: encounter.StatusFinished, PeriodStart: day(1, 9)}}
-	v2 := encounter.Visit{Encounter: encounter.Encounter{ID: visit2, AppointmentID: appt2, OrganizationID: clinicB, PatientID: patientA,
-		PractitionerRoleID: roleB1, Status: encounter.StatusFinished, PeriodStart: day(1, 8)}, Shared: true}
+	v1 := encounter.Visit{Encounter: encounter.Encounter{ID: visit1, AppointmentID: appt1, OrganizationID: pvClinicA, PatientID: pvPatientA,
+		PractitionerRoleID: roleA1, Status: encounter.StatusFinished, PeriodStart: pvDay(1, 9)}}
+	v2 := encounter.Visit{Encounter: encounter.Encounter{ID: visit2, AppointmentID: appt2, OrganizationID: pvClinicB, PatientID: pvPatientA,
+		PractitionerRoleID: roleB1, Status: encounter.StatusFinished, PeriodStart: pvDay(1, 8)}, Shared: true}
 	f := &practFixture{log: log, audit: &fakeAuditor{log: log}}
 	f.encounters = &fakeEncounters{visits: []encounter.Visit{v1, v2}, log: log, byAppt: map[string][]encounter.Encounter{
-		apptNow: {{ID: visitNow, AppointmentID: apptNow, OrganizationID: clinicA, PatientID: patientA, Status: encounter.StatusInProgress}},
+		apptNow: {{ID: visitNow, AppointmentID: apptNow, OrganizationID: pvClinicA, PatientID: pvPatientA, Status: encounter.StatusInProgress}},
 	}}
 	coded := []composition.DraftField{
 		{Type: composition.FieldCoded, Label: "Placeholder diagnosis", Field: composition.Field{Key: "diagnosis", Value: "J06.9"}},
@@ -336,8 +345,8 @@ func newPractFixture() *practFixture {
 	}
 	f.compositions = &fakeCompositions{log: log,
 		signed: map[string][]composition.Draft{
-			visit1: {{ID: doc1, EncounterID: visit1, Status: composition.StatusFinal, SignedAt: day(1, 10), Title: "Placeholder report", Fields: coded}},
-			visit2: {{ID: doc2, EncounterID: visit2, Status: composition.StatusFinal, SignedAt: day(1, 8), Title: "Placeholder referral",
+			visit1: {{ID: doc1, EncounterID: visit1, Status: composition.StatusFinal, SignedAt: pvDay(1, 10), Title: "Placeholder report", Fields: coded}},
+			visit2: {{ID: doc2, EncounterID: visit2, Status: composition.StatusFinal, SignedAt: pvDay(1, 8), Title: "Placeholder referral",
 				Fields: []composition.DraftField{{Type: composition.FieldCoded, Label: "Placeholder diagnosis", Field: composition.Field{Key: "diagnosis", Value: "I10"}}}}},
 		},
 		drafts: map[string][]composition.Draft{visitNow: {
@@ -345,9 +354,9 @@ func newPractFixture() *practFixture {
 			{ID: "d4000000-0000-4000-8000-0000000000a4", EncounterID: visitNow, Status: composition.StatusFinal},
 		}},
 	}
-	f.responses = &fakeResponses{log: log,
+	f.responses = &pvFakeResponses{log: log,
 		completed: map[string][]questionnaireresponse.Response{appt1: {{
-			ID: resp1, AppointmentID: appt1, QuestionnaireID: version1, Status: questionnaireresponse.StatusCompleted, AuthoredAt: day(1, 7),
+			ID: resp1, AppointmentID: appt1, QuestionnaireID: version1, Status: questionnaireresponse.StatusCompleted, AuthoredAt: pvDay(1, 7),
 			Attachments: []binary.Attachment{{BinaryID: file1, Title: "Placeholder photo"}},
 		}}},
 		all: map[string][]questionnaireresponse.Response{apptNow: {
@@ -356,29 +365,29 @@ func newPractFixture() *practFixture {
 			{ID: "f5000000-0000-4000-8000-0000000000a5", AppointmentID: apptNow, Status: questionnaireresponse.StatusStopped},
 		}},
 	}
-	f.allergies = &fakeAllergies{seen: map[string][]allergyintolerance.Seen{patientA: {
+	f.allergies = &fakeAllergies{seen: map[string][]allergyintolerance.Seen{pvPatientA: {
 		{AllergyIntolerance: allergyintolerance.AllergyIntolerance{ID: allergy1, Code: allergyintolerance.Code{Text: "Placeholder substance"},
 			Reaction: "Placeholder reaction", Severity: allergyintolerance.SeveritySevere, ClinicalStatus: allergyintolerance.ClinicalActive,
 			VerificationStatus: allergyintolerance.VerificationConfirmed}},
 		{AllergyIntolerance: allergyintolerance.AllergyIntolerance{ID: allergy2, Code: allergyintolerance.Code{Text: "Placeholder old substance"},
 			ClinicalStatus: allergyintolerance.ClinicalResolved, VerificationStatus: allergyintolerance.VerificationUnconfirmed}},
 	}}}
-	f.medications = &fakeMedications{seen: map[string][]medicationstatement.Seen{patientA: {
+	f.medications = &fakeMedications{seen: map[string][]medicationstatement.Seen{pvPatientA: {
 		{MedicationStatement: medicationstatement.MedicationStatement{ID: medicine1, Code: medicationstatement.Code{Text: "Placeholder medicine"},
 			Status: medicationstatement.StatusActive, Dosage: medicationstatement.Dosage{DoseValue: 1, DoseUnit: "{tablet}"}}},
 		{MedicationStatement: medicationstatement.MedicationStatement{ID: medicine2, Code: medicationstatement.Code{Text: "Placeholder stopped"},
-			Status: medicationstatement.StatusStopped, Confirmation: medicationstatement.Confirmation{At: day(2, 9)}}},
+			Status: medicationstatement.StatusStopped, Confirmation: medicationstatement.Confirmation{At: pvDay(2, 9)}}},
 	}}}
 	appts := &fakeAppointments{attendance: map[string]appointment.Attendance{
-		practAcc + apptNow: {Practitioner: true, Level: 2, Appointment: appointment.Appointment{ID: apptNow, PatientID: patientA, OrganizationID: clinicA}},
-		practAcc + appt2:   {Level: 2, Appointment: appointment.Appointment{ID: appt2, PatientID: patientA, OrganizationID: clinicA}},
+		practAcc + apptNow: {Practitioner: true, Level: 2, Appointment: appointment.Appointment{ID: apptNow, PatientID: pvPatientA, OrganizationID: pvClinicA}},
+		practAcc + appt2:   {Level: 2, Appointment: appointment.Appointment{ID: appt2, PatientID: pvPatientA, OrganizationID: pvClinicA}},
 	}}
 	// The rule-out field's Condition is confirmed under another code than the document's: not its confirmation.
 	f.conditions = &fakeConditions{confirmed: map[string][]condition.FieldCode{doc1: {{Key: "diagnosis", Code: "J06.9"}, {Key: "ruleout", Code: "K21.9"}}}}
 	f.svc = history.NewService(history.Ports{
-		Tx: fakeTransactor{f: f}, Audit: f.audit, Encounters: f.encounters, Compositions: f.compositions, Responses: f.responses,
+		Tx: fakeTransactor{f: f}, Audit: f.audit, Encounters: f.encounters, Compositions: f.compositions, VisitResponses: f.responses,
 		Questionnaires: &fakeQuestionnaires{titles: map[string]string{version1: "Placeholder intake"}, log: log},
-		Clinics:        fakeClinics{}, Roles: fakeRoles{}, Appointments: appts, Allergies: f.allergies, Medications: f.medications,
+		ScopeClinics:   pvFakeClinics{}, RoleSpecialties: pvFakeRoles{}, Appointments: appts, Allergies: f.allergies, Medications: f.medications,
 		Conditions: f.conditions,
 	})
 	return f

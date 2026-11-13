@@ -425,5 +425,21 @@
   "howOftenEveryHours": "{period, plural, one{{frequency}× svaki {every} sat} few{{frequency}× svaka {every} sata} other{{frequency}× svakih {every} sati}}",
   "howOftenEveryDays": "{period, plural, one{{frequency}× svaki {every} dan} few{{frequency}× svaka {every} dana} other{{frequency}× svakih {every} dana}}",
   "howOftenEveryWeeks": "{period, plural, one{{frequency}× svake {every} nedjelje} few{{frequency}× svake {every} nedjelje} other{{frequency}× svakih {every} nedjelja}}",
-  "howOftenEveryMonths": "{period, plural, one{{frequency}× svaki {every} mjesec} few{{frequency}× svaka {every} mjeseca} other{{frequency}× svakih {every} mjeseci}}"
+  "howOftenEveryMonths": "{period, plural, one{{frequency}× svaki {every} mjesec} few{{frequency}× svaka {every} mjeseca} other{{frequency}× svakih {every} mjeseci}}",
+  "myHistory": "Moja istorija",
+  "historyEmpty": "Vaša istorija je još prazna. Ovdje se pojavljuju vaše posjete, dokumenti i odgovori.",
+  "historyNoMatch": "Ništa u vašoj istoriji ne odgovara ovim filterima.",
+  "historyClinic": "Klinika",
+  "historyAllClinics": "Sve klinike",
+  "historyVisits": "Posjete",
+  "historyVisit": "Posjeta",
+  "historyAnswers": "Odgovori na upitnik",
+  "historyFiles": "Datoteke",
+  "historyFile": "Datoteka",
+  "historyAnyDate": "Bilo koji datum",
+  "historyDateRange": "od {from} do {to}",
+  "historyClearDates": "Poništi datume",
+  "historyShowMore": "Prikaži više",
+  "historyMoreFailed": "Ostatak vaše istorije nije se mogao učitati.",
+  "historyOpenFailed": "Ova stavka se nije mogla otvoriti. Pokušajte ponovo."
 }

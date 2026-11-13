@@ -230,43 +230,7 @@ func TestHistorySharing_ThePoliciesAdmitWhat00043Admitted(t *testing.T) {
 		Scan(&roles, &orgs); err != nil {
 		t.Fatal(err)
 	}
-	e := h.encounters[h.a.bPast]
-	states := []struct {
-		setup func()
-		name  string
-	}{
-		{name: "nothing shared", setup: func() {}},
-		{name: "shared", setup: func() { share(t, owner, h.consent, e) }},
-		{name: "the visit not finished", setup: func() {
-			ownerExec(t, owner, `UPDATE encounter SET status = 'in-progress', period_end = NULL WHERE id = $1`, e)
-		}},
-		{name: "removed", setup: func() {
-			ownerExec(t, owner, `UPDATE encounter SET status = 'finished', period_end = period_start + interval '20 minutes' WHERE id = $1`, e)
-			ownerExec(t, owner, `UPDATE history_consent_encounter SET removed_at = now() WHERE encounter_id = $1`, e)
-		}},
-		{name: "shared again", setup: func() { share(t, owner, h.consent, e) }},
-		{name: "care consent revoked", setup: func() {
-			ownerExec(t, owner, `UPDATE consent SET status = 'inactive', revoked_at = now() WHERE patient_id = $1 AND organization_id = $2`,
-				h.patients[0].patient, clinicA)
-		}},
-		{name: "care consent again, history consent revoked", setup: func() {
-			ownerExec(t, owner, `INSERT INTO consent (patient_id, organization_id, status, date_time) VALUES ($1, $2, 'active', now())`,
-				h.patients[0].patient, clinicA)
-			ownerExec(t, owner, `UPDATE history_consent SET status = 'inactive', revoked_at = now() WHERE id = $1`, h.consent)
-		}},
-	}
-	scopes := map[string]map[string]string{
-		"no scope":                    nil,
-		"patient A":                   {"app.patient_id": h.patients[0].patient},
-		"patient A with clinic A set": {"app.patient_id": h.patients[0].patient, "app.organization_id": clinicA},
-		"an account with clinic A":    {"app.account_id": h.patients[0].account, "app.organization_id": clinicA},
-		"the directory":               {"app.directory": "public"},
-		"the directory and patient A": {"app.directory": "public", "app.patient_id": h.patients[0].patient},
-		"clinic A":                    {"app.organization_id": clinicA},
-		"clinic A in a room":          {"app.organization_id": clinicA, "app.video_room": "r_" + h.a.aFuture},
-		"clinic B":                    {"app.organization_id": clinicB},
-		"clinic C":                    {"app.organization_id": historyClinicC},
-	}
+	states, scopes := sharingStates(t, owner, h), sharingScopes(h)
 	admitted := 0
 	for _, state := range states {
 		state.setup()
@@ -322,5 +286,57 @@ func TestHistorySharing_TheLookupsKeepTheInvokersRightsAndAFixedSearchPath(t *te
 			t.Errorf("%s: SECURITY DEFINER %v, config %v, EXECUTE for PUBLIC %v, for %s %v; want false, the search path, false, true",
 				fn, definer, config, publicExec, pgtest.AppRole, appExec)
 		}
+	}
+}
+
+// sharingState is a state of patient A's sharing of their visit at clinic B with clinic A, which setup brings about
+// from the one before.
+type sharingState struct {
+	setup func()
+	name  string
+}
+
+// sharingStates are the states a shared visit goes through, in order: nothing shared, shared, the visit not
+// finished, removed, shared again, the care consent revoked, the history consent revoked.
+func sharingStates(t *testing.T, owner *pgxpool.Pool, h historyRows) []sharingState {
+	t.Helper()
+	e := h.encounters[h.a.bPast]
+	return []sharingState{
+		{name: "nothing shared", setup: func() {}},
+		{name: "shared", setup: func() { share(t, owner, h.consent, e) }},
+		{name: "the visit not finished", setup: func() {
+			ownerExec(t, owner, `UPDATE encounter SET status = 'in-progress', period_end = NULL WHERE id = $1`, e)
+		}},
+		{name: "removed", setup: func() {
+			ownerExec(t, owner, `UPDATE encounter SET status = 'finished', period_end = period_start + interval '20 minutes' WHERE id = $1`, e)
+			ownerExec(t, owner, `UPDATE history_consent_encounter SET removed_at = now() WHERE encounter_id = $1`, e)
+		}},
+		{name: "shared again", setup: func() { share(t, owner, h.consent, e) }},
+		{name: "care consent revoked", setup: func() {
+			ownerExec(t, owner, `UPDATE consent SET status = 'inactive', revoked_at = now() WHERE patient_id = $1 AND organization_id = $2`,
+				h.patients[0].patient, clinicA)
+		}},
+		{name: "care consent again, history consent revoked", setup: func() {
+			ownerExec(t, owner, `INSERT INTO consent (patient_id, organization_id, status, date_time) VALUES ($1, $2, 'active', now())`,
+				h.patients[0].patient, clinicA)
+			ownerExec(t, owner, `UPDATE history_consent SET status = 'inactive', revoked_at = now() WHERE id = $1`, h.consent)
+		}},
+	}
+}
+
+// sharingScopes are the scopes a policy is compared in: none, a patient's, an account's, the directory's, each
+// clinic's, and clinic A in a room.
+func sharingScopes(h historyRows) map[string]map[string]string {
+	return map[string]map[string]string{
+		"no scope":                    nil,
+		"patient A":                   {"app.patient_id": h.patients[0].patient},
+		"patient A with clinic A set": {"app.patient_id": h.patients[0].patient, "app.organization_id": clinicA},
+		"an account with clinic A":    {"app.account_id": h.patients[0].account, "app.organization_id": clinicA},
+		"the directory":               {"app.directory": "public"},
+		"the directory and patient A": {"app.directory": "public", "app.patient_id": h.patients[0].patient},
+		"clinic A":                    {"app.organization_id": clinicA},
+		"clinic A in a room":          {"app.organization_id": clinicA, "app.video_room": "r_" + h.a.aFuture},
+		"clinic B":                    {"app.organization_id": clinicB},
+		"clinic C":                    {"app.organization_id": historyClinicC},
 	}
 }

@@ -1956,12 +1956,30 @@ practitioner. Every read, grant, change and revocation is audited.
 | A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
 | History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
 
-### SAL-40: the practitioner's view and the pre-visit summary (migration 00051)
+### SAL-39: the patient's timeline
+
+**Processing added.** The patient reads their own history across every clinic (`GET /me/history`, the mobile app's
+"My history"): their visits, signed documents, completed questionnaire answers and the clean files of those, newest
+first, one page at a time. Their own record (Art. 15); no new personal data is collected and no table is added.
+
+**Who sees what.** Only the patient, of their own data, in their own row-level security scope; staff are refused.
+Never a draft, a response in progress or withdrawn, or a file not yet found clean. Clinic names are read for the
+clinics of the patient's own items only (no personal data in a clinic). Chats are not listed yet.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A draft or another patient's item in the timeline | Each owning domain reads in the patient's scope, filters by the patient and applies its own rule (`access.HistoryVisit`, `access.SignedDocument`, `access.QuestionnaireResponse`, binary's own check); service and repository tests per domain, the e2e journey checks the open draft is absent |
+| A read that is not audited | Every item a source returns is audited by its owning domain in its transaction (an empty source is one event without an entity). Each source is asked for one item more than the page and the page is cut from their merge, so what a source returned past the cut is audited without being shown (the next page shows it, audited again): the record errs towards more, never less |
+| History details in logs or the cursor | The cursor is an opaque date and reference (no personal data beyond the patient's own resource id); the handler logs nothing of the query or the items |
+
+### SAL-40: the practitioner's view and the pre-visit summary (migration 00052)
 
 **Processing added.** No new personal data and no new table: the practitioner's view of the patient's history
 (`GET /patients/{id}/history`) and the pre-visit summary of one of their appointments (`.../history/summary`) read
 what the owning domains already hold, in the web app on the appointment (opened on request) and the call page.
-Migration 00051 adds two `SECURITY DEFINER` lookups. `history_questionnaire` lets a practitioner read the questions of a
+Migration 00052 adds two `SECURITY DEFINER` lookups. `history_questionnaire` lets a practitioner read the questions of a
 completed response that was shared with their clinic: it returns that questionnaire version only (clinic content, no
 personal data), never another of the other clinic's versions, and nothing of any response.
 `history_confirmed_conditions` says which coded fields of a shared signed document have a confirmed Condition (the

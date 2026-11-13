@@ -49,6 +49,10 @@ abstract interface class Files {
 
   /// Hands [text] (a transcript) to the share sheet.
   Future<void> shareText(String text);
+
+  /// Hands a file of the patient's answers to the share sheet as [name], in its [contentType]: to open it in a
+  /// viewer, save it or send it (their history, SAL-39).
+  Future<void> shareFile(String name, Uint8List bytes, String contentType);
 }
 
 /// [Files] on image_picker, file_picker and the app's own conversion channel. Made once, at start, when it sweeps
@@ -126,14 +130,17 @@ class DeviceFiles implements Files {
   /// The PDF goes through a copy in the temporary directory (`salus-document-*`), deleted once the sheet has closed,
   /// and swept at the next start if the app stopped first (copies.dart), as share_plus's own copy is.
   @override
-  Future<void> sharePdf(String name, Uint8List bytes) async {
+  Future<void> sharePdf(String name, Uint8List bytes) => shareFile(name, bytes, 'application/pdf');
+
+  @override
+  Future<void> shareFile(String name, Uint8List bytes, String contentType) async {
     final temp = Directory.systemTemp;
-    final copy = File('${temp.path}/salus-document-${DateTime.now().microsecondsSinceEpoch}.pdf');
+    final copy = File('${temp.path}/salus-document-${DateTime.now().microsecondsSinceEpoch}');
     try {
       await copy.writeAsBytes(bytes, flush: true);
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(copy.path, mimeType: 'application/pdf')],
+          files: [XFile(copy.path, mimeType: contentType)],
           fileNameOverrides: [name],
         ),
       );

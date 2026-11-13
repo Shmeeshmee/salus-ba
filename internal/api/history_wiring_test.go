@@ -20,7 +20,7 @@ func TestHistory_ReadsTheProfileThroughSAL41sServices(t *testing.T) {
 			t.Errorf("history.go still has the stand-in %s", stale)
 		}
 	}
-	if !strings.Contains(src, "Allergies: p.allergies") || !strings.Contains(src, "Medications: p.medications") {
+	if !strings.Contains(src, "ports.Allergies, ports.Medications = p.appointments, p.allergies, p.medications") {
 		t.Error("the history is not built on the profile's allergy and medication services")
 	}
 }
