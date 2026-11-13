@@ -15,6 +15,8 @@ tables:
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
   chat_consent: {owner: consent, personal_data: true}
+  clinic_appointment_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
+  clinic_diagnosis_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
   condition: {owner: condition, personal_data: true}

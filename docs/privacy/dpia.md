@@ -1881,6 +1881,49 @@ as the other clinical tables).
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
 | WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
 
+### SAL-20: the clinic's own statistics
+
+**Processing added.** `clinic_appointment_stat` and `clinic_diagnosis_stat`: counts per clinic, local day and hour,
+practitioner role and its specialty, and appointment status or diagnosis group, subgroup and ICD-10 code. No patient
+identifier is stored or pseudonymised: the builds ask the sources without a key. The source queries
+(`ListBookedForStats`, condition's `ListDiagnoses`) are shared with SAL-21, which pseudonymises the patient with its
+key, so they do select `patient_id` as `salus_stats`; without a key the source services drop it in Go before the
+build sees a row, and it is never written, logged or counted. The counts are personal data
+of the practitioners (their workload and the diagnoses they recorded). Computed by the `clinicstats_refresh` job (a
+clinic-day, enqueued in the transaction of every appointment write and every signature with a diagnosis, with the
+clinic's id and an instant only) and the nightly `clinicstats_nightly` job, as `salus_stats`, which `cmd/worker` now
+logs in as (`STATS_DATABASE_URL`).
+
+**Purpose and lawful basis.** The management of the clinic's health-care services, on the clinic's behalf as
+controller, Salus as processor (Art. 9(2)(h)). Not used for the platform figures (those are built from the sources,
+SAL-21), for marketing, profiling or model training.
+
+**Necessity and minimisation.** Only counts; no age, sex, residence or free text. Only confirmed diagnoses count.
+
+**Access.** Only the clinic's staff, in the service (rules C1 to C3, plan §4): the admin sees everything of their
+clinic, the breakdown per practitioner included; a practitioner who is not an admin sees the clinic's appointment
+figures (or their own role's, never a specialty's, which can be one colleague's) and only their own role's diagnoses; anyone else is refused. Row-level security by
+clinic on both tables (one clinic's scope reads none of another's rows, tested); only `salus_stats` writes them
+(insert and delete; tested in migration 00048).
+
+**Audit.** Every read and every refusal writes an AuditEvent on `Organization/<clinic>`, purpose `HOPERAT`
+(v3-ActReason has no code for statistics), in the read's transaction. The builds are not audited: they read and write
+counts only, on behalf of no one.
+
+**Retention.** Kept as long as their sources (appointment and condition, with the clinical record) and recomputed
+from them; a refresh replaces its days. When erasure and restriction are built (`datarequest`), they enqueue the
+refresh of the affected days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner learning about patients outside their care through the clinic's diagnosis totals | C2: their own role's diagnoses only, another role's refused (tested per role) |
+| Small counts singling out a patient within the clinic | The figures stay inside the clinic that holds the records; no count leaves it (the platform view is SAL-21's, with its own suppression) |
+| Per-practitioner workload as employee monitoring | Admins only; open question L5 for the owner's lawyer before production |
+| An admin learning one patient's diagnosis: a one-day range, one practitioner role and `by=code` (J45: 1) next to the calendar showing that practitioner saw one patient that day | **Open, for the owner** (review finding 2): the figures stay inside the clinic that already holds the record, and every read is audited on the clinic; options are a minimum range, or month granularity, when an admin combines a role with a code breakdown |
+| Stale or lost counts | The nightly pass recomputes the last 35 days of every clinic; the refresh is idempotent (tested) |
+
 ## Patient history (`docs/plans/patient-history.md`, ADR 0014)
 
 ### Step 0: the contract (migration 00043)

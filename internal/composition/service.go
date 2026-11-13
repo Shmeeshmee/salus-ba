@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -48,6 +49,12 @@ type Conditions interface {
 	Record(ctx context.Context, cs []condition.Condition) error
 }
 
+// StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
+// ctx (clinicstats' River queue, docs/plans/analytics.md §4): a signature with diagnoses enqueues its day.
+type StatsQueue interface {
+	EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo        Repository
@@ -57,6 +64,7 @@ type Ports struct {
 	Store       Store
 	Publisher   Publisher
 	Jobs        Jobs
+	Stats       StatsQueue // the signing; not needed by a Service that only keeps templates
 	Conditions  Conditions
 	Audit       Auditor
 	Tx          Transactor

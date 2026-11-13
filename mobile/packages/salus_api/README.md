@@ -51,15 +51,17 @@ import 'package:salus_api/api.dart';
 // String yourTokenGeneratorFunction() { ... }
 //defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = AppointmentsApi();
-final bookAppointmentRequest = BookAppointmentRequest(); // BookAppointmentRequest | 
-final xSalusCSRF = xSalusCSRF_example; // String | Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+final api_instance = AnalyticsApi();
+final from = 2013-10-20; // DateTime | The first local day of the clinic (YYYY-MM-DD).
+final to = 2013-10-20; // DateTime | The last local day, included; at most ten years after `from`.
+final practitionerRole = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Only this practitioner role's figures.
+final specialty = specialty_example; // String | Only the roles of this SNOMED CT specialty code.
 
 try {
-    final result = api_instance.bookAppointment(bookAppointmentRequest, xSalusCSRF);
+    final result = api_instance.getClinicAppointmentStats(from, to, practitionerRole, specialty);
     print(result);
 } catch (e) {
-    print('Exception when calling AppointmentsApi->bookAppointment: $e\n');
+    print('Exception when calling AnalyticsApi->getClinicAppointmentStats: $e\n');
 }
 
 ```
@@ -70,6 +72,8 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AnalyticsApi* | [**getClinicAppointmentStats**](doc//AnalyticsApi.md#getclinicappointmentstats) | **GET** /analytics/clinic/appointments | The clinic's appointments over time
+*AnalyticsApi* | [**getClinicDiagnosisStats**](doc//AnalyticsApi.md#getclinicdiagnosisstats) | **GET** /analytics/clinic/diagnoses | The clinic's diagnoses, counted by a breakdown
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
 *AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
 *AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
@@ -229,6 +233,12 @@ Class | Method | HTTP request | Description
  - [ChatTyping](doc//ChatTyping.md)
  - [ChatTypingCommand](doc//ChatTypingCommand.md)
  - [ChatTypingFrame](doc//ChatTypingFrame.md)
+ - [ClinicAppointments](doc//ClinicAppointments.md)
+ - [ClinicAppointmentsHeatmapInner](doc//ClinicAppointmentsHeatmapInner.md)
+ - [ClinicAppointmentsPractitionersInner](doc//ClinicAppointmentsPractitionersInner.md)
+ - [ClinicAppointmentsSeriesInner](doc//ClinicAppointmentsSeriesInner.md)
+ - [ClinicDiagnoses](doc//ClinicDiagnoses.md)
+ - [ClinicDiagnosesRowsInner](doc//ClinicDiagnosesRowsInner.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
