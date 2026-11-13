@@ -82,6 +82,15 @@ func (r *fakeRepo) InsertProvenance(_ context.Context, p allergyintolerance.Prov
 	return nil
 }
 
+func (r *fakeRepo) HasProvenance(_ context.Context, id string) (bool, error) {
+	for _, p := range r.provenances {
+		if p.EntryID == id {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *fakeRepo) Provenance(_ context.Context, id string) (allergyintolerance.Provenance, error) {
 	for _, p := range r.provenances {
 		if p.ID == id {

@@ -178,11 +178,22 @@ func (h *FHIRHandler) Provenance(w http.ResponseWriter, r *http.Request) bool {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("ETag", fhir.ETag("1"))
-	fhir.Write(w, http.StatusOK, fhir.NewWriteProvenance(fhir.Change{
-		Recorded: p.Recorded, ID: p.ID, Resource: "AllergyIntolerance/" + p.EntryID, Activity: p.Activity, AgentType: p.AgentType,
-		Who: "PractitionerRole/" + p.RoleID, OnBehalfOf: "Organization/" + p.OrganizationID, Version: p.Version,
-	}))
+	fhir.Write(w, http.StatusOK, provenanceOf(p))
 	return true
+}
+
+// provenanceOf is p as an R4 Provenance: a clinic's role on behalf of the clinic, or the patient. Recording confirms
+// the entry with the recorder's role (00053 checks it), so a creation's agent is its author and its verifier.
+func provenanceOf(p Provenance) fhir.Provenance {
+	c := fhir.Change{Recorded: p.Recorded, ID: p.ID, Resource: "AllergyIntolerance/" + p.EntryID, Activity: p.Activity,
+		AgentTypes: []string{p.AgentType}, Who: "Patient/" + p.PatientID, Version: p.Version}
+	if p.PatientID == "" {
+		c.Who, c.OnBehalfOf = "PractitionerRole/"+p.RoleID, "Organization/"+p.OrganizationID
+	}
+	if p.Activity == fhir.ActivityCreate {
+		c.AgentTypes = append(c.AgentTypes, fhir.AgentVerifier)
+	}
+	return fhir.NewWriteProvenance(c)
 }
 
 // signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.

@@ -1976,18 +1976,20 @@ clinics of the patient's own items only (no personal data in a clinic). Chats ar
 
 ### SAL-41 follow-up: the Provenance of the clinical writes (migration 00053)
 
-**Processing added.** Who of a clinic recorded, changed, confirmed or removed an allergy or a medication, and when:
-one FHIR Provenance per practitioner's write (`allergy_intolerance_provenance`, `medication_statement_provenance`),
-written in the write's transaction, append-only. Lawful basis: care (Art. 9(2)(h)), as the entry it attests. No
-processor is added. The patient's own writes have none (the entry names the patient as its source, the AuditEvent
-records the write).
+**Processing added.** Who recorded, changed, confirmed or removed an allergy or a medication, and when: one FHIR
+Provenance per practitioner's write and per patient's write on a clinic's entry (`allergy_intolerance_provenance`,
+`medication_statement_provenance`), written in the write's transaction, append-only. Lawful basis: care
+(Art. 9(2)(h)), as the entry it attests. No processor is added. The patient's writes on their own entries have none
+(the entry names the patient as its source, the AuditEvent records the write).
 
-**Personal data added.** The entry, the version written, when, the activity, and the practitioner role and its clinic.
-Kept with the entry (retention `keep`), deleted with the patient's own unconfirmed entry when they delete it.
+**Personal data added.** The entry, the version written, when, the activity, and the agent (the practitioner role and
+its clinic, or the patient). Kept with the entry (retention `keep`) and never deleted with it: an entry with a
+Provenance is removed as entered-in-error, not deleted.
 
 **Risks and measures.**
 
 | Risk | Measure |
 | --- | --- |
 | A Provenance tells another clinic where the patient was treated (an entry in the profile, or one of a shared visit) | It is read only by the patient and by the writing clinic's staff who see the entry (`access.Attributed`); row-level security shows a clinic only its own Provenances of entries it sees (migration and service tests) |
-| A Provenance outlives what it attests | It goes with its entry (`ON DELETE CASCADE`); the application can neither change nor delete one (no grant, tested) |
+| A clinic's Provenance is lost with the entry | The foreign key has no action, so deleting an entry with a Provenance fails; the service deletes only an entry no clinic confirmed or wrote; the application can neither change nor delete a Provenance (no grant, tested) |
+| A forged Provenance (another role, another write) | Each insert is tied to the write it attests: the entry at that version, the recorder for a recording, the confirmer for a confirmation, the entry's clinic for a change or removal, the entry's patient for theirs (migration tests) |

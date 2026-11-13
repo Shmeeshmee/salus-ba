@@ -23,9 +23,11 @@ type Repository interface {
 	// Delete deletes the allergy id at version: ErrVersionConflict when it is no longer at it, ErrNotFound when the
 	// scope no longer sees it, ErrForbidden when the scope may not delete it.
 	Delete(ctx context.Context, id string, version int32) error
-	// InsertProvenance appends the Provenance of a clinic's write. ErrForbidden when the scope may not write it (not
-	// its clinic, an entry it does not see, or not at the entry's current version).
+	// InsertProvenance appends the Provenance of a write. ErrForbidden when the scope may not write it (not the
+	// scope's agent, not the write it attests, or not at the entry's current version).
 	InsertProvenance(ctx context.Context, p Provenance) error
 	// Provenance returns the Provenance id, ErrNotFound when the scope does not see it.
 	Provenance(ctx context.Context, id string) (Provenance, error)
+	// HasProvenance reports whether the allergy id has a Provenance the scope sees (in the patient's scope, any).
+	HasProvenance(ctx context.Context, id string) (bool, error)
 }

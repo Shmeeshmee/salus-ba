@@ -88,8 +88,9 @@ func (q *Queries) InsertMedication(ctx context.Context, arg InsertMedicationPara
 
 const insertMedicationProvenance = `-- name: InsertMedicationProvenance :exec
 INSERT INTO medication_statement_provenance (id, recorded, medication_statement_id, practitioner_role_id, organization_id,
-                                             target_version, activity, agent_type)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                                             patient_id, target_version, activity, agent_type)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9)
 `
 
 type InsertMedicationProvenanceParams struct {
@@ -98,6 +99,7 @@ type InsertMedicationProvenanceParams struct {
 	MedicationStatementID pgtype.UUID
 	PractitionerRoleID    pgtype.UUID
 	OrganizationID        pgtype.UUID
+	PatientID             pgtype.UUID
 	TargetVersion         int32
 	Activity              string
 	AgentType             string
@@ -110,6 +112,7 @@ func (q *Queries) InsertMedicationProvenance(ctx context.Context, arg InsertMedi
 		arg.MedicationStatementID,
 		arg.PractitionerRoleID,
 		arg.OrganizationID,
+		arg.PatientID,
 		arg.TargetVersion,
 		arg.Activity,
 		arg.AgentType,
@@ -151,8 +154,20 @@ func (q *Queries) MedicationByID(ctx context.Context, id pgtype.UUID) (Medicatio
 	return i, err
 }
 
+const medicationHasProvenance = `-- name: MedicationHasProvenance :one
+SELECT EXISTS (SELECT 1 FROM medication_statement_provenance WHERE medication_statement_id = $1)
+`
+
+// Whether the entry has a Provenance the scope sees (a patient's entry: any; 00053).
+func (q *Queries) MedicationHasProvenance(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, medicationHasProvenance, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const medicationProvenanceByID = `-- name: MedicationProvenanceByID :one
-SELECT id, created_at, recorded, medication_statement_id, practitioner_role_id, organization_id, target_version, activity, agent_type FROM medication_statement_provenance WHERE id = $1
+SELECT id, created_at, recorded, medication_statement_id, practitioner_role_id, organization_id, patient_id, target_version, activity, agent_type FROM medication_statement_provenance WHERE id = $1
 `
 
 // A Provenance as the transaction's scope (00053) shows it.
@@ -166,6 +181,7 @@ func (q *Queries) MedicationProvenanceByID(ctx context.Context, id pgtype.UUID) 
 		&i.MedicationStatementID,
 		&i.PractitionerRoleID,
 		&i.OrganizationID,
+		&i.PatientID,
 		&i.TargetVersion,
 		&i.Activity,
 		&i.AgentType,

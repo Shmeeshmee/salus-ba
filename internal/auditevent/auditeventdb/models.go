@@ -250,6 +250,7 @@ type AllergyIntoleranceProvenance struct {
 	AllergyIntoleranceID pgtype.UUID
 	PractitionerRoleID   pgtype.UUID
 	OrganizationID       pgtype.UUID
+	PatientID            pgtype.UUID
 	TargetVersion        int32
 	Activity             string
 	AgentType            string
@@ -594,6 +595,7 @@ type MedicationStatementProvenance struct {
 	MedicationStatementID pgtype.UUID
 	PractitionerRoleID    pgtype.UUID
 	OrganizationID        pgtype.UUID
+	PatientID             pgtype.UUID
 	TargetVersion         int32
 	Activity              string
 	AgentType             string

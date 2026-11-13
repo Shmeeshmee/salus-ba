@@ -28,13 +28,13 @@ const (
 // Change is one write of a resource version by an agent: what a Provenance of it says.
 type Change struct {
 	Recorded   time.Time
-	ID         string // the Provenance's id
-	Resource   string // the resource written, ResourceType/id
-	Activity   string // a v3-DataOperation code
-	AgentType  string // a provenance-participant-type code
-	Who        string // the agent, ResourceType/id
-	OnBehalfOf string // the organization the agent acted for, Organization/id
-	Version    int32  // the version the write produced
+	ID         string   // the Provenance's id
+	Resource   string   // the resource written, ResourceType/id
+	Activity   string   // a v3-DataOperation code
+	Who        string   // the agent, ResourceType/id
+	OnBehalfOf string   // the organization the agent acted for, Organization/id; empty for none
+	AgentTypes []string // the agent's parts in it, provenance-participant-type codes: one agent element each
+	Version    int32    // the version the write produced
 }
 
 // Provenance is an R4 Provenance of one write.
@@ -72,10 +72,13 @@ func NewWriteProvenance(w Change) Provenance {
 		ResourceType: "Provenance", ID: w.ID, Meta: NewMeta(1, w.Recorded),
 		Target: []Reference{version(w.Version)}, Recorded: w.Recorded.UTC().Format(time.RFC3339),
 		Activity: CodeableConcept{Coding: []Coding{{System: SystemDataOperation, Code: w.Activity}}},
-		Agent: []ProvenanceAgent{{
-			Type: CodeableConcept{Coding: []Coding{{System: SystemParticipantType, Code: w.AgentType}}},
-			Who:  Reference{Reference: w.Who}, OnBehalfOf: &Reference{Reference: w.OnBehalfOf},
-		}},
+	}
+	for _, typ := range w.AgentTypes {
+		a := ProvenanceAgent{Type: CodeableConcept{Coding: []Coding{{System: SystemParticipantType, Code: typ}}}, Who: Reference{Reference: w.Who}}
+		if w.OnBehalfOf != "" {
+			a.OnBehalfOf = &Reference{Reference: w.OnBehalfOf}
+		}
+		p.Agent = append(p.Agent, a)
 	}
 	if w.Activity != ActivityCreate {
 		p.Entity = []ProvenanceEntity{{Role: "revision", What: version(w.Version - 1)}}

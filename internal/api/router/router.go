@@ -112,7 +112,9 @@ func metadata(w http.ResponseWriter, _ *http.Request) {
 	_, _ = io.WriteString(w, fhirapi.CapabilityStatement())
 }
 
-// firstOf serves a read from the first of sources that answers it, and not found when none does.
+// firstOf serves a read from the first of sources that answers it, and not found when none does. A later source's id
+// is answered after the earlier sources' lookups, so the time to answer can tell which store holds an id; the ids are
+// opaque UUIDs and a source's answer still applies its own rule, so this tells nothing of a patient (accepted).
 func firstOf(sources []func(w http.ResponseWriter, r *http.Request) bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		for _, answer := range sources {

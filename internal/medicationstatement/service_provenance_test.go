@@ -67,24 +67,21 @@ func TestClinicalWrites_WriteTheirProvenance(t *testing.T) {
 	}
 }
 
-// The patient's own writes are patient-reported (the entry names them as asserter, the AuditEvent records the
-// write): no Provenance. Neither does a refused write, nor a confirmation that changes nothing.
+// The patient's writes on their own entries are patient-reported (the entry names them as asserter, the AuditEvent
+// records the write): no Provenance. Neither does a refused write, nor a confirmation that changes nothing.
 func TestWritesWithoutProvenance(t *testing.T) {
 	t.Parallel()
 	w := newWorld(history(), sharing())
 	if _, err := w.svc.Add(t.Context(), patient, input()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.svc.Update(t.Context(), patient, idOwnByB, 1, input()); err != nil {
+	if _, err := w.svc.Update(t.Context(), patient, idOwn, 1, input()); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.svc.Remove(t.Context(), patient, idVisitB, 1); err != nil {
+	if err := w.svc.Remove(t.Context(), patient, idOwnByB, 1); err != nil { // confirmed: kept as entered-in-error
 		t.Fatal(err)
 	}
-	if _, err := w.svc.AddToProfile(t.Context(), patient, idVisitA, 1); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := w.svc.Confirm(t.Context(), practitioner, idVisitA, 2); err != nil { // confirmed by clinic A already
+	if _, err := w.svc.Confirm(t.Context(), practitioner, idVisitA, 1); err != nil { // confirmed by clinic A already
 		t.Fatal(err)
 	}
 	if _, err := w.svc.Update(t.Context(), practitioner, idShared, 1, input()); !errors.Is(err, medicationstatement.ErrForbidden) {
@@ -95,20 +92,59 @@ func TestWritesWithoutProvenance(t *testing.T) {
 	}
 }
 
+// The patient's write on a clinic's entry (adding it to the profile, removing it) writes a Provenance with the
+// patient as the agent: no role and no clinic.
+func TestPatientWritesOnAClinicsEntry_WriteTheirProvenance(t *testing.T) {
+	t.Parallel()
+	w := newWorld(history(), sharing())
+	if _, err := w.svc.AddToProfile(t.Context(), patient, idVisitB, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.svc.Remove(t.Context(), patient, idVisitA, 1); err != nil {
+		t.Fatal(err)
+	}
+	want := []medicationstatement.Provenance{
+		{Recorded: now, EntryID: idVisitB, PatientID: patientP, Activity: fhir.ActivityUpdate, AgentType: fhir.AgentAuthor, Version: 2},
+		{Recorded: now, EntryID: idVisitA, PatientID: patientP, Activity: fhir.ActivityNullify, AgentType: fhir.AgentAuthor, Version: 2},
+	}
+	if got := written(w.repo); !slices.Equal(got, want) {
+		t.Errorf("the Provenances:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// A clinic's Provenance is never deleted with its entry: the patient's own entry a clinic confirmed, whose
+// confirmation the patient's change cleared since, is removed as entered-in-error, not deleted.
+func TestRemove_KeepsTheOwnEntryAClinicWrote(t *testing.T) {
+	t.Parallel()
+	repo := history()
+	repo.provenances = []medicationstatement.Provenance{provenanceOf(idOwn, 1, fhir.ActivityUpdate, fhir.AgentVerifier)}
+	w := newWorld(repo, sharing())
+	if err := w.svc.Remove(t.Context(), patient, idOwn, 1); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := w.repo.byID[idOwn]; !ok || len(w.repo.deleted) != 0 || got.Status != medicationstatement.StatusEnteredInError || got.VersionID != 2 {
+		t.Errorf("the entry: %+v (deleted %v), want it kept as entered-in-error", got, w.repo.deleted)
+	}
+	if len(w.repo.provenances) != 1 {
+		t.Errorf("Provenances %+v, want the clinic's alone (the patient's write on their own entry has none)", w.repo.provenances)
+	}
+}
+
 // A Provenance names the clinic that wrote, so it is read only by the patient and by staff of that clinic who see
-// the entry (access.Attributed), audited as a read of the Provenance; a refusal is not found, audited, naming
-// nothing. An id that is no medication's Provenance is not this service's (ok false, nothing audited): another
+// the entry (access.Attributed), audited as a read of the Provenance; a refusal is not found, audited as a refused
+// read of it. The patient's Provenances are theirs only. An id that is no medication's Provenance is not this service's (ok false, nothing audited): another
 // resource's Provenance may have it.
 func TestProvenance_OnlyThePatientAndTheWritingClinicRead(t *testing.T) {
 	t.Parallel()
 	repo := history()
-	const byA, byB, ofRemoved, ofColleague = "9a000000-0000-4000-8000-000000000001", "9a000000-0000-4000-8000-000000000002",
-		"9a000000-0000-4000-8000-000000000003", "9a000000-0000-4000-8000-000000000004"
+	const byA, byB, ofRemoved, ofColleague, byPatient = "9a000000-0000-4000-8000-000000000001", "9a000000-0000-4000-8000-000000000002",
+		"9a000000-0000-4000-8000-000000000003", "9a000000-0000-4000-8000-000000000004", "9a000000-0000-4000-8000-000000000005"
 	repo.provenances = []medicationstatement.Provenance{
 		{ID: byA, EntryID: idVisitA, RoleID: roleA, OrganizationID: clinicA, Activity: fhir.ActivityCreate, AgentType: fhir.AgentAuthor, Version: 1},
 		{ID: byB, EntryID: idOwnByB, RoleID: roleB, OrganizationID: clinicB, Activity: fhir.ActivityUpdate, AgentType: fhir.AgentVerifier, Version: 1},
 		{ID: ofRemoved, EntryID: idRemoved, RoleID: roleA, OrganizationID: clinicA, Activity: fhir.ActivityUpdate, AgentType: fhir.AgentVerifier, Version: 1},
 		{ID: ofColleague, EntryID: idColleague, RoleID: roleC, OrganizationID: clinicA, Activity: fhir.ActivityCreate, AgentType: fhir.AgentAuthor, Version: 1},
+		{ID: byPatient, EntryID: idVisitA, PatientID: patientP, Activity: fhir.ActivityUpdate, AgentType: fhir.AgentAuthor, Version: 2},
 	}
 	w := newWorld(repo, sharing())
 	for _, tt := range []struct {
@@ -119,6 +155,8 @@ func TestProvenance_OnlyThePatientAndTheWritingClinicRead(t *testing.T) {
 	}{
 		{nil, "the patient, clinic A's", byA, patient},
 		{nil, "the patient, clinic B's", byB, patient},
+		{nil, "the patient, their own", byPatient, patient},
+		{medicationstatement.ErrNotFound, "the practitioner, the patient's", byPatient, practitioner},
 		{nil, "the practitioner, their clinic's", byA, practitioner},
 		{medicationstatement.ErrNotFound, "the practitioner, another clinic's on a profile entry", byB, practitioner},
 		{medicationstatement.ErrNotFound, "the practitioner, a removed entry's", ofRemoved, practitioner},
@@ -140,8 +178,8 @@ func TestProvenance_OnlyThePatientAndTheWritingClinicRead(t *testing.T) {
 		switch e := events[0]; {
 		case tt.want == nil && (p.ID != tt.id || e.EntityReference != "Provenance/"+tt.id || e.Outcome != auditevent.OutcomeSuccess):
 			t.Errorf("%s: %+v, event %+v; want the Provenance, audited", tt.name, p, e)
-		case tt.want != nil && (p != (medicationstatement.Provenance{}) || e.EntityReference != "" || e.Outcome != auditevent.OutcomeMinorFailure):
-			t.Errorf("%s: %+v, event %+v; want nothing, the refusal audited naming nothing", tt.name, p, e)
+		case tt.want != nil && (p != (medicationstatement.Provenance{}) || e.EntityReference != "Provenance/"+tt.id || e.Outcome != auditevent.OutcomeMinorFailure):
+			t.Errorf("%s: %+v, event %+v; want nothing, the refusal audited", tt.name, p, e)
 		}
 	}
 	before := len(w.audit.events)

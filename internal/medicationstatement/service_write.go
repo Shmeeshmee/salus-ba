@@ -119,8 +119,8 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, version int32
 	})
 }
 
-// Remove removes the medication id read at version from what anyone sees: the patient's own unconfirmed entry is
-// deleted; a confirmed one, or one a clinic recorded, is kept with the record as entered-in-error. The patient
+// Remove removes the medication id read at version from what anyone sees: the patient's own entry that no clinic
+// ever confirmed or wrote (it has no Provenance) is deleted; any other is kept with the record as entered-in-error. The patient
 // removes any entry they see, a practitioner only the entries their clinic recorded.
 func (s *Service) Remove(ctx context.Context, c Caller, id string, version int32) error {
 	_, err := s.do(ctx, c, auditevent.CodeDelete, func(ctx context.Context) (MedicationStatement, error) {
@@ -131,10 +131,17 @@ func (s *Service) Remove(ctx context.Context, c Caller, id string, version int32
 		case v.Role != access.RolePatient && a.Source.OrganizationID != c.OrganizationID:
 			return named(a), ErrForbidden
 		case a.Source.Patient() && a.Confirmation.At.IsZero():
-			return a, s.Repo.Delete(ctx, a.ID, version)
+			// Deleted only when no clinic ever confirmed or wrote it: a Provenance is never deleted with its entry.
+			written, err := s.Repo.HasProvenance(ctx, a.ID)
+			switch {
+			case err != nil:
+				return a, err
+			case !written:
+				return a, s.Repo.Delete(ctx, a.ID, version)
+			}
 		}
 		a.Status = StatusEnteredInError
-		if a, err = s.update(ctx, a); err != nil || v.Role == access.RolePatient {
+		if a, err = s.update(ctx, a); err != nil || v.Role == access.RolePatient && a.Source.Patient() {
 			return a, err
 		}
 		return s.attest(ctx, c, v.PractitionerRole, a, fhir.ActivityNullify, fhir.AgentAuthor)
@@ -181,7 +188,10 @@ func (s *Service) AddToProfile(ctx context.Context, c Caller, id string, version
 			return a, nil
 		}
 		a.InProfile = true
-		return s.update(ctx, a)
+		if a, err = s.update(ctx, a); err != nil {
+			return a, err
+		}
+		return s.attest(ctx, c, "", a, fhir.ActivityUpdate, fhir.AgentAuthor)
 	})
 }
 

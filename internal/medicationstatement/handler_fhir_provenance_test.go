@@ -52,8 +52,14 @@ func TestFHIRHandler_Provenance(t *testing.T) {
 		t.Fatalf("read: answered %v, %d %v, asked %q", answered, rec.Code, rec.Header(), svc.id)
 	}
 	assertBody(t, "provenance.json", rec.Body.Bytes())
-	// Recording an entry creates its first version: no revision.
-	svc.p.Activity, svc.p.AgentType, svc.p.Version = fhir.ActivityCreate, fhir.AgentAuthor, 1
+	// The patient's addition of a clinic's entry to their profile: the patient the agent, on no one's behalf. (A
+	// removal's Provenance is read by no one: nobody sees an entered-in-error entry.)
+	svc.p.Activity, svc.p.AgentType, svc.p.RoleID, svc.p.OrganizationID, svc.p.PatientID = fhir.ActivityUpdate, fhir.AgentAuthor, "", "", patientA
+	rec, _ = provenanceGet(t, svc, true)
+	assertBody(t, "provenance_patient.json", rec.Body.Bytes())
+	// Recording an entry confirms it with the recorder's role: one agent its author and its verifier, no revision.
+	svc.p = Provenance{Recorded: svc.p.Recorded, ID: provenanceID, EntryID: svc.p.EntryID, RoleID: roleA, OrganizationID: clinicA,
+		Activity: fhir.ActivityCreate, AgentType: fhir.AgentAuthor, Version: 1}
 	rec, _ = provenanceGet(t, svc, true)
 	assertBody(t, "provenance_recorded.json", rec.Body.Bytes())
 }

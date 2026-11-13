@@ -11,44 +11,54 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
-// provenanceTables are the Provenance table of each entry table (00053) and its column naming the entry.
-var provenanceTables = map[string][2]string{
-	"allergy_intolerance":  {"allergy_intolerance_provenance", "allergy_intolerance_id"},
-	"medication_statement": {"medication_statement_provenance", "medication_statement_id"},
+// provenanceTables are the Provenance table of each entry table (00053), its column naming the entry, and the
+// entry's removal.
+var provenanceTables = map[string][3]string{
+	"allergy_intolerance":  {"allergy_intolerance_provenance", "allergy_intolerance_id", "verification_status = 'entered-in-error'"},
+	"medication_statement": {"medication_statement_provenance", "medication_statement_id", "status = 'entered-in-error'"},
 }
 
 // provenanceRows are the seeded Provenances: clinic A's record of its visit's entry, clinic B's of its visit's,
-// clinic A's and clinic B's confirmations of the patient's own entry.
+// clinic A's and clinic B's confirmations of the patient's own entry, and the patient's removal of clinic A's entry.
 type provenanceRows struct {
-	atA, atB, ownByA, ownByB string
+	atA, atB, ownByA, ownByB, byPatient string
+}
+
+// insertProvenance is an insert into the Provenance table: $1 the entry, $2 the role, $3 the clinic, $4 the
+// patient (an agent is a role of a clinic or the patient), $5 the version, $6 the activity, $7 the agent type.
+func insertProvenance(table, column string) string {
+	return `INSERT INTO ` + table + ` (recorded, ` + column + `, practitioner_role_id, organization_id, patient_id, target_version, activity, agent_type)
+		VALUES (now(), $1, $2, $3, $4, $5, $6, $7) RETURNING id`
 }
 
 // seedProvenances creates, as the owner, the rows of provenanceRows on the entries r.
 func seedProvenances(t *testing.T, owner *pgxpool.Pool, h historyRows, r entryRows, table, column string) provenanceRows {
 	t.Helper()
-	insert := `INSERT INTO ` + table + ` (recorded, ` + column + `, practitioner_role_id, organization_id, target_version, activity, agent_type)
-		VALUES (now(), $1, $2, $3, $4, $5, $6) RETURNING id`
 	var p provenanceRows
 	for _, row := range []struct {
-		id             *string
-		entry, clinic  string
-		activity, kind string
-		version        int
+		role, clinic, patient any
+		id                    *string
+		entry                 string
+		activity, kind        string
+		version               int
 	}{
-		{&p.atA, r.atA, clinicA, "CREATE", "author", 1},
-		{&p.atB, r.atB, clinicB, "CREATE", "author", 1},
-		{&p.ownByA, r.own, clinicA, "UPDATE", "verifier", 2},
-		{&p.ownByB, r.own, clinicB, "UPDATE", "verifier", 3},
+		{h.r.roles[clinicA], clinicA, nil, &p.atA, r.atA, "CREATE", "author", 1},
+		{h.r.roles[clinicB], clinicB, nil, &p.atB, r.atB, "CREATE", "author", 1},
+		{h.r.roles[clinicA], clinicA, nil, &p.ownByA, r.own, "UPDATE", "verifier", 2},
+		{h.r.roles[clinicB], clinicB, nil, &p.ownByB, r.own, "UPDATE", "verifier", 3},
+		{nil, nil, h.patients[0].patient, &p.byPatient, r.atA, "NULLIFY", "author", 2},
 	} {
-		if err := owner.QueryRow(t.Context(), insert, row.entry, h.r.roles[row.clinic], row.clinic, row.version, row.activity, row.kind).Scan(row.id); err != nil {
+		if err := owner.QueryRow(t.Context(), insertProvenance(table, column), row.entry, row.role, row.clinic, row.patient,
+			row.version, row.activity, row.kind).Scan(row.id); err != nil {
 			t.Fatal(err)
 		}
 	}
 	return p
 }
 
-// A Provenance names the clinic that wrote, so only the patient and that clinic, while it sees the entry, see it
-// (access.Attributed): never another clinic that sees the entry in the profile or through a shared visit.
+// A clinic's Provenance names the clinic that wrote, so only the patient and that clinic, while it sees the entry,
+// see it (access.Attributed): never another clinic that sees the entry in the profile or through a shared visit. The
+// patient's Provenances are the patient's scope's only.
 func TestEntryProvenance_OnlyThePatientAndTheWritingClinicSeeIt(t *testing.T) {
 	t.Parallel()
 	for entries, prov := range provenanceTables {
@@ -65,9 +75,9 @@ func TestEntryProvenance_OnlyThePatientAndTheWritingClinicSeeIt(t *testing.T) {
 				want  []string
 			}{
 				"no scope":   {nil, nil},
-				"patient A":  {map[string]string{"app.patient_id": h.patients[0].patient}, sorted(p.atA, p.atB, p.ownByA, p.ownByB)},
+				"patient A":  {map[string]string{"app.patient_id": h.patients[0].patient}, sorted(p.atA, p.atB, p.ownByA, p.ownByB, p.byPatient)},
 				"patient B":  {map[string]string{"app.patient_id": h.patients[1].patient}, nil},
-				"clinic A":   {clinic, sorted(p.atA, p.ownByA)},                                  // not B's confirmation of the profile entry
+				"clinic A":   {clinic, sorted(p.atA, p.ownByA)},                                  // not B's confirmation, not the patient's
 				"clinic B":   {map[string]string{"app.organization_id": clinicB}, sorted(p.atB)}, // revoked: its visit's entry, not the profile's
 				"an account": {map[string]string{"app.account_id": h.patients[0].account}, nil},
 			} {
@@ -88,9 +98,21 @@ func TestEntryProvenance_OnlyThePatientAndTheWritingClinicSeeIt(t *testing.T) {
 	}
 }
 
-// A clinic writes only its own Provenance, on an entry it sees, at the entry's current version; the patient's scope
-// writes none; nobody changes or deletes one.
-func TestEntryProvenance_AClinicAppendsOnlyItsOwn(t *testing.T) {
+// provenanceInsert is one insert of TestEntryProvenance_AnInsertIsTiedToTheWriteItAttests.
+type provenanceInsert struct {
+	scope                 map[string]string
+	role, clinic, patient any
+	name, entry           string
+	activity, kind        string
+	version               int
+	ok                    bool
+}
+
+// A Provenance is tied to the write it attests: the entry at its current version, a recording by the entry's
+// recorder (who confirmed it), a confirmation by its confirmer, a change or removal of the clinic's own entry, and the
+// patient's change or removal of a clinic's entry of theirs. Every other insert is refused, and nobody changes or
+// deletes one.
+func TestEntryProvenance_AnInsertIsTiedToTheWriteItAttests(t *testing.T) {
 	t.Parallel()
 	for entries, prov := range provenanceTables {
 		t.Run(entries, func(t *testing.T) {
@@ -99,33 +121,50 @@ func TestEntryProvenance_AClinicAppendsOnlyItsOwn(t *testing.T) {
 			h := seedHistory(t, owner)
 			r := seedEntries(t, owner, h, entryTables[entries])
 			p := seedProvenances(t, owner, h, r, prov[0], prov[1])
-			insert := `INSERT INTO ` + prov[0] + ` (recorded, ` + prov[1] + `, practitioner_role_id, organization_id, target_version, activity, agent_type)
-				VALUES (now(), $1, $2, $3, $4, $5, 'author')`
+			var other string // a second role at clinic A, which neither recorded nor confirmed anything
+			if err := owner.QueryRow(t.Context(), `WITH p AS (INSERT INTO practitioner (organization_id, given_name, family_name)
+					VALUES ($1, 'Di', 'Example') RETURNING id)
+				INSERT INTO practitioner_role (organization_id, practitioner_id) SELECT $1, id FROM p RETURNING id::text`, clinicA).Scan(&other); err != nil {
+				t.Fatal(err)
+			}
 			clinic := map[string]string{"app.organization_id": clinicA}
 			patientA := map[string]string{"app.patient_id": h.patients[0].patient}
-			for _, tt := range []struct {
-				scope    map[string]string
-				name     string
-				entry    string
-				org      string
-				activity string
-				version  int
-				ok       bool
-			}{
-				{clinic, "its write on its visit's entry", r.atA, clinicA, "CREATE", 1, true},
-				{clinic, "as another clinic", r.atA, clinicB, "CREATE", 1, false},
-				{clinic, "on an entry it does not see", r.atB, clinicA, "CREATE", 1, false},
-				{clinic, "at another version", r.atA, clinicA, "UPDATE", 2, false},
-				{patientA, "the patient's scope", r.own, clinicA, "CREATE", 1, false},
-			} {
-				err := asApp(t, app, tt.scope, func(ctx context.Context, db postgres.Querier) error {
-					_, err := db.Exec(ctx, insert, tt.entry, h.r.roles[tt.org], tt.org, tt.version, tt.activity)
-					return err
-				})
-				if (err == nil) != tt.ok {
-					t.Errorf("%s: err %v, want ok %v", tt.name, err, tt.ok)
+			roleA, roleB, pa, pb := h.r.roles[clinicA], h.r.roles[clinicB], h.patients[0].patient, h.patients[1].patient
+			run := func(tests []provenanceInsert) {
+				for _, tt := range tests {
+					err := asApp(t, app, tt.scope, func(ctx context.Context, db postgres.Querier) error {
+						_, err := db.Exec(ctx, insertProvenance(prov[0], prov[1]), tt.entry, tt.role, tt.clinic, tt.patient, tt.version, tt.activity, tt.kind)
+						return err
+					})
+					if (err == nil) != tt.ok {
+						t.Errorf("%s: err %v, want ok %v", tt.name, err, tt.ok)
+					}
 				}
 			}
+			// At version 1: clinic A recorded and confirmed atA with roleA; own is the patient's, unconfirmed.
+			run([]provenanceInsert{
+				{clinic, roleA, clinicA, nil, "the recording", r.atA, "CREATE", "author", 1, true},
+				{clinic, other, clinicA, nil, "a recording by another role", r.atA, "CREATE", "author", 1, false},
+				{clinic, roleA, clinicA, nil, "a recording of the patient's entry", r.own, "CREATE", "author", 1, false},
+				{clinic, roleB, clinicB, nil, "as another clinic", r.atA, "CREATE", "author", 1, false},
+				{clinic, roleA, clinicA, nil, "on an entry it does not see", r.atB, "CREATE", "author", 1, false},
+				{clinic, roleA, clinicA, nil, "at another version", r.atA, "UPDATE", "author", 2, false},
+			})
+			ownerExec(t, owner, `UPDATE `+entries+` SET version_id = 2 WHERE id = ANY($1)`, []string{r.atA, r.own})
+			run([]provenanceInsert{
+				{clinic, roleA, clinicA, nil, "a change of its entry", r.atA, "UPDATE", "author", 2, true},
+				{clinic, other, clinicA, nil, "a removal of its entry by a colleague", r.atA, "NULLIFY", "author", 2, true},
+				{clinic, roleA, clinicA, nil, "the confirmer's confirmation", r.atA, "UPDATE", "verifier", 2, true},
+				{clinic, other, clinicA, nil, "a confirmation by another role", r.atA, "UPDATE", "verifier", 2, false},
+				{clinic, roleA, clinicA, nil, "a confirmation of an unconfirmed entry", r.own, "UPDATE", "verifier", 2, false},
+				{clinic, roleA, clinicA, nil, "a change of the patient's entry", r.own, "UPDATE", "author", 2, false},
+				{clinic, nil, nil, pa, "the patient as the agent in the clinic's scope", r.atA, "NULLIFY", "author", 2, false},
+				{patientA, nil, nil, pa, "the patient's removal of a clinic's entry", r.atA, "NULLIFY", "author", 2, true},
+				{patientA, nil, nil, pa, "the patient's addition to the profile", r.atA, "UPDATE", "author", 2, true},
+				{patientA, nil, nil, pa, "the patient on their own entry", r.own, "NULLIFY", "author", 2, false},
+				{patientA, nil, nil, pb, "another patient as the agent", r.atA, "NULLIFY", "author", 2, false},
+				{patientA, roleA, clinicA, nil, "a clinic's agent in the patient's scope", r.atA, "NULLIFY", "author", 2, false},
+			})
 			for name, stmt := range map[string]string{
 				"update": `UPDATE ` + prov[0] + ` SET recorded = now() WHERE id = $1`,
 				"delete": `DELETE FROM ` + prov[0] + ` WHERE id = $1`,
@@ -144,9 +183,10 @@ func TestEntryProvenance_AClinicAppendsOnlyItsOwn(t *testing.T) {
 	}
 }
 
-// A Provenance goes with its entry only: when the patient deletes their own unconfirmed entry, its Provenances (a
-// confirmation the patient's change cleared since) go with it.
-func TestEntryProvenance_GoesWithThePatientsDeletedEntry(t *testing.T) {
+// A clinic's Provenance is never deleted with the entry: clinics confirmed the patient's own entry, the patient's
+// change cleared the confirmation since, and deleting the entry fails (no action on the foreign key); the patient
+// removes it as entered-in-error instead, and the Provenances stay.
+func TestEntryProvenance_AnEntryWithAProvenanceIsNeverDeleted(t *testing.T) {
 	t.Parallel()
 	for entries, prov := range provenanceTables {
 		t.Run(entries, func(t *testing.T) {
@@ -154,30 +194,34 @@ func TestEntryProvenance_GoesWithThePatientsDeletedEntry(t *testing.T) {
 			owner, app := pgtest.NewAppDatabase(t)
 			h := seedHistory(t, owner)
 			r := seedEntries(t, owner, h, entryTables[entries])
-			seedProvenances(t, owner, h, r, prov[0], prov[1])
-			err := asApp(t, app, map[string]string{"app.patient_id": h.patients[0].patient}, func(ctx context.Context, db postgres.Querier) error {
-				tag, err := db.Exec(ctx, `DELETE FROM `+entries+` WHERE id = $1`, r.own)
-				if err == nil && tag.RowsAffected() != 1 {
-					t.Errorf("deleted %d entries, want 1", tag.RowsAffected())
-				}
+			p := seedProvenances(t, owner, h, r, prov[0], prov[1])
+			patientA := map[string]string{"app.patient_id": h.patients[0].patient}
+			err := asApp(t, app, patientA, func(ctx context.Context, db postgres.Querier) error {
+				_, err := db.Exec(ctx, `DELETE FROM `+entries+` WHERE id = $1`, r.own)
 				return err
 			})
-			if err != nil {
-				t.Fatal(err)
+			if sqlState(err) != "23503" {
+				t.Errorf("the patient deletes their entry with the clinics' Provenances: %v, want foreign_key_violation", err)
+			}
+			if err := asApp(t, app, patientA, func(ctx context.Context, db postgres.Querier) error {
+				_, err := db.Exec(ctx, `UPDATE `+entries+` SET `+prov[2]+` WHERE id = $1`, r.own)
+				return err
+			}); err != nil {
+				t.Fatalf("the patient removes it as entered-in-error: %v", err)
 			}
 			var n int
-			if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM `+prov[0]+` WHERE `+prov[1]+` = $1`, r.own).Scan(&n); err != nil {
+			if err := owner.QueryRow(t.Context(), `SELECT count(*) FROM `+prov[0]+` WHERE id = ANY($1)`, []string{p.ownByA, p.ownByB}).Scan(&n); err != nil {
 				t.Fatal(err)
 			}
-			if n != 0 {
-				t.Errorf("%d Provenances of the deleted entry left, want none", n)
+			if n != 2 {
+				t.Errorf("%d of the entry's 2 Provenances left, want both", n)
 			}
 		})
 	}
 }
 
-// A Provenance's codes are from their code systems, a creation is of the first version and nothing else is, and
-// the agent is a practitioner role of the clinic named.
+// A Provenance's codes are from their code systems, a creation is of the first version and nothing else is, the
+// agent is one practitioner role of the clinic named or the patient, and the patient never creates or verifies.
 func TestEntryProvenance_HoldsAConsistentState(t *testing.T) {
 	t.Parallel()
 	for entries, prov := range provenanceTables {
@@ -186,22 +230,26 @@ func TestEntryProvenance_HoldsAConsistentState(t *testing.T) {
 			owner, _ := pgtest.NewAppDatabase(t)
 			h := seedHistory(t, owner)
 			r := seedEntries(t, owner, h, entryTables[entries])
-			insert := `INSERT INTO ` + prov[0] + ` (recorded, ` + prov[1] + `, practitioner_role_id, organization_id, target_version, activity, agent_type)
-				VALUES (now(), $1, $2, $3, $4, $5, $6)`
+			roleA, pa := h.r.roles[clinicA], h.patients[0].patient
 			for _, tt := range []struct {
-				name           string
-				org            string
-				activity, kind string
-				version        int
+				role, clinic, patient any
+				name                  string
+				activity, kind        string
+				version               int
 			}{
-				{"an unknown activity", clinicA, "DELETE", "author", 2},
-				{"an unknown agent type", clinicA, "UPDATE", "enterer", 2},
-				{"a creation of a later version", clinicA, "CREATE", "author", 2},
-				{"an update of the first version", clinicA, "UPDATE", "author", 1},
-				{"another clinic's role", clinicB, "CREATE", "author", 1},
+				{roleA, clinicA, nil, "an unknown activity", "DELETE", "author", 2},
+				{roleA, clinicA, nil, "an unknown agent type", "UPDATE", "enterer", 2},
+				{roleA, clinicA, nil, "a creation of a later version", "CREATE", "author", 2},
+				{roleA, clinicA, nil, "an update of the first version", "UPDATE", "author", 1},
+				{roleA, clinicB, nil, "another clinic's role", "CREATE", "author", 1},
+				{roleA, nil, nil, "a role without its clinic", "UPDATE", "author", 2},
+				{nil, nil, nil, "no agent", "UPDATE", "author", 2},
+				{roleA, clinicA, pa, "a role and the patient", "UPDATE", "author", 2},
+				{nil, nil, pa, "the patient creating", "CREATE", "author", 1},
+				{nil, nil, pa, "the patient verifying", "UPDATE", "verifier", 2},
 			} {
-				role := h.r.roles[clinicA]
-				if _, err := owner.Exec(t.Context(), insert, r.atA, role, tt.org, tt.version, tt.activity, tt.kind); err == nil {
+				if _, err := owner.Exec(t.Context(), insertProvenance(prov[0], prov[1]), r.atA, tt.role, tt.clinic, tt.patient,
+					tt.version, tt.activity, tt.kind); err == nil {
 					t.Errorf("%s: accepted", tt.name)
 				}
 			}

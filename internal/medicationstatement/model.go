@@ -101,17 +101,19 @@ type EntryWritten struct {
 	VersionID string `json:"versionId"`
 }
 
-// Provenance is a practitioner's write of a medication: FHIR R4 Provenance, its target the version the write
-// produced, its agent the practitioner role on behalf of its clinic. Activity is a v3-DataOperation code
-// (fhir.ActivityCreate, fhir.ActivityUpdate, fhir.ActivityNullify for a removal) and AgentType a
-// provenance-participant-type one (fhir.AgentAuthor, fhir.AgentVerifier for a confirmation). The patient's own
-// writes have none: the entry names the patient as its information source and the AuditEvent records the write.
+// Provenance is a write of a medication by a practitioner, or by the patient on a clinic's entry: FHIR R4 Provenance,
+// its target the version the write produced, its agent the practitioner role on behalf of its clinic, or the patient.
+// Activity is a v3-DataOperation code (fhir.ActivityCreate, which also confirms; fhir.ActivityUpdate;
+// fhir.ActivityNullify for a removal) and AgentType a provenance-participant-type one (fhir.AgentAuthor,
+// fhir.AgentVerifier for a confirmation). The patient's writes on their own entries have none: the entry names the
+// patient as its information source and the AuditEvent records the write.
 type Provenance struct {
 	Recorded       time.Time // Provenance.recorded: when the version was written
 	ID             string
 	EntryID        string // the MedicationStatement written
 	RoleID         string // agent.who: PractitionerRole
 	OrganizationID string // agent.onBehalfOf: Organization
+	PatientID      string // agent.who: Patient, when the patient wrote (no role, no clinic)
 	Activity       string
 	AgentType      string
 	Version        int32 // the target's version
