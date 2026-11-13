@@ -51,8 +51,8 @@ func (noopWorker) Work(context.Context, *river.Job[NoopArgs]) error { return nil
 // retention_apply job's purgers and nowhere else; statsPool, the salus_stats login (STATS_DATABASE_URL), to the
 // clinic statistics' builds and, while platform is on, the trends builds; provider, the video server, to the
 // consultation's jobs; files to the binary jobs and binary's purger; webhookKey (WEBHOOK_KEY) opens the secrets of the
-// clinics' webhooks, which the webhook queue delivers.
-func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Provider, files Files, webhookKey []byte, platform Trends, log *slog.Logger) (*river.Client[pgx.Tx], error) {
+// clinics' webhooks, which the webhook queue delivers; policy is the retention job's (config.LoadRetentionPolicy).
+func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Provider, files Files, webhookKey []byte, policy retention.Policy, platform Trends, log *slog.Logger) (*river.Client[pgx.Tx], error) {
 	if retentionPool == nil {
 		return nil, errors.New("worker: the retention_apply job needs the retention role's pool")
 	}
@@ -65,7 +65,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 	if err := files.check(); err != nil {
 		return nil, err
 	}
-	rules, err := newRetention(pool, retentionPool, files.Store)
+	rules, err := newRetention(pool, retentionPool, files.Store, policy)
 	if err != nil {
 		return nil, err
 	}

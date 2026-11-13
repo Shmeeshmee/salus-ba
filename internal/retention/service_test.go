@@ -73,7 +73,7 @@ func (a appliers) purgers() map[string]retention.Purger {
 
 func (a appliers) service(t *testing.T) *retention.Service {
 	t.Helper()
-	svc, err := retention.NewService(a.purgers(), a.audit, clock.Fixed{T: now})
+	svc, err := retention.NewService(retention.DefaultPolicy(), a.purgers(), a.audit, clock.Fixed{T: now})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
@@ -223,7 +223,7 @@ func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testi
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := retention.NewService(tt.purgers, tt.audit, clock.Fixed{T: now})
+			_, err := retention.NewService(retention.DefaultPolicy(), tt.purgers, tt.audit, clock.Fixed{T: now})
 
 			if !errors.Is(err, retention.ErrNoApplier) || !strings.Contains(err.Error(), tt.table) {
 				t.Errorf("NewService() error = %v, want ErrNoApplier naming %s", err, tt.table)
@@ -232,10 +232,21 @@ func TestNewService_RefusesRulesWithoutAnApplierAndAppliersWithoutARule(t *testi
 	}
 }
 
+// A policy that would delete clinical data automatically is refused: pending lawyer L1–L3, it is kept.
+func TestNewService_RefusesAPolicyThatDeletesClinicalData(t *testing.T) {
+	for _, then := range []retention.Then{retention.ThenDelete, retention.ThenRemoveRange, retention.ThenRestrict, ""} {
+		p := retention.DefaultPolicy()
+		p.ClinicalData = then
+		if _, err := retention.NewService(p, newAppliers().purgers(), &fakeAudit{}, clock.Fixed{T: now}); !errors.Is(err, retention.ErrClinicalDeletion) {
+			t.Errorf("ClinicalData %q: %v, want ErrClinicalDeletion", then, err)
+		}
+	}
+}
+
 // Every delete and remove-range rule has an applier the service knows how to run: a purger for delete, and
 // the audit check for audit_event, the only table removed by range.
 func TestRules_EveryRuleThatRemovesRowsCanBeApplied(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Then == retention.ThenRemoveRange && r.Table != "audit_event" {
 			t.Errorf("rule for %s removes by range; only audit_event has a remove-range applier", r.Table)
 		}

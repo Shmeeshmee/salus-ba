@@ -1,4 +1,5 @@
 {
+  "settingsConflict": "Settings were changed by someone else — reload the page. What you entered stays in the form.",
   "confirmed": "Confirmed",
   "notConfirmed": "Not confirmed",
   "showChanges": "Show changes",

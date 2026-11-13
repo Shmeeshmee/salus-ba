@@ -7,7 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
 
@@ -83,10 +85,12 @@ func (h *AppointmentsHandler) setSettings(w http.ResponseWriter, r *http.Request
 		return
 	}
 	set, ok := in.settings()
-	if !ok {
+	version, okVersion := settingsVersion(r)
+	if !ok || !okVersion {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
+	set.Version = version
 	s, err := h.svc.SetSettings(r.Context(), c, set)
 	h.write(w, r, s, err)
 }
@@ -114,6 +118,8 @@ func (h *AppointmentsHandler) write(w http.ResponseWriter, r *http.Request, v Ap
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 	case errors.Is(err, ErrSMSUnavailable):
 		writeCode(w, http.StatusConflict, "sms_unavailable")
+	case errors.Is(err, ErrSettingsChanged):
+		writeCode(w, http.StatusPreconditionFailed, "version_conflict")
 	case err != nil:
 		httpx.InternalError(w, r, h.log, err)
 	default:
@@ -121,6 +127,18 @@ func (h *AppointmentsHandler) write(w http.ResponseWriter, r *http.Request, v Ap
 			v.ReminderOffsetsMinutes = []int{}
 		}
 		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("ETag", fhir.ETag(strconv.Itoa(v.Version)))
 		httpx.JSON(w, http.StatusOK, v)
 	}
+}
+
+// settingsVersion is the version the If-Match header names (W/"<n>" or "<n>", 0 for none stored), and false for
+// none or another value.
+func settingsVersion(r *http.Request) (int, bool) {
+	v, ok := fhir.IfMatch(r.Header.Get("If-Match"))
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(v, 10, 32)
+	return int(n), err == nil && n >= 0
 }

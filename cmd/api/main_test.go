@@ -18,6 +18,11 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
+// startCeiling bounds the wait for the binary to start: it is polled every 10 ms and the test goes on as soon as it is
+// up, so the ceiling only matters when something is wrong; it is high because a host running several stacks' suites
+// at once can take tens of seconds to hand out a first Postgres connection (15 s was too short).
+const startCeiling = 60 * time.Second
+
 func TestMain(m *testing.M) { pgtest.Main(m, nil) }
 
 // syncBuffer is a log destination the server and the test can use at the same time.
@@ -97,7 +102,7 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 
 func waitForListening(t *testing.T, logs *syncBuffer, done <-chan error) string {
 	t.Helper()
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(startCeiling)
 	for {
 		for _, line := range logs.lines(t) {
 			if line["msg"] == "listening" {
@@ -109,7 +114,7 @@ func waitForListening(t *testing.T, logs *syncBuffer, done <-chan error) string 
 		case err := <-done:
 			t.Fatalf("run() returned before listening: %v", err)
 		case <-timeout:
-			t.Fatal("run() did not log \"listening\" within 10s")
+			t.Fatalf("run() did not log \"listening\" within %v", startCeiling)
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
@@ -183,6 +188,25 @@ func TestRun_FailsWithoutTheObjectStoreSettings(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "BINARY_KEK") {
 		t.Fatalf("run() error = %v, want one naming BINARY_KEK", err)
+	}
+}
+
+// Outside dev the binary does not start without its webhook key: each environment sets its own.
+func TestRun_FailsOutsideDevWithoutTheWebhookKey(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")
+	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=")
+	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
+	setLiveKit(t)
+	setObjectStore(t)
+	t.Setenv("WEBHOOK_KEY", "")
+	t.Setenv("WEBHOOK_KEY_FILE", "")
+	t.Setenv("SALUS_ENV", "production")
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") {
+		t.Fatalf("run() error = %v, want one naming WEBHOOK_KEY", err)
 	}
 }
 

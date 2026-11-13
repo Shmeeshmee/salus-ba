@@ -4820,6 +4820,7 @@ paths:
       description: >-
         The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at
         most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md).
+        The ETag is the version read, `W/"0"` while none are stored; a save sends it as If-Match.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -4829,6 +4830,7 @@ paths:
           description: The settings.
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
+            ETag: {schema: {type: string}, description: 'The version, W/"<version>".'}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/AppointmentSettings"}
@@ -4844,14 +4846,17 @@ paths:
       operationId: setAppointmentSettings
       summary: Replace the admin's clinic's appointment settings
       description: >-
-        Every field required; the ranges are the schema's, and the reminder offsets are distinct. A change applies to
-        appointments booked, accepted or rescheduled after it. Audited, also when refused.
+        Every field required; the ranges are the schema's, and the reminder offsets are distinct. If-Match is the
+        version read (the GET's ETag): a save after another one came first is refused with 412, so no admin's change
+        is lost silently. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when
+        refused.
       tags: [appointments]
       security:
         - sessionCookie: []
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
       requestBody:
         required: true
         content:
@@ -4862,11 +4867,12 @@ paths:
           description: The settings stored.
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
+            ETag: {schema: {type: string}, description: 'The new version, W/"<version>".'}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/AppointmentSettings"}
         "400":
-          description: "`invalid_request`: a field missing, unknown or out of its range."
+          description: "`invalid_request`: no or an unreadable If-Match, or a field missing, unknown or out of its range."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -4878,6 +4884,11 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "409":
           description: "`sms_unavailable`: `sms_reminders` on while no SMS provider sends (the fake engine)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the settings were saved by someone else since they were read; read them again."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5483,6 +5494,13 @@ paths:
       parameters:
         - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
         - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+        - name: practitioner
+          in: query
+          required: false
+          description: >-
+            A Practitioner id: only that practitioner's appointments are read, flagged and audited (the calendar shows
+            one practitioner's week). A practitioner naming another, or an unknown id, gets none.
+          schema: {type: string}
       responses:
         "200":
           description: The flags, by the appointments' start.

@@ -81,8 +81,8 @@ func TestNew_NoShowsAreCorrectedWithin30DaysAndFlaggedForStaffOnly(t *testing.T)
 	if rec := d.admin.do(http.MethodGet, flags, ""); rec.Code != http.StatusOK || rec.Body.String() != `{"flags":[]}`+"\n" {
 		t.Errorf("flags while the rule is off = %d %s, want none", rec.Code, rec.Body)
 	}
-	if rec := d.admin.do(http.MethodPut, "/clinic/appointment-settings", settings); rec.Code != http.StatusOK {
-		t.Fatalf("PUT /clinic/appointment-settings = %d %s", rec.Code, rec.Body)
+	if put := withIfMatch(d.admin, `W/"0"`).do(http.MethodPut, "/clinic/appointment-settings", settings); put.Code != http.StatusOK { // none stored yet
+		t.Fatalf("PUT /clinic/appointment-settings = %d %s", put.Code, put.Body)
 	}
 	want := `{"flags":[{"appointment_id":"` + next + `","noshows":2,"window_days":180}]}` + "\n"
 	for _, c := range []*client{d.admin, d.practitioner} {
@@ -93,4 +93,11 @@ func TestNew_NoShowsAreCorrectedWithin30DaysAndFlaggedForStaffOnly(t *testing.T)
 	if rec := d.patient.do(http.MethodGet, flags, ""); rec.Code != http.StatusNotFound {
 		t.Errorf("the patient's flags = %d %s, want 404", rec.Code, rec.Body)
 	}
+}
+
+// withIfMatch is a copy of c that sends If-Match: version.
+func withIfMatch(c *client, version string) *client {
+	cp := *c
+	cp.ifMatch = version
+	return &cp
 }

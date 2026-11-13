@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -112,7 +113,7 @@ func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args riv
 func runJobOn(t *testing.T, db logins, p videosession.Provider, files worker.Files, args river.JobArgs, opts *river.InsertOpts) (river.EventKind, string) {
 	t.Helper()
 	logs := &syncBuffer{}
-	client, err := worker.New(db.app, db.retention, db.stats, p, files, webhookKey, worker.Trends{}, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, err := worker.New(db.app, db.retention, db.stats, p, files, webhookKey, retention.DefaultPolicy(), worker.Trends{}, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -235,7 +236,7 @@ func assertNoPersonalData(t *testing.T, logs string) {
 func TestNew_RefusesToStartWithoutTheRetentionPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 
-	if _, err := worker.New(app, nil, app, liveKit(t), testFiles(t), webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, nil, app, liveKit(t), testFiles(t), webhookKey, retention.DefaultPolicy(), worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the retention pool")
 	}
 }

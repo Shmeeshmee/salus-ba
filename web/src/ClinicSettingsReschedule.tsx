@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ApiClient } from './api/client'
 import { attempt } from './api/result'
+import { saveAppointmentSettings } from './appointmentSettings'
 import type { components } from './api/schema'
 import { useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -45,13 +46,9 @@ function RescheduleForm({ api, stored }: { api: ApiClient; stored: Settings }) {
     const hours = whole(notice, maxNoticeHours)
     const times = whole(max, maxReschedules)
     if (hours === undefined || times === undefined) return t('appointments.invalidReschedule')
-    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
-    // section or another admin saved since the page opened is kept and only this section's fields change.
-    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
-    if (!fresh.ok) return saveMessage(t, fresh.code)
-    const body = { ...fresh.data, reschedule_notice_hours: hours, reschedule_max: times }
-    const res = await attempt(api.PUT('/clinic/appointment-settings', { body }))
-    if (!res.ok) return saveMessage(t, res.code)
+    // Only this section's fields change; someone else's save of them since they were shown is a conflict.
+    const res = await saveAppointmentSettings(api, settings, { reschedule_notice_hours: hours, reschedule_max: times })
+    if (!res.ok) return res.conflict ? t('appointments.settingsConflict') : saveMessage(t, res.code)
     setSettings(res.data)
     setSaved(true)
     return undefined

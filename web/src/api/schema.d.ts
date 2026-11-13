@@ -2285,12 +2285,12 @@ export interface paths {
         };
         /**
          * The admin's clinic's appointment settings
-         * @description The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md).
+         * @description The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md). The ETag is the version read, `W/"0"` while none are stored; a save sends it as If-Match.
          */
         get: operations["getAppointmentSettings"];
         /**
          * Replace the admin's clinic's appointment settings
-         * @description Every field required; the ranges are the schema's, and the reminder offsets are distinct. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
+         * @description Every field required; the ranges are the schema's, and the reminder offsets are distinct. If-Match is the version read (the GET's ETag): a save after another one came first is refused with 412, so no admin's change is lost silently. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
          */
         put: operations["setAppointmentSettings"];
         post?: never;
@@ -10473,6 +10473,8 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description The version, W/"<version>". */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -10488,9 +10490,11 @@ export interface operations {
     setAppointmentSettings: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
                 "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
             };
             path?: never;
             cookie?: never;
@@ -10505,13 +10509,15 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description The new version, W/"<version>". */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AppointmentSettings"];
                 };
             };
-            /** @description `invalid_request`: a field missing, unknown or out of its range. */
+            /** @description `invalid_request`: no or an unreadable If-Match, or a field missing, unknown or out of its range. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10525,6 +10531,15 @@ export interface operations {
             404: components["responses"]["ClinicNotFound"];
             /** @description `sms_unavailable`: `sms_reminders` on while no SMS provider sends (the fake engine). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the settings were saved by someone else since they were read; read them again. */
+            412: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11242,6 +11257,8 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
+                /** @description A Practitioner id: only that practitioner's appointments are read, flagged and audited (the calendar shows one practitioner's week). A practitioner naming another, or an unknown id, gets none. */
+                practitioner?: string;
             };
             header?: never;
             path?: never;

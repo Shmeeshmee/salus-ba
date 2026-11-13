@@ -22,6 +22,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clamd"
@@ -62,6 +63,10 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if ret.DatabaseURL == "" {
 		return errors.New("config: RETENTION_DATABASE_URL is required")
 	}
+	policy, err := jobSettings(&cfg)
+	if err != nil {
+		return err
+	}
 	stats := config.LoadStats()
 	if stats.DatabaseURL == "" {
 		return errors.New("config: STATS_DATABASE_URL is required")
@@ -99,7 +104,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	defer statsPool.Close()
 	platform := worker.Trends{Enabled: cfg.Analytics.PlatformEnabled, MinCount: cfg.Analytics.MinCount}
-	client, err := worker.New(pool, retentionPool, statsPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, cfg.WebhookKey, platform, log)
+	client, err := worker.New(pool, retentionPool, statsPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, cfg.WebhookKey, policy, platform, log)
 	if err != nil {
 		return err
 	}
@@ -171,4 +176,19 @@ func loadFiles() (worker.Files, error) {
 		KEK:     kek,
 		Scanner: clamd.New(scanner.Addr),
 	}, nil
+}
+
+// jobSettings sets cfg's webhook key (config.LoadWebhookKey: required outside dev) and returns the retention job's
+// policy from the environment (config.LoadRetentionPolicy), pending lawyer L1–L3: clinical data kept, the
+// operational logs kept OperationalLogDays.
+func jobSettings(cfg *config.Config) (retention.Policy, error) {
+	var err error
+	if cfg.WebhookKey, err = config.LoadWebhookKey(); err != nil {
+		return retention.Policy{}, err
+	}
+	p, err := config.LoadRetentionPolicy()
+	if err != nil {
+		return retention.Policy{}, err
+	}
+	return retention.Policy{ClinicalData: retention.Then(p.ClinicalData), OperationalLogs: time.Duration(p.OperationalLogDays) * 24 * time.Hour}, nil
 }

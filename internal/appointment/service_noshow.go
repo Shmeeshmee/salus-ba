@@ -56,8 +56,10 @@ func (s *Service) correctStatus(ctx context.Context, c Caller, v view, status St
 // started in the clinic's window up to now, read in the clinic's scope; none while the threshold is 0 (the default).
 // Every appointment of the range seen in full is audited, flagged or not (that one is not flagged says something of
 // its patient too), or one event without an entity when there is none. ErrInvalidRange for a range missing, reversed
-// or longer than 62 days (nothing read); ErrNotFound, audited, to a patient: the flag is never theirs to see.
-func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time) ([]NoShowFlag, error) {
+// or longer than 62 days (nothing read); ErrNotFound, audited, to a patient: the flag is never theirs to see. A
+// practitioner id narrows the range to that practitioner's role at the clinic (a calendar shows one practitioner's
+// week, so nothing of the others' patients is read or audited); "" is every appointment the caller sees.
+func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time, practitionerID string) ([]NoShowFlag, error) {
 	if from.IsZero() || !to.After(from) || to.Sub(from) > maxFlagRange {
 		return nil, ErrInvalidRange
 	}
@@ -70,7 +72,7 @@ func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time)
 		if err != nil || set.NoShowFlagThreshold == 0 {
 			return err
 		}
-		seen, err := s.flagRange(ctx, c, from, to)
+		seen, err := s.flagRange(ctx, c, from, to, practitionerID)
 		if err != nil {
 			return err
 		}
@@ -94,14 +96,22 @@ func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time)
 }
 
 // flagRange gives the appointments of [from, to) that the staff caller sees in full, by start, in the clinic's scope
-// set on the transaction in ctx: an admin's of every role, a practitioner's of their own role only.
-func (s *Service) flagRange(ctx context.Context, c Caller, from, to time.Time) ([]Appointment, error) {
+// set on the transaction in ctx: an admin's of every role, a practitioner's of their own role only; with a
+// practitioner named, that practitioner's role only (none for a practitioner caller naming another).
+func (s *Service) flagRange(ctx context.Context, c Caller, from, to time.Time, practitionerID string) ([]Appointment, error) {
 	if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 		return nil, err
 	}
 	f := Filter{OrganizationID: c.OrganizationID, From: from, To: to}
-	if !c.Admin {
-		role, err := s.Roles.OfPractitioner(ctx, c.OrganizationID, c.PractitionerID)
+	of := practitionerID
+	switch {
+	case !c.Admin && of != "" && of != c.PractitionerID:
+		return nil, nil
+	case !c.Admin:
+		of = c.PractitionerID
+	}
+	if of != "" {
+		role, err := s.Roles.OfPractitioner(ctx, c.OrganizationID, of)
 		switch {
 		case errors.Is(err, practitionerrole.ErrNotFound):
 			return nil, nil

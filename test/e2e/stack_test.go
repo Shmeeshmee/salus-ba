@@ -127,6 +127,26 @@ func (a *api) mustWith(header http.Header, want int, method, path string, body, 
 // send sends body (JSON, or none when nil) with the extra headers and returns the status and the raw answer.
 func (a *api) send(header http.Header, method, path string, body any) (int, []byte) {
 	a.t.Helper()
+	status, raw, _ := a.exchange(header, method, path, body)
+	return status, raw
+}
+
+// changeAppointmentSettings reads the clinic's appointment settings, applies change and saves them at the version
+// read (If-Match with the GET's ETag).
+func (a *api) changeAppointmentSettings(change func(settings map[string]any)) {
+	a.t.Helper()
+	status, raw, header := a.exchange(nil, http.MethodGet, "/clinic/appointment-settings", nil)
+	var settings map[string]any
+	if status != http.StatusOK || json.Unmarshal(raw, &settings) != nil {
+		a.t.Fatalf("GET /clinic/appointment-settings = %d %s", status, raw)
+	}
+	change(settings)
+	a.mustWith(http.Header{"If-Match": {header.Get("ETag")}}, http.StatusOK, http.MethodPut, "/clinic/appointment-settings", settings, nil)
+}
+
+// exchange is send that also returns the answer's headers.
+func (a *api) exchange(header http.Header, method, path string, body any) (int, []byte, http.Header) {
+	a.t.Helper()
 	var r io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -160,7 +180,7 @@ func (a *api) send(header http.Header, method, path string, body any) (int, []by
 	if err != nil {
 		a.t.Fatal(err)
 	}
-	return resp.StatusCode, raw
+	return resp.StatusCode, raw, resp.Header
 }
 
 // must is do that fails the test unless the status is want.

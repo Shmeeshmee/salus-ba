@@ -26,6 +26,9 @@ var (
 	ErrInvalidChatSettings = errors.New("organization: invalid chat settings")
 	// ErrInvalidAppointmentSettings is returned for appointment settings out of their ranges.
 	ErrInvalidAppointmentSettings = errors.New("organization: invalid appointment settings")
+	// ErrSettingsChanged is returned for a save of appointment settings read at a version that is no longer the
+	// current one: another save came first.
+	ErrSettingsChanged = errors.New("organization: appointment settings changed since they were read")
 	// ErrSMSUnavailable is returned when the paid SMS option is turned on while no SMS provider sends (the fake).
 	ErrSMSUnavailable = errors.New("organization: no SMS provider")
 )

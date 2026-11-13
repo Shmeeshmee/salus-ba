@@ -104,9 +104,11 @@ type Location struct {
 // reminders go out (minutes before the start, at most three, 15 minutes to 7 days), whether the paid SMS option is
 // on, how late and how often a patient may reschedule (0 turns self-service rescheduling off), whether freed slots
 // go to the waitlist and how long an offer is held, and from how many no-shows in how many days staff see a flag (0
-// for off). Nothing in them is personal data.
+// for off). Version is the stored row's (0 while the clinic has stored none): a save names the version it read, sent
+// as the ETag, not in the JSON. Nothing in them is personal data.
 type AppointmentSettings struct {
 	ReminderOffsetsMinutes []int `json:"reminder_offsets_minutes"`
+	Version                int   `json:"-"`
 	RescheduleNoticeHours  int   `json:"reschedule_notice_hours"`
 	RescheduleMax          int   `json:"reschedule_max"`
 	WaitlistHoldMinutes    int   `json:"waitlist_hold_minutes"`

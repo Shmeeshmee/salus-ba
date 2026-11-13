@@ -97,10 +97,7 @@ func bookWithReminder(t *testing.T, clinic *bookableClinic, p *patient, slot str
 	t.Helper()
 	start := slotStart(t, p.api, clinic.scheduleID, slot)
 	offset := int(start.Sub(clock.System{}.Now().Add(5*time.Second)) / time.Minute)
-	var settings map[string]any
-	clinic.admin.must(http.StatusOK, http.MethodGet, "/clinic/appointment-settings", nil, &settings)
-	settings["reminder_offsets_minutes"] = []int{offset}
-	clinic.admin.must(http.StatusOK, http.MethodPut, "/clinic/appointment-settings", settings, nil)
+	clinic.admin.changeAppointmentSettings(func(settings map[string]any) { settings["reminder_offsets_minutes"] = []int{offset} })
 	var booked struct{ ID string }
 	p.must(http.StatusCreated, http.MethodPost, "/appointments", map[string]string{"slotId": slot}, &booked)
 	link := linkInMail.FindString(mailTextWithin(t, p.addr, reminderSubject, 2*time.Minute))

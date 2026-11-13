@@ -16,14 +16,15 @@ import (
 
 // stubFlags answers the flags with what it is given and keeps what it was asked.
 type stubFlags struct {
-	err      error
-	caller   appointment.Caller
-	from, to time.Time
-	out      []appointment.NoShowFlag
+	err          error
+	caller       appointment.Caller
+	from, to     time.Time
+	practitioner string
+	out          []appointment.NoShowFlag
 }
 
-func (s *stubFlags) NoShowFlags(_ context.Context, c appointment.Caller, from, to time.Time) ([]appointment.NoShowFlag, error) {
-	s.caller, s.from, s.to = c, from, to
+func (s *stubFlags) NoShowFlags(_ context.Context, c appointment.Caller, from, to time.Time, practitioner string) ([]appointment.NoShowFlag, error) {
+	s.caller, s.from, s.to, s.practitioner = c, from, to, practitioner
 	return s.out, s.err
 }
 
@@ -50,6 +51,12 @@ func TestNoShowHandler_GivesTheFlags(t *testing.T) {
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control %q, want no-store", got)
+	}
+	if svc.practitioner != "" {
+		t.Errorf("asked for practitioner %q without one named", svc.practitioner)
+	}
+	if serveFlags(t, svc, as(admin), &bytes.Buffer{}, flagsRange+"&practitioner="+practA1); svc.practitioner != practA1 {
+		t.Errorf("asked for practitioner %q, want %s", svc.practitioner, practA1)
 	}
 	empty := serveFlags(t, &stubFlags{}, as(admin), &bytes.Buffer{}, flagsRange)
 	if want := `{"flags":[]}` + "\n"; empty.Code != http.StatusOK || empty.Body.String() != want {

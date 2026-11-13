@@ -199,7 +199,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (call) return <Call api={api} fhir={fhir} id={decodeURIComponent(call[1])} />
   const appointment = appointmentPath.exec(path)
   if (appointment) return <AppointmentDetail api={api} fhir={fhir} account={account} id={decodeURIComponent(appointment[1])} />
-  if (path === '/') return <Calendar fhir={fhir} account={account} />
+  if (path === '/') return <Calendar api={api} fhir={fhir} account={account} />
   if (path === '/availability') return <Availability api={api} fhir={fhir} account={account} />
   if (path === '/practitioners') return <Practitioners api={api} fhir={fhir} account={account} />
   if (path === '/questionnaires') return <Questionnaires api={api} fhir={fhir} account={account} />

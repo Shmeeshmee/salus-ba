@@ -36,13 +36,18 @@ type Service struct {
 	purgers map[string]Purger
 	audit   Audit
 	clock   clock.Clock
+	policy  Policy
 }
 
-// NewService returns the Service with a Purger per delete rule's table and the audit check, or ErrNoApplier
-// naming the table when a rule that removes rows has no applier or a purger has no delete rule.
-func NewService(purgers map[string]Purger, audit Audit, clk clock.Clock) (*Service, error) {
+// NewService returns the Service on the policy's rules with a Purger per delete rule's table and the audit check;
+// ErrClinicalDeletion for a policy that does not keep clinical data, ErrNoApplier naming the table when a rule that
+// removes rows has no applier or a purger has no delete rule.
+func NewService(policy Policy, purgers map[string]Purger, audit Audit, clk clock.Clock) (*Service, error) {
+	if policy.ClinicalData != ThenKeep {
+		return nil, ErrClinicalDeletion
+	}
 	deletes := map[string]bool{}
-	for _, r := range Rules() {
+	for _, r := range Rules(policy) {
 		switch {
 		case r.Then == ThenDelete && purgers[r.Table] == nil,
 			r.Then == ThenRemoveRange && (r.Table != auditTable || audit == nil):
@@ -55,7 +60,7 @@ func NewService(purgers map[string]Purger, audit Audit, clk clock.Clock) (*Servi
 			return nil, fmt.Errorf("%w: %s", ErrNoApplier, table)
 		}
 	}
-	return &Service{purgers: purgers, audit: audit, clock: clk}, nil
+	return &Service{purgers: purgers, audit: audit, clock: clk, policy: policy}, nil
 }
 
 // Apply applies every rule once, in the order of Rules, and returns a Result per delete and remove-range
@@ -67,7 +72,7 @@ func (s *Service) Apply(ctx context.Context) ([]Result, error) {
 	now := s.clock.Now()
 	var results []Result
 	var overdue error
-	for _, r := range Rules() {
+	for _, r := range Rules(s.policy) {
 		before := now.Add(-r.Keep)
 		switch r.Then {
 		case ThenDelete:
