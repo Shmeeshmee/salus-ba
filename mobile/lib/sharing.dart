@@ -52,7 +52,7 @@ class SharingPicker extends StatelessWidget {
   }
 
   Widget _visit(AppLocalizations t, api.SharingCandidate c) {
-    final specialty = specialtyOfCode(t, c.specialty);
+    final specialty = specialtyOf(t, c.specialty);
     final title = c.title;
     return CheckboxListTile(
       value: selected.contains(c.encounterId),

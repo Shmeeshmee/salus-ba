@@ -1677,6 +1677,60 @@ class AppLocalizationsHr extends AppLocalizations {
   }
 
   @override
+  String get myHistory => 'Moja povijest';
+
+  @override
+  String get historyEmpty =>
+      'Vaša je povijest još prazna. Ovdje se pojavljuju vaši posjeti, dokumenti i odgovori.';
+
+  @override
+  String get historyNoMatch =>
+      'Ništa u vašoj povijesti ne odgovara ovim filtrima.';
+
+  @override
+  String get historyClinic => 'Klinika';
+
+  @override
+  String get historyAllClinics => 'Sve klinike';
+
+  @override
+  String get historyVisits => 'Posjeti';
+
+  @override
+  String get historyVisit => 'Posjet';
+
+  @override
+  String get historyAnswers => 'Odgovori na upitnik';
+
+  @override
+  String get historyFiles => 'Datoteke';
+
+  @override
+  String get historyFile => 'Datoteka';
+
+  @override
+  String get historyAnyDate => 'Bilo koji datum';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'od $from do $to';
+  }
+
+  @override
+  String get historyClearDates => 'Poništi datume';
+
+  @override
+  String get historyShowMore => 'Prikaži više';
+
+  @override
+  String get historyMoreFailed =>
+      'Ostatak vaše povijesti nije se mogao učitati.';
+
+  @override
+  String get historyOpenFailed =>
+      'Ova se stavka nije mogla otvoriti. Pokušajte ponovno.';
+
+  @override
   String get sharingToggle =>
       'Podijeli moju povijest iz drugih klinika s ovom klinikom';
 

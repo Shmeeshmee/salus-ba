@@ -4,11 +4,13 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -57,11 +59,14 @@ func (w *accessEndWorker) Work(ctx context.Context, job *river.Job[appointment.A
 // newSessions builds the videosession service on pool (salus_app) at clk for CloseWindow: the sessions, the
 // video provider, and the encounter, which records the appointment's outcome; and for EndAccess and
 // EndPatientAccess, which read the appointment through Lookup.
-func newSessions(pool *pgxpool.Pool, provider videosession.Provider, clk clock.Clock) *videosession.Service {
+func newSessions(pool *pgxpool.Pool, provider videosession.Provider, jobs *river.Client[pgx.Tx], clk clock.Clock) *videosession.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
-	// Only Lookup and RecordConsultationOutcome are asked of the appointment service.
-	appointments := appointment.NewService(appointment.Ports{Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})
+	// Only Lookup and RecordConsultationOutcome (which enqueues the statistics' refresh on jobs) are asked of the
+	// appointment service.
+	appointments := appointment.NewService(appointment.Ports{
+		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk, Stats: clinicstats.NewRiverQueue(jobs),
+	})
 	encounters := encounter.NewService(encounter.Ports{
 		Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk, Appointments: appointments,
 	})

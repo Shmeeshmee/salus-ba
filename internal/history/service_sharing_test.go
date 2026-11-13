@@ -30,7 +30,7 @@ const (
 
 var sharingCaller = consent.Caller{AccountID: sharingAccount, PatientID: sharingPatient}
 
-func day(d int) time.Time { return time.Date(2026, 10, d, 9, 0, 0, 0, time.UTC) }
+func octoberDay(d int) time.Time { return time.Date(2026, 10, d, 9, 0, 0, 0, time.UTC) }
 
 // fakeSharingEncounters gives the patient's encounters to the patient, as encounter.Service.Search does.
 type fakeSharingEncounters struct {
@@ -104,11 +104,11 @@ func visitAt(id, clinic, role, status string, start time.Time) encounter.Encount
 func newSharingFixture() sharingFixture {
 	f := sharingFixture{
 		encounters: &fakeSharingEncounters{all: []encounter.Encounter{
-			visitAt("e1000000-0000-4000-8000-0000000000e1", elsewhere, roleElsewhere, "finished", day(10)),
-			visitAt("e2000000-0000-4000-8000-0000000000e2", receiving, roleReceiving, "finished", day(12)), // at the receiving clinic
-			visitAt("e3000000-0000-4000-8000-0000000000e3", thirdClinic, roleThird, "finished", day(14)),
-			visitAt("e4000000-0000-4000-8000-0000000000e4", elsewhere, roleElsewhere, "in-progress", day(16)), // not finished
-			visitAt("e5000000-0000-4000-8000-0000000000e5", elsewhere, roleElsewhere, "finished", day(11)),
+			visitAt("e1000000-0000-4000-8000-0000000000e1", elsewhere, roleElsewhere, "finished", octoberDay(10)),
+			visitAt("e2000000-0000-4000-8000-0000000000e2", receiving, roleReceiving, "finished", octoberDay(12)), // at the receiving clinic
+			visitAt("e3000000-0000-4000-8000-0000000000e3", thirdClinic, roleThird, "finished", octoberDay(14)),
+			visitAt("e4000000-0000-4000-8000-0000000000e4", elsewhere, roleElsewhere, "in-progress", octoberDay(16)), // not finished
+			visitAt("e5000000-0000-4000-8000-0000000000e5", elsewhere, roleElsewhere, "finished", octoberDay(11)),
 		}},
 		documents: &fakeSignedDocuments{titles: map[string][]string{
 			"e1000000-0000-4000-8000-0000000000e1": {"Placeholder findings", "Placeholder referral"},
@@ -134,9 +134,9 @@ func TestShareable_GivesTheFinishedVisitsAtOtherClinicsAsTheClinicWillSeeThem(t 
 	f := newSharingFixture()
 	got, err := f.svc.Shareable(t.Context(), sharingCaller, receiving)
 	want := []consent.Candidate{
-		{Date: day(14), EncounterID: "e3000000-0000-4000-8000-0000000000e3", OrganizationID: thirdClinic, OrganizationName: "Synthetic clinic C", TimeZone: "Europe/Berlin"},
-		{Date: day(11), EncounterID: "e5000000-0000-4000-8000-0000000000e5", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002"},
-		{Date: day(10), EncounterID: "e1000000-0000-4000-8000-0000000000e1", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002", Title: "Placeholder findings"},
+		{Date: octoberDay(14), EncounterID: "e3000000-0000-4000-8000-0000000000e3", OrganizationID: thirdClinic, OrganizationName: "Synthetic clinic C", TimeZone: "Europe/Berlin"},
+		{Date: octoberDay(11), EncounterID: "e5000000-0000-4000-8000-0000000000e5", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002"},
+		{Date: octoberDay(10), EncounterID: "e1000000-0000-4000-8000-0000000000e1", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002", Title: "Placeholder findings"},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Shareable() = %+v, %v;\nwant %+v", got, err, want)

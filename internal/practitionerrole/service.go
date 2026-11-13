@@ -298,6 +298,32 @@ func (s *Service) Lookup(ctx context.Context, org, id string) (PractitionerRole,
 	return s.lookup(ctx, org, func(ctx context.Context) (PractitionerRole, error) { return s.repo.ByID(ctx, id) })
 }
 
+// LookupAll returns the roles ids names of each clinic, by role id, in one transaction, each read in its clinic's
+// scope, unaudited, as Lookup: the specialties of a page of a patient's timeline (SAL-39). A role that is not the
+// clinic's, or none, is left out.
+func (s *Service) LookupAll(ctx context.Context, ids map[string][]string) (map[string]PractitionerRole, error) {
+	out := map[string]PractitionerRole{}
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		for org, roles := range ids {
+			for _, id := range roles {
+				p, err := s.Lookup(ctx, org, id)
+				switch {
+				case errors.Is(err, ErrNotFound):
+					continue
+				case err != nil:
+					return err
+				}
+				out[id] = p
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("practitionerrole: lookup all: %w", err)
+	}
+	return out, nil
+}
+
 // OfPractitioner returns the role of the practitioner practitionerID in the clinic org, or ErrNotFound: to
 // know which role a signed-in practitioner acts in, or which one a search names. Like Lookup, unaudited.
 func (s *Service) OfPractitioner(ctx context.Context, org, practitionerID string) (PractitionerRole, error) {
@@ -348,4 +374,35 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 		e.EntityReference = "PractitionerRole/" + id
 	}
 	return s.audit.Record(ctx, e)
+}
+
+// Specialties returns the specialty (SpecialtyCode, "" for none) of each role ids, by id, as the scope of the clinic
+// org shows them: its own roles, and those of other clinics' visits shared with it (practitioner_role_shared), for
+// the history's items; one it does not show is left out. It joins the transaction in ctx and sets the clinic's scope;
+// like Lookup, unaudited.
+func (s *Service) Specialties(ctx context.Context, org string, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if _, done := out[id]; done {
+				continue
+			}
+			p, err := s.repo.ByID(ctx, id)
+			switch {
+			case errors.Is(err, ErrNotFound):
+				continue
+			case err != nil:
+				return err
+			}
+			out[id] = p.SpecialtyCode
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("practitionerrole: specialties: %w", err)
+	}
+	return out, nil
 }

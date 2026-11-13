@@ -1655,6 +1655,57 @@ class AppLocalizationsTr extends AppLocalizations {
   }
 
   @override
+  String get myHistory => 'Geçmişim';
+
+  @override
+  String get historyEmpty =>
+      'Geçmişiniz henüz boş. Ziyaretleriniz, belgeleriniz ve yanıtlarınız burada görünür.';
+
+  @override
+  String get historyNoMatch => 'Geçmişinizde bu filtrelere uyan bir şey yok.';
+
+  @override
+  String get historyClinic => 'Klinik';
+
+  @override
+  String get historyAllClinics => 'Tüm klinikler';
+
+  @override
+  String get historyVisits => 'Ziyaretler';
+
+  @override
+  String get historyVisit => 'Ziyaret';
+
+  @override
+  String get historyAnswers => 'Anket yanıtları';
+
+  @override
+  String get historyFiles => 'Dosyalar';
+
+  @override
+  String get historyFile => 'Dosya';
+
+  @override
+  String get historyAnyDate => 'Herhangi bir tarih';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return '$from – $to';
+  }
+
+  @override
+  String get historyClearDates => 'Tarihleri temizle';
+
+  @override
+  String get historyShowMore => 'Daha fazla göster';
+
+  @override
+  String get historyMoreFailed => 'Geçmişinizin devamı yüklenemedi.';
+
+  @override
+  String get historyOpenFailed => 'Bu öğe açılamadı. Tekrar deneyin.';
+
+  @override
   String get sharingToggle =>
       'Diğer kliniklerdeki geçmişimi bu klinikle paylaş';
 

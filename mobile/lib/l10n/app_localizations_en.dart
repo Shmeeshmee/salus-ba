@@ -1652,6 +1652,57 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get myHistory => 'My history';
+
+  @override
+  String get historyEmpty =>
+      'There is nothing in your history yet. Your visits, documents and answers appear here.';
+
+  @override
+  String get historyNoMatch => 'Nothing in your history matches these filters.';
+
+  @override
+  String get historyClinic => 'Clinic';
+
+  @override
+  String get historyAllClinics => 'All clinics';
+
+  @override
+  String get historyVisits => 'Visits';
+
+  @override
+  String get historyVisit => 'Visit';
+
+  @override
+  String get historyAnswers => 'Questionnaire answers';
+
+  @override
+  String get historyFiles => 'Files';
+
+  @override
+  String get historyFile => 'File';
+
+  @override
+  String get historyAnyDate => 'Any date';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return '$from to $to';
+  }
+
+  @override
+  String get historyClearDates => 'Clear dates';
+
+  @override
+  String get historyShowMore => 'Show more';
+
+  @override
+  String get historyMoreFailed => 'More of your history could not be loaded.';
+
+  @override
+  String get historyOpenFailed => 'This item could not be opened. Try again.';
+
+  @override
   String get sharingToggle =>
       'Share my history from other clinics with this clinic';
 

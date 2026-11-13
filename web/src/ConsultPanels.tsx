@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useId, useLayoutEffect, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode } from 'react'
 import type { ConsultActions, ConsultMessage, ConsultState, End, SuggestionEvent, TranscriptEvent } from './consult'
 import { AllergyWarning } from './AllergiesPanel'
 import { Documents } from './Documents'
@@ -56,7 +56,7 @@ export function Captions({ caption }: { caption?: TranscriptEvent }) {
   )
 }
 
-type Tab = 'transcript' | 'suggestions' | 'documents' | 'entries'
+type Tab = 'transcript' | 'suggestions' | 'documents' | 'entries' | 'history'
 
 type SideProps = {
   appointmentId: string
@@ -68,19 +68,37 @@ type SideProps = {
   // entries are the patient's allergies, warned of above the drafting editor (shown, never sent: ADR 0014 "No AI"),
   // and the panel of their allergies and medications, a tab of its own (SAL-41). Without them neither is shown.
   entries?: { state: PatientEntries; panel: ReactNode }
+  // history is the patient's history (SAL-40), a tab of its own when given; it is mounted, and so read and
+  // audited, only once the practitioner opens it. refresh changes each time the tab is shown again and when the
+  // entries change (an allergy recorded or confirmed), for it to read its summary again.
+  history?: (refresh: string) => ReactNode
 }
 
 // ConsultSide is the panel beside the video. A suggestion's or a field's sources open the transcript at
 // those lines, highlighted. Every tab stays mounted, so the transcript keeps its scroll while hidden.
-export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end, entries }: SideProps) {
+export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end, entries, history }: SideProps) {
   const t = useT()
   const { number } = useFormat()
   const id = useId()
   const [tab, setTab] = useState<Tab>('transcript')
   const [cited, setCited] = useState<{ ids: string[]; at: number }>({ ids: [], at: 0 })
   const active = state.suggestions.filter((s) => s.status !== 'dismissed').length
-  const tabs: Tab[] = entries ? ['transcript', 'suggestions', 'documents', 'entries'] : ['transcript', 'suggestions', 'documents']
-  const label = { transcript: 'consultation.live.tabTranscript', suggestions: 'consultation.live.tabSuggestions', documents: 'consultation.live.tabDocuments', entries: 'allergies.tab' } as const
+  const tabs: Tab[] = ['transcript', 'suggestions', 'documents', ...(entries ? (['entries'] as const) : []), ...(history ? (['history'] as const) : [])]
+  const label = {
+    transcript: 'consultation.live.tabTranscript',
+    suggestions: 'consultation.live.tabSuggestions',
+    documents: 'consultation.live.tabDocuments',
+    entries: 'allergies.tab',
+    history: 'history.tab',
+  } as const
+  // How often the history's tab was shown, and what the entries hold: either changing refreshes the summary.
+  const [historyShown, setHistoryShown] = useState(0)
+  const entriesRead = useMemo(() => JSON.stringify(entries?.state.entries ?? null), [entries?.state.entries])
+
+  function select(next: Tab) {
+    setTab(next)
+    if (next === 'history' && next !== tab) setHistoryShown((n) => n + 1)
+  }
 
   function show(ids: string[]) {
     setTab('transcript')
@@ -92,7 +110,7 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
     if (!step) return
     e.preventDefault()
     const next = tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length]
-    setTab(next)
+    select(next)
     document.getElementById(`${id}-${next}-tab`)?.focus()
   }
 
@@ -118,7 +136,7 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
             aria-selected={tab === name}
             aria-controls={`${id}-${name}`}
             tabIndex={tab === name ? 0 : -1}
-            onClick={() => setTab(name)}
+            onClick={() => select(name)}
           >
             {t(label[name])}
             {name === 'suggestions' && active > 0 && (
@@ -143,6 +161,11 @@ export function ConsultSide({ appointmentId, state, dispatch, actions, zone, end
       {entries && (
         <div className="side-panel" role="tabpanel" id={`${id}-entries`} aria-labelledby={`${id}-entries-tab`} hidden={tab !== 'entries'}>
           {entries.panel}
+        </div>
+      )}
+      {history && (
+        <div className="side-panel" role="tabpanel" id={`${id}-history`} aria-labelledby={`${id}-history-tab`} hidden={tab !== 'history'}>
+          {historyShown > 0 && history(`${historyShown} ${entriesRead}`)}
         </div>
       )}
     </aside>

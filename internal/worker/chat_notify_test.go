@@ -187,7 +187,7 @@ func startChatJobs(t *testing.T, db logins, log *slog.Logger) (*pushtest.Sender,
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := worker.New(db.app, db.retention, liveKit(t), testFiles(t), webhookKey, log)
+	jobs, err := worker.New(db.app, db.retention, db.stats, liveKit(t), testFiles(t), webhookKey, log)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -125,6 +125,23 @@ func TestDownload_ServesACleanFileByRangesAgainstTheStore(t *testing.T) {
 	}
 }
 
+// A file of another clinic's visit the patient shared with the practitioner's clinic is read as the holder grants
+// it, audited under the reader's clinic: the visit's clinic is told nothing of who it was shared with.
+func TestDownload_ASharedVisitsFileIsAuditedUnderTheReadersClinic(t *testing.T) {
+	f := newFixture(t)
+	b := f.seed(t, pdf(), binary.StatusClean)
+	b.OrganizationID = "b0000000-0000-4000-8000-00000000000b" // clinic B
+	f.repo.files[b.ID], f.repo.shared = b, true
+	if _, err := f.svc.Download(t.Context(), pract, b.ID); err != nil {
+		t.Fatalf("Download() = %v", err)
+	}
+	for _, e := range f.audit.events {
+		if e.OrganizationID != clinicA || e.Outcome != auditevent.OutcomeSuccess {
+			t.Errorf("audited %+v, want a success under clinic A", e)
+		}
+	}
+}
+
 func TestDownload_RefusesAFileThatIsNotClean(t *testing.T) {
 	for status, want := range map[binary.Status]error{binary.StatusQuarantined: binary.ErrScanning, binary.StatusRejected: binary.ErrNotFound} {
 		f := newFixture(t)

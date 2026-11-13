@@ -1715,6 +1715,57 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get myHistory => 'سجلي';
+
+  @override
+  String get historyEmpty =>
+      'سجلك فارغ حتى الآن. تظهر هنا زياراتك ومستنداتك وإجاباتك.';
+
+  @override
+  String get historyNoMatch => 'لا يوجد في سجلك ما يطابق عوامل التصفية هذه.';
+
+  @override
+  String get historyClinic => 'العيادة';
+
+  @override
+  String get historyAllClinics => 'كل العيادات';
+
+  @override
+  String get historyVisits => 'الزيارات';
+
+  @override
+  String get historyVisit => 'زيارة';
+
+  @override
+  String get historyAnswers => 'إجابات الاستبيان';
+
+  @override
+  String get historyFiles => 'الملفات';
+
+  @override
+  String get historyFile => 'ملف';
+
+  @override
+  String get historyAnyDate => 'أي تاريخ';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'من $from إلى $to';
+  }
+
+  @override
+  String get historyClearDates => 'مسح التواريخ';
+
+  @override
+  String get historyShowMore => 'عرض المزيد';
+
+  @override
+  String get historyMoreFailed => 'تعذر تحميل المزيد من سجلك.';
+
+  @override
+  String get historyOpenFailed => 'تعذر فتح هذا العنصر. حاول مرة أخرى.';
+
+  @override
   String get sharingToggle => 'مشاركة سجلّي من العيادات الأخرى مع هذه العيادة';
 
   @override

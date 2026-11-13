@@ -238,6 +238,12 @@ Plain JSON in `api/openapi.yaml` (not FHIR). ANA-2 and ANA-3 add their paths; AN
 these shapes and switches to the generated client once both are merged. A count is a number or `null`
 (suppressed); the API returns codes, never sentences.
 
+**As built (ANA-2, `api/openapi.yaml` wins):** the clinic endpoints are camelCase like the rest of the plain JSON
+API: the query parameter `practitionerRole` (not `practitioner_role`), the breakdown `by=practitionerRole`, and the
+field `practitioners[].practitionerRole`; `from` and `to` are required. A non-admin may narrow the appointments to
+their own role only, never to another role or a specialty (403 `forbidden`). ANA-4 types its fixtures from the
+generated client, not from the lines below.
+
 ```
 GET /analytics/clinic/appointments?from=2026-01-01&to=2026-12-31&practitioner_role=&specialty=
   -> { "series":  [{ "period": "2026-01", "booked": 120, "fulfilled": 98, "noshow": 6, "cancelled": 16 }],

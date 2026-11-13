@@ -80,12 +80,16 @@ func (s *Service) editable(ctx context.Context, c appointment.Caller, id string)
 }
 
 // Readable is c's grant to read the files of the response id: the response's access rule at Full (the
-// patient on their own; the appointment's practitioner once it is submitted, D9 included), with the purpose
+// patient on their own; the appointment's practitioner once it is submitted, D9 included; a practitioner the
+// history shows another clinic's shared visit to, ADR 0014), with the purpose
 // of use; binary.ErrNotFound for anyone else.
 func (s *Service) Readable(ctx context.Context, c binary.Caller, id string) (binary.Grant, error) {
 	var out binary.Grant
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		_, _, level, err := s.view(ctx, caller(c), id, s.Repo.ByID)
+		if err == nil && level == access.None {
+			_, level, err = s.shared(ctx, caller(c), id)
+		}
 		switch {
 		case err != nil:
 			return err

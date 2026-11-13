@@ -104,8 +104,11 @@ type fakeRepository struct {
 	conversation string // app.conversation_id, as communication sets it for a chat file
 	chatJob      string // the chat job scope's conversation; clinic is its clinic
 	locked       []string
+	shared       bool
 }
 
+// visible reports whether the scope shows b; shared stands for another clinic's visit shared with the clinic, whose
+// clean files the clinic's scope shows.
 func (r *fakeRepository) visible(b binary.Binary) bool {
 	if b.ConversationID != "" {
 		switch {
@@ -122,7 +125,7 @@ func (r *fakeRepository) visible(b binary.Binary) bool {
 	case r.job != "":
 		return b.ResponseID == r.job && b.OrganizationID == r.clinic
 	}
-	return r.clinic != "" && b.OrganizationID == r.clinic
+	return r.clinic != "" && (b.OrganizationID == r.clinic || (r.shared && b.Status == binary.StatusClean)) // binary_shared
 }
 
 func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
@@ -175,6 +178,22 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (binary.Binary, er
 		return binary.Binary{}, binary.ErrNotFound
 	}
 	return b, nil
+}
+
+func (r *fakeRepository) Clean(ctx context.Context, ids []string) ([]binary.Binary, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []binary.Binary
+	for _, id := range ids {
+		if b, ok := r.files[id]; ok && r.visible(b) && b.Status == binary.StatusClean {
+			out = append(out, b)
+		}
+	}
+	return out, nil
 }
 
 func (r *fakeRepository) OfItem(ctx context.Context, responseID, linkID string) ([]binary.Binary, error) {

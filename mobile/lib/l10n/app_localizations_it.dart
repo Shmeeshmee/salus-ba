@@ -1664,6 +1664,60 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
+  String get myHistory => 'La mia cronologia';
+
+  @override
+  String get historyEmpty =>
+      'La Sua cronologia è ancora vuota. Qui compaiono le Sue visite, i Suoi documenti e le Sue risposte.';
+
+  @override
+  String get historyNoMatch =>
+      'Nulla nella Sua cronologia corrisponde a questi filtri.';
+
+  @override
+  String get historyClinic => 'Clinica';
+
+  @override
+  String get historyAllClinics => 'Tutte le cliniche';
+
+  @override
+  String get historyVisits => 'Visite';
+
+  @override
+  String get historyVisit => 'Visita';
+
+  @override
+  String get historyAnswers => 'Risposte al questionario';
+
+  @override
+  String get historyFiles => 'File';
+
+  @override
+  String get historyFile => 'File';
+
+  @override
+  String get historyAnyDate => 'Qualsiasi data';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'dal $from al $to';
+  }
+
+  @override
+  String get historyClearDates => 'Cancella le date';
+
+  @override
+  String get historyShowMore => 'Mostra altro';
+
+  @override
+  String get historyMoreFailed =>
+      'Non è stato possibile caricare il resto della Sua cronologia.';
+
+  @override
+  String get historyOpenFailed =>
+      'Non è stato possibile aprire questo elemento. Riprovi.';
+
+  @override
   String get sharingToggle =>
       'Condividi la mia storia clinica di altre cliniche con questa clinica';
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -31,8 +32,13 @@ type Auditor interface {
 
 // Encounters gives a draft its encounter with the caller's attendance of its appointment, read in the caller's
 // scope, unaudited (encounter.Service): composition applies its own rule and audits its decision.
+// Shared gives another clinic's visit the patient shared with the caller's clinic when the history's rule lets the
+// caller see it (access.HistoryVisit), unaudited, to read its signed documents.
 type Encounters interface {
 	Access(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, appointment.Attendance, error)
+	Shared(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, error)
+	// Own gives the calling patient's own encounters, at the clinic org when set (none to staff).
+	Own(ctx context.Context, c appointment.Caller, org string) ([]encounter.Encounter, error)
 }
 
 // Transcripts gives the encounter's stored transcript to its practitioner (transcript.Service), auditing the
@@ -46,6 +52,12 @@ type Conditions interface {
 	Record(ctx context.Context, cs []condition.Condition) error
 }
 
+// StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
+// ctx (clinicstats' River queue, docs/plans/analytics.md §4): a signature with diagnoses enqueues its day.
+type StatsQueue interface {
+	EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error
+}
+
 // Ports are the Service's dependencies.
 type Ports struct {
 	Repo        Repository
@@ -55,6 +67,7 @@ type Ports struct {
 	Store       Store
 	Publisher   Publisher
 	Jobs        Jobs
+	Stats       StatsQueue // the signing; not needed by a Service that only keeps templates
 	Conditions  Conditions
 	Audit       Auditor
 	Tx          Transactor
@@ -114,6 +127,8 @@ func (s *Service) allowedDrafting(ctx context.Context, c appointment.Caller, enc
 func (s *Service) allowedAttendance(ctx context.Context, c appointment.Caller, encounterID string, signed bool) (encounter.Encounter, appointment.Attendance, error) {
 	e, att, err := s.Encounters.Access(ctx, c, encounterID)
 	switch {
+	case errors.Is(err, encounter.ErrNotFound) && signed && c.OrganizationID != "":
+		return s.shared(ctx, c, encounterID)
 	case errors.Is(err, encounter.ErrNotFound):
 		return encounter.Encounter{}, att, errRefused{ErrNotFound}
 	case err != nil:
@@ -143,6 +158,19 @@ func (s *Service) allowedAttendance(ctx context.Context, c appointment.Caller, e
 	return encounter.Encounter{ID: e.ID}, att, errRefused{ErrForbidden}
 }
 
+// shared is allowed for the signed documents of another clinic's visit the patient shared with the caller's
+// clinic (ADR 0014): the history's rule, read only, never a draft.
+func (s *Service) shared(ctx context.Context, c appointment.Caller, encounterID string) (encounter.Encounter, appointment.Attendance, error) {
+	e, err := s.Encounters.Shared(ctx, c, encounterID)
+	switch {
+	case errors.Is(err, encounter.ErrNotFound):
+		return encounter.Encounter{}, appointment.Attendance{}, errRefused{ErrNotFound}
+	case err != nil:
+		return encounter.Encounter{}, appointment.Attendance{}, err
+	}
+	return e, appointment.Attendance{}, nil
+}
+
 // entry is one audit event of the drafting: who, the interaction on which resource ("" when none is
 // disclosed) or, for a template (no FHIR resource), on the document_template table, and the outcome.
 type entry struct {
@@ -155,7 +183,10 @@ type entry struct {
 }
 
 // record audits e, with treatment as the purpose for staff and the patient's own request for a patient.
-func (s *Service) record(ctx context.Context, e entry) error {
+func (s *Service) record(ctx context.Context, e entry) error { return s.Audit.Record(ctx, e.event()) }
+
+// event is the audit event of e, as record writes it.
+func (e entry) event() auditevent.AuditEvent {
 	action := map[string]auditevent.Action{
 		auditevent.CodeCreate: auditevent.ActionCreate, auditevent.CodeUpdate: auditevent.ActionUpdate,
 		auditevent.CodeRead: auditevent.ActionRead, auditevent.CodeSearchType: auditevent.ActionRead,
@@ -184,7 +215,7 @@ func (s *Service) record(ctx context.Context, e entry) error {
 			a.EntityCount = 0
 		}
 	}
-	return s.Audit.Record(ctx, a)
+	return a
 }
 
 // encounterRef is the reference of the encounter id, or "" for none.

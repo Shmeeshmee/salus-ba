@@ -36,7 +36,8 @@ import (
 // TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled: the patient joins first and
 // waits; the practitioner signs in to the web app, joins from the appointment, sees and hears the patient; the
 // Encounter is in-progress; the practitioner ends the consultation, the patient is disconnected, the Encounter is
-// finished and the appointment fulfilled. The document the practitioner signed in the call is the patient's to open.
+// finished and the appointment fulfilled. The document the practitioner signed in the call is the patient's to open,
+// and the visit and the document are in the practitioner's view of the patient's history (SAL-40).
 func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled(t *testing.T) {
 	clinic := newBookableClinic(t)
 	p := newPatientWithProfile(t)
@@ -63,7 +64,9 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 	}
 	finished(t, p, appt.ID)
 	theSignedDiagnosisIsAConfirmedCondition(t, appt.ID, "J06.9")
+	theClinicsDiagnosisFiguresCountIt(t, clinic, "J06.9")
 	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template, term)
+	practitionerSeesThePatientsHistory(t, clinic, p, appt.ID, "J06.9")
 }
 
 // theSignedDiagnosisIsAConfirmedCondition: the code the practitioner confirmed in the browser is the one Condition
@@ -77,6 +80,25 @@ func theSignedDiagnosisIsAConfirmedCondition(t *testing.T, appointmentID, code s
 	if err != nil || n != 1 || got != code || status != "confirmed" {
 		t.Errorf("the encounter's Conditions: %d, %q %q, %v; want one confirmed %s", n, got, status, err, code)
 	}
+}
+
+// theClinicsDiagnosisFiguresCountIt: the signature's clinicstats_refresh job counts the confirmed code in the
+// clinic's statistics, which its admin reads (SAL-20): one diagnosis of the code in the days around today.
+func theClinicsDiagnosisFiguresCountIt(t *testing.T, clinic *bookableClinic, code string) {
+	t.Helper()
+	today := clock.System{}.Now().UTC()
+	path := "/analytics/clinic/diagnoses?by=code&from=" + today.AddDate(0, 0, -1).Format(time.DateOnly) +
+		"&to=" + today.AddDate(0, 0, 1).Format(time.DateOnly)
+	var got struct {
+		Rows []struct {
+			Key   string
+			Count int
+		}
+	}
+	eventually(t, "the clinic's diagnosis figures count the signed code", func() bool {
+		clinic.admin.must(http.StatusOK, http.MethodGet, path, nil, &got)
+		return len(got.Rows) == 1 && got.Rows[0].Key == code && got.Rows[0].Count == 1
+	})
 }
 
 // TestConsultation_ARevocationDuringTheCallRemovesThePatient: both are in the call of an appointment that has

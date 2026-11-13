@@ -2181,6 +2181,78 @@
       }
     }
   },
+  "myHistory": "My history",
+  "@myHistory": {
+    "description": "SAL-39: the home screen button and the title of the patient's history across every clinic."
+  },
+  "historyEmpty": "There is nothing in your history yet. Your visits, documents and answers appear here.",
+  "@historyEmpty": {
+    "description": "SAL-39: the history before it holds anything."
+  },
+  "historyNoMatch": "Nothing in your history matches these filters.",
+  "@historyNoMatch": {
+    "description": "SAL-39: the history when the filters chosen leave nothing."
+  },
+  "historyClinic": "Clinic",
+  "@historyClinic": {
+    "description": "SAL-39: the label of the history's clinic filter."
+  },
+  "historyAllClinics": "All clinics",
+  "@historyAllClinics": {
+    "description": "SAL-39: the clinic filter's choice that does not narrow."
+  },
+  "historyVisits": "Visits",
+  "@historyVisits": {
+    "description": "SAL-39: the type filter for visits (consultations)."
+  },
+  "historyVisit": "Visit",
+  "@historyVisit": {
+    "description": "SAL-39: the title of a visit in the history."
+  },
+  "historyAnswers": "Questionnaire answers",
+  "@historyAnswers": {
+    "description": "SAL-39: the type filter for completed questionnaire answers, and the title of one in the history."
+  },
+  "historyFiles": "Files",
+  "@historyFiles": {
+    "description": "SAL-39: the type filter for the files attached to questionnaire answers."
+  },
+  "historyFile": "File",
+  "@historyFile": {
+    "description": "SAL-39: the title of a file in the history that has no name."
+  },
+  "historyAnyDate": "Any date",
+  "@historyAnyDate": {
+    "description": "SAL-39: the date filter's button while no dates are chosen."
+  },
+  "historyDateRange": "{from} to {to}",
+  "@historyDateRange": {
+    "description": "SAL-39: the date filter's button with the days chosen, both long dates, the last included.",
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "historyClearDates": "Clear dates",
+  "@historyClearDates": {
+    "description": "SAL-39: removes the date filter."
+  },
+  "historyShowMore": "Show more",
+  "@historyShowMore": {
+    "description": "SAL-39: loads the next page of the history (it also loads as the list scrolls)."
+  },
+  "historyMoreFailed": "More of your history could not be loaded.",
+  "@historyMoreFailed": {
+    "description": "SAL-39: under the history when its next page could not be read; Try again follows."
+  },
+  "historyOpenFailed": "This item could not be opened. Try again.",
+  "@historyOpenFailed": {
+    "description": "SAL-39: an item of the history could not be opened."
+  },
   "sharingToggle": "Share my history from other clinics with this clinic",
   "@sharingToggle": {
     "description": "[legal] SAL-42: booking, the switch that shares visits from other clinics with this clinic; off by default. Draft, waiting for the owner."
