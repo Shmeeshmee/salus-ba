@@ -205,7 +205,7 @@
         {
           "type": "Provenance",
           "interaction": [{ "code": "read" }],
-          "documentation": "Who signed a Composition and when: its targets are the Composition's signed version and its DocumentReference. Read under the Composition's rule."
+          "documentation": "Who signed a Composition and when: its targets are the Composition's signed version and its DocumentReference, read under the Composition's rule. And who wrote an AllergyIntolerance or a MedicationStatement and when (SAL-41): one per practitioner's write and per patient's write on a clinic's entry, its target the version written, its activity from v3-DataOperation (CREATE to record, which also confirms: the agent its author and verifier; UPDATE to change, to add to the profile or, with the agent a verifier, to confirm; NULLIFY to remove as entered-in-error), its agent the PractitionerRole on behalf of its Organization or the Patient, and for a change the version revised as an entity. A clinic's names the clinic, so it is read only by the patient and by that clinic's staff who see the entry; the patient's are the patient's only; a patient's writes on their own entries have none (the entry names the patient as its source). Every read is audited."
         },
         {
           "type": "Questionnaire",
