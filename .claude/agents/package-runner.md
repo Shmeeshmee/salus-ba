@@ -21,7 +21,7 @@ The task gives you:
 
 ## 0. Start
 
-Run `bash scripts/runner.sh start` first. It starts the clock, notes which compose services are already running,
+Run `bash scripts/runner.sh start <plan> <package>` first (e.g. `start docs/booking 1.2`). It starts the clock, notes which compose services are already running,
 and gives this worktree its own `COMPOSE_PROJECT_NAME` and ports (`deployments/.env`; the main checkout keeps
 `salus`). At each phase boundary run `bash scripts/runner.sh phase <read|build|fast|full|record>`; when it exits
 3 the budget is spent: stop where you are and go to section 6.
@@ -64,8 +64,9 @@ Checks run in two layers:
   diff touches: `go vet` and `go test` of the changed Go packages and the packages that import them (every
   package when `go.mod` or `migrations/` changed), gofmt of the changed files, oxlint and `vitest related` for
   changed web and landing modules, `flutter analyze` and the matching tests for changed Dart files, and
-  `make i18n-check` when a catalog changed. A single test is run the same way (`make test TESTFLAGS=…` is the
-  whole suite; do not use it for this).
+  `make i18n-check` when a catalog changed. For a single test, run it through `check` in the `tools` container
+  (`bash scripts/runner.sh check one -- docker compose -f deployments/docker-compose.yml run --rm -T tools go test -run TestX ./internal/x`);
+  `make test TESTFLAGS=…` still runs every package, so do not use it for this.
 - **Full, once, at the end**: `bash scripts/runner.sh full` (the Go set, plus the app sets the diff touched),
   and any extra check the package's definition of done or the plan's check sets name, through
   `bash scripts/runner.sh check <name> [min] -- <command>`. Do not rerun the full set after each small fix: fix
@@ -82,7 +83,7 @@ Checks run in two layers:
 
 These hold for every session that runs a package, interactive or not, and for the session that opens its PR.
 
-- **Every wait has a hard timeout**: 10 minutes by default, 20 for CI. Start a long command with
+- **Every wait has a hard timeout**: 10 minutes by default, 20 for the full check set. Start a long command with
   `bash scripts/runner.sh bg <name> [min] -- <command>` and wait for it with `bash scripts/runner.sh wait <name>`:
   the pidfile and the exit file are the markers. Never wait by matching text in `ps`, `pgrep -f` or a log (the
   pattern matches your own command line); never write an `until`/`while … sleep` loop without a deadline. On
@@ -94,12 +95,13 @@ These hold for every session that runs a package, interactive or not, and for th
   needs them (`make test` starts the test services itself). Never stop a service that was running before you.
 - **Review and fix loops**: at most 2 rounds (a round is: read the findings, fix, run the fast layer). What is left
   after the second goes in DEFERRED.
-- **Retries**: a failing check gets one rerun on the same tree (`runner.sh check` allows exactly one). If it then
+- **Retries**: a check that passed is not run again on the same tree. A failing check gets one rerun on the same
+  tree (`runner.sh check` allows exactly one). If it then
   passes it is flaky: it goes in FLAKY, and the failure output in READINGS. No third run.
 - **Cleanup is part of done**: stop every background task you started (Claude Code's own background shells
   included), then run `bash scripts/runner.sh cleanup`. It kills what the session started (by pidfile and by
-  the session id in the process environment), removes this worktree's one-off containers, and stops or
-  `docker compose down`s the services the session brought up. Its CLEANUP line goes in the report.
+  the session id in the environment of processes working in this worktree), removes this worktree's one-off
+  containers, and stops or `docker compose down`s the services the session brought up. Its CLEANUP line goes in the report.
 - **Budget**: past the time budget you stop and report, done or not (section 6), instead of grinding on.
   `bash scripts/runner.sh report` prints the TIMINGS, FLAKY and CLEANUP lines.
 

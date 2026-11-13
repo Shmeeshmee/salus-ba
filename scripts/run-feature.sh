@@ -109,7 +109,7 @@ run_package() {
   local sid code=0
   sid="$prefix-$pkg-$(date +%s)"
   export RUNNER_SESSION="$sid" RUNNER_BUDGET_MIN="$budget"
-  bash scripts/runner.sh start
+  bash scripts/runner.sh start "$plan" "$pkg"
   local prompt started
   started=$(date '+%H:%M')
   prompt="Read .claude/agents/package-runner.md and follow it exactly.

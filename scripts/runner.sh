@@ -5,7 +5,7 @@
 # runs in Docker. State lives in .claude/runs/session/ (git-ignored), one session at a time per worktree.
 #
 #   runner.sh env                      COMPOSE_PROJECT_NAME and SALUS_*_PORT for this worktree (deployments/.env)
-#   runner.sh start                    begin a package: clock, stack snapshot, env (idempotent within a session)
+#   runner.sh start <plan> <package>   begin a package: clock, stack snapshot, env (idempotent for the same package)
 #   runner.sh phase <name>             a phase begins; exits 3 once the budget (RUNNER_BUDGET_MIN, 60) is spent
 #   runner.sh bg <name> [min] -- cmd   run cmd in the background: pidfile, log, timeout (default 10 min)
 #   runner.sh wait <name> [min]        wait for a bg command (default 10 min); on timeout kill it, exit 124
@@ -28,7 +28,9 @@ die() { echo "runner: $*" >&2; exit 1; }
 now() { date +%s; }
 need_state() { [ -f "$state/start" ] || die "no session; run 'bash scripts/runner.sh start' first"; }
 minutes() { echo $(( ($2 - $1 + 30) / 60 )); }
-session_id() { echo "${RUNNER_SESSION:-${CLAUDE_CODE_SESSION_ID:-manual-$$}}"; }
+session_id() { echo "${RUNNER_SESSION:-${CLAUDE_CODE_SESSION_ID:-manual}}"; }
+# One command string for bash -c: a single argument as written, several quoted one by one.
+cmd_string() { if [ $# -eq 1 ]; then printf '%s' "$1"; else printf '%q ' "$@"; fi; }
 
 # A worktree gets its own compose project and ports; the main checkout keeps `salus` and the defaults.
 # Ports: 20000 + slot*20 + offset, the slot (10..99) from the worktree's name. Keys already set in
@@ -41,8 +43,19 @@ cmd_env() {
   local name slot base project
   name=$(basename "$root")
   project=$(tr '[:upper:]' '[:lower:]' <<<"$name" | tr -c 'a-z0-9_\n-' '-')
-  slot=$(( $(cksum <<<"$name" | cut -d' ' -f1) % 90 + 10 ))
-  base=$(( 20000 + slot * 20 ))
+  # Ports already given to this worktree stay; a new worktree takes the first slot from its name's hash whose
+  # eight ports are free on the host.
+  base=$( [ -f "$envf" ] && awk -v b="$begin" -v e="$end" '$0 == b { s = 1; next } $0 == e { s = 0 } s' "$envf" |
+    sed -n 's/^SALUS_API_PORT=//p' || true)
+  if [ -z "$base" ]; then
+    local used i
+    used=$(ss -Htln 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u)
+    slot=$(( $(cksum <<<"$name" | cut -d' ' -f1) % 90 ))
+    for i in $(seq 0 89); do
+      base=$(( 20000 + ((slot + i) % 90 + 10) * 20 ))
+      grep -qxE "$base|$((base + 1))|$((base + 2))|$((base + 3))|$((base + 4))|$((base + 5))|$((base + 6))|$((base + 7))" <<<"$used" || break
+    done
+  fi
   local -a kv=("COMPOSE_PROJECT_NAME=$project" "SALUS_API_PORT=$base" "SALUS_LIVEKIT_PORT=$((base + 1))"
     "SALUS_LIVEKIT_TCP_PORT=$((base + 2))" "SALUS_LIVEKIT_UDP_PORT=$((base + 3))" "SALUS_MAILPIT_PORT=$((base + 4))"
     "SALUS_LANDING_PORT=$((base + 5))" "SALUS_WEB_PORT=$((base + 6))" "SALUS_LANDING_DEV_PORT=$((base + 7))")
@@ -63,12 +76,13 @@ cmd_env() {
 running_services() { { "${compose[@]}" ps --status running --services 2>/dev/null || true; } | grep -v '^$' | sort || true; }
 
 cmd_start() {
-  local id; id=$(session_id)
-  if [ -f "$state/session" ] && [ "$(cat "$state/session")" = "$id" ]; then
+  local id key; id=$(session_id); key="$id ${1:-} ${2:-}"
+  if [ -f "$state/key" ] && [ "$(cat "$state/key")" = "$key" ]; then
     echo "session $id already started $(minutes "$(cat "$state/start")" "$(now)") min ago"; return
   fi
   rm -rf "$state"; mkdir -p "$state"
   echo "$id" > "$state/session"
+  echo "$key" > "$state/key"
   now > "$state/start"
   git rev-parse HEAD > "$state/head"
   cmd_env
@@ -105,7 +119,7 @@ cmd_bg() {
   RUNNER_SESSION=$(cat "$state/session") setsid bash -c '
     timeout --kill-after=30 "$1" bash -c "$2" > "$3.log" 2>&1 & echo $! > "$3.tpid"
     wait $!; echo $? > "$3.exit.tmp"; mv "$3.exit.tmp" "$3.exit"
-  ' _ "$((min * 60))" "$*" "$state/$name" < /dev/null > /dev/null 2>&1 &
+  ' _ "$((min * 60))" "$(cmd_string "$@")" "$state/$name" < /dev/null > /dev/null 2>&1 &
   echo $! > "$state/$name.pid"
   echo "bg $name: pid $!, timeout $min min, log $state/$name.log"
 }
@@ -139,8 +153,8 @@ cmd_wait() {
 # The tree a check ran against: HEAD plus the working tree, so a rerun on an unchanged tree is recognised.
 tree_hash() { { git rev-parse HEAD; git diff HEAD; git ls-files --others --exclude-standard | xargs -r cksum; } | cksum | cut -d' ' -f1; }
 
-# check <name> [min] -- cmd: on an unchanged tree a failed check may run once more; passing then marks it flaky;
-# a third run is refused.
+# check <name> [min] -- cmd: a check that already passed on this tree is not run again; a failed one may run once
+# more on the same tree, and passing then marks it flaky; a third run is refused.
 cmd_check() {
   need_state
   local name=${1:?name}; shift
@@ -148,12 +162,15 @@ cmd_check() {
   [ "${1:-}" = "--" ] && shift
   local tree runs t0 code=0
   tree=$(tree_hash)
+  if awk -v n="$name" -v t="$tree" '$1 == n && $2 == t && $3 == 0 { f = 1 } END { exit !f }' "$state/checks"; then
+    echo "check $name: already passed on this tree; not run again"; return 0
+  fi
   runs=$(awk -v n="$name" -v t="$tree" '$1 == n && $2 == t' "$state/checks" | wc -l)
   if [ "$runs" -ge 2 ]; then
     echo "check $name: already run twice on this tree; no third run. Record it in the report." >&2; return 2
   fi
   t0=$(now)
-  timeout --kill-after=30 "$((min * 60))" bash -c "$*" || code=$?
+  timeout --kill-after=30 "$((min * 60))" bash -c "$(cmd_string "$@")" || code=$?
   echo "$name $tree $code $(( $(now) - t0 ))" >> "$state/checks"
   if [ "$code" = 124 ]; then echo "TIMEOUT check $name after $min min" >&2; fi
   if [ "$code" = 0 ] && [ "$runs" = 1 ]; then echo "$name" >> "$state/flaky"; echo "check $name: passed on the rerun; recorded as flaky"; fi
@@ -167,7 +184,9 @@ changed_files() {
 
 cmd_fast() {
   need_state
-  local files go_dirs pkgs web landing mobile i18n tools_mod
+  local files go_dirs pkgs web landing mobile i18n tools_mod worst=0
+  # Every layer runs; the worst exit code is returned at the end.
+  layer() { local c=0; cmd_check "$@" || c=$?; [ "$c" -le "$worst" ] || worst=$c; }
   files=$(changed_files)
   [ -n "$files" ] || { echo "fast: nothing changed"; return 0; }
   go_dirs=$(grep -E '^(cmd|internal|pkg)/.*\.go$|^(go\.mod|go\.sum)$|^migrations/|/query\.sql$' <<<"$files" |
@@ -190,26 +209,27 @@ cmd_fast() {
         if [ "$d" = "./..." ] || grep -lqE 'pgtest|redistest|TEST_[A-Z_]+' "${d%/...}"/*_test.go 2>/dev/null; then deps=""; break; fi
       done
       echo "fast go: $pkgs${deps:+ (no test services)}"
-      cmd_check go-fast 10 -- "${compose[*]} run --rm $deps -T tools sh -c '${fmt}go vet $pkgs && go test -count=1 $pkgs'"
+      layer go-fast 10 -- "${compose[*]} run --rm $deps -T tools sh -c '${fmt}go vet $pkgs && go test -count=1 $pkgs'"
     fi
   fi
   if [ "$tools_mod" -gt 0 ]; then
-    cmd_check tools-fast 10 -- "${compose[*]} run --rm --no-deps -T tools sh -c 'go -C tools vet ./... && go -C tools test ./...'"
+    layer tools-fast 10 -- "${compose[*]} run --rm --no-deps -T tools sh -c 'go -C tools vet ./... && go -C tools test ./...'"
   fi
   if [ -n "$web" ]; then
     echo "fast web: $(wc -l <<<"$web") files"
-    cmd_check web-fast 10 -- "make -s web-install >/dev/null && ${compose[*]} run --rm -T node sh -c 'npx oxlint $(paste -sd' ' <<<"$web") && npx vitest related --run --passWithNoTests $(paste -sd' ' <<<"$web")'"
+    layer web-fast 10 -- "make -s web-install >/dev/null && ${compose[*]} run --rm -T node sh -c 'npx oxlint $(paste -sd' ' <<<"$web") && npx vitest related --run --passWithNoTests $(paste -sd' ' <<<"$web")'"
   fi
   if [ -n "$landing" ]; then
-    cmd_check landing-fast 10 -- "make -s landing-install >/dev/null && ${compose[*]} run --rm -T -w /src/landing node sh -c 'npx oxlint $(paste -sd' ' <<<"$landing") && npx vitest related --run --passWithNoTests $(paste -sd' ' <<<"$landing")'"
+    layer landing-fast 10 -- "make -s landing-install >/dev/null && ${compose[*]} run --rm -T -w /src/landing node sh -c 'npx oxlint $(paste -sd' ' <<<"$landing") && npx vitest related --run --passWithNoTests $(paste -sd' ' <<<"$landing")'"
   fi
   if [ -n "$mobile" ]; then
     local tests
     tests=$(for f in $mobile; do case "$f" in test/*) echo "$f" ;; lib/*) t="test/${f#lib/}"; t="${t%.dart}_test.dart"; [ -f "mobile/$t" ] && echo "$t" ;; esac; done | sort -u | paste -sd' ')
-    cmd_check mobile-fast 10 -- "${compose[*]} run --rm -T flutter sh -c 'flutter analyze $(paste -sd' ' <<<"$mobile")${tests:+ && flutter test $tests}'"
+    layer mobile-fast 10 -- "${compose[*]} run --rm -T flutter sh -c 'flutter analyze $(paste -sd' ' <<<"$mobile")${tests:+ && flutter test $tests}'"
   fi
-  if [ "$i18n" -gt 0 ]; then cmd_check i18n-fast 5 -- "make -s i18n-check"; fi
-  echo "fast: done"
+  if [ "$i18n" -gt 0 ]; then layer i18n-fast 5 -- "make -s i18n-check"; fi
+  echo "fast: done$([ "$worst" = 0 ] || echo ", exit $worst")"
+  return "$worst"
 }
 
 # The full set, once: the Go checks always, the apps' checks when the package touched them. The plan's own check
@@ -227,7 +247,8 @@ cmd_full() {
 }
 
 # Processes of this session: the session id in their environment (RUNNER_SESSION, set by run-feature.sh and bg,
-# or the Claude Code session id), started after the session began. Never this shell, its parents, or claude.
+# or the Claude Code session id, which subagents share with their parent), working in this worktree, and started
+# after the session began. Never this shell, its parents, or claude.
 session_pids() {
   local id start self p
   id=$(cat "$state/session"); start=$(cat "$state/start")
@@ -237,6 +258,7 @@ session_pids() {
     p=${d#/proc/}
     [ -n "${skip[$p]:-}" ] && continue
     [ "$(cat "$d/comm" 2>/dev/null)" = claude ] && continue
+    case "$(readlink "$d/cwd" 2>/dev/null)/" in "$root"/*) ;; *) continue ;; esac
     tr '\0' '\n' 2>/dev/null < "$d/environ" | grep -qxE "(RUNNER_SESSION|CLAUDE_CODE_SESSION_ID)=$id" || continue
     self=$(ps -o etimes= -p "$p" 2>/dev/null | tr -d ' ') || continue
     [ -n "$self" ] && [ $(( $(now) - self )) -ge "$start" ] && echo "$p"
@@ -310,7 +332,7 @@ cmd_gate() {
 sub=${1:-}; shift || true
 case "$sub" in
   env) cmd_env ;;
-  start) cmd_start ;;
+  start) cmd_start "$@" ;;
   phase) cmd_phase "$@" ;;
   bg) cmd_bg "$@" ;;
   wait) cmd_wait "$@" ;;
