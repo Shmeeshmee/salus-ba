@@ -190,7 +190,14 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if ((path === '/chats' || chatPath.test(path)) && account.role === 'practitioner') return <ChatRoutes api={api} fhir={fhir} account={account} path={path} />
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/clinic' && account.role === 'admin') {
-    return <ClinicSettings fhir={fhir} organizationId={account.organizationId ?? ''} />
+    return (
+      <ClinicSettings
+        api={api}
+        fhir={fhir}
+        organizationId={account.organizationId ?? ''}
+        platform={account.features?.includes('analytics_platform') === true}
+      />
+    )
   }
   return <p className="panel">{t('shell.notFound')}</p>
 }

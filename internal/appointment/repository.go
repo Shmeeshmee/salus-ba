@@ -54,4 +54,6 @@ type TokenRepository interface {
 type StatsRepository interface {
 	// Booked returns a clinic's appointments starting in [from, to), every status, oldest first.
 	Booked(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error)
+	// Fulfilled returns a clinic's fulfilled appointments starting in [from, to), oldest first.
+	Fulfilled(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error)
 }

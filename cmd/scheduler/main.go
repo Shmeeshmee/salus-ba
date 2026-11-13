@@ -1,4 +1,5 @@
-// Command scheduler enqueues River's periodic jobs (retention_apply daily at 03:00 UTC) and, as River's only
+// Command scheduler enqueues River's periodic jobs (retention_apply daily at 03:00 UTC, and the trends builds while
+// ANALYTICS_PLATFORM_ENABLED is on) and, as River's only
 // leader, runs its maintenance (internal/worker.NewScheduler). It works no job and logs in as salus_app.
 package main
 
@@ -42,7 +43,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer pool.Close()
-	client, err := worker.NewScheduler(pool, log)
+	client, err := worker.NewScheduler(pool, cfg.Analytics.PlatformEnabled, log)
 	if err != nil {
 		return err
 	}

@@ -99,3 +99,11 @@ VALUES (@created_at, @start_at, @start_at, @appointment_id, @organization_id, @p
 -- Retention, as salus_retention: links whose period after their expiry is over.
 DELETE FROM appointment_action_token
 WHERE expires_at < @before::timestamptz;
+
+-- name: ListFulfilledForStats :many
+-- A clinic's fulfilled appointments starting in [from, to), oldest first: the platform heatmap reads no other.
+SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
+FROM appointment
+WHERE organization_id = @organization_id AND status = 'fulfilled'
+  AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+ORDER BY lower(period);

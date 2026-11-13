@@ -300,3 +300,21 @@ func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} 
 func optionalTS(t time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()}
 }
+func (r *postgresStatsRepository) Fulfilled(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error) {
+	var org pgtype.UUID
+	if org.Scan(orgID) != nil {
+		return nil, ErrNotFound
+	}
+	rows, err := appointmentdb.New(postgres.Conn(ctx, r.db)).ListFulfilledForStats(ctx, appointmentdb.ListFulfilledForStatsParams{
+		OrganizationID: org, FromAt: pgtype.Timestamptz{Time: from, Valid: true}, ToAt: pgtype.Timestamptz{Time: to, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Booked, len(rows))
+	for i, row := range rows {
+		out[i] = Booked{Start: row.StartAt.Time.UTC(), PatientID: row.PatientID.String(),
+			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status)}
+	}
+	return out, nil
+}

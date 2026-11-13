@@ -74,6 +74,10 @@ Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *AnalyticsApi* | [**getClinicAppointmentStats**](doc//AnalyticsApi.md#getclinicappointmentstats) | **GET** /analytics/clinic/appointments | The clinic's appointments over time
 *AnalyticsApi* | [**getClinicDiagnosisStats**](doc//AnalyticsApi.md#getclinicdiagnosisstats) | **GET** /analytics/clinic/diagnoses | The clinic's diagnoses, counted by a breakdown
+*AnalyticsApi* | [**getPlatformCells**](doc//AnalyticsApi.md#getplatformcells) | **GET** /analytics/platform/cells | A breakdown of one All of Salus table
+*AnalyticsApi* | [**getPlatformHeatmap**](doc//AnalyticsApi.md#getplatformheatmap) | **GET** /analytics/platform/heatmap | A published quarter's fulfilled appointments by weekday and hour
+*AnalyticsApi* | [**getPlatformMonths**](doc//AnalyticsApi.md#getplatformmonths) | **GET** /analytics/platform/months | The published months and quarters of the All of Salus figures
+*AnalyticsApi* | [**getPlatformRises**](doc//AnalyticsApi.md#getplatformrises) | **GET** /analytics/platform/rises | Unusual rises of a diagnosis group in a region
 *AppointmentLinksApi* | [**actOnAppointmentLink**](doc//AppointmentLinksApi.md#actonappointmentlink) | **POST** /a/{token} | Confirm or cancel through a reminder's one-time link
 *AppointmentLinksApi* | [**getAppointmentLinkPage**](doc//AppointmentLinksApi.md#getappointmentlinkpage) | **GET** /a/{token} | The page of a reminder's one-time link
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
@@ -344,6 +348,13 @@ Class | Method | HTTP request | Description
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)
  - [PlaceList](doc//PlaceList.md)
+ - [PlatformBreakdown](doc//PlatformBreakdown.md)
+ - [PlatformBreakdownRowsInner](doc//PlatformBreakdownRowsInner.md)
+ - [PlatformHeatmap](doc//PlatformHeatmap.md)
+ - [PlatformHeatmapCellsInner](doc//PlatformHeatmapCellsInner.md)
+ - [PlatformMonths](doc//PlatformMonths.md)
+ - [PlatformRises](doc//PlatformRises.md)
+ - [PlatformRisesRisesInner](doc//PlatformRisesRisesInner.md)
  - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)

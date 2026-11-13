@@ -460,6 +460,20 @@ class ApiClient {
           return Place.fromJson(value);
         case 'PlaceList':
           return PlaceList.fromJson(value);
+        case 'PlatformBreakdown':
+          return PlatformBreakdown.fromJson(value);
+        case 'PlatformBreakdownRowsInner':
+          return PlatformBreakdownRowsInner.fromJson(value);
+        case 'PlatformHeatmap':
+          return PlatformHeatmap.fromJson(value);
+        case 'PlatformHeatmapCellsInner':
+          return PlatformHeatmapCellsInner.fromJson(value);
+        case 'PlatformMonths':
+          return PlatformMonths.fromJson(value);
+        case 'PlatformRises':
+          return PlatformRises.fromJson(value);
+        case 'PlatformRisesRisesInner':
+          return PlatformRisesRisesInner.fromJson(value);
         case 'PushDevice':
           return PushDevice.fromJson(value);
         case 'Questionnaire':

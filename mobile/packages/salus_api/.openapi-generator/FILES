@@ -157,6 +157,13 @@ lib/model/patient.dart
 lib/model/period_unit.dart
 lib/model/place.dart
 lib/model/place_list.dart
+lib/model/platform_breakdown.dart
+lib/model/platform_breakdown_rows_inner.dart
+lib/model/platform_heatmap.dart
+lib/model/platform_heatmap_cells_inner.dart
+lib/model/platform_months.dart
+lib/model/platform_rises.dart
+lib/model/platform_rises_rises_inner.dart
 lib/model/push_device.dart
 lib/model/questionnaire.dart
 lib/model/questionnaire_default.dart

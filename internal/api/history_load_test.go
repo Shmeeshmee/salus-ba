@@ -122,7 +122,7 @@ func TestHistoryLoad(t *testing.T) {
 func historyService(app *pgxpool.Pool, spent map[string]time.Duration) *history.Service {
 	tx := postgres.NewTransactor(app)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, clock.System{})
-	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clock.System{})
+	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clock.System{}, nil)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics,
 		People: practitioner.NewService(practitioner.NewPostgresRepository(app), audit, tx),

@@ -1097,6 +1097,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/platform/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The published months and quarters of the All of Salus figures
+         * @description The calendar months and quarters built and published (docs/plans/analytics.md §5), oldest first, and k, the minimum count. Only while ANALYTICS_PLATFORM_ENABLED is on (otherwise every /analytics/platform path is a 404, §2a), for staff of a clinic that contributes (O5, O6). Audited.
+         */
+        get: operations["getPlatformMonths"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A breakdown of one All of Salus table
+         * @description One table of the published months (gd: geography × diagnosis, gs: geography × specialty, sd: specialty × diagnosis), some of its dimensions fixed, broken down by one of them or by month (§5, §8). Every key of the dimension is returned; a count is the sum of its published month cells, rounded to 5, and null when none is, for 0 and for suppressed alike (A8). `partial` is true when a count leaves out a month that is null for its key (A9: patient-months). A code is a key only in the months it is published at geography = all. Any other parameter, or a combination outside the table, is a 400. Audited.
+         */
+        get: operations["getPlatformCells"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/heatmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A published quarter's fulfilled appointments by weekday and hour
+         * @description The 7 × 24 cells (ISO weekday, 1 = Monday; the clinics' local hour) of a published quarter, of a region, an entity or all of Salus (§5): distinct patients rounded to 5, null for 0 and for suppressed alike. Audited.
+         */
+        get: operations["getPlatformHeatmap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/platform/rises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unusual rises of a diagnosis group in a region
+         * @description The rise flags of the last built ISO weeks (§6): week, leaf region and diagnosis group, no count. A flag compares the week with the weeks before; it is not a public-health alert. Audited.
+         */
+        get: operations["getPlatformRises"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/terminology/review/diagnosis-groups": {
         parameters: {
             query?: never;
@@ -2642,6 +2722,8 @@ export interface components {
             language?: components["schemas"]["Language"];
             /** @description True for a reviewer of the medical term list, a permission only the operator grants (salusctl term-reviewer); absent otherwise. */
             termReviewer?: boolean;
+            /** @description The codes of the features turned on for the deployment; absent when none is. analytics_platform: the All of Salus view (ANALYTICS_PLATFORM_ENABLED, docs/plans/analytics.md §2a). */
+            features?: "analytics_platform"[];
         };
         UpdateMeRequest: {
             /** @description The language chosen, or `null` to follow the browser's or the device's language again. */
@@ -2675,6 +2757,35 @@ export interface components {
             parent?: string;
             name: string;
             reviewStatus: components["schemas"]["ReviewStatus"];
+        };
+        PlatformMonths: {
+            months: string[];
+            quarters: string[];
+            /** @description k: no published cell holds fewer patients (A4). */
+            minCount: number;
+        };
+        PlatformBreakdown: {
+            rows: {
+                /** @description A place id, a group or subgroup code, an ICD-10 code, a SNOMED CT code or a month. */
+                key: string;
+                /** @description Distinct patients (summed over months: patient-months), rounded to 5; null for 0 and for suppressed alike. */
+                count: number | null;
+            }[];
+            partial: boolean;
+        };
+        PlatformHeatmap: {
+            cells: {
+                weekday: number;
+                hour: number;
+                count: number | null;
+            }[];
+        };
+        PlatformRises: {
+            rises: {
+                week: string;
+                region: string;
+                group: string;
+            }[];
         };
         PlaceList: {
             places: components["schemas"]["Place"][];
@@ -4858,6 +4969,33 @@ export interface components {
         };
         /** @description `internal error`. */
         InternalError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `unauthenticated`: no valid session. */
+        PlatformUnauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `forbidden`: the caller is not staff of a clinic; `analytics_not_contributing`: the caller's clinic has opted out of the platform figures, so its staff do not see them (O6). */
+        PlatformForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `invalid_request`: a parameter that is not one of the query's, or a combination outside the tables. */
+        PlatformInvalid: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7752,6 +7890,126 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformMonths: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The periods. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformMonths"];
+                };
+            };
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformCells: {
+        parameters: {
+            query: {
+                table: "gd" | "gs" | "sd";
+                /** @description The first month, 2026-01. */
+                from: string;
+                /** @description The last month; at most 60 months from the first. */
+                to: string;
+                by: "entity" | "region" | "city" | "group" | "subgroup" | "code" | "specialty" | "month";
+                entity?: string;
+                region?: string;
+                /** @description A city's Wikidata id. */
+                city?: string;
+                group?: string;
+                subgroup?: string;
+                /** @description An ICD-10 code. */
+                code?: string;
+                /** @description A SNOMED CT code. */
+                specialty?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The breakdown. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformBreakdown"];
+                };
+            };
+            400: components["responses"]["PlatformInvalid"];
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformHeatmap: {
+        parameters: {
+            query: {
+                quarter: string;
+                /** @description A leaf region or an entity; all of Salus when left out. */
+                region?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cells. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformHeatmap"];
+                };
+            };
+            400: components["responses"]["PlatformInvalid"];
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPlatformRises: {
+        parameters: {
+            query?: {
+                /** @description A leaf region; all when left out. */
+                region?: string;
+                weeks?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The flags. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformRises"];
+                };
+            };
+            400: components["responses"]["PlatformInvalid"];
+            401: components["responses"]["PlatformUnauthenticated"];
+            403: components["responses"]["PlatformForbidden"];
             500: components["responses"]["InternalError"];
         };
     };

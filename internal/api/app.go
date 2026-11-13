@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/transcript"
+	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -79,7 +81,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{},
+		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool))) // the location's check and city name
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, People: practitioners,
@@ -105,7 +108,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles,
 		RateLimitKey: cfg.RateLimitKey, Hasher: auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes),
 	})
-	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies)
+	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies).WithFeatures(features(cfg.Analytics))
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners, roles, appointment.NewFacts(appointmentRepo))
 	consultAPI, consultStream, documents := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
 	questionnaireAPI, streams, timeline := questionnaireRoutes(questionnairePorts{
@@ -137,7 +140,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)), newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log)...), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
@@ -661,6 +664,54 @@ func uiLanguage(accounts *auth.Service) func(ctx context.Context, accountID stri
 			return a.Language, nil
 		}
 		return a.DetectedLanguage, nil
+	}
+}
+
+// features are the codes GET /auth/me lists: analytics_platform when the platform view is on (§2a).
+func features(a config.Analytics) []string {
+	if a.PlatformEnabled {
+		return []string{"analytics_platform"}
+	}
+	return nil
+}
+
+// platformRoutes are the All of Salus view's routes (docs/plans/analytics.md §5, §8), none while
+// ANALYTICS_PLATFORM_ENABLED is off (§2a): its paths then answer 404.
+func platformRoutes(a config.Analytics, pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor,
+	clinics *organization.Service, accounts *auth.Service, log *slog.Logger,
+) []func(*http.ServeMux) {
+	if !a.PlatformEnabled {
+		return nil
+	}
+	codes := make([]string, 0, len(practitionerrole.Specialties()))
+	for _, s := range practitionerrole.Specialties() {
+		codes = append(codes, s.Code)
+	}
+	view := trends.NewService(trends.Ports{
+		Repo: trends.NewPostgresRepository(pool), Clinics: clinics, Catalog: terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool)),
+		Audit: audit, Tx: tx, Specialties: codes, K: a.MinCount,
+	})
+	return []func(*http.ServeMux){trends.NewHandler(view, trendsCaller(accounts), log).Routes}
+}
+
+// trendsCaller is the platform view's view of the signed-in session: whether the account is staff of the session's
+// clinic (its admin or a practitioner), as read from the database.
+func trendsCaller(accounts *auth.Service) func(ctx context.Context) (trends.Caller, bool, error) {
+	return func(ctx context.Context) (trends.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return trends.Caller{}, false, nil
+		}
+		c := trends.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if s.OrganizationID == "" {
+			return c, true, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return trends.Caller{}, false, err
+		}
+		c.Staff = m.Admin || m.PractitionerID != ""
+		return c, true, nil
 	}
 }
 

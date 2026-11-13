@@ -42,7 +42,7 @@ func (c *countingTx) WithTx(ctx context.Context, fn func(ctx context.Context) er
 // Names reads every clinic in one transaction, not one each (the review of SAL-39, finding 5).
 func TestNames_ReadsEveryClinicInOneTransaction(t *testing.T) {
 	repo, tx := newFakeRepository(), &countingTx{}
-	got, err := organization.NewService(repo, &fakeAuditor{}, tx, clock.Fixed{T: now}).Names(t.Context(), []string{clinicA, clinicB})
+	got, err := organization.NewService(repo, &fakeAuditor{}, tx, clock.Fixed{T: now}, nil).Names(t.Context(), []string{clinicA, clinicB})
 	if err != nil || len(got) != 2 || tx.n != 1 {
 		t.Errorf("Names() = %v, %v in %d transactions; want both in one", got, err, tx.n)
 	}

@@ -45,6 +45,6 @@ func newSlots(pool *pgxpool.Pool, clk clock.Clock) *slot.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
 	schedules := schedule.NewService(schedule.Ports{Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
 	return slot.NewService(slot.NewPostgresRepository(pool), tx, clk, schedules, clinics)
 }

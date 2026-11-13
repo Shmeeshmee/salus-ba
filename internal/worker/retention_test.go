@@ -112,7 +112,7 @@ func runWorkerJobWith(t *testing.T, db logins, p videosession.Provider, args riv
 func runJobOn(t *testing.T, db logins, p videosession.Provider, files worker.Files, args river.JobArgs, opts *river.InsertOpts) (river.EventKind, string) {
 	t.Helper()
 	logs := &syncBuffer{}
-	client, err := worker.New(db.app, db.retention, db.stats, p, files, webhookKey, slog.New(slog.NewJSONHandler(logs, nil)))
+	client, err := worker.New(db.app, db.retention, db.stats, p, files, webhookKey, worker.Trends{}, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -192,7 +192,7 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"appointment_action_token 0", "binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "video_session 0", "webhook_dead_letter 0"}; !slices.Equal(audited, want) {
+	if want := []string{"appointment_action_token 0", "binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "trends_cell 0", "trends_rise 0", "video_session 0", "webhook_dead_letter 0"}; !slices.Equal(audited, want) {
 		t.Errorf("audited %v, want one event per table with its row count", audited)
 	}
 }
@@ -235,7 +235,7 @@ func assertNoPersonalData(t *testing.T, logs string) {
 func TestNew_RefusesToStartWithoutTheRetentionPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
 
-	if _, err := worker.New(app, nil, app, liveKit(t), testFiles(t), webhookKey, slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, nil, app, liveKit(t), testFiles(t), webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the retention pool")
 	}
 }
@@ -283,7 +283,7 @@ func composeSectionsWith(t *testing.T, variable string) []string {
 func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 	uses := poolUses(t, "retentionPool")
 	if want := []string{"appointment.NewPostgresTokenRepository", "auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
-		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
+		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "trends.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
 		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
 	}
 }

@@ -19,8 +19,9 @@ func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 // seedClinics creates clinics A and B as the owner.
 func seedClinics(t *testing.T, owner *pgxpool.Pool) {
 	t.Helper()
-	_, err := owner.Exec(t.Context(), `INSERT INTO organization (id, name, updated_at) VALUES
-		($1, 'Synthetic clinic A', '2026-11-01T08:00:00Z'), ($2, 'Synthetic clinic B', '2026-11-01T08:00:00Z')`, clinicA, clinicB)
+	_, err := owner.Exec(t.Context(), `INSERT INTO organization (id, name, updated_at, contributes_since) VALUES
+		($1, 'Synthetic clinic A', '2026-11-01T08:00:00Z', '2026-11-01T08:00:00Z'),
+		($2, 'Synthetic clinic B', '2026-11-01T08:00:00Z', '2026-11-01T08:00:00Z')`, clinicA, clinicB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,9 +50,10 @@ func TestByID_SeesOnlyTheClinicSet(t *testing.T) {
 		got, err = repo.ByID(ctx, clinicA)
 		return err
 	})
+	seeded := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
 	want := organization.Organization{ID: clinicA, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo", DefaultLanguage: "bs", VersionID: 1, Active: true,
-		LastUpdated: time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)}
-	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
+		LastUpdated: seeded, AnalyticsContributes: true, ContributesSince: seeded}
+	if got.LastUpdated, got.ContributesSince = got.LastUpdated.UTC(), got.ContributesSince.UTC(); err != nil || got != want {
 		t.Errorf("ByID(clinic A) in clinic A = %+v, %v;\nwant %+v", got, err, want)
 	}
 	for _, id := range []string{clinicB, "not-a-uuid"} {
@@ -78,11 +80,16 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 	var got organization.Organization
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		var err error
-		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, VersionID: 1}, at)
+		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, VersionID: 1,
+			Region: "BA-09", City: "Q1270190", LocationSince: at, ContributesSince: at}, at)
 		return err
 	})
-	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, Active: true, VersionID: 2, LastUpdated: at}
-	if got.LastUpdated = got.LastUpdated.UTC(); err != nil || got != want {
+	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, Active: true, VersionID: 2, LastUpdated: at,
+		Region: "BA-09", City: "Q1270190", LocationSince: at, ContributesSince: at}
+	utc := func(o *organization.Organization) {
+		o.LastUpdated, o.LocationSince, o.ContributesSince = o.LastUpdated.UTC(), o.LocationSince.UTC(), o.ContributesSince.UTC()
+	}
+	if utc(&got); err != nil || got != want {
 		t.Errorf("Update() = %+v, %v;\nwant %+v", got, err, want)
 	}
 	var read organization.Organization
@@ -91,7 +98,7 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 		read, err = repo.ByID(ctx, clinicA)
 		return err
 	})
-	if read.LastUpdated = read.LastUpdated.UTC(); err != nil || read != want {
+	if utc(&read); err != nil || read != want {
 		t.Errorf("ByID() after Update = %+v, %v;\nwant %+v", read, err, want)
 	}
 	for name, tc := range map[string]struct {
@@ -103,7 +110,7 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 		"an id not a UUID": {id: "not-a-uuid", version: 1},
 	} {
 		err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
-			_, err := repo.Update(ctx, organization.Organization{ID: tc.id, Name: "Again", TimeZone: "UTC", DefaultLanguage: "en", VersionID: tc.version}, at)
+			_, err := repo.Update(ctx, organization.Organization{ID: tc.id, Name: "Again", TimeZone: "UTC", DefaultLanguage: "en", VersionID: tc.version, ContributesSince: at}, at)
 			return err
 		})
 		if !errors.Is(err, organization.ErrConflict) {
@@ -182,5 +189,22 @@ func TestListed_ShowsOnlyListedClinicsInTheDirectoryScopeByName(t *testing.T) {
 	}
 	if err := repo.SetDirectory(t.Context()); !errors.Is(err, postgres.ErrNoTx) {
 		t.Errorf("SetDirectory() outside a transaction: %v, want postgres.ErrNoTx", err)
+	}
+}
+
+// A location that is not a city of its leaf region is refused by the database too.
+func TestUpdate_RefusesACityOutsideItsRegion(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedClinics(t, owner)
+	repo := organization.NewPostgresRepository(app)
+	at := time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)
+	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+		_, err := repo.Update(ctx, organization.Organization{ID: clinicA, Name: "A", TimeZone: "UTC", DefaultLanguage: "en", VersionID: 1,
+			Region: "BA-01", City: "Q1270190", LocationSince: at, ContributesSince: at}, at)
+		return err
+	})
+	if !errors.Is(err, organization.ErrInvalidLocation) {
+		t.Errorf("Update() = %v, want ErrInvalidLocation", err)
 	}
 }
