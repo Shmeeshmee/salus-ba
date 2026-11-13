@@ -19,12 +19,6 @@ const (
 	minutesPerDay    = 24 * 60
 )
 
-// Settings gives a clinic's appointment rules in the caller's transaction, setting the clinic's scope on it
-// (organization.Appointments).
-type Settings interface {
-	For(ctx context.Context, org string) (organization.AppointmentSettings, error)
-}
-
 // Join puts the calling patient on the waitlist of a clinic for one of its practitioner roles or a specialty, between
 // two dates of the clinic's zone (from today, at most 90 days ahead) and, optionally, a time of day. In one transaction
 // in the patient's scope: the clinic is listed and has the waitlist on, the role is an active one of the clinic, the
@@ -76,7 +70,7 @@ func validEntry(in NewEntry) bool {
 // join checks and stores the entry in the transaction in ctx, or gives the refusal.
 func (s *Service) join(ctx context.Context, c Caller, in NewEntry) (out WaitlistEntry, refused, err error) {
 	org := in.OrganizationID
-	set, err := s.Settings.For(ctx, org) // sets the clinic's scope: the patient's is set after it
+	set, err := s.Rules.For(ctx, org) // sets the clinic's scope: the patient's is set after it
 	if err != nil {
 		return WaitlistEntry{}, nil, err
 	}

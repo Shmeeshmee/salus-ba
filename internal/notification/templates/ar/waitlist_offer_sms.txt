@@ -1,0 +1,1 @@
+موعد متاح: {{.Clinic}}، {{.Day}}/{{.Month}}/{{.Year}} الساعة {{.Time}} ({{.Zone}})، محجوز حتى {{.Until}}. احجزه في Salus: {{.Link}}

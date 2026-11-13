@@ -133,6 +133,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &clinicStatsRefreshWorker{builds: s.clinicStats})
 	river.AddWorker(workers, &clinicStatsNightlyWorker{builds: s.clinicStats})
 	river.AddWorker(workers, &trendsWorker{builder: s.trends, log: log})
+	river.AddWorker(workers, &remindersSweepWorker{appointments: s.appointments, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

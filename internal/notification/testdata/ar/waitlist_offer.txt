@@ -6,4 +6,4 @@ Subject: أصبح موعد كنت تنتظره متاحًا
 الموعد محجوز لك حتى 09:10 (Europe/Sarajevo)، وبعد ذلك يُعرض على المريض التالي. قبوله في التطبيق يحجز الموعد.
 
 لقبوله أو رفضه، افتح تطبيق Salus:
-https://patient.example.test/waitlist
+https://app.salus.invalid/waitlist

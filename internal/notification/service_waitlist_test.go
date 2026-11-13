@@ -2,133 +2,194 @@ package notification_test
 
 import (
 	"context"
-	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/notification"
-	"github.com/Shmeeshmee/salus/pkg/push"
-	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
+	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/sms"
 )
 
 const offerID = "0f000000-0000-4000-8000-0000000000f0"
 
-// fakeOffers gives an offer of the state set, made at 07:55 UTC on the day of start and held until expires (08:10 UTC,
-// 09:10 in Sarajevo, by default).
+// offerStart is Monday 7 January 2030, 10:00 in Sarajevo; the offer was made at 08:55 there and is held until 09:10.
+var (
+	offerStart = time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
+	offerMade  = offerStart.Add(-65 * time.Minute)
+)
+
+// fakeOffers gives the offer, open and held until expires unless state says otherwise.
 type fakeOffers struct {
 	expires time.Time
-	err     error
 	state   appointment.OfferState
 	asked   []string
 }
 
 func (f *fakeOffers) OfferNotice(_ context.Context, agent, org, id string) (appointment.OfferNotice, error) {
-	f.asked = []string{agent, org, id}
+	f.asked = append(f.asked, agent)
+	if id != offerID {
+		return appointment.OfferNotice{}, appointment.ErrNotFound
+	}
 	return appointment.OfferNotice{AccountID: patientAccount, Offer: appointment.Offer{
 		ID: id, OrganizationID: org, PatientID: patientID, PractitionerRoleID: roleID, SlotID: "51000000-0000-4000-8000-000000000001",
-		Start: start, End: start.Add(30 * time.Minute), Created: start.Add(-65 * time.Minute), ExpiresAt: f.expires, State: f.state,
-	}}, f.err
+		Start: offerStart, End: offerStart.Add(30 * time.Minute), Created: offerMade, ExpiresAt: f.expires, State: f.state,
+	}}, nil
 }
 
-type waitlistNotices struct {
-	offers   *fakeOffers
-	accounts *fakeAccounts
-	sender   *fakeSender
-	pusher   *pushtest.Sender
-	repo     *fakeChatRepo
-	audit    *fakeChatAudit
-	svc      *notification.Waitlist
-}
-
-func newWaitlistNotices(language string) waitlistNotices {
-	n := waitlistNotices{
-		offers: &fakeOffers{state: appointment.OfferOpen, expires: start.Add(-50 * time.Minute)}, accounts: &fakeAccounts{language: language}, sender: &fakeSender{},
-		pusher: &pushtest.Sender{}, repo: newFakeChatRepo(), audit: &fakeChatAudit{},
-	}
-	n.svc = notification.NewWaitlist(notification.WaitlistPorts{
-		Offers: n.offers, Accounts: n.accounts, Clinics: zonedClinics{}, Repo: n.repo, Pusher: n.pusher, Sender: n.sender,
-		Audit: n.audit, Tx: fakeChatTx{}, PatientAppURL: "https://patient.example.test/",
+// offerFixture is the reminders' fixture with the offers, at now, for a patient writing in language who opted into
+// every channel at a clinic that offers SMS.
+func offerFixture(now time.Time, language string) (*reminderFixture, *fakeOffers) {
+	f := newReminderFixture(now, offerStart, fakeRules{sms: true})
+	offers := &fakeOffers{expires: offerMade.Add(15 * time.Minute), state: appointment.OfferOpen}
+	f.deliveries.prefs[patientAccount] = notification.Preferences{Channels: notification.Channels{Push: true, Email: true, SMS: true}}
+	accounts := &fakeChatAccounts{language: map[string]string{patientAccount: language}}
+	f.svc = notification.NewService(notification.Ports{
+		Accounts: accounts, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, PatientAppURL: "https://app.salus.invalid",
+		Deliveries: f.deliveries, DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Offers: offers, Rules: fakeRules{sms: true, repo: f.repo},
+		Languages: accounts, Phones: fakePhones{phone: remindPhone}, Profiles: fakeProfiles{phone: remindPhone},
+		Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{}, Clock: clock.Fixed{T: now},
 	})
-	return n
+	return f, offers
 }
 
-// The offer's e-mail holds the clinic, the time offered and the hold's end in the clinic's zone and the link to the
-// app, nothing else; each device gets the fixed alert in the account's language.
-func TestNotifyOffer_MailsAndPushesTheOfferAndNothingElse(t *testing.T) {
-	for _, language := range []string{"en", "bs", "hr", "sr-Latn", "sr-Cyrl", "de", "ar", "tr", "it", "fr"} {
-		n := newWaitlistNotices(language)
-		if err := n.repo.RegisterDevice(t.Context(), notification.Device{AccountID: patientAccount, Token: "synthetic-token-1", Platform: push.IOS}, chatNow); err != nil {
+func offered() appointment.Offer {
+	return appointment.Offer{ID: offerID, OrganizationID: remindClin, Created: offerMade, ExpiresAt: offerMade.Add(15 * time.Minute)}
+}
+
+// A new offer is delivered through SAL-33's deliveries: an e-mail, a push per device and the SMS the patient opted into,
+// once, in the offer's transaction.
+func TestNotifyOffer_StoresTheOffersDeliveries(t *testing.T) {
+	f, _ := offerFixture(offerMade, "en")
+	for range 2 {
+		if err := f.svc.NotifyOffer(t.Context(), offered(), patientAccount); err != nil {
 			t.Fatal(err)
 		}
-		if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err != nil {
-			t.Fatalf("%s: NotifyOffer() = %v", language, err)
+	}
+	if got, want := deliveries(f), []string{"email  pending", "push " + device + " pending", "sms  pending"}; !slices.Equal(got, want) {
+		t.Errorf("deliveries %v, want %v", got, want)
+	}
+	for _, d := range f.deliveries.deliveries {
+		if d.Kind != notification.KindWaitlistOffer || d.SourceID != offerID {
+			t.Errorf("delivery %+v, want of the offer", d)
 		}
-		if strings.Join(n.offers.asked, " ") != "waitlist_offer_notify "+clinicID+" "+offerID ||
-			strings.Join(n.accounts.asked, " ") != "waitlist_offer_notify "+patientAccount {
-			t.Errorf("%s: asked %v and %v, want the job as agent", language, n.offers.asked, n.accounts.asked)
+	}
+}
+
+// The e-mail gives the clinic, the time offered and the hold's end in the clinic's zone and the link to the app, in the
+// account's language; nothing of a practitioner, a specialty or an id.
+func TestSendDelivery_TheOfferEmailInEveryLanguage(t *testing.T) {
+	for _, language := range []string{"en", "bs", "hr", "sr-Latn", "sr-Cyrl", "de", "ar", "tr", "it", "fr"} {
+		f, _ := offerFixture(offerMade, language)
+		if err := f.svc.NotifyOffer(t.Context(), offered(), patientAccount); err != nil {
+			t.Fatal(err)
 		}
-		if len(n.sender.sent) != 1 || n.sender.sent[0].To != "ana@example.test" {
-			t.Fatalf("%s: sent %+v, want one e-mail to the patient", language, n.sender.sent)
+		if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelEmail).ID, false); err != nil {
+			t.Fatalf("%s: %v", language, err)
 		}
-		m := n.sender.sent[0]
+		if len(f.sender.sent) != 1 {
+			t.Fatalf("%s: sent %d e-mails, want 1", language, len(f.sender.sent))
+		}
+		m := f.sender.sent[0]
 		golden(t, language+"/waitlist_offer.txt", mail(m))
-		for _, want := range []string{"Synthetic clinic", "10:00", "(Europe/Sarajevo)", "09:10 (Europe/Sarajevo)", "https://patient.example.test/waitlist"} {
+		for _, want := range []string{"Synthetic clinic", "10:00", "09:10 (Europe/Sarajevo)", "https://app.salus.invalid/waitlist"} {
 			if !strings.Contains(m.Body, want) {
 				t.Errorf("%s: the body lacks %q", language, want)
 			}
 		}
 		for _, never := range []string{offerID, patientID, roleID, "51000000", "UTC"} {
-			if strings.Contains(m.Body, never) || strings.Contains(m.Subject, never) {
+			if strings.Contains(m.Body+m.Subject, never) {
 				t.Errorf("%s: the e-mail holds %q", language, never)
 			}
 		}
-		sent := n.pusher.Sent()
-		if len(sent) != 1 || sent[0].Title != "Salus" || sent[0].Body == "" || strings.Contains(sent[0].Body, "Synthetic clinic") {
-			t.Errorf("%s: pushed %+v, want the fixed alert", language, sent)
-		}
-		if e := n.audit.events[len(n.audit.events)-1]; e.AgentName != "waitlist_offer_notify" || e.EntityReference != "Account/"+patientAccount {
-			t.Errorf("%s: audit %+v, want the devices' read by the job", language, e)
-		}
 	}
 }
 
-// A closed offer sends nothing; a gone token is forgotten; failures pass through without the address or token.
-func TestNotifyOffer_SendsNothingForAClosedOfferAndPassesFailuresOn(t *testing.T) {
-	n := newWaitlistNotices("en")
-	n.offers.state = appointment.OfferAccepted
-	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err != nil || len(n.sender.sent) != 0 {
-		t.Errorf("NotifyOffer(accepted) = %v, sent %v; want nothing", err, n.sender.sent)
-	}
-	n = newWaitlistNotices("en")
-	n.offers.err = appointment.ErrNotFound
-	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); !errors.Is(err, appointment.ErrNotFound) {
-		t.Errorf("NotifyOffer(gone) = %v, want ErrNotFound", err)
-	}
-	n = newWaitlistNotices("en")
-	if err := n.repo.RegisterDevice(t.Context(), notification.Device{AccountID: patientAccount, Token: "synthetic-token-1", Platform: push.Android}, chatNow); err != nil {
+// A hold that ends after midnight in the clinic's zone gives its date too.
+func TestSendDelivery_AnOfferHeldPastMidnightGivesItsDate(t *testing.T) {
+	f, offers := offerFixture(offerMade, "en")
+	offers.expires = time.Date(2030, 1, 7, 23, 10, 0, 0, time.UTC) // 00:10 on Tuesday 8 January in Sarajevo
+	if err := f.svc.NotifyOffer(t.Context(), offered(), patientAccount); err != nil {
 		t.Fatal(err)
 	}
-	n.pusher.Gone("synthetic-token-1")
-	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err != nil || len(n.repo.devices) != 0 {
-		t.Errorf("NotifyOffer(a gone token) = %v, devices %v; want it forgotten", err, n.repo.devices)
-	}
-	n = newWaitlistNotices("en")
-	n.sender.err = errors.New("smtp down")
-	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err == nil || strings.Contains(err.Error(), "ana@example.test") {
-		t.Errorf("NotifyOffer(smtp down) = %v, want its error without the address", err)
-	}
-}
-
-// A hold that ends after midnight in the clinic's zone gives its date too (review of PR #93, finding 7).
-func TestNotifyOffer_AHoldPastMidnightGivesItsDate(t *testing.T) {
-	n := newWaitlistNotices("en")
-	n.offers.expires = time.Date(2030, 1, 7, 23, 10, 0, 0, time.UTC) // 00:10 on Tuesday 8 January in Sarajevo
-	if err := n.svc.NotifyOffer(t.Context(), offerID, clinicID); err != nil {
+	if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelEmail).ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if body := n.sender.sent[0].Body; !strings.Contains(body, "until Tuesday 8 January 2030, 00:10 (Europe/Sarajevo)") {
+	if body := f.sender.sent[0].Body; !strings.Contains(body, "until Tuesday 8 January 2030, 00:10 (Europe/Sarajevo)") {
 		t.Errorf("the body lacks the hold's date:\n%s", body)
+	}
+}
+
+// The push is the generic offer alert; the SMS names the clinic, the time and the hold's end in its zone and links the
+// app, in one GSM-7 part for a short clinic name.
+func TestSendDelivery_TheOfferPushIsGenericAndItsSMSFitsOnePart(t *testing.T) {
+	f, _ := offerFixture(offerMade, "bs")
+	if err := f.svc.NotifyOffer(t.Context(), offered(), patientAccount); err != nil {
+		t.Fatal(err)
+	}
+	for _, ch := range []notification.Channel{notification.ChannelPush, notification.ChannelSMS} {
+		if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, ch).ID, false); err != nil {
+			t.Fatalf("%s: %v", ch, err)
+		}
+	}
+	if sent := f.pusher.Sent(); len(sent) != 1 || sent[0].Title != "Salus" || sent[0].Body != "Termin koji ste čekali je slobodan" {
+		t.Errorf("pushed %+v, want the generic offer alert", sent)
+	}
+	want := "Slobodan termin: Synthetic clinic, 07.01.2030. u 10:00 (Europe/Sarajevo), do 09:10. Zakazite u Salus: https://app.salus.invalid/waitlist"
+	sent := f.sms.Sent()
+	if len(sent) != 1 || sent[0].To != remindPhone || sent[0].Body != want {
+		t.Fatalf("sent %+v, want %q", sent, want)
+	}
+	if n := sms.Segments(sent[0].Body); n != 1 {
+		t.Errorf("the SMS takes %d parts, want 1", n)
+	}
+}
+
+// An offer that closed, or whose hold ended, before its send sends nothing.
+func TestSendDelivery_AnOfferNoLongerOpenSendsNothing(t *testing.T) {
+	for name, change := range map[string]func(o *fakeOffers){
+		"accepted":       func(o *fakeOffers) { o.state = appointment.OfferAccepted },
+		"past its hold":  func(o *fakeOffers) { o.expires = offerMade },
+		"unknown source": nil,
+	} {
+		f, offers := offerFixture(offerMade.Add(time.Minute), "en")
+		o := offered()
+		if change == nil {
+			o.ID = "0f000000-0000-4000-8000-0000000000ff"
+		} else {
+			change(offers)
+		}
+		if err := f.svc.NotifyOffer(t.Context(), o, patientAccount); err != nil {
+			t.Fatal(err)
+		}
+		_ = f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelEmail).ID, false)
+		if len(f.sender.sent) != 0 {
+			t.Errorf("%s: sent %v, want nothing", name, f.sender.sent)
+		}
+	}
+}
+
+// Quiet hours, for the offer to pass an entry over: in the patient's zone, else the clinic's; none set is never quiet.
+func TestQuiet_IsInsideThePatientsQuietHours(t *testing.T) {
+	f, _ := offerFixture(offerMade, "en")
+	q := &notification.QuietHours{Start: "22:00", End: "08:00"}
+	for _, tt := range []struct {
+		at    time.Time
+		quiet *notification.QuietHours
+		zone  string
+		want  bool
+	}{
+		{at: time.Date(2030, 1, 7, 22, 30, 0, 0, time.UTC), quiet: q, want: true},                    // 23:30 in Sarajevo
+		{at: time.Date(2030, 1, 7, 12, 0, 0, 0, time.UTC), quiet: q},                                 // 13:00
+		{at: time.Date(2030, 1, 7, 14, 0, 0, 0, time.UTC), quiet: q, zone: "Asia/Tokyo", want: true}, // 23:00 in Tokyo, 15:00 in Sarajevo
+		{at: time.Date(2030, 1, 7, 22, 30, 0, 0, time.UTC)},
+	} {
+		f.deliveries.prefs[patientAccount] = notification.Preferences{Quiet: tt.quiet, TimeZone: tt.zone}
+		got, err := f.svc.Quiet(t.Context(), remindClin, patientAccount, tt.at)
+		if err != nil || got != tt.want {
+			t.Errorf("Quiet(%v, %s) = %v, %v; want %v", tt.at, tt.zone, got, err, tt.want)
+		}
 	}
 }

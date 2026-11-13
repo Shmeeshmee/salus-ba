@@ -6,4 +6,4 @@ Date and time: Monday 7 January 2030, 10:00 (Europe/Sarajevo)
 It is held for you until 09:10 (Europe/Sarajevo). After that it is offered to the next patient. Accepting it in the app books the appointment.
 
 To accept or decline it, open the Salus app:
-https://patient.example.test/waitlist
+https://app.salus.invalid/waitlist

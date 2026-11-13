@@ -6,4 +6,4 @@ Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
 Er ist bis 09:10 (Europe/Sarajevo) für Sie reserviert. Danach wird er dem nächsten Patienten angeboten. Wenn Sie ihn in der App annehmen, wird der Termin gebucht.
 
 Um ihn anzunehmen oder abzulehnen, öffnen Sie die Salus-App:
-https://patient.example.test/waitlist
+https://app.salus.invalid/waitlist

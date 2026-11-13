@@ -283,6 +283,63 @@ type SlotFreedArgs struct {
 // Kind names the job in river_job.
 func (SlotFreedArgs) Kind() string { return "waitlist_slot_freed" }
 
+// SAL-33: reminders (docs/plans/appointments.md, ADR 0015 "Reminders").
+
+// ReminderState is where a reminder is: scheduled until its dispatch job runs; dispatched once its deliveries are
+// stored; cancelled with its appointment (a cancellation or a reschedule); skipped when its job found the appointment
+// no longer as it was scheduled for.
+type ReminderState string
+
+// The reminder states (appointment_reminder.state).
+const (
+	ReminderScheduled  ReminderState = "scheduled"
+	ReminderDispatched ReminderState = "dispatched"
+	ReminderCancelled  ReminderState = "cancelled"
+	ReminderSkipped    ReminderState = "skipped"
+)
+
+// Reminder is one reminder of an appointment: due its offset before the start it was scheduled for (StartAt), an
+// absolute instant whatever the zones.
+type Reminder struct {
+	StartAt        time.Time
+	DueAt          time.Time
+	DispatchedAt   time.Time
+	ID             string
+	AppointmentID  string
+	OrganizationID string
+	PatientID      string
+	State          ReminderState
+	OffsetMinutes  int
+}
+
+// ReminderNotice is what the notifier needs of a reminder to send it: the appointment's start and whose it is (the
+// patient and their account). Nothing about the practitioner, the specialty or the visit.
+type ReminderNotice struct {
+	Start          time.Time
+	ReminderID     string
+	AppointmentID  string
+	OrganizationID string
+	PatientID      string
+	AccountID      string
+}
+
+// ReminderArgs is the appointment_reminder job on the notifier's push queue, scheduled at the reminder's due time and
+// unique by it: the dispatch. Opaque ids only.
+type ReminderArgs struct {
+	ReminderID     string `json:"reminder_id" river:"unique"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (ReminderArgs) Kind() string { return "appointment_reminder" }
+
+// RemindersSweepArgs is the appointment_reminders_sweep job, hourly on the default queue: it enqueues again the
+// dispatch of every reminder still scheduled past its due time while its start is ahead (a lost job).
+type RemindersSweepArgs struct{}
+
+// Kind names the job in river_job.
+func (RemindersSweepArgs) Kind() string { return "appointment_reminders_sweep" }
+
 // SAL-35: the waitlist (docs/plans/appointments.md, ADR 0015 "The waitlist hold lives in Postgres").
 
 // WaitlistStatus is a waitlist entry's: active until booked through an offer, withdrawn (by the patient, staff or
@@ -421,13 +478,3 @@ type OfferExpireArgs struct {
 
 // Kind names the job in river_job.
 func (OfferExpireArgs) Kind() string { return "waitlist_offer_expire" }
-
-// OfferNotifyArgs is the waitlist_offer_notify job on the notifier's email queue: the patient is told of the offer.
-// Opaque ids only.
-type OfferNotifyArgs struct {
-	OfferID        string `json:"offer_id"`
-	OrganizationID string `json:"organization_id"`
-}
-
-// Kind names the job in river_job.
-func (OfferNotifyArgs) Kind() string { return "waitlist_offer_notify" }

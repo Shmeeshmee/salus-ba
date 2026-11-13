@@ -104,3 +104,25 @@ type WaitlistRepository interface {
 	// DeleteOffersClosedBefore deletes the offers of those entries, and counts them.
 	DeleteOffersClosedBefore(ctx context.Context, before time.Time) (int64, error)
 }
+
+// ReminderRepository stores the reminders of appointments (appointment_reminder, SAL-33), in the scope Repository's
+// SetPatient or SetClinic set on the same transaction: the patient's own, or their clinic's.
+type ReminderRepository interface {
+	// AddReminder stores r, scheduled, and returns it with its id; ok is false when the appointment already has a live
+	// reminder (scheduled or dispatched) of that offset for that start (nothing is stored).
+	AddReminder(ctx context.Context, r Reminder) (out Reminder, ok bool, err error)
+	// CancelReminders cancels the live reminders (scheduled or dispatched) of the appointment id and counts them.
+	CancelReminders(ctx context.Context, appointmentID string) (int64, error)
+	// LockReminder returns the reminder id, locked against a change until the transaction ends, or ErrNotFound.
+	LockReminder(ctx context.Context, id string) (Reminder, error)
+	// Reminder returns the reminder id, or ErrNotFound.
+	Reminder(ctx context.Context, id string) (Reminder, error)
+	// SetReminderState moves the scheduled reminder id to state at at (its dispatch time, for dispatched).
+	SetReminderState(ctx context.Context, id string, state ReminderState, at time.Time) error
+	// OverdueReminders returns, of every clinic and whatever the scope, up to max reminders still scheduled at at
+	// although due, whose start is ahead of at, by due time and id after (afterDue, afterID): ids, clinic and due time.
+	OverdueReminders(ctx context.Context, at, afterDue time.Time, afterID string, max int) ([]Reminder, error)
+	// DeleteRemindersDueBefore deletes the reminders of every clinic due before before, and counts them; only the
+	// retention role may.
+	DeleteRemindersDueBefore(ctx context.Context, before time.Time) (int64, error)
+}

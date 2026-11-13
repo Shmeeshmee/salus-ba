@@ -9,6 +9,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
+	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/schedule"
@@ -38,7 +39,7 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 	addDefaultWorkers(workers, defaultServices{}, nil)
 	addEmailWorkers(workers, nil)
 	addChatWorkers(workers, nil)
-	addOfferWorkers(workers, nil)
+	addReminderWorkers(workers, nil)
 	addWebhookWorkers(workers, nil)
 	addAgentWorkers(workers, nil, nil)
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
@@ -56,6 +57,10 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			river.NewPeriodicJob(clinicStatsAt, func() (river.JobArgs, *river.InsertOpts) {
 				return clinicstats.NightlyArgs{}, nil
 			}, nil),
+			// Also when it starts leading: reminders lost across a deploy go out without waiting an hour.
+			river.NewPeriodicJob(river.PeriodicInterval(remindersSweepInterval), func() (river.JobArgs, *river.InsertOpts) {
+				return appointment.RemindersSweepArgs{}, nil
+			}, &river.PeriodicJobOpts{RunOnStart: true}),
 			// Also when it starts leading: a deploy near a month's end must not wait for the next day.
 			river.NewPeriodicJob(dailyAt{hour: chatPartitionsHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return communication.PartitionsArgs{}, nil

@@ -70,7 +70,9 @@ type Jobs interface {
 	EnqueueBooked(ctx context.Context, id, org string) error
 	EnqueueCancelled(ctx context.Context, id, org string) error
 	EnqueueAccessEnd(ctx context.Context, id, org string) error
-	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
+	// EnqueueReminders enqueues the dispatch of each reminder (appointment_reminder) at its due time, unique by the
+	// reminder: one already there is kept (SAL-33).
+	EnqueueReminders(ctx context.Context, rs []Reminder) error
 	EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
 	// EnqueueSlotFreed hands a freed slot still ahead to the waitlist (waitlist_slot_freed, SAL-35).
@@ -101,19 +103,23 @@ type Ports struct {
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices
 	Payments payments.Provider
-	// SAL-35, the waitlist: Waitlist stores it, Settings gives the clinic's rules (organization.Appointments), Offered
-	// moves its slots (slot.Service), OfferJobs enqueues an offer's expiry and Notices tells the patient of it (both
-	// River jobs); Quiet tells whether a patient is inside their quiet hours (nil until SAL-33: nobody is).
+	// SAL-35, the waitlist: Waitlist stores it, Offered moves its slots (slot.Service), OfferJobs enqueues an offer's
+	// expiry (a River job), Notices tells the patient of it and Quiet tells whether they are inside their quiet hours
+	// (notification.Service, SAL-33's deliveries); the clinic's rules are Rules'. A Service that makes offers (HandOn,
+	// ExpireOffer) needs all of them, and Patients for the account to tell.
 	Waitlist  WaitlistRepository
-	Settings  Settings
 	Offered   OfferedSlots
 	OfferJobs OfferJobs
 	Notices   OfferNotices
 	Quiet     QuietHours
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
-	Tokens  TokenRepository
-	LinkURL string
+	Tokens TokenRepository
+	// Reminders stores the reminders and Rules gives the clinic's reminder offsets (SAL-33): needed by a Service that
+	// books, cancels or dispatches.
+	Reminders ReminderRepository
+	Rules     Rules
+	LinkURL   string // the base of Tokens' links
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -130,8 +136,8 @@ func NewService(p Ports) *Service {
 // in the public directory first (free, of an active role of a listed clinic); then, in one transaction in
 // the patient's scope with the slot's clinic set, the clinic is checked listed and the patient's consent with
 // it active, the slot is held, the appointment stored, the confirmation and the request of the role's default
-// questionnaire (questionnaire_default_request) enqueued (and the reminder, 24 hours before the start, when that
-// is ahead), and the booking audited. ErrForbidden to staff, ErrProfileRequired
+// questionnaire (questionnaire_default_request) enqueued, its reminders scheduled (service_reminder.go), and the
+// booking audited. ErrForbidden to staff, ErrProfileRequired
 // without a profile, ErrSlotUnavailable for a slot that is not free and ahead or a time the practitioner is
 // booked at, ErrConsentRequired without an active consent; each refusal is audited.
 func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointment, error) {

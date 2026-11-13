@@ -42,17 +42,16 @@ type OfferJobs interface {
 	EnqueueOfferExpire(ctx context.Context, offerID, org string, at time.Time) error
 }
 
-// OfferNotices tells the patient of a new offer, in the offer's transaction. Until SAL-33's deliveries
-// (notification.Service.Deliver, with the patient's channels and quiet hours) it is the waitlist_offer_notify job, which
-// the notifier sends by e-mail and push.
+// OfferNotices tells the patient of a new offer, in the offer's transaction: notification.Service's deliveries (SAL-33),
+// with the patient's channels and quiet hours, the offer's end the deadline.
 type OfferNotices interface {
-	NotifyOffer(ctx context.Context, offerID, org string) error
+	NotifyOffer(ctx context.Context, o Offer, accountID string) error
 }
 
-// QuietHours tells whether the patient is inside their quiet hours at at: such an entry is passed over for that offer.
-// The patient's quiet hours come with SAL-33's notification settings; until then no Service has one and nobody is.
+// QuietHours tells whether the patient of the account is inside their quiet hours at at (notification.Service): such an
+// entry is passed over for that offer.
 type QuietHours interface {
-	Quiet(ctx context.Context, org, patientID string, at time.Time) (bool, error)
+	Quiet(ctx context.Context, org, accountID string, at time.Time) (bool, error)
 }
 
 // HandOn offers the slot slotID of the clinic org to the next matching entry of its waitlist (the waitlist_slot_freed
@@ -109,7 +108,7 @@ func (s *Service) handOn(ctx context.Context, agent, org, slotID string) error {
 	if err := s.OfferJobs.EnqueueOfferExpire(ctx, o.ID, org, o.ExpiresAt); err != nil {
 		return err
 	}
-	if err := s.Notices.NotifyOffer(ctx, o.ID, org); err != nil {
+	if err := s.Notices.NotifyOffer(ctx, o, e.accountID); err != nil {
 		return err
 	}
 	return s.recordJob(ctx, agent, org, auditevent.CodeUpdate, "Appointment", e.ID, auditevent.OutcomeSuccess)
@@ -119,25 +118,25 @@ func (s *Service) handOn(ctx context.Context, agent, org, slotID string) error {
 // ID) while the clinic's waitlist is off, the slot starts within the hold and offerLead, its role is not active, or no
 // entry matches. An entry whose patient's care consent is not active, or who is inside their quiet hours, is passed
 // over. The read of the candidates is audited with the job as agent.
-func (s *Service) nextEntry(ctx context.Context, agent, org string, b slot.Bookable, now time.Time) (WaitlistEntry, time.Duration, error) {
-	set, err := s.Settings.For(ctx, org)
+func (s *Service) nextEntry(ctx context.Context, agent, org string, b slot.Bookable, now time.Time) (candidate, time.Duration, error) {
+	set, err := s.Rules.For(ctx, org)
 	if err != nil {
-		return WaitlistEntry{}, 0, err
+		return candidate{}, 0, err
 	}
 	hold := time.Duration(set.WaitlistHoldMinutes) * time.Minute
 	if !set.WaitlistEnabled || b.Start.Before(now.Add(hold+offerLead)) {
-		return WaitlistEntry{}, 0, nil
+		return candidate{}, 0, nil
 	}
 	m, ok, err := s.match(ctx, org, b, now)
 	if err != nil || !ok {
-		return WaitlistEntry{}, 0, err
+		return candidate{}, 0, err
 	}
 	candidates, err := s.Waitlist.Candidates(ctx, m, candidatesPerOffer)
 	if err != nil || len(candidates) == 0 {
-		return WaitlistEntry{}, 0, err
+		return candidate{}, 0, err
 	}
 	if err := s.recordJob(ctx, agent, org, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess); err != nil {
-		return WaitlistEntry{}, 0, err
+		return candidate{}, 0, err
 	}
 	for _, e := range candidates {
 		if e.OrganizationID != org {
@@ -145,23 +144,33 @@ func (s *Service) nextEntry(ctx context.Context, agent, org string, b slot.Booka
 		}
 		consent, err := s.Consents.State(ctx, e.PatientID, org)
 		if err != nil {
-			return WaitlistEntry{}, 0, err
+			return candidate{}, 0, err
 		}
 		if !consent.Active {
 			continue
 		}
-		if s.Quiet != nil {
-			quiet, err := s.Quiet.Quiet(ctx, org, e.PatientID, now)
-			if err != nil {
-				return WaitlistEntry{}, 0, err
-			}
-			if quiet {
-				continue
-			}
+		p, err := s.Patients.Lookup(ctx, e.PatientID)
+		if err != nil {
+			return candidate{}, 0, err
 		}
-		return e, hold, nil
+		if err := s.recordJob(ctx, agent, org, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess); err != nil {
+			return candidate{}, 0, err
+		}
+		if quiet, err := s.Quiet.Quiet(ctx, org, p.AccountID, now); err != nil || quiet {
+			if err != nil {
+				return candidate{}, 0, err
+			}
+			continue
+		}
+		return candidate{WaitlistEntry: e, accountID: p.AccountID}, hold, nil
 	}
-	return WaitlistEntry{}, 0, nil
+	return candidate{}, 0, nil
+}
+
+// candidate is an entry chosen for an offer, with its patient's account (to tell them).
+type candidate struct {
+	accountID string
+	WaitlistEntry
 }
 
 // match is what the slot b of the clinic org asks of an entry at now: its role (active) and the role's specialty, its

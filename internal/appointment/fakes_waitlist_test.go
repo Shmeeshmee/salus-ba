@@ -315,22 +315,22 @@ func (s *fakeOfferedSlots) Unoffer(ctx context.Context, org, id string) (bool, e
 func (s *fakeOfferedSlots) status(id string) slot.Status { return s.slots[id].Status }
 
 // fakeOfferJobs records the expiries and notices into the fixture's jobs: "offer_expire <offer> <clinic> at <time>",
-// "offer_notify <offer> <clinic>".
+// "offer_notify <offer> <clinic> <account>".
 type fakeOfferJobs struct{ jobs *fakeJobs }
 
 func (j fakeOfferJobs) EnqueueOfferExpire(ctx context.Context, id, org string, at time.Time) error {
 	return j.jobs.add(ctx, fmt.Sprintf("offer_expire %s %s at %s", id, org, at.Format(time.RFC3339)))
 }
 
-func (j fakeOfferJobs) NotifyOffer(ctx context.Context, id, org string) error {
-	return j.jobs.add(ctx, "offer_notify "+id+" "+org)
+func (j fakeOfferJobs) NotifyOffer(ctx context.Context, o appointment.Offer, accountID string) error {
+	return j.jobs.add(ctx, "offer_notify "+o.ID+" "+o.OrganizationID+" "+accountID)
 }
 
-// fakeQuiet says the patients in quiet are inside their quiet hours.
+// fakeQuiet says the accounts in quiet are inside their quiet hours.
 type fakeQuiet struct{ quiet map[string]bool }
 
-func (q fakeQuiet) Quiet(_ context.Context, _, patientID string, _ time.Time) (bool, error) {
-	return q.quiet[patientID], nil
+func (q fakeQuiet) Quiet(_ context.Context, _, accountID string, _ time.Time) (bool, error) {
+	return q.quiet[accountID], nil
 }
 
 // waitlistFixture is the fixture with the waitlist's ports: patient A's and B's active consents with clinic A, and the
@@ -358,7 +358,7 @@ func newWaitlistFixture(at time.Time) *waitlistFixture {
 	w.ports = appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats,
-		Waitlist: w.wl, Settings: w.settings, Offered: w.offered, OfferJobs: jobs, Notices: jobs, Quiet: w.quiet,
+		Waitlist: w.wl, Rules: w.settings, Reminders: f.reminders, Offered: w.offered, OfferJobs: jobs, Notices: jobs, Quiet: w.quiet,
 	}
 	f.svc = appointment.NewService(w.ports)
 	return w

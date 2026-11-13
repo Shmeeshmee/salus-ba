@@ -292,13 +292,19 @@ func inviteToken(t *testing.T, addr string) string {
 // so Mailpit is left as it was, and returns its plain text.
 func mailText(t *testing.T, addr, subject string) string {
 	t.Helper()
+	return mailTextWithin(t, addr, subject, 30*time.Second)
+}
+
+// mailTextWithin is mailText waiting up to within: for an e-mail a job sends at a time of its own (a reminder).
+func mailTextWithin(t *testing.T, addr, subject string, within time.Duration) string {
+	t.Helper()
 	mailpit := env(t, "E2E_MAILPIT_URL")
 	client := &http.Client{Timeout: 5 * time.Second}
 	query := `to:"` + addr + `"`
 	if subject != "" {
 		query += ` subject:"` + subject + `"`
 	}
-	timeout := time.After(30 * time.Second)
+	timeout := time.After(within)
 	for {
 		var found struct{ Messages []struct{ ID string } }
 		mailpitDo(t, client, http.MethodGet, mailpit+"/api/v1/search?query="+url.QueryEscape(query), nil, &found)
@@ -314,7 +320,7 @@ func mailText(t *testing.T, addr, subject string) string {
 		}
 		select {
 		case <-timeout:
-			t.Fatalf("no e-mail %q to the address in Mailpit within 30s", subject)
+			t.Fatalf("no e-mail %q to the address in Mailpit within %v", subject, within)
 		case <-time.After(250 * time.Millisecond):
 		}
 	}

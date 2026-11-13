@@ -1809,6 +1809,50 @@ class AppLocalizationsDe extends AppLocalizations {
   String get consentForHistory => 'Aus anderen Kliniken geteilte Besuche';
 
   @override
+  String get reminders => 'Erinnerungen';
+
+  @override
+  String get remindersIntro =>
+      'Wählen Sie, wie Ihre Kliniken Sie an Ihre Termine erinnern.';
+
+  @override
+  String get remindersPush => 'Push-Benachrichtigungen';
+
+  @override
+  String get remindersEmail => 'E-Mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Erinnerungen und Angebote von der Warteliste per SMS an die Telefonnummer in Ihrem Profil, nur bei Kliniken, die SMS anbieten. Nie für Werbung.';
+
+  @override
+  String get quietHours => 'Ruhezeiten';
+
+  @override
+  String get quietHoursHint =>
+      'Push-Benachrichtigungen und SMS warten bis zum Ende der Ruhezeiten. Kämen sie dann weniger als 30 Minuten vor dem Termin an, entfallen sie. E-Mails werden nicht zurückgehalten.';
+
+  @override
+  String get quietHoursFrom => 'Von';
+
+  @override
+  String get quietHoursUntil => 'Bis';
+
+  @override
+  String get remindersSaved => 'Ihre Auswahl ist gespeichert.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Für SMS ist eine Telefonnummer in Ihrem Profil nötig. Fügen Sie sie unter Mein Profil hinzu und versuchen Sie es erneut.';
+
+  @override
+  String get remindersInvalid =>
+      'Diese Einstellungen konnten nicht gespeichert werden. Prüfen Sie sie und versuchen Sie es erneut.';
+
+  @override
   String get waitlistTitle => 'Meine Warteliste';
 
   @override

@@ -55,9 +55,12 @@ func TestSlotFreed_OffersTheSlotAndItsExpiryHandsItOn(t *testing.T) {
 	if state != "open" || slotStatus != "busy-tentative" {
 		t.Fatalf("offer %s, slot %s; want it open and the slot held", state, slotStatus)
 	}
-	if n := countWhere(t, db, `SELECT count(*) FROM river_job WHERE (kind = 'waitlist_offer_expire' AND queue = 'default' AND scheduled_at > now())
-		OR (kind = 'waitlist_offer_notify' AND queue = 'email')`); n != 2 {
-		t.Errorf("%d of the offer's jobs, want its expiry and its notice", n)
+	if n := countWhere(t, db, `SELECT count(*) FROM river_job WHERE kind = 'waitlist_offer_expire' AND queue = 'default' AND scheduled_at > now()`); n != 1 {
+		t.Errorf("%d expiries of the offer, want one at its end", n)
+	}
+	// Its notice: SAL-33's deliveries, stored in the offer's transaction (the default settings: e-mail, no device).
+	if n := countWhere(t, db, `SELECT count(*) FROM notification_delivery WHERE kind = 'waitlist_offer' AND source_id = $1 AND channel = 'email'`, offer); n != 1 {
+		t.Errorf("%d e-mail deliveries of the offer, want one", n)
 	}
 	if _, err := db.owner.Exec(t.Context(), `UPDATE waitlist_offer SET created_at = now() - interval '20 minutes', expires_at = now() - interval '1 minute'
 		WHERE id = $1`, offer); err != nil {

@@ -8,7 +8,6 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/notification"
 )
 
 // offerNotDueRetry is how long an offer's expiry that ran before the offer's end waits before it runs again.
@@ -37,21 +36,6 @@ func (w *offerExpireWorker) Work(ctx context.Context, job *river.Job[appointment
 	err := w.appointments.ExpireOffer(ctx, job.Args.OrganizationID, job.Args.OfferID)
 	if errors.Is(err, appointment.ErrOfferNotDue) {
 		return river.JobSnooze(offerNotDueRetry)
-	}
-	return err
-}
-
-// offerNotifyWorker tells the patient of an offer (waitlist_offer_notify, on the notifier's email queue, SAL-35). An
-// offer that is gone, or a recipient address SMTP cannot carry, cancels the job: a retry would fail the same way.
-type offerNotifyWorker struct {
-	river.WorkerDefaults[appointment.OfferNotifyArgs]
-	notify func(ctx context.Context, a appointment.OfferNotifyArgs) error
-}
-
-func (w *offerNotifyWorker) Work(ctx context.Context, job *river.Job[appointment.OfferNotifyArgs]) error {
-	err := w.notify(ctx, job.Args)
-	if errors.Is(err, appointment.ErrNotFound) || errors.Is(err, notification.ErrRecipientNotASCII) {
-		return river.JobCancel(err)
 	}
 	return err
 }

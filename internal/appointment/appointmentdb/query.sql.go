@@ -259,6 +259,20 @@ func (q *Queries) CancelAppointment(ctx context.Context, arg CancelAppointmentPa
 	return i, err
 }
 
+const cancelReminders = `-- name: CancelReminders :execrows
+UPDATE appointment_reminder SET state = 'cancelled'
+WHERE appointment_id = $1 AND state IN ('scheduled', 'dispatched')
+`
+
+// The scheduled ones, and the dispatched ones whose sends may still be held: all of them are dead with the change.
+func (q *Queries) CancelReminders(ctx context.Context, appointmentID pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelReminders, appointmentID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const closeWaitlistEntry = `-- name: CloseWaitlistEntry :one
 UPDATE waitlist_entry
 SET status = $1, closed_at = $2, updated_at = $2
@@ -477,6 +491,20 @@ func (q *Queries) DeleteActionTokensExpiredBefore(ctx context.Context, before pg
 	return result.RowsAffected(), nil
 }
 
+const deleteRemindersDueBefore = `-- name: DeleteRemindersDueBefore :execrows
+DELETE FROM appointment_reminder
+WHERE due_at < $1::timestamptz
+`
+
+// Retention, as salus_retention.
+func (q *Queries) DeleteRemindersDueBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRemindersDueBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteWaitlistEntriesClosedBefore = `-- name: DeleteWaitlistEntriesClosedBefore :execrows
 DELETE FROM waitlist_entry
 WHERE closed_at < $1::timestamptz OR (status = 'active' AND ends_at < $1::timestamptz)
@@ -597,6 +625,44 @@ func (q *Queries) InsertAppointmentChange(ctx context.Context, arg InsertAppoint
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const insertReminder = `-- name: InsertReminder :one
+
+INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (appointment_id, offset_minutes, start_at) WHERE state IN ('scheduled', 'dispatched') DO NOTHING
+RETURNING id, created_at
+`
+
+type InsertReminderParams struct {
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	OffsetMinutes  int32
+	StartAt        pgtype.Timestamptz
+	DueAt          pgtype.Timestamptz
+}
+
+type InsertReminderRow struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+}
+
+// SAL-33 (docs/plans/appointments.md): the reminders.
+// A scheduled reminder; none when the appointment has one of that offset for that start already.
+func (q *Queries) InsertReminder(ctx context.Context, arg InsertReminderParams) (InsertReminderRow, error) {
+	row := q.db.QueryRow(ctx, insertReminder,
+		arg.AppointmentID,
+		arg.OrganizationID,
+		arg.PatientID,
+		arg.OffsetMinutes,
+		arg.StartAt,
+		arg.DueAt,
+	)
+	var i InsertReminderRow
+	err := row.Scan(&i.ID, &i.CreatedAt)
+	return i, err
 }
 
 const insertWaitlistEntry = `-- name: InsertWaitlistEntry :one
@@ -1070,6 +1136,42 @@ func (q *Queries) ListPatientWaitlistEntries(ctx context.Context, patientID pgty
 	return items, nil
 }
 
+const lockReminder = `-- name: LockReminder :one
+SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
+FROM appointment_reminder
+WHERE id = $1
+FOR UPDATE
+`
+
+type LockReminderRow struct {
+	ID             pgtype.UUID
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	OffsetMinutes  int32
+	StartAt        pgtype.Timestamptz
+	DueAt          pgtype.Timestamptz
+	State          string
+	DispatchedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) LockReminder(ctx context.Context, id pgtype.UUID) (LockReminderRow, error) {
+	row := q.db.QueryRow(ctx, lockReminder, id)
+	var i LockReminderRow
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.OffsetMinutes,
+		&i.StartAt,
+		&i.DueAt,
+		&i.State,
+		&i.DispatchedAt,
+	)
+	return i, err
+}
+
 const lockWaitlistEntries = `-- name: LockWaitlistEntries :exec
 SELECT pg_advisory_xact_lock(hashtextextended('waitlist:' || $1::text || ':' || $2::text, 0))
 `
@@ -1147,6 +1249,89 @@ func (q *Queries) OpenWaitlistOffer(ctx context.Context, arg OpenWaitlistOfferPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const overdueReminders = `-- name: OverdueReminders :many
+SELECT id, organization_id, due_at
+FROM appointment_reminder_scheduled
+WHERE due_at <= $1::timestamptz AND start_at > $1::timestamptz
+  AND (due_at, id) > ($2::timestamptz, $3::uuid)
+ORDER BY due_at, id
+LIMIT $4::integer
+`
+
+type OverdueRemindersParams struct {
+	At       pgtype.Timestamptz
+	AfterDue pgtype.Timestamptz
+	AfterID  pgtype.UUID
+	Max      int32
+}
+
+type OverdueRemindersRow struct {
+	ID             pgtype.UUID
+	OrganizationID pgtype.UUID
+	DueAt          pgtype.Timestamptz
+}
+
+// The sweep's page, of every clinic (the view reads with its owner's rights): due by at, the start still ahead.
+func (q *Queries) OverdueReminders(ctx context.Context, arg OverdueRemindersParams) ([]OverdueRemindersRow, error) {
+	rows, err := q.db.Query(ctx, overdueReminders,
+		arg.At,
+		arg.AfterDue,
+		arg.AfterID,
+		arg.Max,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OverdueRemindersRow
+	for rows.Next() {
+		var i OverdueRemindersRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID, &i.DueAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reminderByID = `-- name: ReminderByID :one
+SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
+FROM appointment_reminder
+WHERE id = $1
+`
+
+type ReminderByIDRow struct {
+	ID             pgtype.UUID
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	OffsetMinutes  int32
+	StartAt        pgtype.Timestamptz
+	DueAt          pgtype.Timestamptz
+	State          string
+	DispatchedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) ReminderByID(ctx context.Context, id pgtype.UUID) (ReminderByIDRow, error) {
+	row := q.db.QueryRow(ctx, reminderByID, id)
+	var i ReminderByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.OffsetMinutes,
+		&i.StartAt,
+		&i.DueAt,
+		&i.State,
+		&i.DispatchedAt,
+	)
+	return i, err
 }
 
 const searchAppointments = `-- name: SearchAppointments :many
@@ -1301,6 +1486,25 @@ func (q *Queries) SetAppointmentStatus(ctx context.Context, arg SetAppointmentSt
 		&i.EndAt,
 	)
 	return i, err
+}
+
+const setReminderState = `-- name: SetReminderState :execrows
+UPDATE appointment_reminder SET state = $1, dispatched_at = $2
+WHERE id = $3 AND state = 'scheduled'
+`
+
+type SetReminderStateParams struct {
+	State        string
+	DispatchedAt pgtype.Timestamptz
+	ID           pgtype.UUID
+}
+
+func (q *Queries) SetReminderState(ctx context.Context, arg SetReminderStateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setReminderState, arg.State, arg.DispatchedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setWaitlistPriority = `-- name: SetWaitlistPriority :one

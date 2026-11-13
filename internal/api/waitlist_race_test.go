@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
@@ -46,15 +47,17 @@ func waitlistAt(t *testing.T, app *pgxpool.Pool, clk clock.Clock, change ...func
 	slots := slot.NewService(slot.NewPostgresRepository(app), tx, clk, schedules, clinics)
 	consents := consent.NewService(consent.NewPostgresRepository(app), audit, tx, clk, consent.NewRiverJobs(jobs))
 	repo := appointment.NewPostgresRepository(app)
+	rules := organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(app), Audit: audit, Tx: tx, Clock: clk})
+	offers := notification.NewService(notification.Ports{
+		Clinics: clinics, Deliveries: notification.NewPostgresDeliveryRepository(app), DeliveryJobs: notification.NewRiverDeliveryJobs(jobs),
+		Devices: notification.NewPostgresRepository(app), Rules: rules, Audit: audit, Tx: tx, Clock: clk,
+	})
 	p := appointment.Ports{
 		Repo: repo, Audit: audit, Tx: tx, Clock: clk, Consents: consents, Slots: slots, Clinics: clinics, Roles: roles,
 		Patients: patient.NewService(patient.NewPostgresRepository(app), audit, tx, clk, consents, appointment.NewFacts(repo)),
 		Jobs:     appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs),
-		Waitlist: appointment.NewPostgresWaitlistRepository(app), Offered: slots,
-		Settings: organization.NewAppointments(organization.AppointmentsPorts{
-			Repo: organization.NewPostgresAppointmentsRepository(app), Audit: audit, Tx: tx, Clock: clk,
-		}),
-		OfferJobs: appointment.NewRiverOfferJobs(jobs), Notices: appointment.NewRiverOfferNotices(jobs),
+		Waitlist: appointment.NewPostgresWaitlistRepository(app), Offered: slots, OfferJobs: appointment.NewRiverOfferJobs(jobs),
+		Rules: rules, Reminders: appointment.NewPostgresReminderRepository(app), Notices: offers, Quiet: offers,
 	}
 	for _, c := range change {
 		c(&p)

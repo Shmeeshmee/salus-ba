@@ -4,149 +4,139 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
-	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
-	"github.com/Shmeeshmee/salus/pkg/push"
+	"github.com/Shmeeshmee/salus/pkg/sms"
 )
 
-// WaitlistOffers gives the notifier's job a waitlist offer and its patient's account, audited with the job as agent
+// WaitlistOffers gives a send its waitlist offer and the patient's account, audited with the job as agent
 // (appointment.Service).
 type WaitlistOffers interface {
 	OfferNotice(ctx context.Context, agent, org, id string) (appointment.OfferNotice, error)
 }
 
-// WaitlistPorts are what Waitlist runs on, and the base of its link.
-type WaitlistPorts struct {
-	Offers   WaitlistOffers
-	Accounts Accounts
-	Clinics  Clinics
-	Repo     Repository // the account's push devices
-	Pusher   push.Sender
-	Sender   Sender
-	Audit    Auditor
-	Tx       Transactor
-	// PatientAppURL is PATIENT_APP_URL: the offer's e-mail links to <PatientAppURL>/waitlist.
-	PatientAppURL string
-}
-
-// Waitlist tells a patient of a waitlist offer (the waitlist_offer_notify job, SAL-35): an e-mail with the clinic's
-// name, the time offered and the end of its hold in the clinic's zone, and a link to the app, and a push with a fixed
-// text to each of their devices; never a practitioner, a specialty or anything clinical, and accepting happens in the
-// app only, signed in. Until SAL-33's deliveries (notification.Service.Deliver, with the patient's channels, quiet hours
-// and SMS) it sends through the plain e-mail and push paths, so a retry may repeat a message.
-type Waitlist struct {
-	letters map[string]letters
-	WaitlistPorts
-}
-
-// NewWaitlist returns Waitlist on its ports.
-func NewWaitlist(p WaitlistPorts) *Waitlist {
-	p.PatientAppURL = strings.TrimRight(p.PatientAppURL, "/")
-	return &Waitlist{WaitlistPorts: p, letters: loadLetters()}
-}
-
-// agentOffer is the agent of the offer job's reads: its kind.
-var agentOffer = appointment.OfferNotifyArgs{}.Kind()
-
-// NotifyOffer tells the patient of the offer id of the clinic org, while it is open: the e-mail, then a push per
-// device (a token the platform says is gone is forgotten). An offer the clinic no longer has, or whose patient it no
-// longer sees, sends nothing; appointment.ErrNotFound passes through for the job to cancel. Errors carry no address,
-// token or text.
-func (s *Waitlist) NotifyOffer(ctx context.Context, id, org string) error {
-	n, err := s.Offers.OfferNotice(ctx, agentOffer, org, id)
-	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+// NotifyOffer stores the deliveries of the new offer o to its patient's account, with their send jobs, in the offer's
+// transaction (SAL-35; appointment.OfferNotices): e-mail, a push per device and the SMS the patient opted into, as
+// Deliver decides them, the offer's end their deadline (a push or SMS held by quiet hours past it is dropped).
+func (s *Service) NotifyOffer(ctx context.Context, o appointment.Offer, accountID string) error {
+	if err := s.Deliver(ctx, KindWaitlistOffer, o.ID, o.OrganizationID, accountID, Content{Deadline: o.ExpiresAt}); err != nil {
+		return fmt.Errorf("notification: notify an offer: %w", err)
 	}
-	if n.Offer.State != appointment.OfferOpen {
-		return nil
+	return nil
+}
+
+// Quiet tells whether the account's patient is inside their quiet hours at at, in their zone, else the clinic org's
+// (appointment.QuietHours: such an entry is passed over for an offer). The read of their settings is audited with the
+// offer's delivery as agent.
+func (s *Service) Quiet(ctx context.Context, org, accountID string, at time.Time) (bool, error) {
+	if s.p.Deliveries == nil || s.p.Audit == nil || s.clinics == nil {
+		return false, errors.New("notification: quiet hours: the Service was built without the deliveries' ports")
 	}
-	clinic, err := s.Clinics.Read(ctx, organization.Caller{OrganizationID: org}, org)
+	p, err := s.preferencesOf(ctx, agentOf(KindWaitlistOffer), org, accountID)
+	if err != nil || p.Quiet == nil {
+		return false, err
+	}
+	loc, err := s.zoneOf(ctx, org, p)
 	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+		return false, fmt.Errorf("notification: quiet hours: %w", err)
+	}
+	_, inside := quietEnd(at, *p.Quiet, loc)
+	return inside, nil
+}
+
+// composeOffer writes d's message of a waitlist offer, or errGone when it no longer applies: the offer closed or its
+// hold ended, it is another account's, or d's channel is off now. The push is generic; the e-mail and the SMS give the
+// clinic, the time offered and the hold's end in the clinic's zone with its name, and the link to the app (accepting
+// happens there, signed in); nothing of a practitioner or specialty.
+func (s *Service) composeOffer(ctx context.Context, d Delivery) (outgoing, error) {
+	agent := agentSend[d.Channel]
+	n, err := s.p.Offers.OfferNotice(ctx, agent, d.OrganizationID, d.SourceID)
+	switch {
+	case errors.Is(err, appointment.ErrNotFound):
+		return outgoing{}, errGone
+	case err != nil:
+		return outgoing{}, err
+	case n.Offer.State != appointment.OfferOpen || !s.p.Clock.Now().Before(n.Offer.ExpiresAt) || n.AccountID != d.AccountID:
+		return outgoing{}, errGone
+	}
+	prefs, err := s.preferencesOf(ctx, agent, d.OrganizationID, d.AccountID)
+	if err != nil {
+		return outgoing{}, err
+	}
+	if on, err := s.stillOn(ctx, d, prefs); err != nil || !on {
+		return outgoing{}, errors.Join(err, errGone)
+	}
+	if d.Channel == ChannelPush {
+		return s.composePush(ctx, agent, d, "waitlist_offer_push")
+	}
+	clinic, err := s.clinics.Read(ctx, organization.Caller{OrganizationID: d.OrganizationID}, d.OrganizationID)
+	if err != nil {
+		return outgoing{}, err
 	}
 	loc, err := time.LoadLocation(clinic.TimeZone)
 	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: the clinic's time zone: %w", err)
+		return outgoing{}, fmt.Errorf("the clinic's time zone: %w", err)
 	}
-	to, language, err := s.Accounts.AccountEmail(ctx, agentOffer, n.AccountID)
+	if d.Channel == ChannelEmail {
+		return s.composeOfferEmail(ctx, agent, d, n.Offer, clinic, loc)
+	}
+	return s.composeOfferSMS(ctx, agent, d, n.Offer, clinic, loc)
+}
+
+// composeOfferEmail is the offer's e-mail in the account's language.
+func (s *Service) composeOfferEmail(ctx context.Context, agent string, d Delivery, o appointment.Offer, clinic organization.Organization, loc *time.Location) (outgoing, error) {
+	to, language, err := s.accounts.AccountEmail(ctx, agent, d.AccountID)
 	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+		return outgoing{}, err
 	}
-	l := pick(s.letters, language)
-	when, err := l.when(n.Offer.Start.In(loc), clinic.TimeZone)
+	l := s.in(language)
+	when, err := l.when(o.Start.In(loc), clinic.TimeZone)
 	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+		return outgoing{}, err
 	}
-	until, err := holdEnd(l, n.Offer, loc, clinic.TimeZone)
+	until, err := holdEnd(l, o, loc, clinic.TimeZone)
 	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+		return outgoing{}, err
 	}
-	msg, err := l.message(to, "waitlist_offer", letter{Clinic: clinic.Name, When: when, Until: until, Link: s.PatientAppURL + "/waitlist"})
+	msg, err := l.message(to, "waitlist_offer", letter{Clinic: clinic.Name, When: when, Until: until, Link: s.patientAppURL + "/waitlist"})
+	return outgoing{mail: msg, ready: true}, err
+}
+
+// composeOfferSMS is the offer's SMS to the patient's phone; no phone any more cancels it.
+func (s *Service) composeOfferSMS(ctx context.Context, agent string, d Delivery, o appointment.Offer, clinic organization.Organization, loc *time.Location) (outgoing, error) {
+	phone, err := s.p.Phones.NoticePhone(ctx, agent, d.OrganizationID, o.PatientID)
+	if err != nil || phone == "" {
+		return outgoing{}, errors.Join(err, errGone)
+	}
+	language, err := s.p.Languages.AccountLanguage(ctx, agent, d.AccountID)
 	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+		return outgoing{}, err
 	}
-	if err := s.Sender.Send(ctx, msg); err != nil {
-		return fmt.Errorf("notification: waitlist offer: %w", err)
+	start, end := o.Start.In(loc), o.ExpiresAt.In(loc)
+	until := end.Format("15:04")
+	if !sameDay(end, o.Created.In(loc)) {
+		until = end.Format("02.01. 15:04")
 	}
-	return s.push(ctx, org, n.AccountID, l)
+	body, err := s.in(language).text("waitlist_offer_sms", letter{
+		Clinic: clinic.Name, Zone: clinic.TimeZone, Day: start.Format("02"), Month: start.Format("01"), Year: start.Year(),
+		Time: start.Format("15:04"), Until: until, Link: s.patientAppURL + "/waitlist",
+	})
+	if err != nil {
+		return outgoing{}, err
+	}
+	return outgoing{sms: sms.Message{To: phone, Body: body, Reference: d.ID}, parts: sms.Segments(body), ready: true}, nil
 }
 
 // holdEnd writes the end of o's hold in the clinic's zone loc (named zone) with the zone's name: its time when it ends
 // on the day the offer was made, and its date and time when it ends on a later day (a hold past midnight).
 func holdEnd(l letters, o appointment.Offer, loc *time.Location, zone string) (string, error) {
-	end, made := o.ExpiresAt.In(loc), o.Created.In(loc)
-	if end.YearDay() == made.YearDay() && end.Year() == made.Year() {
+	end := o.ExpiresAt.In(loc)
+	if sameDay(end, o.Created.In(loc)) {
 		return end.Format("15:04") + " (" + zone + ")", nil
 	}
 	return l.when(end, zone)
 }
 
-// push sends the fixed offer alert in l to each device of the account, audited as a read of its devices.
-func (s *Waitlist) push(ctx context.Context, org, account string, l letters) error {
-	var devices []Device
-	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		var err error
-		if devices, err = s.Repo.Devices(ctx, account); err != nil || len(devices) == 0 {
-			return err
-		}
-		return s.Audit.Record(ctx, auditevent.AuditEvent{
-			Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
-			Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeRead},
-			Purpose:         auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeTREAT},
-			Action:          auditevent.ActionRead,
-			Outcome:         auditevent.OutcomeSuccess,
-			AgentName:       agentOffer,
-			OrganizationID:  org,
-			EntityReference: "Account/" + account,
-			EntityName:      "push_device",
-			EntityCount:     int64(len(devices)),
-		})
-	})
-	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: push: %w", err)
-	}
-	alert, err := l.message("", "waitlist_offer_push", letter{})
-	if err != nil {
-		return fmt.Errorf("notification: waitlist offer: push: %w", err)
-	}
-	var errs []error
-	for _, d := range devices {
-		err := s.Pusher.Send(ctx, push.Message{Token: d.Token, Platform: d.Platform, Title: alert.Subject, Body: strings.TrimSuffix(alert.Body, "\n")})
-		switch {
-		case errors.Is(err, push.ErrTokenGone):
-			if err := s.Repo.DeleteDevice(ctx, d.ID, d.Token); err != nil {
-				errs = append(errs, err)
-			}
-		case err != nil:
-			errs = append(errs, err)
-		}
-	}
-	if err := errors.Join(errs...); err != nil {
-		return fmt.Errorf("notification: waitlist offer: push: %w", err)
-	}
-	return nil
-}
+func sameDay(a, b time.Time) bool { return a.YearDay() == b.YearDay() && a.Year() == b.Year() }

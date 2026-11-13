@@ -1,0 +1,1 @@
+Bos saat: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}} saat {{.Time}} ({{.Zone}}), {{.Until}} saatine kadar ayrildi. Salus ile alin: {{.Link}}

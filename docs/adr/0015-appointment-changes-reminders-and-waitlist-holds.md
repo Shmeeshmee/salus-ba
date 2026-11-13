@@ -97,8 +97,9 @@ video session never changes time under its participants. Staff rescheduling is n
   goes through Google and Apple outside the EU/EEA, so its alert stays generic like the chat's ("You have an
   appointment reminder"), with no data payload: the app opens the upcoming appointments. The e-mail and the SMS carry
   the one-tap link.
-- The existing `appointment_reminder_email` job is replaced: its worker stays registered as a no-op that completes,
-  for jobs enqueued before the deploy, and goes in a later release.
+- The existing `appointment_reminder_email` job is replaced: it is no longer enqueued, and its worker keeps sending the
+  jobs enqueued before the deploy, so an appointment booked before keeps its one 24-hour e-mail (the plan's "Legacy
+  reminder"; amended in SAL-33); the worker goes in a later release, once those jobs have drained.
 
 ### The waitlist hold lives in Postgres
 

@@ -560,3 +560,7 @@ p.hint.join { margin-bottom: 20px; }
 .term-options li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
 .term-options li[aria-selected='true'], .term-options li:hover { background: var(--color-mint-faint); }
 .allergy-warning .strong, .entry-list .strong { font-weight: 600; }
+
+/* Reminders in the clinic settings */
+.reminders form { margin-bottom: 24px; }
+.reminders h3 { font-size: 15px; margin: 0; }

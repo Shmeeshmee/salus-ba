@@ -1797,6 +1797,50 @@ class AppLocalizationsIt extends AppLocalizations {
   String get consentForHistory => 'Visite condivise da altre cliniche';
 
   @override
+  String get reminders => 'Promemoria';
+
+  @override
+  String get remindersIntro =>
+      'Scegli come le cliniche ti ricordano i tuoi appuntamenti.';
+
+  @override
+  String get remindersPush => 'Notifiche push';
+
+  @override
+  String get remindersEmail => 'E-mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Promemoria e offerte dalla lista d\'attesa via SMS al numero di telefono del tuo profilo, solo presso le cliniche che offrono gli SMS. Mai per pubblicità.';
+
+  @override
+  String get quietHours => 'Ore di silenzio';
+
+  @override
+  String get quietHoursHint =>
+      'Le notifiche push e gli SMS attendono la fine delle ore di silenzio. Se arriverebbero meno di 30 minuti prima dell\'appuntamento, non vengono inviati. Le e-mail non vengono trattenute.';
+
+  @override
+  String get quietHoursFrom => 'Dalle';
+
+  @override
+  String get quietHoursUntil => 'Alle';
+
+  @override
+  String get remindersSaved => 'Le tue scelte sono salvate.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Per gli SMS serve un numero di telefono nel profilo. Aggiungilo in Il mio profilo, poi riprova.';
+
+  @override
+  String get remindersInvalid =>
+      'Non è stato possibile salvare queste impostazioni. Controllale e riprova.';
+
+  @override
   String get waitlistTitle => 'La mia lista d\'attesa';
 
   @override

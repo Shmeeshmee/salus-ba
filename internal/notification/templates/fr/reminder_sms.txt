@@ -1,0 +1,1 @@
+Rappel : {{.Clinic}}, le {{.Day}}/{{.Month}}/{{.Year}} à {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}/{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Confirmer ou annuler : {{.ActionLink}}

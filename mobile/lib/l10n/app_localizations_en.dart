@@ -1780,6 +1780,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get consentForHistory => 'Visits shared from other clinics';
 
   @override
+  String get reminders => 'Reminders';
+
+  @override
+  String get remindersIntro =>
+      'Choose how your clinics remind you of your appointments.';
+
+  @override
+  String get remindersPush => 'Push notifications';
+
+  @override
+  String get remindersEmail => 'E-mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Reminders and waitlist offers by SMS to the phone number in your profile, only at clinics that offer SMS. Never used for advertising.';
+
+  @override
+  String get quietHours => 'Quiet hours';
+
+  @override
+  String get quietHoursHint =>
+      'Push notifications and SMS wait until quiet hours end. If they would then arrive less than 30 minutes before the appointment, they are skipped. E-mails are not held.';
+
+  @override
+  String get quietHoursFrom => 'From';
+
+  @override
+  String get quietHoursUntil => 'Until';
+
+  @override
+  String get remindersSaved => 'Your choices are saved.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'SMS needs a phone number in your profile. Add one in My profile, then try again.';
+
+  @override
+  String get remindersInvalid =>
+      'These settings could not be saved. Check them and try again.';
+
+  @override
   String get waitlistTitle => 'My waitlist';
 
   @override

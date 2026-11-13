@@ -50,6 +50,9 @@ var (
 	ErrOfferNotDue = errors.New("appointment: offer not due to expire")
 	// ErrInvalidPriority is returned for a waitlist priority outside 0 to 100 (SAL-35).
 	ErrInvalidPriority = errors.New("appointment: invalid priority")
+	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
+	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
+	ErrReminderGone = errors.New("appointment: reminder no longer applies")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

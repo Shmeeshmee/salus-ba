@@ -45,6 +45,49 @@ key with other parameters, no SMS adapter; the SMS option refused with the fake 
 (`TestAppointments_RefusesTheSMSOptionWhileNoProviderSends`); `For`'s scope documented and the history's insert tied to
 the scope (`TestAppointmentChange_IsAppendOnly`).
 
+## SAL-33: reminders (branch `appt-33-reminders`, migration 00055 as a placeholder)
+
+Built: migration 00055 with `appointment_reminder` (owned by `appointment`; row-level security for the patient's own
+and the clinic's scope; a reminder leaves `scheduled` once, by trigger, for every role; the view
+`appointment_reminder_scheduled` of ids and times for the sweep), `notification_delivery`, `notification_preference`
+and `sms_usage` (owned by `notification`; a delivery leaves `pending` once, by trigger), the foreign key of
+`appointment_action_token.reminder_id`, ownership and retention (reminders and deliveries 90 days, the settings with
+the account). In `appointment` (`service_reminder.go`): `scheduleReminders` (one row and one `appointment_reminder`
+job per offset of the clinic's settings still ahead, unique by the reminder, in the booking's transaction),
+`cancelReminders` (every cancellation), `TakeReminder`, `ReminderDispatched`, `ReminderNotice`, `SweepReminders` and
+the reminder purger. In `notification`: `Service.Deliver` (the plan's contract, in the caller's transaction:
+channels, quiet hours, the delivery rows and their jobs), `DispatchReminder`, `SendDelivery` (the `reminder_email`,
+`reminder_push`, `reminder_sms` jobs on the `email`, `push` and new `sms` queues), the patient's settings
+(`GET`, `PUT /me/notification-settings`) and the admin's SMS usage (`GET /clinic/sms-usage`), the delivery purger.
+`patient.NoticePhone` (audited, job as agent). `APPOINTMENT_LINK_URL` in `internal/config`, the notifier and both
+composes; the notifier loads `config.LoadSMS` (the fake). `appointment_reminders_sweep` hourly from the scheduler,
+worked by the worker. The legacy `appointment_reminder_email` is no longer enqueued; its worker still sends the jobs
+enqueued before (an appointment booked before keeps its one 24-hour e-mail; ADR 0015 amended to match). Web: `ClinicSettingsReminders.tsx` (offsets, the SMS option with `[PRICE]`, 12 months of usage) in the
+clinic settings; the Vite proxy and the Caddyfile route `/clinic/` to the api (`/clinic` itself stays the screen).
+Mobile: `notification_settings_screen.dart` from the home screen. e2e: `TestReminders_TheReminderEmailArrivesAtItsTimeWithAOneTimeLink`.
+
+Tests named in the plan: `TestReminder_SentOnceAtTheRightInstant` (`internal/worker`): a patient in Asia/Dubai of a
+clinic in Europe/Sarajevo across the 25 October 2026 change, quiet hours in either zone, a dispatch rolled back once and
+every job run twice, a cancellation and a reschedule between scheduling and dispatch; against Postgres with the
+real repositories and River's inserts, fake senders.
+
+### Measured (`make bench-reminders`, 2026-11-13)
+
+The host was shared with the other wave-1 stacks (load average 10 to 25 during the runs), so the numbers are upper
+bounds; the queries are those of the code, on salus_app with its row-level security.
+
+| Measure | Result |
+| --- | --- |
+| The hourly sweep over 100 000 scheduled reminders, 1 000 of them overdue: find them (two pages of the partial index on `(due_at, id)` where scheduled) and enqueue their dispatch again (unique by the reminder, `InsertManyTx`) | 30.0 ms and 33.8 ms per sweep (two counts of five) |
+| 1 000 reminders dispatched at once by 10 workers (the notifier's), each storing an e-mail and a push delivery with their jobs | 1.37 s for the 1 000 (mean of three runs) |
+| Their 2 000 sends by 10 workers on the fake senders (lock, re-read the reminder and the appointment, issue the e-mail's one-time link, send, mark sent) | 4.6 s for the 2 000 (mean of three runs) |
+
+- The 1 000 dispatches share one practitioner role, so their appointments cannot share a start: the benchmark runs
+  them all at one instant, the work a minute with 1 000 due reminders asks. About 1.4 ms of database work per
+  dispatch and 2.3 ms per send at ten at a time: a burst of 1 000 is sent within seconds, far inside the reminders'
+  lead of an hour or a day.
+- The cost is in the sends' audited reads (the appointment, the patient's account and settings, each audited in the
+  same transaction). Not tuned: nothing here is near a limit.
 ## SAL-35: the waitlist (branch `appt-35-waitlist`)
 
 Built: migration 00056 (a placeholder) with `slot.status` `busy-tentative`, `waitlist_entry` and `waitlist_offer`
@@ -56,8 +99,7 @@ with its schedule's role, through the new `schedule.Service.Lookup`), `Offer`, `
 before the transaction, refunded when the booking fails; nothing has a price, so nothing is charged), `Decline`,
 `OfferNotice`; `booked` (the jobs after a booking) shared by both booking paths. The `WaitlistHandler` mounts every
 SAL-35 route of `api/openapi.yaml` (their "404 until then" notes dropped; `profile_required` and `payment_declined`
-added to the 409s). `notification.Waitlist` sends the offer's e-mail and push (ten languages) for the
-`waitlist_offer_notify` job. Web: `Waitlist.tsx` (the clinic's list, priority, removal) at `/waitlist` and
+added to the 409s). The offer's notice goes through SAL-33's deliveries (below, "At SAL-33's merge"). Web: `Waitlist.tsx` (the clinic's list, priority, removal) at `/waitlist` and
 `ClinicSettingsWaitlist.tsx` under the clinic settings, with the proxy and Caddy route
 `^/(waitlist/.+|clinic/(waitlist(/.*)?|appointment-settings))$`. Mobile: `waitlist_screen.dart` (join from a
 practitioner's free times, the patient's waitlist with the offer's accept and decline), a button on the home screen.
@@ -82,8 +124,19 @@ As built (agent decisions, for the owner to review):
 
 | Topic | Decision |
 | --- | --- |
-| Offers until SAL-33 | `appointment.OfferNotices` is the port: today `NewRiverOfferNotices` enqueues `waitlist_offer_notify`, which the notifier sends as a plain e-mail and a push per device (`notification.Waitlist`); a retry may repeat a message and there is no SMS. At SAL-33's merge, implement `OfferNotices.NotifyOffer` with `notification.Service.Deliver(ctx, "waitlist_offer", offerID, org, accountID, content)` in the offer's transaction (the account from `patient.NoticeAccount`), and drop the job and `notification/service_waitlist.go`'s sends |
-| Quiet hours | `Ports.Quiet` (`QuietHours`) is a seam, nil in every binary until SAL-33: nobody is passed over. SAL-33 wires its notification settings there |
+| `Deliver`'s `content` | `notification.Content{Deadline}`: the instant a held push or SMS must still be 30 minutes before (a reminder's start, an offer's expiry). The text is composed by the send job from the delivery's kind, so a send re-reads what still holds; SAL-35 adds the `waitlist_offer` composer in `compose` |
+| Sends outside the transaction | A send locks and checks its delivery, composes (issuing a new one-time link for an e-mail or SMS) and commits; then sends; then marks it sent (an SMS counted in its clinic's month in that transaction). "Sent once" holds per dispatch: a crash between the provider's acceptance and the mark (the window ADR 0015 accepts) resends the e-mail, push or SMS, and an e-mail or SMS resent carries a second valid link (both single use, both expiring at the start). The first link cannot be reused: only its hash is stored |
+| A send's channel | Checked at dispatch and again at the send: a send held by quiet hours whose channel the patient turned off meanwhile, or whose clinic turned SMS off, is cancelled |
+| A reminder's generations | A cancellation or reschedule cancels the appointment's live reminders, the dispatched ones too (a dispatched reminder may be retired once, by the trigger), so their held sends are cancelled when they run; a live reminder (scheduled or dispatched) is unique per appointment, offset and start (a partial index), so a move from A to B and back to A schedules A's again |
+| SMS text and length | The clinic's time with its zone's name, then the patient's day and time with theirs when it differs. With a 16-letter clinic name and a 71-character link: en 1 part at home, 2 abroad; bs, hr, sr-Latn, de, tr, it, fr 2 at home and abroad (GSM-7); sr-Cyrl and ar 3 at home and abroad (UCS-2). Longer clinic names add parts (at most `sms.MaxSegments`, 3) |
+| Deliver's audit agent and scope | The agent is the kind's, `<kind>_delivery` (`reminder_delivery`, `waitlist_offer_delivery`); Deliver reads the clinic's SMS option in the clinic's scope and sets the caller's clinic scope back after. A kind without a composer (a waitlist offer before SAL-35) fails its delivery at the send instead of retrying |
+| A Service without the delivery ports | The api builds `notification.Service` for the settings only; `Deliver`, `DispatchReminder` and `SendDelivery` return an error when their ports are missing, never a nil dereference |
+| Sweep's cross-clinic read | A view with its owner's rights (`appointment_reminder_scheduled`, ids and times only) instead of a `SECURITY DEFINER` function: sqlc cannot read a function's `RETURNS TABLE`. The sweep takes reminders due and not started, in pages of 1 000 |
+| Patient's zone from the app | The app sends `DateTime.now().timeZoneName` only when it is an IANA name; most phones report an abbreviation, so the zone is rarely sent and the clinic's is used. A real zone needs the `flutter_timezone` package: the owner's call |
+| SMS text | Latin-script languages without diacritics (GSM-7); Cyrillic and Arabic shortened. The owner's call (plan's "Copy waiting") |
+| `repository_sms.go` | Not created: archcheck lets only `repository_postgres.go` import the sqlc package, so the SMS usage's queries are there, beside the deliveries' |
+| `NewNotifier` | Takes a `worker.Notifier` struct (sender, pusher, SMS, the three URLs) instead of positional arguments |
+| SMS usage route | 403 for anyone but the clinic's admin, patients included |
 | Handing a slot on | One path, `handOn`: the job locks the slot (`ForWaitlist`), leaves it when booked or held by an open offer, gives back a held slot whose offer closed, then offers it to the first entry the matching query and the consent check give, or leaves it free. Decline, withdrawal and revocation close the offer in the patient's scope and enqueue `waitlist_slot_freed`; the expiry closes it and hands on in its own transaction |
 | Offer visibility | The clinic's jobs see every offer of the clinic whatever the patient's consent (they must see an open offer of a slot to leave it held); entries stay consent-gated, and an offer is inserted only for an entry the clinic sees |
 | Offer's role | `waitlist_offer` gains `practitioner_role_id` (the slot's), so an acceptance books without reading the slot first |
@@ -111,7 +164,20 @@ Independent review of PR #93 (2026-11-13), all fixed test-first:
 | 7. Copy | The second device gets the booking (finding 1), so "You stay on the waitlist" is no longer shown after a booking; the hold's end carries the zone's name, and its date when it ends on a later day | `TestNotifyOffer_AHoldPastMidnightGivesItsDate`, golden e-mails |
 | 8. The contract | The plan amends `Unoffer` (also after the start) and notes the same-clinic overlap check, the offer's `practitioner_role_id`, the list's pages and the repeated acceptance | |
 
-Copy waiting for the owner: the offer e-mail and push in ten languages
+At SAL-33's merge (2026-11-13): an offer's notice is `notification.Service.NotifyOffer`, which calls `Deliver(ctx,
+"waitlist_offer", offerID, org, accountID, Content{Deadline: the offer's end})` in the offer's transaction, so the
+patient's channels, quiet hours (a push or SMS held past the hold's end is dropped; the e-mail goes at once) and the
+clinic's SMS option apply, each sent once; the `waitlist_offer_notify` job and the plain sends are gone. The send's
+composer (`composeOffer`) re-reads the offer and sends nothing once it closed or its hold ended. `Ports.Quiet` is
+`notification.Service.Quiet` (the patient's quiet hours in their zone, else the clinic's): an entry whose patient is
+inside them is passed over. The account comes from `patient.Service.Lookup` in the clinic's scope (audited as a read
+with the job as agent). The waitlist reads the clinic's settings through SAL-33's `Ports.Rules` (the same `For`), so
+its own `Settings` port is gone. `TestWaitlistPorts_GiveTheOffersTheirDeliveriesAndQuietHours` (internal/api) and
+`TestNewRevocations_GiveTheOffersTheirDeliveriesAndQuietHours` (internal/worker) check the wiring. New copy: the offer
+SMS in ten languages (`waitlist_offer_sms.txt`, GSM-7 without diacritics where the language allows, as SAL-33's
+reminder; one part for a short clinic name).
+
+Copy waiting for the owner: the offer e-mail, push and SMS in ten languages
 (`internal/notification/templates/*/waitlist_offer*.txt`); the mobile `waitlist*` strings in ten languages (`legal`:
 `waitlistExplained`, `waitlistAcceptEffect`, `waitlistAccept`); the web `waitlist` area in five languages (after the
 review: `showMore` added, `statusAll` dropped, the status filter uses `status.expired`, `.booked`, `.withdrawn`); the

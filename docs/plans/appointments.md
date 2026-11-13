@@ -206,7 +206,7 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
 | `PUT /clinic/waitlist/{id}/priority` | Staff: `{priority}` (0 to 100) |
 | `waitlist_entry`, `waitlist_offer` (00056) | Owned by `appointment`; the offer: `id`, `entry_id`, `slot_id`, `organization_id`, `patient_id`, `created_at`, `expires_at`, `state` (`open` \| `accepted` \| `declined` \| `expired` \| `withdrawn`), `appointment_id`, `practitioner_role_id` (the slot's, added in SAL-35); partial unique indexes on `slot_id` and `entry_id` where `open` |
 | `slot.status` | gains `busy-tentative`; `slot.Service.Offer(org, id)` free → tentative, `TakeOffered` tentative → busy, `Unoffer` tentative → free, also once the slot has started (no offer can hold it then, and retention deletes free slots only; amended in SAL-35) |
-| Jobs | `waitlist_slot_freed` (worker, default queue; replaces step 0's no-op), `waitlist_offer_expire {offer_id, organization_id}` (worker, at `expires_at`), `waitlist_offer_notify {offer_id, organization_id}` (notifier) |
+| Jobs | `waitlist_slot_freed` (worker, default queue; replaces step 0's no-op), `waitlist_offer_expire {offer_id, organization_id}` (worker, at `expires_at`), the offer's notice through SAL-33's `notification.Service.Deliver` (kind `waitlist_offer`) in the offer's transaction (SAL-35: the `waitlist_offer_notify` job of the first build is gone) |
 
 **SAL-36 (no-shows).**
 

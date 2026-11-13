@@ -1806,6 +1806,50 @@ class AppLocalizationsBs extends AppLocalizations {
   String get consentForHistory => 'Posjete podijeljene iz drugih klinika';
 
   @override
+  String get reminders => 'Podsjetnici';
+
+  @override
+  String get remindersIntro =>
+      'Odaberite kako vas klinike podsjećaju na termine.';
+
+  @override
+  String get remindersPush => 'Push obavještenja';
+
+  @override
+  String get remindersEmail => 'E-mail';
+
+  @override
+  String get remindersSms => 'SMS';
+
+  @override
+  String get remindersSmsHint =>
+      'Podsjetnici i ponude s liste čekanja SMS-om na broj telefona iz vašeg profila, samo u klinikama koje nude SMS. Nikada za oglašavanje.';
+
+  @override
+  String get quietHours => 'Tihi sati';
+
+  @override
+  String get quietHoursHint =>
+      'Push obavještenja i SMS čekaju do kraja tihih sati. Ako bi tada stigli manje od 30 minuta prije termina, ne šalju se. E-mailovi se ne zadržavaju.';
+
+  @override
+  String get quietHoursFrom => 'Od';
+
+  @override
+  String get quietHoursUntil => 'Do';
+
+  @override
+  String get remindersSaved => 'Vaš izbor je sačuvan.';
+
+  @override
+  String get remindersPhoneRequired =>
+      'Za SMS je potreban broj telefona u profilu. Dodajte ga u odjeljku Moj profil, pa pokušajte ponovo.';
+
+  @override
+  String get remindersInvalid =>
+      'Ove postavke nije bilo moguće sačuvati. Provjerite ih i pokušajte ponovo.';
+
+  @override
   String get waitlistTitle => 'Moja lista čekanja';
 
   @override

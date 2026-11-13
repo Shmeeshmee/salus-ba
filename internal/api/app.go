@@ -97,17 +97,15 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
 	})
 	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
-	appointments := appointment.NewService(appointment.Ports{
+	appointmentPorts := appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
 		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
-		// The waitlist (SAL-35): the clinic's rules, its offered slots, the offers' expiries and notices.
-		Waitlist: appointment.NewPostgresWaitlistRepository(pool), Offered: slots,
-		Settings: organization.NewAppointments(organization.AppointmentsPorts{
-			Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
-		}),
-		OfferJobs: appointment.NewRiverOfferJobs(jobs), Notices: appointment.NewRiverOfferNotices(jobs),
-	})
+		// A booking schedules its reminders by the clinic's offsets, a cancellation cancels them (SAL-33).
+		Reminders: appointment.NewPostgresReminderRepository(pool), Rules: appointmentRules(pool, audit, tx),
+	}
+	waitlistPorts(&appointmentPorts, pool, audit, tx, jobs, clinics, slots) // SAL-35
+	appointments := appointment.NewService(appointmentPorts)
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
@@ -147,7 +145,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewWaitlistHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log)}, platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})

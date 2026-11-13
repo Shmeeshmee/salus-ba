@@ -104,11 +104,12 @@ app.{$SALUS_DOMAIN} {
 		path /analytics/clinic*
 		path /analytics/platform*
 		path /patients*
+		path /clinic/*
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
 	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$
-	# The waitlist's staff routes and the clinic's appointment settings (SAL-35); /waitlist itself is a screen of the app.
-	@apiWaitlist path_regexp ^/(waitlist/.+|clinic/(waitlist(/.*)?|appointment-settings))$
+	# Removing an entry of the waitlist (SAL-35); /waitlist itself is a screen of the app.
+	@apiWaitlist path_regexp ^/waitlist/.+$
 	# /questionnaires and /questionnaires/<id> are screens of the app too: only their writes go to the api.
 	@apiQuestionnaires {
 		path /questionnaires*

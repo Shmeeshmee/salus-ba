@@ -1,0 +1,1 @@
+Слободан термин: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}}. у {{.Time}} ({{.Zone}}), до {{.Until}}. Закажите у Salus: {{.Link}}

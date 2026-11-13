@@ -35,7 +35,7 @@ func TestHandOn_OffersAFreedSlotToTheFirstMatchingEntry(t *testing.T) {
 		!o.Start.Equal(start) || w.offered.status(slotFree) != slot.StatusTentative {
 		t.Errorf("offer %+v, slot %s; want patient A's entry held 15 minutes, the slot busy-tentative", o, w.offered.status(slotFree))
 	}
-	wantJobs := []string{"offer_expire " + o.ID + " " + clinicA + " at " + now.Add(15*time.Minute).Format(time.RFC3339), "offer_notify " + o.ID + " " + clinicA}
+	wantJobs := []string{"offer_expire " + o.ID + " " + clinicA + " at " + now.Add(15*time.Minute).Format(time.RFC3339), "offer_notify " + o.ID + " " + clinicA + " " + accountA}
 	if !slices.Equal(w.jobs.enqueued, wantJobs) {
 		t.Errorf("jobs %v, want %v", w.jobs.enqueued, wantJobs)
 	}
@@ -45,6 +45,7 @@ func TestHandOn_OffersAFreedSlotToTheFirstMatchingEntry(t *testing.T) {
 	}
 	want := []auditevent.AuditEvent{
 		jobEvent("waitlist_slot_freed", clinicA, auditevent.CodeSearchType, "", ""),
+		jobEvent("waitlist_slot_freed", clinicA, auditevent.CodeRead, "Patient", patientA),
 		jobEvent("waitlist_slot_freed", clinicA, auditevent.CodeUpdate, "Appointment", first),
 	}
 	if !slices.Equal(w.audit.events, want) {
@@ -63,7 +64,7 @@ func TestHandOn_PassesOverWhoMayNotBeOfferedNow(t *testing.T) {
 	a := w.entry(patientA, roleA1, 0)
 	b := w.entry(patientB, roleA1, 0)
 	w.wl.cands = []string{a, b}
-	w.quiet.quiet[patientA] = true
+	w.quiet.quiet[accountA] = true
 	if err := w.svc.HandOn(t.Context(), clinicA, slotFree); err != nil || len(w.wl.offers) != 1 || w.wl.offers[0].EntryID != b {
 		t.Fatalf("HandOn() = %v, offers %+v; want patient B's entry, A in quiet hours", err, w.wl.offers)
 	}
@@ -299,18 +300,18 @@ func TestDecline_HandsTheSlotOn(t *testing.T) {
 func TestOfferNotice_GivesTheOfferAndTheAccount(t *testing.T) {
 	t.Parallel()
 	w, id, _ := offered(t, now)
-	got, err := w.svc.OfferNotice(t.Context(), "waitlist_offer_notify", clinicA, id)
+	got, err := w.svc.OfferNotice(t.Context(), "reminder_email", clinicA, id)
 	if err != nil || got.AccountID != accountA || got.Offer.ID != id {
 		t.Fatalf("OfferNotice() = %+v, %v; want the offer and patient A's account", got, err)
 	}
 	want := []auditevent.AuditEvent{
-		jobEvent("waitlist_offer_notify", clinicA, auditevent.CodeRead, "Appointment", w.wl.entries[0].ID),
-		jobEvent("waitlist_offer_notify", clinicA, auditevent.CodeRead, "Patient", patientA),
+		jobEvent("reminder_email", clinicA, auditevent.CodeRead, "Appointment", w.wl.entries[0].ID),
+		jobEvent("reminder_email", clinicA, auditevent.CodeRead, "Patient", patientA),
 	}
 	if !slices.Equal(w.audit.events, want) {
 		t.Errorf("audit %+v, want %+v", w.audit.events, want)
 	}
-	if _, err := w.svc.OfferNotice(t.Context(), "waitlist_offer_notify", clinicB, id); !errors.Is(err, appointment.ErrNotFound) {
+	if _, err := w.svc.OfferNotice(t.Context(), "reminder_email", clinicB, id); !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("OfferNotice(another clinic) = %v, want ErrNotFound", err)
 	}
 }
