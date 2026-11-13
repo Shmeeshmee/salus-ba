@@ -32,10 +32,10 @@ Wave 1, in parallel, each in its own worktree and compose project:  SAL-33   SAL
   plain e-mail and push until then). SAL-36 last: it reads `booked_via` that SAL-35 writes, extends SAL-20's
   statistics (`origin/analytics-clinic`, on main before step 0's phase B merges), and its reports cover every change
   the others make.
-- **Migrations.** Main is at `00047`; the analytics and patient-history branches have reserved `00048` to `00052`.
-  This plan uses placeholders: step 0 `00053`, SAL-33 `00054`, SAL-35 `00055`, SAL-36 `00056` (SAL-34 needs none;
-  `00057` if it finds it must). Each branch renumbers to the next free number when it merges main before its own
-  merge, and its migration test file follows.
+- **Migrations.** Main is at `00050` (2026-11-13), and `00051` to `00053` are taken by branches merging before this
+  one. Step 0 takes `00054` as a placeholder; the wave's placeholders follow: SAL-33 `00055`, SAL-35 `00056`, SAL-36
+  `00057` (SAL-34 needs none; `00058` if it finds it must). Each branch renumbers to the next free number when it
+  merges main before its own merge, and its migration test file follows.
 - **Shared files.** `api/openapi.yaml`, the generated clients (regenerated after each merge with `make gen-clients`,
   never hand-merged), `internal/api/app.go` and the router, `internal/worker` (registration lines), `internal/config`,
   `docs/architecture/archcheck/ownership.yaml`, `internal/retention/rules.go`, `docs/privacy/dpia.md`, the i18n
@@ -43,14 +43,15 @@ Wave 1, in parallel, each in its own worktree and compose project:  SAL-33   SAL
 - **File ownership inside `internal/appointment`** (one domain, as `communication` was for the chat): each package
   adds its own files and touches the core files (`model.go`, `errors.go`, `repository.go`, `repository_postgres.go`,
   `query.sql`, `service.go`, `service_change.go`, `handler_http.go`, `handler_fhir.go`) only where it must, appending
-  its own block (a port interface at the end of `repository.go`, a section headed by its ticket in `query.sql`).
+  its own block (a port interface at the end of `repository.go`, a section headed by its ticket in `query.sql` and
+  its implementation at the end of `repository_postgres.go`: archcheck lets only that file import the sqlc package).
   Test fakes go in `fakes_<area>_test.go`.
 
 | Package | Its own files in `internal/appointment` | Elsewhere |
 | --- | --- | --- |
-| SAL-33 | `service_reminder.go` (fills step 0's seam), `repository_postgres_reminder.go`, `service_reminder_test.go` | `internal/notification` `service_reminder.go`, `service_preferences.go`, `service_sms.go`, `repository_sms.go`, templates; the SMS provider's adapter under `pkg/sms/` once one is chosen; `internal/worker/reminders.go`; mobile `notification_settings_screen.dart`; web `ClinicSettingsReminders.tsx` |
+| SAL-33 | `service_reminder.go` (fills step 0's seam), its block of `repository_postgres.go`, `service_reminder_test.go` | `internal/notification` `service_reminder.go`, `service_preferences.go`, `service_sms.go`, `repository_sms.go`, templates; the SMS provider's adapter under `pkg/sms/` once one is chosen; `internal/worker/reminders.go`; mobile `notification_settings_screen.dart`; web `ClinicSettingsReminders.tsx` |
 | SAL-34 | `service_confirm.go`, `service_reschedule.go`, `service_link_use.go`, `handler_link.go` (the page), `handler_actions.go` (`ActionsHandler`), `templates/link/` | mobile `appointment_actions.dart`, `reschedule_screen.dart`; web `Calendar.tsx` (the badge), `AppointmentChanges.tsx`, `ClinicSettingsReschedule.tsx` |
-| SAL-35 | `service_waitlist.go`, `service_offer.go`, `handler_waitlist.go` (`WaitlistHandler`), `repository_postgres_waitlist.go`, `service_purchase.go` (fills step 0's stub with the price lookup) | `internal/slot` `service_offer.go` (tentative hold and release); `internal/notification/service_waitlist.go`; `internal/worker/waitlist.go`; mobile `waitlist_screen.dart`; web `Waitlist.tsx`, `ClinicSettingsWaitlist.tsx` |
+| SAL-35 | `service_waitlist.go`, `service_offer.go`, `handler_waitlist.go` (`WaitlistHandler`), its block of `repository_postgres.go`, `service_purchase.go` (fills step 0's stub with the price lookup) | `internal/slot` `service_offer.go` (tentative hold and release); `internal/notification/service_waitlist.go`; `internal/worker/waitlist.go`; mobile `waitlist_screen.dart`; web `Waitlist.tsx`, `ClinicSettingsWaitlist.tsx` |
 | SAL-36 | `service_noshow.go`, `handler_noshow.go` | `internal/clinicstats` (its files, the added dimension); web `AppointmentChanges.tsx` is SAL-34's: SAL-36 adds its rows' rendering after SAL-34's merge; web `ClinicSettingsNoShows.tsx`, the analytics charts' added series |
 
 ## Decisions
@@ -98,13 +99,13 @@ The answers to the open questions of phase A, each the recommended option.
 | Reports | SAL-20's `clinic_appointment_stat` gains `booked_via`; `GET /analytics/clinic/appointments` gains additive fields (below). The no-show rate is computed from the counts, by the client |
 | JSON naming | Fields added to the existing `Appointment` schema follow its camelCase; new schemas use snake_case, as the chat and analytics routes |
 
-## Contract (step 0, phase B, migration 00053 as a placeholder)
+## Contract (step 0, phase B, migration 00054 as a placeholder)
 
 ### Tables and columns
 
 | Table | Columns |
 | --- | --- |
-| `appointment` (added) | `confirmed_at`, `confirmed_via` (`app` \| `link`; both null or both set), `reschedule_count` (0 default), `booked_via` (`direct` \| `waitlist`, `direct` default). Grants `UPDATE (period, slot_id, confirmed_at, confirmed_via, reschedule_count)` beside the status columns; the 00019 comment's "when never changes" is amended in 00053's |
+| `appointment` (added) | `confirmed_at`, `confirmed_via` (`app` \| `link`; both null or both set), `reschedule_count` (0 default), `booked_via` (`direct` \| `waitlist`, `direct` default). Grants `UPDATE (period, slot_id, confirmed_at, confirmed_via, reschedule_count)` beside the status columns; the 00019 comment's "when never changes" is amended in 00054's |
 | `appointment_change` | `id`, `appointment_id`, `organization_id`, `patient_id` (copied for row-level security), `at`, `kind` (`confirmed` \| `rescheduled` \| `status_set` \| `status_corrected`), `via` (`app` \| `link` \| `staff` \| `system`), `by_account_id` (null for the system), `agent` (a job's kind, for the system), `from_status`, `to_status`, `from_period`, `to_period`, `from_slot_id`, `to_slot_id`. Append-only: `SELECT, INSERT` only, triggers refuse `UPDATE`, `DELETE` and `TRUNCATE` for every role, as `communication`. Row-level security as `appointment`'s (the patient's own; the clinic's with the consent, and the past ones after a revocation) |
 | `appointment_action_token` | `id`, `token_hash` (SHA-256, unique), `appointment_id`, `organization_id`, `patient_id`, `account_id`, `reminder_id` (SAL-33 adds its foreign key), `channel` (`email` \| `sms`), `language`, `created_at`, `expires_at`, `used_at`, `used_action` (`confirm` \| `cancel`). Found by hash only through `appointment_action_token_find(hash)`, `SECURITY DEFINER`, returning the ids; inserted in a notifier job's clinic scope with `app.appointment_id` set |
 | `organization_appointment_settings` | `organization_id` (key), `reminder_offsets_minutes` (`integer[]`, 0 to 3 distinct values, 15 to 10080; default `{1440, 60}`), `sms_reminders` (false), `reschedule_notice_hours` (0 to 168, 24), `reschedule_max` (0 to 5, 2), `waitlist_enabled` (false), `waitlist_hold_minutes` (5 to 120, 15), `noshow_flag_threshold` (0 to 10, 0 for off), `noshow_flag_window_days` (30 to 730, 180), `created_at`, `updated_at`. Not personal data. No version: like the chat settings, a `PUT` replaces the whole row |
@@ -130,8 +131,10 @@ The answers to the open questions of phase A, each the recommended option.
   service of the domain like `Chat`): `Settings` and `SetSettings` for the clinic's admin (audited, refusals too,
   every range validated here so the wave never edits it), and `For(ctx, org)` for the other domains in their
   transaction, unaudited (not personal data).
-- `internal/config`: `APPOINTMENT_LINK_URL` (the link page's base, the api's public origin), required by the api and
-  the notifier.
+- `Ports.Tokens` and `Ports.LinkURL` of `appointment.Service` for `IssueLink`; SAL-33 adds `APPOINTMENT_LINK_URL` (the
+  link page's base, the api's public origin) to `internal/config` and wires both into the notifier, its only issuer.
+- New public routes (`/a/`, `/waitlist`, `/me/notification-settings` and the others) get their Vite proxy and
+  Caddyfile entries (`scripts/check-caddy-routes.sh`) in the package that mounts them.
 
 ### HTTP (`api/openapi.yaml`)
 
@@ -144,7 +147,8 @@ The answers to the open questions of phase A, each the recommended option.
 FHIR: the patient participant's status per Q3, built in step 0 (golden files).
 
 `pkg/sms` (`Sender`, `Message`, `Segments`, `smstest`) and `pkg/payments` (`Provider`, `Charge`, `Refund`, `Receipt`,
-`paymentstest`) are built in step 0, as ADR 0015 describes; `config.LoadSMS` refuses any engine but `fake` while no
+`paymentstest`) are built in step 0, as ADR 0015 describes; `config.LoadSMS` gives the fake unless `SMS_ENGINE=http`
+comes with its endpoint and token file; nothing loads it before SAL-33, and the generic adapter stays off until the
 provider is chosen. Every wave-1 route below is in `api/openapi.yaml` from step 0 (`x-salus-package` names its
 builder), so the generated clients and the screens can be built in parallel; a route answers 404 until its package
 mounts it.
@@ -160,10 +164,10 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
 | --- | --- |
 | `GET`, `PUT /me/notification-settings` | The patient's: `channels {push, email, sms}`, `quiet_hours {start, end}` (HH:MM, may wrap midnight) or null, `time_zone` (IANA). `sms: true` needs a phone in the profile (409 `phone_required`). Staff get 403 |
 | `GET /clinic/sms-usage?from=YYYY-MM&to=YYYY-MM` | The admin's: `{months: [{month, messages, segments}]}` |
-| `appointment_reminder` (00054) | `id`, `appointment_id`, `organization_id`, `offset_minutes`, `start_at` (the start it was scheduled for), `due_at`, `state` (`scheduled` \| `dispatched` \| `cancelled` \| `skipped`), `created_at`, `dispatched_at`; unique `(appointment_id, offset_minutes, start_at)`. Owned by `appointment` |
-| `notification_delivery` (00054) | `id`, `kind` (`reminder` \| `waitlist_offer`), `source_id`, `organization_id`, `account_id`, `channel` (`push` \| `email` \| `sms`), `device_id`, `state` (`pending` \| `sent` \| `cancelled` \| `failed`), `segments`, `created_at`, `sent_at`; unique `(kind, source_id, channel, device_id)`. No address, number, token or text. Owned by `notification` |
-| `notification_preference` (00054) | `account_id` (key, cascades with the account), `push`, `email`, `sms`, `quiet_start`, `quiet_end`, `time_zone`, `updated_at`. Owned by `notification` |
-| `sms_usage` (00054) | `organization_id`, `month`, `messages`, `segments`; updated in the SMS delivery's transaction. Not personal data |
+| `appointment_reminder` (00055) | `id`, `appointment_id`, `organization_id`, `offset_minutes`, `start_at` (the start it was scheduled for), `due_at`, `state` (`scheduled` \| `dispatched` \| `cancelled` \| `skipped`), `created_at`, `dispatched_at`; unique `(appointment_id, offset_minutes, start_at)`. Owned by `appointment` |
+| `notification_delivery` (00055) | `id`, `kind` (`reminder` \| `waitlist_offer`), `source_id`, `organization_id`, `account_id`, `channel` (`push` \| `email` \| `sms`), `device_id`, `state` (`pending` \| `sent` \| `cancelled` \| `failed`), `segments`, `created_at`, `sent_at`; unique `(kind, source_id, channel, device_id)`. No address, number, token or text. Owned by `notification` |
+| `notification_preference` (00055) | `account_id` (key, cascades with the account), `push`, `email`, `sms`, `quiet_start`, `quiet_end`, `time_zone`, `updated_at`. Owned by `notification` |
+| `sms_usage` (00055) | `organization_id`, `month`, `messages`, `segments`; updated in the SMS delivery's transaction. Not personal data |
 | Jobs | `appointment_reminder {reminder_id, organization_id}` (notifier, `push` queue: the dispatch), `reminder_email`, `reminder_push`, `reminder_sms {delivery_id}` (notifier; `email`, `push`, and a new `sms` queue), `appointment_reminders_sweep` (scheduler, hourly, default queue). Opaque ids only |
 | Ports SAL-35 reuses | `notification.Service.Deliver(ctx, kind, sourceID, org, accountID, content)` in the caller's transaction: the channel choice, quiet hours, the delivery rows and their jobs |
 
@@ -172,7 +176,7 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
 | Route | What |
 | --- | --- |
 | `POST /appointments/{id}/confirm` | The patient's own, while `booked` and ahead; 200 `Appointment`; repeating it is 200 with the same |
-| `POST /appointments/{id}/reschedule` | The patient's own: `{slotId}` (a free slot of the same role, ahead); 200 `Appointment` at its new version; 409 `reschedule_window_closed`, `reschedule_limit`, `not_reschedulable` (another role, the join window open, self-service off), `slot_unavailable`, `closed` |
+| `POST /appointments/{id}/reschedule` | The patient's own: `{slotId}` (a free slot of the same role, ahead); 200 `Appointment` at its new version; 409 `reschedule_window_closed`, `reschedule_limit`, `not_reschedulable` (another role, the join window open, self-service off), `slot_unavailable`, `appointment_closed` (the existing code) |
 | `GET /appointments/{id}/actions` | For the patient's app: `{confirm, cancel, cancel_until, reschedule, reschedule_until, reschedules_left}` |
 | `GET /a/{token}` | The link page (`text/html`, no session): the clinic, date and time, the state, and the possible actions as buttons |
 | `POST /a/{token}` | Form `action=confirm\|cancel`; 303 to `GET /a/{token}`, which then shows the result. A used, expired or unknown token: the same page saying the link no longer works |
@@ -188,7 +192,7 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
 | `POST /waitlist/offers/{id}/decline` | The patient; 204; the next entry gets an offer |
 | `GET /clinic/waitlist?practitioner_role=&status=` | The clinic's staff: entries in offer order with `priority`, the patient's name at the level `access.Profile` gives, open offers |
 | `PUT /clinic/waitlist/{id}/priority` | Staff: `{priority}` (0 to 100) |
-| `waitlist_entry`, `waitlist_offer` (00055) | Owned by `appointment`; the offer: `id`, `entry_id`, `slot_id`, `organization_id`, `patient_id`, `created_at`, `expires_at`, `state` (`open` \| `accepted` \| `declined` \| `expired` \| `withdrawn`), `appointment_id`; partial unique indexes on `slot_id` and `entry_id` where `open` |
+| `waitlist_entry`, `waitlist_offer` (00056) | Owned by `appointment`; the offer: `id`, `entry_id`, `slot_id`, `organization_id`, `patient_id`, `created_at`, `expires_at`, `state` (`open` \| `accepted` \| `declined` \| `expired` \| `withdrawn`), `appointment_id`; partial unique indexes on `slot_id` and `entry_id` where `open` |
 | `slot.status` | gains `busy-tentative`; `slot.Service.Offer(org, id)` free → tentative, `TakeOffered` tentative → busy, `Unoffer` tentative → free while ahead |
 | Jobs | `waitlist_slot_freed` (worker, default queue; replaces step 0's no-op), `waitlist_offer_expire {offer_id, organization_id}` (worker, at `expires_at`), `waitlist_offer_notify {offer_id, organization_id}` (notifier) |
 
@@ -198,8 +202,8 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
 | --- | --- |
 | `POST /appointments/{id}/status` | Unchanged for `booked`; also takes `fulfilled` for a `noshow` and `noshow` for a `fulfilled` within 30 days of the start, by the practitioner or the admin (Q6); 409 `correction_window_closed` |
 | `GET /clinic/noshow-flags?from=&to=` | Staff, with the clinic's threshold on: `{flags: [{appointment_id, noshows, window_days}]}` for the appointments in range the caller sees at `Full`; empty when off |
-| `GET /analytics/clinic/appointments` | Additive: `series[].refilled` (booked through the waitlist), `practitioners[].noshow` and `.booked`, `specialties: [{specialty, booked, fulfilled, noshow, cancelled}]` (admins; as SAL-20's rule C2) |
-| `clinic_appointment_stat` (00056) | gains `booked_via` in its key; the refresh and the nightly pass count it |
+| `GET /analytics/clinic/appointments` | SAL-20's route (on main since #82); SAL-36 adds to its schema, additive: `series[].refilled` (booked through the waitlist), `practitioners[].noshow` and `.booked`, `specialties: [{specialty, booked, fulfilled, noshow, cancelled}]` (admins; as SAL-20's rule C2) |
+| `clinic_appointment_stat` (00057) | gains `booked_via` in its key; the refresh and the nightly pass count it |
 
 ## Notes for the wave-1 packages
 
@@ -274,6 +278,10 @@ Processors: the SMS provider (Q2, planned) and any payment provider (SAL-23) get
 a signed DPA before they are switched on; until then the fakes run in every environment. Each package adds its part
 to `docs/privacy/dpia.md` (section "Appointments (`docs/plans/appointments.md`)") and its retention rules to
 `internal/retention/rules.go`; every period above needs a legal decision before production, as the booking's.
+
+## As built in step 0 (phase B)
+
+See `docs/plans/appointments.PROGRESS.md`.
 
 ## Open questions for the owner
 

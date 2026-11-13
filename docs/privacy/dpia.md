@@ -1915,7 +1915,7 @@ practitioner. Every read, grant, change and revocation is audited.
 
 ## Appointments (`docs/plans/appointments.md`, ADR 0015)
 
-### Step 0: the contract (migration 00053, renumbered at merge)
+### Step 0: the contract (migration 00054, renumbered at merge)
 
 **Processing added.** Whether a patient confirmed an appointment and how (a one-time link or the app); the history of
 an appointment's changes (confirmation, reschedule, a status set or corrected, by whom and how); one-time action

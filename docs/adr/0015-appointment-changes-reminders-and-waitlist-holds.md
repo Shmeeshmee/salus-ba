@@ -47,7 +47,7 @@ A patient's reschedule moves the appointment to another free slot **of the same 
 transaction: the new slot is held (free to busy), `period` and `slot_id` are updated (the exclusion constraint
 checks the new period), the old slot is released while ahead, the reminders are cancelled and scheduled again, an
 `appointment_change` row keeps the old and new period and slot, the change is audited, and the freed slot goes to
-the waitlist (a job). Migration 00053 (placeholder number) grants `UPDATE (period, slot_id)`; who and with whom still
+the waitlist (a job). Migration 00054 (placeholder number) grants `UPDATE (period, slot_id)`; who and with whom still
 never change.
 
 Why not cancel and book again with a link: everything else of the visit hangs on the appointment's id, and a
