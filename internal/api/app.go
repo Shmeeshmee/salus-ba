@@ -21,6 +21,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/config"
@@ -106,7 +107,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	appointments := appointment.NewService(appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
 		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
-		Jobs: appointment.NewRiverJobs(jobs), // a booking or cancellation enqueues its e-mails in its transaction
+		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
 	})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
@@ -146,7 +147,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
+		}, append(append(append(append(append(questionnaireAPI, consultAPI...), terminologyRoutes(pool, audit, tx, accounts, log)...), chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)), entries.routes...), chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log)...)...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout,
 	})
@@ -277,6 +278,7 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		Repo: composition.NewPostgresRepository(p.pool), Encounters: p.encounters, Transcripts: transcripts, Drafter: p.drafter,
 		Store:     binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, p.files.Endpoint, p.files.Region, p.files.Bucket, p.files.AccessKeyID, p.files.SecretAccessKey, s3PageSize),
 		Publisher: transcript.NewRedisPublisher(p.rdb), Jobs: composition.NewRiverJobs(p.jobs), // a signature enqueues the patient's e-mail
+		Stats:      clinicstats.NewRiverQueue(p.jobs),                             // and, with diagnoses, its clinic-day's statistics (SAL-20)
 		Conditions: condition.NewService(condition.NewPostgresRepository(p.pool)), // the diagnoses of a signature (SAL-19)
 		Audit:      p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log, Tagger: terms,
 	})
@@ -482,6 +484,47 @@ func patientReadCaller(accounts *auth.Service, roles *practitionerrole.Service) 
 		case errors.Is(err, practitionerrole.ErrNotFound):
 		case err != nil:
 			return patient.Caller{}, false, err
+		default:
+			c.PractitionerRoleID = role.ID
+		}
+		return c, true, nil
+	}
+}
+
+// clinicStatsRoutes are the clinic's own statistics' (SAL-20), read on pool (salus_app) in the caller's clinic.
+func clinicStatsRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor,
+	caller func(ctx context.Context) (clinicstats.Caller, bool, error), log *slog.Logger,
+) func(*http.ServeMux) {
+	svc := clinicstats.NewService(clinicstats.Ports{Repo: clinicstats.NewPostgresRepository(pool), Audit: audit, Tx: tx})
+	return clinicstats.NewHTTPHandler(svc, caller, log).Routes
+}
+
+// clinicStatsCaller is the clinic statistics' view of the signed-in session: for staff, whether the account is the
+// clinic's admin and whether it is a practitioner there with their role, as read from the database (the session
+// holds neither).
+func clinicStatsCaller(accounts *auth.Service, roles *practitionerrole.Service) func(ctx context.Context) (clinicstats.Caller, bool, error) {
+	return func(ctx context.Context) (clinicstats.Caller, bool, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return clinicstats.Caller{}, false, nil
+		}
+		c := clinicstats.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID == "" {
+			return c, true, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
+		if err != nil {
+			return clinicstats.Caller{}, false, err
+		}
+		c.Admin, c.Practitioner = m.Admin, m.PractitionerID != ""
+		if !c.Practitioner {
+			return c, true, nil
+		}
+		role, err := roles.OfPractitioner(ctx, c.OrganizationID, m.PractitionerID)
+		switch {
+		case errors.Is(err, practitionerrole.ErrNotFound):
+		case err != nil:
+			return clinicstats.Caller{}, false, err
 		default:
 			c.PractitionerRoleID = role.ID
 		}

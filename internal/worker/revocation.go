@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -48,7 +49,8 @@ func (w *transcriptionRevocationWorker) Work(ctx context.Context, job *river.Job
 }
 
 // newRevocations builds the appointment service on pool (salus_app) at clk for CancelForRevokedConsent: the
-// consent's state, the slots to free and the cancellation e-mails to enqueue on jobs (an insert-only client).
+// consent's state, the slots to free, and the cancellation e-mails and the statistics' refreshes to enqueue on
+// jobs (an insert-only client).
 func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Clock) *appointment.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
@@ -57,5 +59,6 @@ func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Cl
 	return appointment.NewService(appointment.Ports{
 		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk,
 		Consents: consents, Slots: newSlots(pool, clk), Jobs: appointment.NewRiverJobs(jobs),
+		Stats: clinicstats.NewRiverQueue(jobs), // a cancellation enqueues its clinic-day's refresh
 	})
 }
