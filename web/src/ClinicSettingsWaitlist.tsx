@@ -12,7 +12,7 @@ type Settings = components['schemas']['AppointmentSettings']
 // ClinicSettingsWaitlist is the admin's waitlist section of the clinic's appointment settings (SAL-35): whether
 // patients may join the waitlist, and how long a freed slot is held for the patient it is offered to (5 to 120
 // minutes). The settings are one row replaced whole (PUT /clinic/appointment-settings), so the other sections' values
-// are sent back as read.
+// are read again just before the save and sent back as they are then.
 export function ClinicSettingsWaitlist({ api }: { api: ApiClient }) {
   const t = useT()
   const { state, set } = useLoad(async () => {
@@ -39,7 +39,11 @@ function WaitlistForm({ api, settings, onSaved }: { api: ApiClient; settings: Se
     setSaved(false)
     const minutes = Number(hold)
     if (!Number.isInteger(minutes) || minutes < 5 || minutes > 120) return t('waitlist.holdRange')
-    const res = await attempt(api.PUT('/clinic/appointment-settings', { body: { ...settings, waitlist_enabled: enabled, waitlist_hold_minutes: minutes } }))
+    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
+    // section or another admin saved since the page opened is kept and only this section's fields change.
+    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
+    if (!fresh.ok) return t('waitlist.settingsSaveFailed')
+    const res = await attempt(api.PUT('/clinic/appointment-settings', { body: { ...fresh.data, waitlist_enabled: enabled, waitlist_hold_minutes: minutes } }))
     if (!res.ok) return res.code === 'invalid_request' ? t('waitlist.holdRange') : t('waitlist.settingsSaveFailed')
     onSaved(res.data)
     setSaved(true)

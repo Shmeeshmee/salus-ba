@@ -52,6 +52,21 @@ describe('ClinicSettingsReschedule', () => {
     expectCsrfOnWrites(requests)
   })
 
+  it('reads the settings again just before saving, so another section’s or another admin’s change is kept', async () => {
+    let reads = 0
+    const newer = { ...stored, reminder_offsets_minutes: [120], waitlist_enabled: false, noshow_flag_threshold: 5 }
+    const { requests } = renderReschedule({
+      [`GET ${path}`]: () => Response.json(reads++ === 0 ? stored : newer),
+      [`PUT ${path}`]: async (r) => Response.json(await r.json()),
+    })
+
+    await fill('48', '1')
+
+    expect(await screen.findByText('Saved.')).toBeTruthy()
+    expect(await requests.find((r) => r.method === 'PUT')!.json()).toEqual({ ...newer, reschedule_notice_hours: 48, reschedule_max: 1 })
+    expect(reads).toBe(2)
+  })
+
   it('says that a limit of 0 turns self-service rescheduling off', async () => {
     renderReschedule({ [`GET ${path}`]: () => Response.json({ ...stored, reschedule_max: 0 }) })
 

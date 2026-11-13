@@ -30,6 +30,20 @@ describe('ClinicSettingsWaitlist', () => {
     expectCsrfOnWrites(fake.requests)
   })
 
+  it('reads the settings again just before saving, so another section’s or another admin’s change is kept', async () => {
+    let reads = 0
+    const newer = { ...settings, reminder_offsets_minutes: [120], reschedule_max: 4, noshow_flag_threshold: 5 }
+    const fake = renderSettings({
+      'GET /clinic/appointment-settings': () => Response.json(reads++ === 0 ? settings : newer),
+      'PUT /clinic/appointment-settings': async (r) => Response.json(await r.json()),
+    })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Patients may join the waitlist' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Waitlist settings saved.')).toBeTruthy()
+    expect(await fake.requests.find((r) => r.method === 'PUT')!.json()).toEqual({ ...newer, waitlist_enabled: true })
+    expect(reads).toBe(2)
+  })
+
   it('refuses a hold out of range, and says when saving failed', async () => {
     const fake = renderSettings({ 'PUT /clinic/appointment-settings': () => apiError(500, 'internal') })
     fireEvent.change(await screen.findByLabelText(/Hold for an offer/), { target: { value: '200' } })

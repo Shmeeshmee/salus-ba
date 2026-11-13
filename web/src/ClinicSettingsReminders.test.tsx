@@ -50,6 +50,21 @@ async function putBody(requests: Request[]): Promise<Settings> {
 }
 
 describe('ClinicSettingsReminders', () => {
+  it('reads the settings again just before saving, so another section’s or another admin’s change is kept', async () => {
+    let reads = 0
+    const newer = { ...settings, reschedule_max: 4, waitlist_enabled: false, noshow_flag_threshold: 5 }
+    const { requests } = renderReminders({
+      'GET /clinic/appointment-settings': () => Response.json(reads++ === 0 ? settings : newer),
+      'PUT /clinic/appointment-settings': echo,
+    })
+
+    fireEvent.click(await screen.findByLabelText('Reminders by SMS'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save reminders' }))
+
+    expect(await putBody(requests)).toEqual({ ...newer, sms_reminders: true })
+    expect(reads).toBe(2)
+  })
+
   it('shows the reminders, the earliest first', async () => {
     renderReminders({})
 

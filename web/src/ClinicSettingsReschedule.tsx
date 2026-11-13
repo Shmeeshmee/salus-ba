@@ -16,7 +16,7 @@ const maxReschedules = 5
 
 // ClinicSettingsReschedule is the clinic admin's rescheduling rules: how many hours before the start a patient may
 // still move their appointment, and how often. GET /clinic/appointment-settings, then a PUT of the whole row with
-// every other field as read.
+// every other field as read again just before the save.
 export function ClinicSettingsReschedule({ api }: { api: ApiClient }) {
   const t = useT()
   const { state } = useLoad(async () => {
@@ -45,7 +45,11 @@ function RescheduleForm({ api, stored }: { api: ApiClient; stored: Settings }) {
     const hours = whole(notice, maxNoticeHours)
     const times = whole(max, maxReschedules)
     if (hours === undefined || times === undefined) return t('appointments.invalidReschedule')
-    const body = { ...settings, reschedule_notice_hours: hours, reschedule_max: times }
+    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
+    // section or another admin saved since the page opened is kept and only this section's fields change.
+    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
+    if (!fresh.ok) return saveMessage(t, fresh.code)
+    const body = { ...fresh.data, reschedule_notice_hours: hours, reschedule_max: times }
     const res = await attempt(api.PUT('/clinic/appointment-settings', { body }))
     if (!res.ok) return saveMessage(t, res.code)
     setSettings(res.data)
