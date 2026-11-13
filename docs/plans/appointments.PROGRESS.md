@@ -97,6 +97,8 @@ As built (agent decisions, for the owner to review):
 | Retry key | The acceptance's key `waitlist:<offer>` replays the first receipt on a retry after a refund, as the direct booking's key does: SAL-23 settles both |
 | Join entry point (mobile) | From a practitioner's free times, for that practitioner, over 7, 14, 30 or 90 days, any time, mornings (08:00 to 12:00) or afternoons (12:00 to 17:00); joining for a specialty is in the API only |
 
+Checks (compose project salus-appt35): `make lint`, `make test`, `make archcheck`, `make cover` (91.3%), `make e2e`, `make i18n-check`, `make web-lint`, `make web-typecheck`, `make web-test`, `make mobile-analyze`, `make mobile-test` pass; `make gen-clients` leaves no diff.
+
 Copy waiting for the owner: the offer e-mail and push in ten languages
 (`internal/notification/templates/*/waitlist_offer*.txt`); the mobile `waitlist*` strings in ten languages (`legal`:
 `waitlistExplained`, `waitlistAcceptEffect`, `waitlistAccept`); the web `waitlist` area in five languages.
