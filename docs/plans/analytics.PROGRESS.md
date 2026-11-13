@@ -213,3 +213,9 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
   (`TestRepository_WritesOnceReadsAndPurges`). Left for the owner: a clinic may opt in, read every frozen month and
   opt out again (strict O6 would refuse the view until `contributes_since` is before the current month). The month
   benchmark after the fix: 34.3 s and 36.1 s (was 35.4 s); the exact check over 60 months 15.5 s.
+- **Review of the A7 fix (fresh subagent)**: four findings, all fixed. The lower bound of a published cell is what A4
+  reveals, `o + max(k, ⌈ymax/10⌉)` outside the known clinics (`o` their shared patients), not `k`
+  (`TestSuppress_A7KnowsTheOverlapOfTheKnownClinics`; the random months now share patients across clinics and may
+  have a clinic over 10·k in a cell); a NaN or infinite solver answer counts as 0 wide (`TestWidth_ANaNFailsClosed`);
+  the first attack case asserts its repair; §5 A7 describes the attacker's A4 knowledge. Re-measured: the month
+  benchmark 37.2 s and 38.0 s, the exact check over 60 months 12.3 s.
