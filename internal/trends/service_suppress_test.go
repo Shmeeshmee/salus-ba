@@ -248,20 +248,35 @@ func TestSuppress_TheAuditNeverPassesAMonthTheExactCheckFails(t *testing.T) {
 	}
 }
 
+// randomVisits is a synthetic month of 3 to 5 clinics. A patient may see a second diagnosis, or another clinic (so the
+// known clinics share patients, A7's overlap), and one month in four has a clinic with more than 10·k patients of one
+// diagnosis (A4's 10% rule).
 func randomVisits(rng *rand.Rand) []visit {
 	cities := []string{"c:C1", "c:C2", "c:C3"}
 	diags := []string{"g:G2", "g:G3", "c:A01", "c:A02", "c:B01"}
 	var vs []visit
 	clinics := 3 + rng.IntN(3)
+	cityOf := make([]string, clinics)
+	for c := range cityOf {
+		cityOf[c] = cities[rng.IntN(len(cities))]
+	}
 	for c := range int32(clinics) {
-		city := cities[rng.IntN(len(cities))]
+		city := cityOf[c]
 		for p := range int32(5 + rng.IntN(14)) {
 			d := diags[rng.IntN(len(diags))]
 			vs = append(vs, visit{clinic: c, patient: c*1000 + p, city: city, diag: []string{d}})
 			if rng.IntN(4) == 0 {
 				vs = append(vs, visit{clinic: c, patient: c*1000 + p, city: city, diag: []string{diags[rng.IntN(len(diags))]}})
 			}
+			if rng.IntN(4) == 0 { // the same patient at another clinic, with the same diagnosis
+				other := (c + 1 + rng.Int32N(int32(clinics)-1)) % int32(clinics)
+				vs = append(vs, visit{clinic: other, patient: c*1000 + p, city: cityOf[other], diag: []string{d}})
+			}
 		}
+	}
+	if rng.IntN(4) == 0 { // a large clinic: more than 10·k patients of one diagnosis
+		c := rng.Int32N(int32(clinics))
+		vs = append(vs, spread(c, 50000, 101+rng.IntN(20), cityOf[c], diags[rng.IntN(len(diags))])...)
 	}
 	return vs
 }
@@ -376,6 +391,33 @@ func TestSuppress_A7KnowsThatAPublishedCellPassedA4(t *testing.T) {
 	}
 	if !r.Suppressed[trends.Key{"", "", "s:S1"}] || !r.Suppressed[trends.Key{"", "", "s:S2"}] {
 		t.Errorf("S1 and S2 not suppressed: %v", r.Suppressed)
+	}
+	if !r.Suppressed[trends.Key{"", "", "c:A01"}] {
+		t.Errorf("A01 published, want it suppressed by the audit's repair: %v", r.Published)
+	}
+	checkExact(t, in, r)
+}
+
+// A7: A4 reveals more than r >= k. With the two known clinics holding y1 and y2 of a published cell's patients, o of
+// them shared, its patients outside them are at least o + max(k, ceil(ymax/10)). Here (k = 12) two clinics hold 10
+// patients each of A01, 5 of them the same: A01 (32, read as 30) has at least 5 + 12 = 17 patients outside them, so
+// S1, hidden by A6 beside S2 under G1 (40), is within [32, 42], 10 wide, under k; read with r >= 12 only, it seemed
+// [28, 42].
+func TestSuppress_A7KnowsTheOverlapOfTheKnownClinics(t *testing.T) {
+	m := month{
+		geo:  map[string][]string{},
+		diag: map[string][]string{"g:G1": {""}, "s:S1": {"g:G1"}, "s:S2": {"g:G1"}, "c:A01": {"g:G1", "s:S1"}},
+	}
+	visits := slices.Concat(spread(0, 0, 10, "", "c:A01"), spread(1, 5, 10, "", "c:A01"), // patients 5 to 9 at both
+		spread(2, 200, 6, "", "c:A01"), spread(3, 300, 6, "", "c:A01"), spread(4, 400, 5, "", "c:A01"),
+		spread(5, 500, 4, "", "s:S1"), spread(6, 600, 4, "", "s:S2"))
+	in := m.input(visits, 12)
+	r := trends.Suppress(in)
+	if r.Refused {
+		t.Fatal("the month is refused")
+	}
+	if !r.Suppressed[trends.Key{"", "", "s:S1"}] || !r.Suppressed[trends.Key{"", "", "c:A01"}] {
+		t.Errorf("S1 and A01 not both suppressed: published %v", r.Published)
 	}
 	checkExact(t, in, r)
 }

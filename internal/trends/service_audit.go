@@ -35,7 +35,7 @@ func (u *universe) audit(passed map[Key]bool) []Key {
 }
 
 // width is the width of the interval of values of the suppressed cell x consistent with the published cells (each
-// read as [v-2, v+2] for the rounding, and with at least k patients outside the known clinics, since it passed A4),
+// read as [v-2, v+2] for the rounding, and with the patients outside the known clinics that A4 reveals: revealed),
 // the inequality relations, and the own patients of x's two largest clinics in every cell treated as known; its ends
 // rounded inward.
 func (u *universe) width(x Key) int { return u.program(x).width() }
@@ -233,10 +233,8 @@ func (u *universe) program(x Key) program {
 		b.row(map[int]float64{i: 1}, limit)
 		if c := u.cells[k]; !c.suppressed {
 			v, a := float64(round5(len(c.patients))), float64(b.knownIn(k))
-			// Read as [v-2, v+2], and it passed A4, a public rule: its patients outside any two clinics are at least
-			// k, so r >= k whichever two clinics are known.
 			b.row(map[int]float64{i: 1}, v+2-a)
-			b.row(map[int]float64{i: -1}, -math.Max(v-2-a, float64(u.k)))
+			b.row(map[int]float64{i: -1}, -math.Max(v-2-a, float64(b.revealed(k))))
 		}
 	}
 	seen := map[int]bool{}
@@ -309,6 +307,20 @@ func (b *builder) relation(r relation) {
 		}
 		b.row(coef, rhs)
 	}
+}
+
+// revealed is the least residual a published cell k can have, from A4, a public rule: it passed
+// T - x1 - x2 >= max(k, ceil(x1/10)) for its two largest clinics, so with the known clinics holding y1 and y2 of its
+// patients, o of them shared, r = T - y1 - y2 + o >= o + max(k, ceil(ymax/10)), whichever two clinics are known.
+func (b *builder) revealed(k Key) int {
+	share := b.u.cells[k].share
+	sum, ymax := 0, 0
+	for _, clinic := range b.known {
+		sum += len(share[clinic])
+		ymax = max(ymax, len(share[clinic]))
+	}
+	overlap := sum - b.knownIn(k)
+	return overlap + max(b.u.k, (ymax+9)/10)
 }
 
 // knownIn is the number of distinct patients of the known clinics in the cell k.

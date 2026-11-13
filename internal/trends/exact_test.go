@@ -121,30 +121,39 @@ func sortedCells(in trends.Input) []trends.Key {
 }
 
 // systemOf is the integer system over the cells' residuals with the known clinics' patients taken out: published
-// cells within [v-2, v+2] with a residual of at least k (A4), each child within its parent, and a cover parent's
-// residual within its children's.
+// cells within [v-2, v+2] with the residual A4 reveals, each child within its parent, and a cover parent's residual
+// within its children's.
 func systemOf(in trends.Input, r trends.Result, keys []trends.Key, rels []testRelation, known []int32) (lo, hi []int, rows []row) {
 	index := map[trends.Key]int{}
-	a := make([]int, len(keys))
+	a, least := make([]int, len(keys)), make([]int, len(keys))
 	upper := 0
 	for i, k := range keys {
 		index[k] = i
-		ps := map[int32]bool{}
+		ps, ymax := map[int32]int{}, 0
 		for _, c := range known {
 			for _, p := range in.Cells[k][c] {
-				ps[p] = true
+				ps[p]++
+			}
+			ymax = max(ymax, len(in.Cells[k][c]))
+		}
+		overlap := 0
+		for _, n := range ps {
+			if n > 1 {
+				overlap++
 			}
 		}
 		a[i] = len(ps)
+		// A published cell passed A4, a public rule: T - x1 - x2 >= max(k, ceil(x1/10)) for its two largest clinics,
+		// so the patients the two known clinics (y1 and y2 of them, o shared) did not see are r = T - y1 - y2 + o >=
+		// o + max(k, ceil(ymax/10)).
+		least[i] = overlap + max(in.K, (ymax+9)/10)
 		upper = max(upper, len(unionOf(in.Cells[k]))*3+10)
 	}
 	lo, hi = make([]int, len(keys)), make([]int, len(keys))
 	for i, k := range keys {
 		lo[i], hi[i] = 0, upper
 		if v, ok := r.Published[k]; ok {
-			// A published cell passed A4, a public rule: its patients the two known clinics did not see are at least
-			// T - x1 - x2 >= k, whichever two clinics are known.
-			lo[i], hi[i] = max(0, v-2-a[i], in.K), v+2-a[i]
+			lo[i], hi[i] = max(0, v-2-a[i], least[i]), v+2-a[i]
 		}
 	}
 	for _, rel := range rels {
