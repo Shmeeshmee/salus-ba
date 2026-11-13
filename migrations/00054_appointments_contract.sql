@@ -23,6 +23,47 @@ ALTER TABLE appointment
     ADD CONSTRAINT appointment_id_organization_patient_key UNIQUE (id, organization_id, patient_id);
 
 GRANT UPDATE (period, slot_id, confirmed_at, confirmed_via, reschedule_count) ON appointment TO salus_app;
+
+-- The column grant applies under every UPDATE policy of appointment (the patient's own, the clinic's with the
+-- consent, a revoked clinic's past ones), so this trigger says who may change what: the period and the slot only in
+-- the patient's own scope, of a booked appointment that stays booked, the period and the slot together, the reschedule count up by
+-- exactly one with every change of the period and never otherwise; the confirmation only in the patient's scope (their app, or the
+-- one-time link, which acts as the patient), and never cleared once set. For every role, the owner included.
+-- +goose StatementBegin
+CREATE FUNCTION appointment_guard_change() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+AS $$
+DECLARE
+    own boolean := NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL
+                   AND NULLIF(current_setting('app.patient_id', true), '')::uuid = OLD.patient_id;
+    moved boolean := NEW.period IS DISTINCT FROM OLD.period OR NEW.slot_id IS DISTINCT FROM OLD.slot_id;
+BEGIN
+    IF moved AND NOT (own AND OLD.status = 'booked' AND NEW.status = 'booked') THEN
+        RAISE EXCEPTION 'appointment: only its patient moves a booked appointment' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF (NEW.period IS DISTINCT FROM OLD.period) <> (NEW.slot_id IS DISTINCT FROM OLD.slot_id) THEN
+        RAISE EXCEPTION 'appointment: a reschedule changes the period and the slot together' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.period IS DISTINCT FROM OLD.period AND NEW.reschedule_count IS DISTINCT FROM OLD.reschedule_count + 1 THEN
+        RAISE EXCEPTION 'appointment: a reschedule counts once' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.period IS NOT DISTINCT FROM OLD.period AND NEW.reschedule_count IS DISTINCT FROM OLD.reschedule_count THEN
+        RAISE EXCEPTION 'appointment: the reschedule count changes only with the period' USING ERRCODE = 'check_violation';
+    END IF;
+    IF (NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at OR NEW.confirmed_via IS DISTINCT FROM OLD.confirmed_via) AND NOT own THEN
+        RAISE EXCEPTION 'appointment: only its patient confirms' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF OLD.confirmed_at IS NOT NULL AND NEW.confirmed_at IS NULL THEN
+        RAISE EXCEPTION 'appointment: a confirmation is never cleared' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END
+$$;
+-- +goose StatementEnd
+
+CREATE TRIGGER appointment_guard_change BEFORE UPDATE OF period, slot_id, reschedule_count, confirmed_at, confirmed_via ON appointment
+    FOR EACH ROW EXECUTE FUNCTION appointment_guard_change();
 -- The clinic statistics count the appointments booked through the waitlist (SAL-36).
 GRANT SELECT (booked_via) ON appointment TO salus_stats;
 
@@ -37,6 +78,8 @@ CREATE TABLE appointment_change (
     to_slot_id uuid,
     from_period tstzrange,
     to_period tstzrange,
+    -- status_set: booked to fulfilled, noshow or cancelled (every cancellation, SAL-32 review); status_corrected:
+    -- noshow and fulfilled into each other (SAL-36).
     kind text NOT NULL CHECK (kind IN ('confirmed', 'rescheduled', 'status_set', 'status_corrected')),
     via text NOT NULL CHECK (via IN ('app', 'link', 'staff', 'system')),
     agent text CHECK (agent ~ '^[a-z][a-z0-9_]{0,63}$'), -- the job's kind, for the system
@@ -47,7 +90,10 @@ CREATE TABLE appointment_change (
     CONSTRAINT appointment_change_who CHECK ((via = 'system') = (agent IS NOT NULL) AND (via = 'system') = (by_account_id IS NULL)),
     CONSTRAINT appointment_change_rescheduled CHECK ((kind = 'rescheduled') = (from_period IS NOT NULL AND to_period IS NOT NULL
                                                      AND from_slot_id IS NOT NULL AND to_slot_id IS NOT NULL)),
-    CONSTRAINT appointment_change_status CHECK ((kind IN ('status_set', 'status_corrected')) = (from_status IS NOT NULL AND to_status IS NOT NULL))
+    CONSTRAINT appointment_change_status CHECK ((kind IN ('status_set', 'status_corrected')) = (from_status IS NOT NULL AND to_status IS NOT NULL)),
+    CONSTRAINT appointment_change_status_set CHECK (kind <> 'status_set' OR (from_status = 'booked' AND to_status IN ('fulfilled', 'noshow', 'cancelled'))),
+    CONSTRAINT appointment_change_status_corrected CHECK (kind <> 'status_corrected'
+                                                          OR (from_status IN ('fulfilled', 'noshow') AND to_status IN ('fulfilled', 'noshow') AND from_status <> to_status))
 );
 
 CREATE INDEX appointment_change_appointment ON appointment_change (appointment_id, at);
@@ -57,8 +103,18 @@ ALTER TABLE appointment_change ENABLE ROW LEVEL SECURITY;
 -- consent or after a revocation the past ones, a job's one appointment).
 CREATE POLICY appointment_change_seen ON appointment_change FOR SELECT
     USING (EXISTS (SELECT 1 FROM appointment a WHERE a.id = appointment_change.appointment_id));
+-- A row is written only for an appointment the scope sees, and says who wrote it as the scope is: in the patient's own
+-- scope their app or link (by the patient's own account) or a job (the revocation's, by no account); in the clinic's
+-- scope its staff or a job. A patient's scope never claims staff, a clinic's never the patient's app or link.
 CREATE POLICY appointment_change_write ON appointment_change FOR INSERT
-    WITH CHECK (EXISTS (SELECT 1 FROM appointment a WHERE a.id = appointment_change.appointment_id));
+    WITH CHECK (EXISTS (SELECT 1 FROM appointment a WHERE a.id = appointment_change.appointment_id)
+                AND CASE WHEN NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL
+                         THEN patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
+                              AND (via = 'system'
+                                   OR (via IN ('app', 'link')
+                                       AND by_account_id = (SELECT p.account_id FROM patient p WHERE p.id = appointment_change.patient_id)))
+                         ELSE via IN ('staff', 'system')
+                    END);
 
 -- Append-only, for every role, the owner included (as communication_revision, 00041).
 CREATE TRIGGER appointment_change_no_change BEFORE UPDATE OR DELETE ON appointment_change
@@ -78,6 +134,9 @@ CREATE TABLE appointment_action_token (
     patient_id uuid NOT NULL,
     account_id uuid NOT NULL REFERENCES account (id) ON DELETE CASCADE,
     reminder_id uuid, -- SAL-33's appointment_reminder adds the foreign key
+    -- The start the link was issued for: SAL-34 refuses a link whose start_at is not the appointment's start now (a
+    -- reschedule leaves the old reminders' links useless), and the link expires at it.
+    start_at timestamptz NOT NULL,
     token_hash bytea NOT NULL UNIQUE CHECK (octet_length(token_hash) = 32),
     channel text NOT NULL CHECK (channel IN ('email', 'sms')),
     language language NOT NULL,
@@ -85,7 +144,7 @@ CREATE TABLE appointment_action_token (
     CONSTRAINT appointment_action_token_appointment_fkey FOREIGN KEY (appointment_id, organization_id, patient_id)
         REFERENCES appointment (id, organization_id, patient_id),
     CONSTRAINT appointment_action_token_used CHECK ((used_at IS NULL) = (used_action IS NULL)),
-    CONSTRAINT appointment_action_token_expiry CHECK (expires_at > created_at)
+    CONSTRAINT appointment_action_token_expiry CHECK (expires_at > created_at AND expires_at = start_at)
 );
 
 CREATE INDEX appointment_action_token_appointment ON appointment_action_token (appointment_id);
@@ -112,6 +171,25 @@ CREATE POLICY appointment_action_token_issue ON appointment_action_token FOR INS
 
 GRANT SELECT, INSERT ON appointment_action_token TO salus_app;
 GRANT UPDATE (used_at, used_action) ON appointment_action_token TO salus_app;
+
+-- Single use in the database: a used link never changes again, for every role (the use is a conditional UPDATE,
+-- WHERE used_at IS NULL, in the transaction that confirms or cancels).
+-- +goose StatementBegin
+CREATE FUNCTION appointment_action_token_used_once() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+AS $$
+BEGIN
+    IF OLD.used_at IS NOT NULL THEN
+        RAISE EXCEPTION 'appointment_action_token: a used link never changes' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END
+$$;
+-- +goose StatementEnd
+
+CREATE TRIGGER appointment_action_token_used_once BEFORE UPDATE ON appointment_action_token
+    FOR EACH ROW EXECUTE FUNCTION appointment_action_token_used_once();
 -- Retention: deleted 30 days after it expires.
 GRANT SELECT, DELETE ON appointment_action_token TO salus_retention;
 

@@ -3,6 +3,7 @@ package migrations_test
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"slices"
 	"testing"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
+
+var errNoRow = errors.New("no row changed")
 
 // insertChange writes, as the owner, a confirmation of the appointment id and returns its id.
 func insertChange(t *testing.T, owner *pgxpool.Pool, id string) string {
@@ -75,6 +78,34 @@ func TestAppointmentChange_IsAppendOnly(t *testing.T) {
 	if err := insert(map[string]string{"app.organization_id": clinicA}, a.aFuture, clinicB, p[0].patient); err == nil {
 		t.Error("a change with another clinic than its appointment's was stored")
 	}
+	// Who wrote it is what the scope is (review, finding 10).
+	write := func(scope map[string]string, via, account, agent string) error {
+		return asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
+			_, err := db.Exec(ctx, `INSERT INTO appointment_change (at, appointment_id, organization_id, patient_id, kind, via, by_account_id, agent)
+				VALUES (now(), $1, $2, $3, 'confirmed', $4, NULLIF($5, '')::uuid, NULLIF($6, ''))`, a.aFuture, clinicA, p[0].patient, via, account, agent)
+			return err
+		})
+	}
+	clinic := map[string]string{"app.organization_id": clinicA}
+	for _, tt := range []struct {
+		scope                map[string]string
+		name, via, by, agent string
+		ok                   bool
+	}{
+		{name: "the patient's app", scope: own, via: "app", by: p[0].account, ok: true},
+		{name: "the patient's link", scope: own, via: "link", by: p[0].account, ok: true},
+		{name: "a job in the patient's scope", scope: own, via: "system", agent: "consent_revoked", ok: true},
+		{name: "the patient's scope claiming staff", scope: own, via: "staff", by: p[0].account},
+		{name: "the patient's scope with another account", scope: own, via: "app", by: p[1].account},
+		{name: "the clinic's staff", scope: clinic, via: "staff", by: p[1].account, ok: true},
+		{name: "a job in the clinic's scope", scope: clinic, via: "system", agent: "consultation_window_close", ok: true},
+		{name: "the clinic's scope claiming the patient's app", scope: clinic, via: "app", by: p[0].account},
+		{name: "the clinic's scope claiming the link", scope: clinic, via: "link", by: p[0].account},
+	} {
+		if err := write(tt.scope, tt.via, tt.by, tt.agent); (err == nil) != tt.ok {
+			t.Errorf("%s: %v, want stored %t", tt.name, err, tt.ok)
+		}
+	}
 	change := insertChange(t, owner, a.aFuture)
 	for _, q := range []string{"UPDATE appointment_change SET via = 'app' WHERE id = $1", "DELETE FROM appointment_change WHERE id = $1"} {
 		err := asApp(t, app, own, func(ctx context.Context, db postgres.Querier) error {
@@ -120,6 +151,59 @@ func TestAppointment_ARescheduleMovesThePeriodAndTheSlot(t *testing.T) {
 	}
 }
 
+// The trigger says who may change the period, the slot, the count and the confirmation (review, finding 1), under
+// every UPDATE policy: only the patient moves their booked appointment, counting once; the clinic never moves one nor
+// confirms; a confirmation is never cleared.
+func TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	p, _, a := seedAppointments(t, owner)
+	own := map[string]string{"app.patient_id": p[0].patient}
+	run := func(scope map[string]string, q, id string) error {
+		return asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
+			tag, err := db.Exec(ctx, q, id)
+			if err == nil && tag.RowsAffected() != 1 {
+				return errNoRow
+			}
+			return err
+		})
+	}
+	const (
+		moveOnce   = "UPDATE appointment SET period = tstzrange(lower(period) + interval '1 hour', upper(period) + interval '1 hour'), slot_id = gen_random_uuid(), reschedule_count = reschedule_count + 1 WHERE id = $1"
+		moveFree   = "UPDATE appointment SET period = tstzrange(lower(period) + interval '1 hour', upper(period) + interval '1 hour'), slot_id = gen_random_uuid() WHERE id = $1"
+		moveTwice  = "UPDATE appointment SET period = tstzrange(lower(period) + interval '1 hour', upper(period) + interval '1 hour'), slot_id = gen_random_uuid(), reschedule_count = reschedule_count + 2 WHERE id = $1"
+		slotOnly   = "UPDATE appointment SET slot_id = gen_random_uuid() WHERE id = $1"
+		resetCount = "UPDATE appointment SET reschedule_count = 0 WHERE id = $1"
+		confirm    = "UPDATE appointment SET confirmed_at = now(), confirmed_via = 'app' WHERE id = $1"
+		clear      = "UPDATE appointment SET confirmed_at = NULL, confirmed_via = NULL WHERE id = $1"
+	)
+	for _, tt := range []struct {
+		scope   map[string]string
+		name, q string
+		id      string
+		ok      bool
+	}{
+		{name: "clinic A moves its consenting patient's", scope: map[string]string{"app.organization_id": clinicA}, q: moveOnce, id: a.aFuture},
+		{name: "clinic B moves a past one after the revocation", scope: map[string]string{"app.organization_id": clinicB}, q: moveOnce, id: a.bPast},
+		{name: "the patient moves without counting", scope: own, q: moveFree, id: a.aFuture},
+		{name: "the patient counts twice", scope: own, q: moveTwice, id: a.aFuture},
+		{name: "the patient changes the slot alone", scope: own, q: slotOnly, id: a.aFuture},
+		{name: "the patient moves a cancelled one", scope: own, q: moveOnce, id: a.bFuture},
+		{name: "clinic A confirms", scope: map[string]string{"app.organization_id": clinicA}, q: confirm, id: a.aFuture},
+		{name: "the patient moves their booked one", scope: own, q: moveOnce, id: a.aFuture, ok: true},
+		{name: "the patient resets the count", scope: own, q: resetCount, id: a.aFuture},
+		{name: "the patient confirms", scope: own, q: confirm, id: a.aFuture, ok: true},
+		{name: "the patient clears the confirmation", scope: own, q: clear, id: a.aFuture},
+	} {
+		if err := run(tt.scope, tt.q, tt.id); (err == nil) != tt.ok {
+			t.Errorf("%s: %v, want done %t", tt.name, err, tt.ok)
+		}
+	}
+	if _, err := owner.Exec(t.Context(), clear, a.aFuture); err == nil {
+		t.Error("the owner cleared a confirmation")
+	}
+}
+
 // A token is issued by a job for its one appointment, read and used by its patient only, and found by its hash
 // from any scope through the function, which returns only its ids.
 func TestAppointmentActionToken_IssuedByTheJobUsedByThePatient(t *testing.T) {
@@ -129,8 +213,8 @@ func TestAppointmentActionToken_IssuedByTheJobUsedByThePatient(t *testing.T) {
 	hash := sha256.Sum256([]byte("synthetic token"))
 	issue := func(scope map[string]string) error {
 		return asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
-			_, err := db.Exec(ctx, `INSERT INTO appointment_action_token (created_at, expires_at, appointment_id, organization_id, patient_id,
-				account_id, token_hash, channel, language) VALUES (now(), '2030-01-07T09:00:00Z', $1, $2, $3, $4, $5, 'email', 'bs')`,
+			_, err := db.Exec(ctx, `INSERT INTO appointment_action_token (created_at, expires_at, start_at, appointment_id, organization_id, patient_id,
+				account_id, token_hash, channel, language) VALUES (now(), '2030-01-07T09:00:00Z', '2030-01-07T09:00:00Z', $1, $2, $3, $4, $5, 'email', 'bs')`,
 				a.aFuture, clinicA, p[0].patient, p[0].account, hash[:])
 			return err
 		})
@@ -181,6 +265,19 @@ func TestAppointmentActionToken_IssuedByTheJobUsedByThePatient(t *testing.T) {
 	}
 	if n, err := use(map[string]string{"app.patient_id": p[0].patient}); err != nil || n != 1 {
 		t.Errorf("patient A uses their token: %d rows, %v; want 1", n, err)
+	}
+	// Single use (review, finding 5): a used link never changes again, for the patient or the owner.
+	if n, err := use(map[string]string{"app.patient_id": p[0].patient}); err == nil {
+		t.Errorf("patient A used their token twice: %d rows", n)
+	}
+	if _, err := owner.Exec(t.Context(), "UPDATE appointment_action_token SET used_at = NULL, used_action = NULL WHERE token_hash = $1", hash[:]); err == nil {
+		t.Error("the owner reset a used token")
+	}
+	// The link expires at the start it was issued for (review, finding 2).
+	if _, err := owner.Exec(t.Context(), `INSERT INTO appointment_action_token (created_at, expires_at, start_at, appointment_id, organization_id, patient_id,
+		account_id, token_hash, channel, language) VALUES (now(), '2030-01-08T09:00:00Z', '2030-01-07T09:00:00Z', $1, $2, $3, $4, $5, 'email', 'bs')`,
+		a.aFuture, clinicA, p[0].patient, p[0].account, make([]byte, 32)); err == nil {
+		t.Error("a link expiring after the start it was issued for was stored")
 	}
 }
 
