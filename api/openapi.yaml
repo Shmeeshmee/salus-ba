@@ -5494,6 +5494,13 @@ paths:
       parameters:
         - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
         - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+        - name: practitioner
+          in: query
+          required: false
+          description: >-
+            A Practitioner id: only that practitioner's appointments are read, flagged and audited (the calendar shows
+            one practitioner's week). A practitioner naming another, or an unknown id, gets none.
+          schema: {type: string}
       responses:
         "200":
           description: The flags, by the appointments' start.

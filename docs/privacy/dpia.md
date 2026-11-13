@@ -2287,7 +2287,8 @@ which hold no personal data; the GET's ETag carries it and a stale save is refus
 lost silently.
 
 **The repeat no-show flag in the week view.** The calendar's week asks `GET /clinic/noshow-flags` once for its seven
-days and tags each flagged appointment as the appointment's page does: the same rules (staff only, the appointments
+days, narrowed to the practitioner shown (`practitioner`), so an admin's view of one practitioner reads and audits
+nothing of the others' patients, and tags each flagged appointment as the appointment's page does: the same rules (staff only, the appointments
 the caller sees in full, each audited), never a reason to refuse a booking, not in the patient's app. A failed read
 shows the week without flags.
 
@@ -2299,4 +2300,5 @@ refuses to start on any other policy. The operational logs (`appointment_reminde
 deleted after `RETENTION_OPERATIONAL_LOG_DAYS`, 90 by default, as before. Both stay defaults until the lawyer answers.
 
 **Webhook key per environment.** The api and the worker refuse to start without `WEBHOOK_KEY` (or its file) outside
-`SALUS_ENV=dev`, so no environment runs on another's key or on the compose file's synthetic one.
+`SALUS_ENV=dev`, so no environment starts on a key it did not set. That the key is its own and not another's (or the
+compose file's synthetic one) stays a deploy check: production's comes from the key file (ADR 0011).

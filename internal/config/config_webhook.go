@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-// EnvDev is the SALUS_ENV of a developer's machine (the compose stack, make). Every other value, and none, is an
-// environment with real keys of its own (CI's e2e stack, staging, production).
+// EnvDev is the SALUS_ENV of the compose stack (deployments/docker-compose.yml: a developer's machine, and CI's e2e
+// stack built on it). Every other value, and none, is an environment that must set its own keys (production).
 const EnvDev = "dev"
 
 // webhookKeyLen is the AES-256 key's length.

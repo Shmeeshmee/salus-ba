@@ -323,7 +323,7 @@ func appointmentRules() []Rule {
 		{
 			Table: "appointment_reminder",
 			Basis: "The contract with the patient (GDPR Art. 6(1)(b)): when each reminder of an appointment is due and whether " +
-				"it went, so it is sent once; deleted 90 days after its due time; needs a legal decision before production " +
+				"it went, so it is sent once; an operational log, deleted after the policy's period (90 days by default) from its due time; needs a legal decision before production " +
 				"(docs/plans/appointments.md \"Personal data\")",
 			Keep: 90 * day, // after due_at
 			Then: ThenDelete,
@@ -331,7 +331,7 @@ func appointmentRules() []Rule {
 		{
 			Table: "notification_delivery",
 			Basis: "The contract with the patient (GDPR Art. 6(1)(b)) and the clinic's SMS billing (Art. 6(1)(f)): which channel " +
-				"a reminder or a waitlist offer went through and when, no address or text; deleted 90 days after it was sent " +
+				"a reminder or a waitlist offer went through and when, no address or text; an operational log, deleted after the policy's period (90 days by default) from when it was sent " +
 				"(or created, when it never was), and with the account; needs a legal decision before production",
 			Keep: 90 * day, // after sent_at, else created_at
 			Then: ThenDelete,

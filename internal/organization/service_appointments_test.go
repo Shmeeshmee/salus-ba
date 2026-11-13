@@ -183,8 +183,8 @@ func TestAppointments_FailsWithTheBackend(t *testing.T) {
 	}
 }
 
-// A save names the version it read: one read at an older version is refused, stores nothing and is not audited as a
-// change; the next save reads the version the last one returned.
+// A save names the version it read: one read at an older version is refused, stores nothing and is audited as
+// refused; the next save reads the version the last one returned.
 func TestAppointments_RefusesASaveOfAnOlderVersion(t *testing.T) {
 	repo, audit := newFakeAppointmentsRepository(), &fakeAuditor{}
 	svc := newAppointments(repo, audit)
@@ -206,8 +206,8 @@ func TestAppointments_RefusesASaveOfAnOlderVersion(t *testing.T) {
 	if got := repo.settings[clinicA]; !same(got, customSet) || got.Version != 1 {
 		t.Errorf("stored %+v, want the first save's", got)
 	}
-	if len(audit.events) != 1 {
-		t.Errorf("audit %+v, want only the first save", audit.events)
+	if len(audit.events) != 2 || audit.events[0].Outcome != auditevent.OutcomeSuccess || audit.events[1].Outcome != auditevent.OutcomeMinorFailure {
+		t.Errorf("audit %+v, want the first save and the refused one", audit.events)
 	}
 	again := stale
 	again.Version = saved.Version

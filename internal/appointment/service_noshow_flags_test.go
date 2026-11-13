@@ -58,7 +58,7 @@ func countCalls(calls []string, name string) int {
 func TestNoShowFlags_FlagsTheAppointmentsOfPatientsWhoMissedTheThreshold(t *testing.T) {
 	f := flagsFixture(2, 180)
 	f.consents.state[patientB+clinicA] = access.Consent{Active: true}
-	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to)
+	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to, "")
 	want := []appointment.NoShowFlag{
 		{AppointmentID: flagBookedA, NoShows: 2, WindowDays: 180},
 		{AppointmentID: flagBookedA2, NoShows: 2, WindowDays: 180},
@@ -78,14 +78,14 @@ func TestNoShowFlags_FlagsTheAppointmentsOfPatientsWhoMissedTheThreshold(t *test
 
 	// The practitioner of role A1 sees only their own appointments in full.
 	f = flagsFixture(2, 180)
-	got, err = f.svc.NoShowFlags(t.Context(), pract, week.from, week.to)
+	got, err = f.svc.NoShowFlags(t.Context(), pract, week.from, week.to, "")
 	if err != nil || !slices.Equal(got, want[:1]) {
 		t.Errorf("the practitioner's NoShowFlags() = %+v, %v; want %+v", got, err, want[:1])
 	}
 	checkEvents(t, "the practitioner's NoShowFlags", f.audit, event(pract, auditevent.CodeSearchType, "Appointment", flagBookedA, auditevent.OutcomeSuccess))
 	// A wider window counts the older no-show too; a threshold of 3 then flags.
 	f = flagsFixture(3, 365)
-	if got, err = f.svc.NoShowFlags(t.Context(), admin, week.from, week.to); err != nil || len(got) != 2 || got[0].NoShows != 3 || got[0].WindowDays != 365 {
+	if got, err = f.svc.NoShowFlags(t.Context(), admin, week.from, week.to, ""); err != nil || len(got) != 2 || got[0].NoShows != 3 || got[0].WindowDays != 365 {
 		t.Errorf("a 365-day window: %+v, %v; want 3 no-shows", got, err)
 	}
 }
@@ -93,7 +93,7 @@ func TestNoShowFlags_FlagsTheAppointmentsOfPatientsWhoMissedTheThreshold(t *test
 // The flag is off by default (threshold 0): nothing is read or flagged, and nothing of a patient audited.
 func TestNoShowFlags_NoneWhenTheRuleIsOff(t *testing.T) {
 	f := flagsFixture(0, 180)
-	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to)
+	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to, "")
 	if err != nil || len(got) != 0 || slices.Contains(f.repo.calls, "Search") || len(f.audit.events) != 0 {
 		t.Errorf("NoShowFlags() = %+v, %v; calls %v, events %v; want none", got, err, f.repo.calls, f.audit.events)
 	}
@@ -104,7 +104,7 @@ func TestNoShowFlags_NoneWhenTheRuleIsOff(t *testing.T) {
 func TestNoShowFlags_NoneOfAPatientWhoRevoked(t *testing.T) {
 	f := flagsFixture(1, 180)
 	f.consents.state[patientA+clinicA] = access.Consent{RevokedAt: now.Add(-time.Hour)}
-	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to)
+	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to, "")
 	if err != nil || len(got) != 0 {
 		t.Errorf("NoShowFlags() = %+v, %v; want none", got, err)
 	}
@@ -115,7 +115,7 @@ func TestNoShowFlags_NoneOfAPatientWhoRevoked(t *testing.T) {
 // longer than 62 days is invalid before anything is read.
 func TestNoShowFlags_RefusesPatientsAndInvalidRanges(t *testing.T) {
 	f := flagsFixture(1, 180)
-	if _, err := f.svc.NoShowFlags(t.Context(), me, week.from, week.to); !errors.Is(err, appointment.ErrNotFound) {
+	if _, err := f.svc.NoShowFlags(t.Context(), me, week.from, week.to, ""); !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("a patient: %v, want ErrNotFound", err)
 	}
 	checkEvents(t, "a patient", f.audit, event(me, auditevent.CodeSearchType, "", "", auditevent.OutcomeMinorFailure))
@@ -125,8 +125,28 @@ func TestNoShowFlags_RefusesPatientsAndInvalidRanges(t *testing.T) {
 		"63 days":  {now, now.Add(63 * 24 * time.Hour)},
 	} {
 		f := flagsFixture(1, 180)
-		if _, err := f.svc.NoShowFlags(t.Context(), admin, r[0], r[1]); !errors.Is(err, appointment.ErrInvalidRange) || len(f.repo.calls) != 0 {
+		if _, err := f.svc.NoShowFlags(t.Context(), admin, r[0], r[1], ""); !errors.Is(err, appointment.ErrInvalidRange) || len(f.repo.calls) != 0 {
 			t.Errorf("%s: %v, calls %v; want ErrInvalidRange", name, err, f.repo.calls)
 		}
+	}
+}
+
+// A calendar shows one practitioner's week: with a practitioner named, only their role's appointments are read,
+// flagged and audited, so an admin looking at one practitioner neither receives nor is recorded reading the others'.
+// A practitioner naming someone else gets none: they see only their own anyway.
+func TestNoShowFlags_NarrowsToThePractitionerNamed(t *testing.T) {
+	f := flagsFixture(2, 180)
+	got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to, practA2)
+	if want := []appointment.NoShowFlag{{AppointmentID: flagBookedA2, NoShows: 2, WindowDays: 180}}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("the admin's NoShowFlags(role A2's practitioner) = %+v, %v; want %+v", got, err, want)
+	}
+	checkEvents(t, "NoShowFlags of one practitioner", f.audit, event(admin, auditevent.CodeSearchType, "Appointment", flagBookedA2, auditevent.OutcomeSuccess))
+
+	f = flagsFixture(2, 180)
+	if got, err := f.svc.NoShowFlags(t.Context(), pract, week.from, week.to, practA2); err != nil || len(got) != 0 {
+		t.Errorf("the practitioner's NoShowFlags(another practitioner) = %+v, %v; want none", got, err)
+	}
+	if got, err := f.svc.NoShowFlags(t.Context(), admin, week.from, week.to, "not-a-practitioner"); err != nil || len(got) != 0 {
+		t.Errorf("NoShowFlags(a practitioner with no role here) = %+v, %v; want none", got, err)
 	}
 }
