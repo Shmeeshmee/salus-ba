@@ -20,4 +20,12 @@ var (
 	ErrKind = errors.New("consent: unknown kind")
 	// ErrInactive is returned when a consent that is no longer active is revoked.
 	ErrInactive = errors.New("consent: not active")
+	// ErrCareConsentRequired is returned when a patient shares history with a clinic they have no active care
+	// consent with: the clinic would see none of it.
+	ErrCareConsentRequired = errors.New("consent: care consent required")
+	// ErrInvalidVisit is returned when a visit to share is not a finished visit of the patient's at another clinic.
+	ErrInvalidVisit = errors.New("consent: invalid visit")
+	// ErrVersionConflict is returned when a sharing changed since the version the patient read, or exists when they
+	// read none.
+	ErrVersionConflict = errors.New("consent: version conflict")
 )

@@ -33,7 +33,8 @@ class Booking {
       _consents = api.ConsentsApi(client),
       _appointments = api.AppointmentsApi(client),
       _consultation = api.ConsultationApi(client),
-      _questionnaires = api.QuestionnairesApi(client);
+      _questionnaires = api.QuestionnairesApi(client),
+      _history = api.HistoryApi(client);
 
   final api.ApiClient _client;
   final Fhir fhir;
@@ -45,6 +46,7 @@ class Booking {
   final api.AppointmentsApi _appointments;
   final api.ConsultationApi _consultation;
   final api.QuestionnairesApi _questionnaires;
+  final api.HistoryApi _history;
 
   /// The signed-in patient's profile, or null before it is first saved.
   Future<api.Patient?> me() async {
@@ -93,6 +95,30 @@ class Booking {
   );
 
   Future<void> revoke(String consentId) => apiCall(() => _consents.revokeConsent(consentId));
+
+  /// The visits the patient may share with the clinic (SAL-42), newest first, each as the clinic would see it, marked
+  /// when shared now.
+  Future<api.SharingCandidateList> sharingPreview(String clinicId) async {
+    final preview = await apiCall(() => _history.previewHistorySharing(clinicId));
+    return preview ?? api.SharingCandidateList();
+  }
+
+  /// What the patient shares with each clinic now.
+  Future<List<api.HistorySharing>> mySharing() async =>
+      (await apiCall(_history.listMyHistorySharing))?.sharing ?? const [];
+
+  /// Shares exactly [encounterIds] with the clinic, changing the sharing at [versionId] (null for a first grant);
+  /// none stops it. A change made meanwhile is `version_conflict`.
+  Future<void> setSharing(String clinicId, List<String> encounterIds, String? versionId) => apiCall(
+    () => _history.setHistorySharing(
+      clinicId,
+      api.SetHistorySharingRequest(encounterIds: encounterIds.toSet()),
+      ifMatch: versionId == null ? null : 'W/"$versionId"',
+    ),
+  );
+
+  /// Stops sharing history with the clinic; nothing when nothing is shared.
+  Future<void> stopSharing(String clinicId) => apiCall(() => _history.revokeHistorySharing(clinicId));
 
   Future<void> book(String slotId) =>
       apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId)));
@@ -152,8 +178,6 @@ class Booking {
     if (page == null) throw const ApiFailure(status: HttpStatus.badGateway);
     return page;
   }
-
-  api.HistoryApi get _history => api.HistoryApi(_client);
 
   /// The bytes of the patient's clean file [binaryId] and its content type, to hand to the device (SAL-39).
   Future<(Uint8List, String)> file(String binaryId) async {

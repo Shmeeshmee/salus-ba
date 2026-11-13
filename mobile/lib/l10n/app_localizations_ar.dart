@@ -370,7 +370,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return 'لن تعود $clinic قادرة على الاطلاع على ملفك الشخصي. وتحتفظ باسمك وبتفاصيل المواعيد التي تمت بالفعل، بوصفها جزءًا من سجلات الرعاية لديها. وستُلغى مواعيدك القادمة لدى $clinic.';
+    return 'لن تعود $clinic قادرة على الاطلاع على ملفك الشخصي. وتحتفظ باسمك وبتفاصيل المواعيد التي تمت بالفعل، بوصفها جزءًا من سجلات الرعاية لديها. وستُلغى مواعيدك القادمة لدى $clinic. كما تتوقف مشاركة سجلّك من العيادات الأخرى مع $clinic، ولا تُعيدها الموافقة مجددًا.';
   }
 
   @override
@@ -1764,4 +1764,82 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get historyOpenFailed => 'تعذر فتح هذا العنصر. حاول مرة أخرى.';
+
+  @override
+  String get sharingToggle => 'مشاركة سجلّي من العيادات الأخرى مع هذه العيادة';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'حدّد الزيارات السابقة التي يُسمح لـ $clinic بالاطلاع عليها. لكل زيارة تحدّدها، يرى أطباء $clinic الذين لديك موعد معهم ما هو معروض هنا، مع مستندات الزيارة وإجابات الاستبيانات والملفات، والحساسيات والأدوية المسجّلة فيها، وكل ما يُضاف إلى الزيارة لاحقًا. أما الزيارات التي لا تحدّدها فتبقى مخفية عن $clinic.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'يمكنك إضافة زيارات أو إزالتها، أو إيقاف المشاركة، في أي وقت من قسم السجل المشترك. يسري كل تغيير فورًا.';
+
+  @override
+  String get sharingNoVisits =>
+      'ليست لديك زيارات سابقة في عيادات أخرى يمكن مشاركتها.';
+
+  @override
+  String get sharingSelectAll => 'تحديد الكل';
+
+  @override
+  String get sharingSelectNone => 'إلغاء تحديد الكل';
+
+  @override
+  String get sharedHistory => 'السجل المشترك';
+
+  @override
+  String get sharedHistoryIntro =>
+      'العيادات التي منحتها موافقتك، وعدد زياراتك من العيادات الأخرى التي تطّلع عليها كل منها.';
+
+  @override
+  String get sharedHistoryNone => 'لم تمنح موافقتك لأي عيادة بعد.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count زيارة مُشارَكة',
+      many: '$count زيارة مُشارَكة',
+      few: '$count زيارات مُشارَكة',
+      two: 'زيارتان مُشارَكتان',
+      one: 'زيارة واحدة مُشارَكة',
+      zero: 'لا شيء مُشارَك',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'تم حفظ اختيارك ويسري فورًا.';
+
+  @override
+  String get sharingStop => 'إيقاف المشاركة';
+
+  @override
+  String get sharingStopTitle => 'هل تريد إيقاف مشاركة سجلّك؟';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return 'لن تعود $clinic قادرة على الاطلاع على أي من الزيارات من العيادات الأخرى التي شاركتها معها. يسري ذلك فورًا.';
+  }
+
+  @override
+  String get sharingKeep => 'متابعة المشاركة';
+
+  @override
+  String get sharingStopped => 'لم تعد تشارك سجلّك مع هذه العيادة.';
+
+  @override
+  String get sharingChanged =>
+      'تغيّرت زياراتك المُشارَكة في هذه الأثناء. راجعها واحفظها مرة أخرى.';
+
+  @override
+  String get bookedNotShared =>
+      'تم حجز موعدك، لكن تعذّرت مشاركة سجلّك. يمكنك مشاركته من قسم السجل المشترك.';
+
+  @override
+  String get consentForHistory => 'زيارات مُشارَكة من عيادات أخرى';
 }

@@ -374,7 +374,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic sieht Ihr Profil dann nicht mehr. Ihren Namen und die Angaben zu bereits stattgefundenen Terminen behält die Klinik als Teil ihrer Behandlungsunterlagen. Ihre künftigen Termine bei $clinic werden storniert.';
+    return '$clinic sieht Ihr Profil dann nicht mehr. Ihren Namen und die Angaben zu bereits stattgefundenen Terminen behält die Klinik als Teil ihrer Behandlungsunterlagen. Ihre künftigen Termine bei $clinic werden storniert. Auch das Teilen Ihrer Vorgeschichte aus anderen Kliniken mit $clinic endet; eine erneute Einwilligung stellt es nicht wieder her.';
   }
 
   @override
@@ -1729,4 +1729,82 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get historyOpenFailed =>
       'Dieser Eintrag konnte nicht geöffnet werden. Versuchen Sie es erneut.';
+
+  @override
+  String get sharingToggle =>
+      'Meine Vorgeschichte aus anderen Kliniken mit dieser Klinik teilen';
+
+  @override
+  String sharingIntro(String clinic) {
+    return 'Wählen Sie die früheren Besuche aus, die $clinic sehen darf. Für jeden ausgewählten Besuch sehen die Ärztinnen und Ärzte von $clinic, bei denen Sie einen Termin haben, was hier angezeigt wird, mit den Dokumenten, Fragebogenantworten und Dateien des Besuchs, den darin erfassten Allergien und Medikamenten sowie allem, was dem Besuch später hinzugefügt wird. Besuche, die Sie nicht auswählen, bleiben vor $clinic verborgen.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Sie können jederzeit unter „Geteilte Vorgeschichte“ Besuche hinzufügen oder entfernen oder das Teilen beenden. Jede Änderung gilt sofort.';
+
+  @override
+  String get sharingNoVisits =>
+      'Sie haben keine früheren Besuche in anderen Kliniken, die Sie teilen könnten.';
+
+  @override
+  String get sharingSelectAll => 'Alle auswählen';
+
+  @override
+  String get sharingSelectNone => 'Keine auswählen';
+
+  @override
+  String get sharedHistory => 'Geteilte Vorgeschichte';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Die Kliniken, denen Sie eine Einwilligung gegeben haben, und wie viele Ihrer Besuche aus anderen Kliniken jede davon sieht.';
+
+  @override
+  String get sharedHistoryNone =>
+      'Sie haben noch keiner Klinik eine Einwilligung gegeben.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Besuche geteilt',
+      one: '$count Besuch geteilt',
+      zero: 'Nichts geteilt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Ihre Auswahl ist gespeichert und gilt sofort.';
+
+  @override
+  String get sharingStop => 'Teilen beenden';
+
+  @override
+  String get sharingStopTitle => 'Teilen Ihrer Vorgeschichte beenden?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic sieht dann keinen der Besuche aus anderen Kliniken mehr, die Sie mit ihr geteilt haben. Das gilt sofort.';
+  }
+
+  @override
+  String get sharingKeep => 'Weiter teilen';
+
+  @override
+  String get sharingStopped =>
+      'Sie teilen Ihre Vorgeschichte nicht mehr mit dieser Klinik.';
+
+  @override
+  String get sharingChanged =>
+      'Ihre geteilten Besuche haben sich inzwischen geändert. Prüfen Sie sie und speichern Sie erneut.';
+
+  @override
+  String get bookedNotShared =>
+      'Ihr Termin ist gebucht, aber Ihre Vorgeschichte konnte nicht geteilt werden. Sie können sie unter „Geteilte Vorgeschichte“ teilen.';
+
+  @override
+  String get consentForHistory => 'Aus anderen Kliniken geteilte Besuche';
 }

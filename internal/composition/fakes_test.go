@@ -362,18 +362,25 @@ func (e *fakeEncounters) Own(ctx context.Context, c appointment.Caller, org stri
 	return []encounter.Encounter{e.enc}, nil
 }
 
-// fakeTranscripts gives the stored segments, and counts the calls.
+// fakeTranscripts gives the stored segments, or those of others for another encounter, and counts the calls and
+// records the encounters asked for.
 type fakeTranscripts struct {
 	err      error
+	others   map[string][]transcript.Event // by encounter: other visits' transcripts
 	segments []transcript.Event
+	asked    []string
 	calls    int
 }
 
-func (t *fakeTranscripts) Export(ctx context.Context, _ appointment.Caller, _ string) ([]transcript.Event, error) {
+func (t *fakeTranscripts) Export(ctx context.Context, _ appointment.Caller, encounterID string) ([]transcript.Event, error) {
 	if err := inTx(ctx); err != nil {
 		return nil, err
 	}
 	t.calls++
+	t.asked = append(t.asked, encounterID)
+	if other, ok := t.others[encounterID]; ok {
+		return slices.Clone(other), t.err
+	}
 	return slices.Clone(t.segments), t.err
 }
 
