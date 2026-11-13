@@ -11,7 +11,8 @@
 -- was written, its agent a practitioner role on behalf of its clinic or the patient. activity is a code of
 -- http://terminology.hl7.org/CodeSystem/v3-DataOperation, agent_type one of
 -- http://terminology.hl7.org/CodeSystem/provenance-participant-type. Each insert is tied to the write it attests: the
--- entry at that version, written by that agent (the insert policies).
+-- entry at that version and in the state the write left, written by that agent (the insert policies), and one per
+-- version (the write that produced it).
 --
 -- A clinic's Provenance names the clinic, so it is seen only where that clinic may be (access.Attributed, ADR 0014
 -- "Doctor entries"): by the patient, and by the writing clinic's scope while it sees the entry. Another clinic that
@@ -41,7 +42,11 @@ CREATE TABLE allergy_intolerance_provenance (
     -- One agent: a clinic's practitioner role, or the patient, who never creates or verifies.
     CONSTRAINT allergy_intolerance_provenance_one_agent CHECK (num_nulls(practitioner_role_id, organization_id) IN (0, 2)
                                                    AND (organization_id IS NULL) <> (patient_id IS NULL)),
-    CONSTRAINT allergy_intolerance_provenance_patient_agent CHECK (patient_id IS NULL OR (activity <> 'CREATE' AND agent_type = 'author'))
+    CONSTRAINT allergy_intolerance_provenance_patient_agent CHECK (patient_id IS NULL OR (activity <> 'CREATE' AND agent_type = 'author')),
+    -- A creation is stored as its author; the recorder's confirmation is its second agent, rendered by the service.
+    CONSTRAINT allergy_intolerance_provenance_created_by_author CHECK (activity <> 'CREATE' OR agent_type = 'author'),
+    -- One write, one version, one Provenance.
+    CONSTRAINT allergy_intolerance_provenance_one_per_version UNIQUE (allergy_intolerance_id, target_version)
 );
 
 CREATE TABLE medication_statement_provenance (
@@ -61,7 +66,11 @@ CREATE TABLE medication_statement_provenance (
     -- One agent: a clinic's practitioner role, or the patient, who never creates or verifies.
     CONSTRAINT medication_statement_provenance_one_agent CHECK (num_nulls(practitioner_role_id, organization_id) IN (0, 2)
                                                    AND (organization_id IS NULL) <> (patient_id IS NULL)),
-    CONSTRAINT medication_statement_provenance_patient_agent CHECK (patient_id IS NULL OR (activity <> 'CREATE' AND agent_type = 'author'))
+    CONSTRAINT medication_statement_provenance_patient_agent CHECK (patient_id IS NULL OR (activity <> 'CREATE' AND agent_type = 'author')),
+    -- A creation is stored as its author; the recorder's confirmation is its second agent, rendered by the service.
+    CONSTRAINT medication_statement_provenance_created_by_author CHECK (activity <> 'CREATE' OR agent_type = 'author'),
+    -- One write, one version, one Provenance.
+    CONSTRAINT medication_statement_provenance_one_per_version UNIQUE (medication_statement_id, target_version)
 );
 
 -- An entry's Provenances (the foreign key, the service's check before a delete).
@@ -73,8 +82,10 @@ CREATE POLICY allergy_intolerance_provenance_read ON allergy_intolerance_provena
     USING ((NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL
             OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid)
            AND EXISTS (SELECT 1 FROM allergy_intolerance a WHERE a.id = allergy_intolerance_provenance.allergy_intolerance_id));
--- A clinic's Provenance names the write it attests: recording by the entry's recorder (who confirms it with the
--- same role), a confirmation by the entry's confirmer, a change or removal of its own clinic's entry.
+-- A clinic's Provenance names the write it attests, in the state that write leaves: recording by the entry's recorder
+-- (who confirms it with the same role), a confirmation by the entry's confirmer of a confirmed entry, a removal of its
+-- own clinic's entry now entered-in-error, a change of its own clinic's entry not removed. Which role of the clinic
+-- acted, for a change or a removal, is the service's to bind (the caller's role).
 CREATE POLICY allergy_intolerance_provenance_clinic_insert ON allergy_intolerance_provenance FOR INSERT TO salus_app
     WITH CHECK (NULLIF(current_setting('app.patient_id', true), '') IS NULL
                 AND NULLIF(current_setting('app.account_id', true), '') IS NULL
@@ -89,27 +100,36 @@ CREATE POLICY allergy_intolerance_provenance_clinic_insert ON allergy_intoleranc
                                       AND a.recorder_role_id = allergy_intolerance_provenance.practitioner_role_id
                                       AND a.confirmed_organization_id = allergy_intolerance_provenance.organization_id
                                       AND a.confirmed_by_role_id = allergy_intolerance_provenance.practitioner_role_id
+                                  WHEN allergy_intolerance_provenance.activity = 'NULLIFY' THEN
+                                      a.verification_status = 'entered-in-error'
+                                      AND a.organization_id = allergy_intolerance_provenance.organization_id
                                   WHEN allergy_intolerance_provenance.agent_type = 'verifier' THEN
-                                      a.confirmed_organization_id = allergy_intolerance_provenance.organization_id
+                                      a.verification_status = 'confirmed'
+                                      AND a.confirmed_organization_id = allergy_intolerance_provenance.organization_id
                                       AND a.confirmed_by_role_id = allergy_intolerance_provenance.practitioner_role_id
-                                  ELSE a.organization_id = allergy_intolerance_provenance.organization_id
+                                  ELSE NOT (a.verification_status = 'entered-in-error')
+                                      AND a.organization_id = allergy_intolerance_provenance.organization_id
                               END));
--- The patient's Provenance: their change (adding to the profile) or removal of a clinic's entry of theirs.
+-- The patient's Provenance: their addition of a clinic's entry of theirs to the profile, or its removal.
 CREATE POLICY allergy_intolerance_provenance_patient_insert ON allergy_intolerance_provenance FOR INSERT TO salus_app
     WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
                 AND EXISTS (SELECT 1 FROM allergy_intolerance a
                             WHERE a.id = allergy_intolerance_provenance.allergy_intolerance_id
                               AND a.version_id = allergy_intolerance_provenance.target_version
                               AND a.patient_id = allergy_intolerance_provenance.patient_id
-                              AND a.organization_id IS NOT NULL));
+                              AND a.organization_id IS NOT NULL
+                              AND CASE WHEN allergy_intolerance_provenance.activity = 'NULLIFY' THEN a.verification_status = 'entered-in-error'
+                                       ELSE a.in_profile AND NOT (a.verification_status = 'entered-in-error') END));
 
 ALTER TABLE medication_statement_provenance ENABLE ROW LEVEL SECURITY;
 CREATE POLICY medication_statement_provenance_read ON medication_statement_provenance FOR SELECT TO salus_app
     USING ((NULLIF(current_setting('app.patient_id', true), '') IS NOT NULL
             OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid)
            AND EXISTS (SELECT 1 FROM medication_statement m WHERE m.id = medication_statement_provenance.medication_statement_id));
--- A clinic's Provenance names the write it attests: recording by the entry's recorder (who confirms it with the
--- same role), a confirmation by the entry's confirmer, a change or removal of its own clinic's entry.
+-- A clinic's Provenance names the write it attests, in the state that write leaves: recording by the entry's recorder
+-- (who confirms it with the same role), a confirmation by the entry's confirmer of a confirmed entry, a removal of its
+-- own clinic's entry now entered-in-error, a change of its own clinic's entry not removed. Which role of the clinic
+-- acted, for a change or a removal, is the service's to bind (the caller's role).
 CREATE POLICY medication_statement_provenance_clinic_insert ON medication_statement_provenance FOR INSERT TO salus_app
     WITH CHECK (NULLIF(current_setting('app.patient_id', true), '') IS NULL
                 AND NULLIF(current_setting('app.account_id', true), '') IS NULL
@@ -124,19 +144,26 @@ CREATE POLICY medication_statement_provenance_clinic_insert ON medication_statem
                                       AND m.recorder_role_id = medication_statement_provenance.practitioner_role_id
                                       AND m.confirmed_organization_id = medication_statement_provenance.organization_id
                                       AND m.confirmed_by_role_id = medication_statement_provenance.practitioner_role_id
+                                  WHEN medication_statement_provenance.activity = 'NULLIFY' THEN
+                                      m.status = 'entered-in-error'
+                                      AND m.organization_id = medication_statement_provenance.organization_id
                                   WHEN medication_statement_provenance.agent_type = 'verifier' THEN
-                                      m.confirmed_organization_id = medication_statement_provenance.organization_id
+                                      m.confirmed_at IS NOT NULL AND m.status <> 'entered-in-error'
+                                      AND m.confirmed_organization_id = medication_statement_provenance.organization_id
                                       AND m.confirmed_by_role_id = medication_statement_provenance.practitioner_role_id
-                                  ELSE m.organization_id = medication_statement_provenance.organization_id
+                                  ELSE NOT (m.status = 'entered-in-error')
+                                      AND m.organization_id = medication_statement_provenance.organization_id
                               END));
--- The patient's Provenance: their change (adding to the profile) or removal of a clinic's entry of theirs.
+-- The patient's Provenance: their addition of a clinic's entry of theirs to the profile, or its removal.
 CREATE POLICY medication_statement_provenance_patient_insert ON medication_statement_provenance FOR INSERT TO salus_app
     WITH CHECK (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid
                 AND EXISTS (SELECT 1 FROM medication_statement m
                             WHERE m.id = medication_statement_provenance.medication_statement_id
                               AND m.version_id = medication_statement_provenance.target_version
                               AND m.patient_id = medication_statement_provenance.patient_id
-                              AND m.organization_id IS NOT NULL));
+                              AND m.organization_id IS NOT NULL
+                              AND CASE WHEN medication_statement_provenance.activity = 'NULLIFY' THEN m.status = 'entered-in-error'
+                                       ELSE m.in_profile AND NOT (m.status = 'entered-in-error') END));
 
 -- Append-only.
 GRANT SELECT, INSERT ON allergy_intolerance_provenance, medication_statement_provenance TO salus_app;

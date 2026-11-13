@@ -127,3 +127,42 @@ func TestRepository_TellsAWrittenEntryAndAppendsThePatientsProvenance(t *testing
 		t.Errorf("the patient's Provenance: %+v, %v; want it as written", read, err)
 	}
 }
+
+// A delete that would lose a clinic's Provenance fails as a conflict: the clinic confirmed the patient's own entry,
+// the patient's change cleared the confirmation, and the entry is no longer what the patient may delete.
+func TestRepository_ADeleteThatWouldLoseAProvenanceIsAConflict(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	v := seedVisit(t, owner)
+	patient := func(ctx context.Context, r medicationstatement.Repository) error { return r.SetPatient(ctx, v.patient) }
+	clinic := func(ctx context.Context, r medicationstatement.Repository) error { return r.SetClinic(ctx, v.clinic) }
+	own := medicationstatement.MedicationStatement{ID: ownID, PatientID: v.patient, DateAsserted: at, InProfile: true,
+		Code: medicationstatement.Code{Text: "Placeholder medication"}, Status: medicationstatement.StatusActive}
+	write := func(scope func(ctx context.Context, r medicationstatement.Repository) error, fn func(ctx context.Context, r medicationstatement.Repository) error) {
+		t.Helper()
+		if err := in(t, app, scope, fn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(patient, func(ctx context.Context, r medicationstatement.Repository) error { return r.Insert(ctx, own) })
+	confirmed := own
+	confirmed.VersionID, confirmed.LastUpdated = 1, at.Add(time.Minute)
+	confirmed.Confirmation = medicationstatement.Confirmation{At: at.Add(time.Minute), RoleID: v.role, OrganizationID: v.clinic}
+	write(clinic, func(ctx context.Context, r medicationstatement.Repository) error {
+		if _, err := r.Update(ctx, confirmed); err != nil {
+			return err
+		}
+		return r.InsertProvenance(ctx, medicationstatement.Provenance{Recorded: confirmed.LastUpdated, ID: "a1000000-0000-4000-8000-0000000000ad",
+			EntryID: ownID, RoleID: v.role, OrganizationID: v.clinic, Activity: fhir.ActivityUpdate, AgentType: fhir.AgentVerifier, Version: 2})
+	})
+	changed := own
+	changed.VersionID, changed.LastUpdated, changed.Status = 2, at.Add(time.Hour), medicationstatement.StatusStopped
+	write(patient, func(ctx context.Context, r medicationstatement.Repository) error {
+		_, err := r.Update(ctx, changed)
+		return err
+	})
+	err := in(t, app, patient, func(ctx context.Context, r medicationstatement.Repository) error { return r.Delete(ctx, ownID, 3) })
+	if !errors.Is(err, medicationstatement.ErrVersionConflict) {
+		t.Errorf("the delete: %v, want ErrVersionConflict", err)
+	}
+}

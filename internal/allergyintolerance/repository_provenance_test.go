@@ -127,3 +127,44 @@ func TestRepository_TellsAWrittenEntryAndAppendsThePatientsProvenance(t *testing
 		t.Errorf("the patient's Provenance: %+v, %v; want it as written", read, err)
 	}
 }
+
+// A delete that would lose a clinic's Provenance fails as a conflict: the clinic confirmed the patient's own entry,
+// the patient's change cleared the confirmation, and the entry is no longer what the patient may delete.
+func TestRepository_ADeleteThatWouldLoseAProvenanceIsAConflict(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	v := seedVisit(t, owner)
+	patient := func(ctx context.Context, r allergyintolerance.Repository) error { return r.SetPatient(ctx, v.patient) }
+	clinic := func(ctx context.Context, r allergyintolerance.Repository) error { return r.SetClinic(ctx, v.clinic) }
+	own := allergyintolerance.AllergyIntolerance{ID: ownID, PatientID: v.patient, RecordedDate: at, InProfile: true,
+		Code: allergyintolerance.Code{Text: "Placeholder substance"}, ClinicalStatus: allergyintolerance.ClinicalActive,
+		VerificationStatus: allergyintolerance.VerificationUnconfirmed}
+	write := func(scope func(ctx context.Context, r allergyintolerance.Repository) error, fn func(ctx context.Context, r allergyintolerance.Repository) error) {
+		t.Helper()
+		if err := in(t, app, scope, fn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(patient, func(ctx context.Context, r allergyintolerance.Repository) error { return r.Insert(ctx, own) })
+	confirmed := own
+	confirmed.VersionID, confirmed.LastUpdated = 1, at.Add(time.Minute)
+	confirmed.Confirmation = allergyintolerance.Confirmation{At: at.Add(time.Minute), RoleID: v.role, OrganizationID: v.clinic}
+	confirmed.VerificationStatus = allergyintolerance.VerificationConfirmed
+	write(clinic, func(ctx context.Context, r allergyintolerance.Repository) error {
+		if _, err := r.Update(ctx, confirmed); err != nil {
+			return err
+		}
+		return r.InsertProvenance(ctx, allergyintolerance.Provenance{Recorded: confirmed.LastUpdated, ID: "a1000000-0000-4000-8000-0000000000ad",
+			EntryID: ownID, RoleID: v.role, OrganizationID: v.clinic, Activity: fhir.ActivityUpdate, AgentType: fhir.AgentVerifier, Version: 2})
+	})
+	changed := own
+	changed.VersionID, changed.LastUpdated, changed.Reaction = 2, at.Add(time.Hour), "Placeholder rash"
+	write(patient, func(ctx context.Context, r allergyintolerance.Repository) error {
+		_, err := r.Update(ctx, changed)
+		return err
+	})
+	err := in(t, app, patient, func(ctx context.Context, r allergyintolerance.Repository) error { return r.Delete(ctx, ownID, 3) })
+	if !errors.Is(err, allergyintolerance.ErrVersionConflict) {
+		t.Errorf("the delete: %v, want ErrVersionConflict", err)
+	}
+}

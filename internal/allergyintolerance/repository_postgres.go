@@ -106,6 +106,8 @@ func (r *postgresRepository) Delete(ctx context.Context, id string, version int3
 	}
 	n, err := r.q(ctx).DeleteAllergy(ctx, allergyintolerancedb.DeleteAllergyParams{ID: u, VersionID: version})
 	switch {
+	case foreignKey(err):
+		return ErrVersionConflict // it gained a Provenance since it was read: a clinic wrote it (00053)
 	case err != nil:
 		return refusal(err)
 	case n == 0:
@@ -230,4 +232,10 @@ func (r *postgresRepository) HasProvenance(ctx context.Context, id string) (bool
 		return false, nil
 	}
 	return r.q(ctx).AllergyHasProvenance(ctx, u)
+}
+
+// foreignKey reports whether err is a foreign key violation.
+func foreignKey(err error) bool {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	return ok && pgErr.Code == "23503"
 }

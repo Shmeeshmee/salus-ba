@@ -89,7 +89,13 @@ refused read is audited as a read of `Provenance/<id>`. `GET /fhir/R4/Provenance
 declared in the router (`Config.Provenances`, asked in turn): the entries' sources answer only ids in their store
 (nothing audited otherwise), composition's signatures last (it audits any id); the answer's timing can tell which
 store holds an id (opaque, accepted). Composition's store is unchanged. No search or `_revinclude`. A removal's
-Provenance is read by no one (nobody sees an entered-in-error entry), so it has no golden file.
+Provenance is read by no one (nobody sees an entered-in-error entry), so it has no golden file. Review fixes: one Provenance per entry version
+(unique), each insert checked against the state its write left (a confirmation needs a confirmed entry, a removal an
+entered-in-error one, the patient's addition an entry in the profile), a creation stored as its author (the
+verifier is rendered); the acting role within the clinic is bound by the service only. A delete that meets a
+Provenance since the read (a foreign key failure) is a version conflict (409). A removed entry and its Provenances
+stay out of every read, but the patient's Art. 15 export must include them (no export exists yet; recorded in the
+plan and the DPIA).
 
 Copy waiting for the owner:
 
