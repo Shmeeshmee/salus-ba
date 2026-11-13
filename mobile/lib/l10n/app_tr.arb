@@ -425,5 +425,21 @@
   "howOftenEveryHours": "{period, plural, one{Her {every} saatte {frequency} kez} other{Her {every} saatte {frequency} kez}}",
   "howOftenEveryDays": "{period, plural, one{Her {every} günde {frequency} kez} other{Her {every} günde {frequency} kez}}",
   "howOftenEveryWeeks": "{period, plural, one{Her {every} haftada {frequency} kez} other{Her {every} haftada {frequency} kez}}",
-  "howOftenEveryMonths": "{period, plural, one{Her {every} ayda {frequency} kez} other{Her {every} ayda {frequency} kez}}"
+  "howOftenEveryMonths": "{period, plural, one{Her {every} ayda {frequency} kez} other{Her {every} ayda {frequency} kez}}",
+  "myHistory": "Geçmişim",
+  "historyEmpty": "Geçmişiniz henüz boş. Ziyaretleriniz, belgeleriniz ve yanıtlarınız burada görünür.",
+  "historyNoMatch": "Geçmişinizde bu filtrelere uyan bir şey yok.",
+  "historyClinic": "Klinik",
+  "historyAllClinics": "Tüm klinikler",
+  "historyVisits": "Ziyaretler",
+  "historyVisit": "Ziyaret",
+  "historyAnswers": "Anket yanıtları",
+  "historyFiles": "Dosyalar",
+  "historyFile": "Dosya",
+  "historyAnyDate": "Herhangi bir tarih",
+  "historyDateRange": "{from} – {to}",
+  "historyClearDates": "Tarihleri temizle",
+  "historyShowMore": "Daha fazla göster",
+  "historyMoreFailed": "Geçmişinizin devamı yüklenemedi.",
+  "historyOpenFailed": "Bu öğe açılamadı. Tekrar deneyin."
 }

@@ -131,6 +131,39 @@ class Booking {
     return response.bodyBytes;
   }
 
+  /// One page of the patient's history across every clinic (SAL-39), newest first, after [cursor] (the `next` of the
+  /// page before; null for the first), narrowed to one clinic, some types and the instants in [from, to) when given.
+  Future<api.HistoryPage> history({
+    String? cursor,
+    String? clinicId,
+    List<api.HistoryItemType>? types,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final page = await apiCall(
+      () => _history.listMyHistory(
+        cursor: cursor,
+        organization: clinicId,
+        type: types == null || types.isEmpty ? null : types,
+        from: from?.toUtc(),
+        to: to?.toUtc(),
+      ),
+    );
+    if (page == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return page;
+  }
+
+  api.HistoryApi get _history => api.HistoryApi(_client);
+
+  /// The bytes of the patient's clean file [binaryId] and its content type, to hand to the device (SAL-39).
+  Future<(Uint8List, String)> file(String binaryId) async {
+    final response = await apiCall(
+      () => _client.invokeAPI('/binaries/${Uri.encodeComponent(binaryId)}/content', 'GET', const [], null, {}, {}, null),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return (response.bodyBytes, response.headers['content-type'] ?? 'application/octet-stream');
+  }
+
   /// The plain-language explanations of the medical terms in [language], else in English (SAL-13), by term id.
   Future<Map<String, api.ExplainedTerm>> explanations(String language) async {
     final list = await apiCall(

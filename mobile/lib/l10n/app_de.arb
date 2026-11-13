@@ -425,5 +425,21 @@
   "howOftenEveryHours": "{period, plural, one{{frequency}× alle {every} Stunde} other{{frequency}× alle {every} Stunden}}",
   "howOftenEveryDays": "{period, plural, one{{frequency}× alle {every} Tag} other{{frequency}× alle {every} Tage}}",
   "howOftenEveryWeeks": "{period, plural, one{{frequency}× alle {every} Woche} other{{frequency}× alle {every} Wochen}}",
-  "howOftenEveryMonths": "{period, plural, one{{frequency}× alle {every} Monat} other{{frequency}× alle {every} Monate}}"
+  "howOftenEveryMonths": "{period, plural, one{{frequency}× alle {every} Monat} other{{frequency}× alle {every} Monate}}",
+  "myHistory": "Mein Verlauf",
+  "historyEmpty": "Ihr Verlauf ist noch leer. Hier erscheinen Ihre Besuche, Dokumente und Antworten.",
+  "historyNoMatch": "Nichts in Ihrem Verlauf passt zu diesen Filtern.",
+  "historyClinic": "Klinik",
+  "historyAllClinics": "Alle Kliniken",
+  "historyVisits": "Besuche",
+  "historyVisit": "Besuch",
+  "historyAnswers": "Antworten auf Fragebogen",
+  "historyFiles": "Dateien",
+  "historyFile": "Datei",
+  "historyAnyDate": "Beliebiges Datum",
+  "historyDateRange": "{from} bis {to}",
+  "historyClearDates": "Datum zurücksetzen",
+  "historyShowMore": "Mehr anzeigen",
+  "historyMoreFailed": "Weitere Einträge Ihres Verlaufs konnten nicht geladen werden.",
+  "historyOpenFailed": "Dieser Eintrag konnte nicht geöffnet werden. Versuchen Sie es erneut."
 }

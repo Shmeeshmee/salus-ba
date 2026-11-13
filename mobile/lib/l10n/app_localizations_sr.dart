@@ -1671,6 +1671,60 @@ class AppLocalizationsSr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get myHistory => 'Моја историја';
+
+  @override
+  String get historyEmpty =>
+      'Ваша историја је још празна. Овдје се појављују ваше посјете, документи и одговори.';
+
+  @override
+  String get historyNoMatch =>
+      'Ништа у вашој историји не одговара овим филтерима.';
+
+  @override
+  String get historyClinic => 'Клиника';
+
+  @override
+  String get historyAllClinics => 'Све клинике';
+
+  @override
+  String get historyVisits => 'Посјете';
+
+  @override
+  String get historyVisit => 'Посјета';
+
+  @override
+  String get historyAnswers => 'Одговори на упитник';
+
+  @override
+  String get historyFiles => 'Датотеке';
+
+  @override
+  String get historyFile => 'Датотека';
+
+  @override
+  String get historyAnyDate => 'Било који датум';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'од $from до $to';
+  }
+
+  @override
+  String get historyClearDates => 'Поништи датуме';
+
+  @override
+  String get historyShowMore => 'Прикажи више';
+
+  @override
+  String get historyMoreFailed =>
+      'Остатак ваше историје није се могао учитати.';
+
+  @override
+  String get historyOpenFailed =>
+      'Ова ставка се није могла отворити. Покушајте поново.';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -3339,6 +3393,60 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
     );
     return '$_temp0';
   }
+
+  @override
+  String get myHistory => 'Моја историја';
+
+  @override
+  String get historyEmpty =>
+      'Ваша историја је још празна. Овдје се појављују ваше посјете, документи и одговори.';
+
+  @override
+  String get historyNoMatch =>
+      'Ништа у вашој историји не одговара овим филтерима.';
+
+  @override
+  String get historyClinic => 'Клиника';
+
+  @override
+  String get historyAllClinics => 'Све клинике';
+
+  @override
+  String get historyVisits => 'Посјете';
+
+  @override
+  String get historyVisit => 'Посјета';
+
+  @override
+  String get historyAnswers => 'Одговори на упитник';
+
+  @override
+  String get historyFiles => 'Датотеке';
+
+  @override
+  String get historyFile => 'Датотека';
+
+  @override
+  String get historyAnyDate => 'Било који датум';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'од $from до $to';
+  }
+
+  @override
+  String get historyClearDates => 'Поништи датуме';
+
+  @override
+  String get historyShowMore => 'Прикажи више';
+
+  @override
+  String get historyMoreFailed =>
+      'Остатак ваше историје није се могао учитати.';
+
+  @override
+  String get historyOpenFailed =>
+      'Ова ставка се није могла отворити. Покушајте поново.';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -5008,4 +5116,58 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
     );
     return '$_temp0';
   }
+
+  @override
+  String get myHistory => 'Moja istorija';
+
+  @override
+  String get historyEmpty =>
+      'Vaša istorija je još prazna. Ovdje se pojavljuju vaše posjete, dokumenti i odgovori.';
+
+  @override
+  String get historyNoMatch =>
+      'Ništa u vašoj istoriji ne odgovara ovim filterima.';
+
+  @override
+  String get historyClinic => 'Klinika';
+
+  @override
+  String get historyAllClinics => 'Sve klinike';
+
+  @override
+  String get historyVisits => 'Posjete';
+
+  @override
+  String get historyVisit => 'Posjeta';
+
+  @override
+  String get historyAnswers => 'Odgovori na upitnik';
+
+  @override
+  String get historyFiles => 'Datoteke';
+
+  @override
+  String get historyFile => 'Datoteka';
+
+  @override
+  String get historyAnyDate => 'Bilo koji datum';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'od $from do $to';
+  }
+
+  @override
+  String get historyClearDates => 'Poništi datume';
+
+  @override
+  String get historyShowMore => 'Prikaži više';
+
+  @override
+  String get historyMoreFailed =>
+      'Ostatak vaše istorije nije se mogao učitati.';
+
+  @override
+  String get historyOpenFailed =>
+      'Ova stavka se nije mogla otvoriti. Pokušajte ponovo.';
 }

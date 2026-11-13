@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -192,5 +193,44 @@ func TestCountRecordedBefore_CountsTheEventsRecordedBeforeTheCutOffAsTheAppRole(
 
 	if err != nil || n != 2 {
 		t.Errorf("CountRecordedBefore() = %d, %v; want the 2 events recorded before the cut-off", n, err)
+	}
+}
+
+// InsertAll stores each event as Insert does, NULL for what is absent, in one statement.
+func TestInsertAll_StoresEveryEventAsTheAppRole(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	first := login()
+	first.Recorded, first.OrganizationID, first.RequestID = now, "c0000000-0000-4000-8000-00000000000c", "req-1"
+	second := login()
+	second.Recorded, second.AgentAccountID, second.EntityReference, second.EntityName, second.EntityCount = now, "", "", "document_template", 3
+	if err := auditevent.NewPostgresRepository(app).InsertAll(t.Context(), []auditevent.AuditEvent{first, second}); err != nil {
+		t.Fatalf("InsertAll() = %v", err)
+	}
+	rows, err := owner.Query(t.Context(), `SELECT coalesce(agent_account_id::text, '<null>'), coalesce(organization_id::text, '<null>'),
+		coalesce(entity_reference, '<null>'), coalesce(entity_name, '<null>'), coalesce(entity_count::text, '<null>'),
+		coalesce(request_id, '<null>'), action, outcome::text, recorded = $1
+		FROM audit_event ORDER BY entity_name NULLS FIRST`, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for rows.Next() {
+		var agent, org, entity, name, count, request, action, outcome string
+		var at bool
+		if err := rows.Scan(&agent, &org, &entity, &name, &count, &request, &action, &outcome, &at); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, strings.Join([]string{agent, org, entity, name, count, request, action, outcome, strconv.FormatBool(at)}, " "))
+	}
+	want := []string{
+		first.AgentAccountID + " c0000000-0000-4000-8000-00000000000c " + first.EntityReference + " <null> <null> req-1 E 0 true",
+		"<null> <null> <null> document_template 3 <null> E 0 true",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("stored %q,\nwant %q", got, want)
+	}
+	if err := auditevent.NewPostgresRepository(app).InsertAll(t.Context(), []auditevent.AuditEvent{{AgentAccountID: "x"}}); err == nil {
+		t.Error("InsertAll(a malformed id) = nil, want an error")
 	}
 }

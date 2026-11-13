@@ -109,13 +109,18 @@ func (s *Service) recordSystem(ctx context.Context, agent, org, interaction, id 
 // record audits interaction by c on Encounter/id ("" when none was disclosed: no id from the request is
 // stored). The purpose is the patient's own request for a patient and treatment for staff.
 func (s *Service) record(ctx context.Context, c appointment.Caller, interaction, id string, outcome auditevent.Outcome) error {
+	return s.Audit.Record(ctx, callerEntry(c, interaction, id, outcome))
+}
+
+// callerEntry is the audit event of interaction by c on Encounter/id ("" for none), as record writes it.
+func callerEntry(c appointment.Caller, interaction, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	purpose := auditevent.CodePATRQT
 	if c.OrganizationID != "" {
 		purpose = auditevent.CodeTREAT
 	}
 	e := entry(interaction, id, outcome, purpose)
 	e.AgentAccountID, e.OrganizationID = c.AccountID, c.OrganizationID
-	return s.Audit.Record(ctx, e)
+	return e
 }
 
 // entry is the audit event of a FHIR restful interaction on Encounter/id.

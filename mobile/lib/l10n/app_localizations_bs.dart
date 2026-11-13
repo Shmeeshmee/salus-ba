@@ -1672,4 +1672,58 @@ class AppLocalizationsBs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get myHistory => 'Moja historija';
+
+  @override
+  String get historyEmpty =>
+      'Vaša historija je još prazna. Ovdje se pojavljuju vaše posjete, dokumenti i odgovori.';
+
+  @override
+  String get historyNoMatch =>
+      'Ništa u vašoj historiji ne odgovara ovim filterima.';
+
+  @override
+  String get historyClinic => 'Klinika';
+
+  @override
+  String get historyAllClinics => 'Sve klinike';
+
+  @override
+  String get historyVisits => 'Posjete';
+
+  @override
+  String get historyVisit => 'Posjeta';
+
+  @override
+  String get historyAnswers => 'Odgovori na upitnik';
+
+  @override
+  String get historyFiles => 'Datoteke';
+
+  @override
+  String get historyFile => 'Datoteka';
+
+  @override
+  String get historyAnyDate => 'Bilo koji datum';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'od $from do $to';
+  }
+
+  @override
+  String get historyClearDates => 'Poništi datume';
+
+  @override
+  String get historyShowMore => 'Prikaži više';
+
+  @override
+  String get historyMoreFailed =>
+      'Ostatak vaše historije nije se mogao učitati.';
+
+  @override
+  String get historyOpenFailed =>
+      'Ova stavka se nije mogla otvoriti. Pokušajte ponovo.';
 }

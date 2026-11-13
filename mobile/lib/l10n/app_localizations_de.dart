@@ -1675,4 +1675,58 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get myHistory => 'Mein Verlauf';
+
+  @override
+  String get historyEmpty =>
+      'Ihr Verlauf ist noch leer. Hier erscheinen Ihre Besuche, Dokumente und Antworten.';
+
+  @override
+  String get historyNoMatch =>
+      'Nichts in Ihrem Verlauf passt zu diesen Filtern.';
+
+  @override
+  String get historyClinic => 'Klinik';
+
+  @override
+  String get historyAllClinics => 'Alle Kliniken';
+
+  @override
+  String get historyVisits => 'Besuche';
+
+  @override
+  String get historyVisit => 'Besuch';
+
+  @override
+  String get historyAnswers => 'Antworten auf Fragebogen';
+
+  @override
+  String get historyFiles => 'Dateien';
+
+  @override
+  String get historyFile => 'Datei';
+
+  @override
+  String get historyAnyDate => 'Beliebiges Datum';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return '$from bis $to';
+  }
+
+  @override
+  String get historyClearDates => 'Datum zurücksetzen';
+
+  @override
+  String get historyShowMore => 'Mehr anzeigen';
+
+  @override
+  String get historyMoreFailed =>
+      'Weitere Einträge Ihres Verlaufs konnten nicht geladen werden.';
+
+  @override
+  String get historyOpenFailed =>
+      'Dieser Eintrag konnte nicht geöffnet werden. Versuchen Sie es erneut.';
 }
