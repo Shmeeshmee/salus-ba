@@ -121,6 +121,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &slotsWorker{slots: s.slots, log: log})
 	river.AddWorker(workers, &chatPartitionsWorker{chat: s.chat})
 	river.AddWorker(workers, &revocationWorker{appointments: s.appointments, sessions: s.sessions, log: log})
+	river.AddWorker(workers, &slotFreedWorker{})
 	river.AddWorker(workers, &transcriptionRevocationWorker{sessions: s.sessions})
 	river.AddWorker(workers, &windowCloseWorker{sessions: s.sessions, log: log})
 	river.AddWorker(workers, &accessEndWorker{sessions: s.sessions, log: log})

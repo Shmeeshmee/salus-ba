@@ -226,6 +226,18 @@ class ApiClient {
           return AnswerValue.fromJson(value);
         case 'Appointment':
           return Appointment.fromJson(value);
+        case 'AppointmentActions':
+          return AppointmentActions.fromJson(value);
+        case 'AppointmentChange':
+          return AppointmentChange.fromJson(value);
+        case 'AppointmentChangeKind':
+          return AppointmentChangeKindTypeTransformer().decode(value);
+        case 'AppointmentChangeList':
+          return AppointmentChangeList.fromJson(value);
+        case 'AppointmentChangeVia':
+          return AppointmentChangeViaTypeTransformer().decode(value);
+        case 'AppointmentSettings':
+          return AppointmentSettings.fromJson(value);
         case 'Availability':
           return Availability.fromJson(value);
         case 'AvailabilityRule':
@@ -288,6 +300,10 @@ class ApiClient {
           return ClinicDiagnoses.fromJson(value);
         case 'ClinicDiagnosesRowsInner':
           return ClinicDiagnosesRowsInner.fromJson(value);
+        case 'ClinicWaitlist':
+          return ClinicWaitlist.fromJson(value);
+        case 'ClinicWaitlistEntry':
+          return ClinicWaitlistEntry.fromJson(value);
         case 'CommandError':
           return CommandError.fromJson(value);
         case 'CommandErrorMessage':
@@ -420,8 +436,18 @@ class ApiClient {
           return MessageRevision.fromJson(value);
         case 'MessageRevisions':
           return MessageRevisions.fromJson(value);
+        case 'NewWaitlistEntry':
+          return NewWaitlistEntry.fromJson(value);
         case 'NewWebhook':
           return NewWebhook.fromJson(value);
+        case 'NoShowFlags':
+          return NoShowFlags.fromJson(value);
+        case 'NoShowFlagsFlagsInner':
+          return NoShowFlagsFlagsInner.fromJson(value);
+        case 'NotificationChannels':
+          return NotificationChannels.fromJson(value);
+        case 'NotificationSettings':
+          return NotificationSettings.fromJson(value);
         case 'OpenConversationRequest':
           return OpenConversationRequest.fromJson(value);
         case 'OpenItem':
@@ -466,12 +492,16 @@ class ApiClient {
           return QuestionnaireResponse.fromJson(value);
         case 'QuestionnaireTranslation':
           return QuestionnaireTranslation.fromJson(value);
+        case 'QuietHours':
+          return QuietHours.fromJson(value);
         case 'ReadPosition':
           return ReadPosition.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
         case 'RequestQuestionnaireRequest':
           return RequestQuestionnaireRequest.fromJson(value);
+        case 'RescheduleAppointmentRequest':
+          return RescheduleAppointmentRequest.fromJson(value);
         case 'Review':
           return Review.fromJson(value);
         case 'ReviewDecision':
@@ -510,6 +540,10 @@ class ApiClient {
           return SharingCandidateList.fromJson(value);
         case 'SignDraftRequest':
           return SignDraftRequest.fromJson(value);
+        case 'SmsUsage':
+          return SmsUsage.fromJson(value);
+        case 'SmsUsageMonthsInner':
+          return SmsUsageMonthsInner.fromJson(value);
         case 'Specialty':
           return Specialty.fromJson(value);
         case 'SpecialtyList':
@@ -580,6 +614,18 @@ class ApiClient {
           return UpdateMeRequest.fromJson(value);
         case 'VerifyRequest':
           return VerifyRequest.fromJson(value);
+        case 'WaitlistEntry':
+          return WaitlistEntry.fromJson(value);
+        case 'WaitlistEntryList':
+          return WaitlistEntryList.fromJson(value);
+        case 'WaitlistOffer':
+          return WaitlistOffer.fromJson(value);
+        case 'WaitlistPriority':
+          return WaitlistPriority.fromJson(value);
+        case 'WaitlistStatus':
+          return WaitlistStatusTypeTransformer().decode(value);
+        case 'WaitlistTimes':
+          return WaitlistTimes.fromJson(value);
         case 'Webhook':
           return Webhook.fromJson(value);
         case 'WebhookEvent':

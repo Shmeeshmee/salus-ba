@@ -102,8 +102,8 @@ func (s *Service) LookupPractitioner(ctx context.Context, id string) (string, er
 
 // RecordConsultationOutcome records the end of the appointment's consultation (docs/consultation/SPEC.md §2
 // "Outcome"), a system method of the agent in the caller's transaction and scope: a booked appointment
-// becomes fulfilled when the patient joined, else noshow, audited as an update by the agent, and the refresh of the
-// clinic's statistics enqueued. Any other status
+// becomes fulfilled when the patient joined, else noshow, audited as an update by the agent, kept in its history, and
+// the refresh of the clinic's statistics enqueued. Any other status
 // is left as it is (a practitioner who marked it by hand wins, a cancellation stays), and nothing is audited.
 func (s *Service) RecordConsultationOutcome(ctx context.Context, agent, id string, patientJoined bool) error {
 	status := StatusNoShow
@@ -111,11 +111,17 @@ func (s *Service) RecordConsultationOutcome(ctx context.Context, agent, id strin
 		status = StatusFulfilled
 	}
 	return s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		a, err := s.Repo.SetStatus(ctx, id, status, s.Clock.Now())
+		now := s.Clock.Now()
+		a, err := s.Repo.SetStatus(ctx, id, status, now)
 		switch {
 		case errors.Is(err, ErrClosed):
 			return nil
 		case err != nil:
+			return fmt.Errorf("appointment: record consultation outcome: %w", err)
+		}
+		if err := s.recordChange(ctx, Change{
+			At: now, AppointmentID: a.ID, Kind: ChangeStatusSet, Via: ViaSystem, Agent: agent, FromStatus: StatusBooked, ToStatus: status,
+		}); err != nil {
 			return fmt.Errorf("appointment: record consultation outcome: %w", err)
 		}
 		if err := s.Stats.EnqueueStatsRefresh(ctx, a.OrganizationID, a.Start); err != nil {

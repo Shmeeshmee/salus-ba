@@ -3,6 +3,7 @@ package appointment_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +87,7 @@ var (
 func cancelledA() appointment.Seen {
 	s := fullA
 	s.Appointment.Status, s.Appointment.Reason, s.Appointment.CancelledAt, s.Appointment.VersionID = appointment.StatusCancelled, appointment.ReasonPatient, now, 2
+	s.Appointment.CancelledBy = accountA
 	return s
 }
 
@@ -208,6 +211,45 @@ func TestHandler_SendsAFixedOperationOutcomeAndLogsNoName(t *testing.T) {
 			if strings.Contains(log.String(), "Ada") || strings.Contains(log.String(), "Example") {
 				t.Errorf("GET %s: the log holds the name: %s", path, log.String())
 			}
+		}
+	}
+}
+
+// The patient participant is tentative until they confirm, accepted once they did, and declined once they cancelled;
+// the practitioner and the role stay accepted (docs/plans/appointments.md Q3).
+func TestHandlerRead_ThePatientParticipantFollowsTheConfirmation(t *testing.T) {
+	confirmed := fullA
+	confirmed.Appointment.ConfirmedAt, confirmed.Appointment.ConfirmedVia = now, appointment.ViaLink
+	byStaff := cancelledA()
+	byStaff.Appointment.Reason = appointment.ReasonProvider
+	byRevocation := cancelledA()
+	byRevocation.Appointment.CancelledBy = "" // the consent_revoked job: reason pat, by no account
+	confirmedThenRevoked := byRevocation
+	confirmedThenRevoked.Appointment.ConfirmedAt = now
+	for _, tt := range []struct {
+		name string
+		want string
+		seen appointment.Seen
+	}{
+		{"unconfirmed", "tentative", fullA},
+		{"confirmed", "accepted", confirmed},
+		{"cancelled by the patient", "declined", cancelledA()},
+		{"cancelled by staff", "tentative", byStaff},
+		{"cancelled by the revocation", "tentative", byRevocation},
+		{"confirmed, then cancelled by the revocation", "accepted", confirmedThenRevoked},
+	} {
+		var log bytes.Buffer
+		rec := getAppt(t, &stubReader{out: []appointment.Seen{tt.seen}}, as(pract), &log, "/fhir/R4/Appointment/"+apptA)
+		var res struct {
+			Participant []struct {
+				Status string `json:"status"`
+			} `json:"participant"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || len(res.Participant) != 3 {
+			t.Fatalf("%s: %s, %v", tt.name, rec.Body, err)
+		}
+		if got := []string{res.Participant[0].Status, res.Participant[1].Status, res.Participant[2].Status}; !slices.Equal(got, []string{tt.want, "accepted", "accepted"}) {
+			t.Errorf("%s: participants %v, want the patient %s and the others accepted", tt.name, got, tt.want)
 		}
 	}
 }

@@ -78,8 +78,17 @@ Class | Method | HTTP request | Description
 *AnalyticsApi* | [**getPlatformHeatmap**](doc//AnalyticsApi.md#getplatformheatmap) | **GET** /analytics/platform/heatmap | A published quarter's fulfilled appointments by weekday and hour
 *AnalyticsApi* | [**getPlatformMonths**](doc//AnalyticsApi.md#getplatformmonths) | **GET** /analytics/platform/months | The published months and quarters of the All of Salus figures
 *AnalyticsApi* | [**getPlatformRises**](doc//AnalyticsApi.md#getplatformrises) | **GET** /analytics/platform/rises | Unusual rises of a diagnosis group in a region
+*AppointmentLinksApi* | [**actOnAppointmentLink**](doc//AppointmentLinksApi.md#actonappointmentlink) | **POST** /a/{token} | Confirm or cancel through a reminder's one-time link
+*AppointmentLinksApi* | [**getAppointmentLinkPage**](doc//AppointmentLinksApi.md#getappointmentlinkpage) | **GET** /a/{token} | The page of a reminder's one-time link
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
 *AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
+*AppointmentsApi* | [**confirmAppointment**](doc//AppointmentsApi.md#confirmappointment) | **POST** /appointments/{id}/confirm | The patient confirms they will come
+*AppointmentsApi* | [**getAppointmentActions**](doc//AppointmentsApi.md#getappointmentactions) | **GET** /appointments/{id}/actions | What the patient may do with their appointment now
+*AppointmentsApi* | [**getAppointmentSettings**](doc//AppointmentsApi.md#getappointmentsettings) | **GET** /clinic/appointment-settings | The admin's clinic's appointment settings
+*AppointmentsApi* | [**listAppointmentChanges**](doc//AppointmentsApi.md#listappointmentchanges) | **GET** /appointments/{id}/changes | An appointment's history
+*AppointmentsApi* | [**listNoShowFlags**](doc//AppointmentsApi.md#listnoshowflags) | **GET** /clinic/noshow-flags | Repeat no-show flags beside the calendar's appointments
+*AppointmentsApi* | [**rescheduleAppointment**](doc//AppointmentsApi.md#rescheduleappointment) | **POST** /appointments/{id}/reschedule | The patient moves their appointment to another free slot of the same practitioner role
+*AppointmentsApi* | [**setAppointmentSettings**](doc//AppointmentsApi.md#setappointmentsettings) | **PUT** /clinic/appointment-settings | Replace the admin's clinic's appointment settings
 *AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show
 *AttachmentsApi* | [**deleteBinary**](doc//AttachmentsApi.md#deletebinary) | **DELETE** /binaries/{id} | Remove a file from an answer
 *AttachmentsApi* | [**getBinary**](doc//AttachmentsApi.md#getbinary) | **GET** /binaries/{id} | Read a file's status
@@ -166,6 +175,9 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
+*NotificationsApi* | [**getNotificationSettings**](doc//NotificationsApi.md#getnotificationsettings) | **GET** /me/notification-settings | The patient's reminder channels, quiet hours and time zone
+*NotificationsApi* | [**getSmsUsage**](doc//NotificationsApi.md#getsmsusage) | **GET** /clinic/sms-usage | The admin's clinic's SMS usage per month
+*NotificationsApi* | [**setNotificationSettings**](doc//NotificationsApi.md#setnotificationsettings) | **PUT** /me/notification-settings | Replace the patient's reminder channels, quiet hours and time zone
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 *QuestionnairesApi* | [**clearRoleQuestionnaire**](doc//QuestionnairesApi.md#clearrolequestionnaire) | **DELETE** /practitioner-roles/{id}/questionnaire | Clear a practitioner role's default questionnaire
@@ -197,6 +209,13 @@ Class | Method | HTTP request | Description
 *TerminologyApi* | [**reviewTermTranslation**](doc//TerminologyApi.md#reviewtermtranslation) | **POST** /terminology/terms/{id}/translations/{language}/review | Approve a term's labels in one language, or mark them as needing changes
 *TerminologyApi* | [**searchTerminology**](doc//TerminologyApi.md#searchterminology) | **GET** /terminology/search | Search the medical terminology
 *TerminologyApi* | [**writeTermExplanation**](doc//TerminologyApi.md#writetermexplanation) | **PUT** /terminology/terms/{id}/explanations/{language} | Write a term's explanation in one language
+*WaitlistApi* | [**acceptWaitlistOffer**](doc//WaitlistApi.md#acceptwaitlistoffer) | **POST** /waitlist/offers/{id}/accept | The patient accepts an offered slot, which books it
+*WaitlistApi* | [**declineWaitlistOffer**](doc//WaitlistApi.md#declinewaitlistoffer) | **POST** /waitlist/offers/{id}/decline | The patient declines an offered slot
+*WaitlistApi* | [**joinWaitlist**](doc//WaitlistApi.md#joinwaitlist) | **POST** /waitlist | The patient joins a clinic's waitlist
+*WaitlistApi* | [**listClinicWaitlist**](doc//WaitlistApi.md#listclinicwaitlist) | **GET** /clinic/waitlist | The clinic's waitlist, in offer order
+*WaitlistApi* | [**listMyWaitlist**](doc//WaitlistApi.md#listmywaitlist) | **GET** /me/waitlist | The patient's waitlist entries, with their open offers
+*WaitlistApi* | [**removeWaitlistEntry**](doc//WaitlistApi.md#removewaitlistentry) | **DELETE** /waitlist/{id} | The patient withdraws an entry, or the clinic's staff remove it
+*WaitlistApi* | [**setWaitlistPriority**](doc//WaitlistApi.md#setwaitlistpriority) | **PUT** /clinic/waitlist/{id}/priority | Staff move an entry up or down the waitlist
 
 
 ## Documentation For Models
@@ -212,6 +231,12 @@ Class | Method | HTTP request | Description
  - [Answer](doc//Answer.md)
  - [AnswerValue](doc//AnswerValue.md)
  - [Appointment](doc//Appointment.md)
+ - [AppointmentActions](doc//AppointmentActions.md)
+ - [AppointmentChange](doc//AppointmentChange.md)
+ - [AppointmentChangeKind](doc//AppointmentChangeKind.md)
+ - [AppointmentChangeList](doc//AppointmentChangeList.md)
+ - [AppointmentChangeVia](doc//AppointmentChangeVia.md)
+ - [AppointmentSettings](doc//AppointmentSettings.md)
  - [Availability](doc//Availability.md)
  - [AvailabilityRule](doc//AvailabilityRule.md)
  - [Binary](doc//Binary.md)
@@ -243,6 +268,8 @@ Class | Method | HTTP request | Description
  - [ClinicAppointmentsSeriesInner](doc//ClinicAppointmentsSeriesInner.md)
  - [ClinicDiagnoses](doc//ClinicDiagnoses.md)
  - [ClinicDiagnosesRowsInner](doc//ClinicDiagnosesRowsInner.md)
+ - [ClinicWaitlist](doc//ClinicWaitlist.md)
+ - [ClinicWaitlistEntry](doc//ClinicWaitlistEntry.md)
  - [CommandError](doc//CommandError.md)
  - [CommandErrorMessage](doc//CommandErrorMessage.md)
  - [ConfirmRequest](doc//ConfirmRequest.md)
@@ -309,7 +336,12 @@ Class | Method | HTTP request | Description
  - [MessagePage](doc//MessagePage.md)
  - [MessageRevision](doc//MessageRevision.md)
  - [MessageRevisions](doc//MessageRevisions.md)
+ - [NewWaitlistEntry](doc//NewWaitlistEntry.md)
  - [NewWebhook](doc//NewWebhook.md)
+ - [NoShowFlags](doc//NoShowFlags.md)
+ - [NoShowFlagsFlagsInner](doc//NoShowFlagsFlagsInner.md)
+ - [NotificationChannels](doc//NotificationChannels.md)
+ - [NotificationSettings](doc//NotificationSettings.md)
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
@@ -332,9 +364,11 @@ Class | Method | HTTP request | Description
  - [QuestionnaireItemTranslation](doc//QuestionnaireItemTranslation.md)
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
  - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)
+ - [QuietHours](doc//QuietHours.md)
  - [ReadPosition](doc//ReadPosition.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
+ - [RescheduleAppointmentRequest](doc//RescheduleAppointmentRequest.md)
  - [Review](doc//Review.md)
  - [ReviewDecision](doc//ReviewDecision.md)
  - [ReviewStatus](doc//ReviewStatus.md)
@@ -354,6 +388,8 @@ Class | Method | HTTP request | Description
  - [SharingCandidate](doc//SharingCandidate.md)
  - [SharingCandidateList](doc//SharingCandidateList.md)
  - [SignDraftRequest](doc//SignDraftRequest.md)
+ - [SmsUsage](doc//SmsUsage.md)
+ - [SmsUsageMonthsInner](doc//SmsUsageMonthsInner.md)
  - [Specialty](doc//Specialty.md)
  - [SpecialtyList](doc//SpecialtyList.md)
  - [StartQuestionnaireRequest](doc//StartQuestionnaireRequest.md)
@@ -389,6 +425,12 @@ Class | Method | HTTP request | Description
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
+ - [WaitlistEntry](doc//WaitlistEntry.md)
+ - [WaitlistEntryList](doc//WaitlistEntryList.md)
+ - [WaitlistOffer](doc//WaitlistOffer.md)
+ - [WaitlistPriority](doc//WaitlistPriority.md)
+ - [WaitlistStatus](doc//WaitlistStatus.md)
+ - [WaitlistTimes](doc//WaitlistTimes.md)
  - [Webhook](doc//Webhook.md)
  - [WebhookEvent](doc//WebhookEvent.md)
  - [WebhookEventData](doc//WebhookEventData.md)

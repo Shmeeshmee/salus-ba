@@ -70,11 +70,13 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	}
 	events, jobs, refreshes := len(t.f.audit.events), len(t.f.jobs.enqueued), len(t.f.stats.refreshes)
 	appts, held, released := slices.Clone(t.f.repo.appts), slices.Clone(t.f.slots.held), slices.Clone(t.f.slots.released)
+	changes, tokens := slices.Clone(t.f.repo.changes), slices.Clone(t.f.tokens.stored)
 	t.f.repo.patient, t.f.repo.clinic, t.f.repo.notice = "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
 		t.f.audit.events, t.f.jobs.enqueued, t.f.stats.refreshes = t.f.audit.events[:events], t.f.jobs.enqueued[:jobs], t.f.stats.refreshes[:refreshes]
 		t.f.repo.appts, t.f.slots.held, t.f.slots.released = appts, held, released
+		t.f.repo.changes, t.f.tokens.stored = changes, tokens
 	}
 	return err
 }
@@ -84,9 +86,10 @@ type fakeRepository struct {
 	err      error // returned by every read and write when set
 	consents *fakeConsents
 	appts    []appointment.Appointment
-	patient  string // set by SetPatient
-	clinic   string // set by SetClinic
-	notice   string // set by SetNotice
+	changes  []appointment.Change // the history, appended by AddChange (not in calls)
+	patient  string               // set by SetPatient
+	clinic   string               // set by SetClinic
+	notice   string               // set by SetNotice
 	calls    []string
 }
 
@@ -210,6 +213,67 @@ func (r *fakeRepository) Cancel(ctx context.Context, id string, reason appointme
 
 func (r *fakeRepository) SetStatus(ctx context.Context, id string, status appointment.Status, at time.Time) (appointment.Appointment, error) {
 	return r.change(ctx, "SetStatus:"+string(status), id, func(a *appointment.Appointment) { a.Status, a.LastUpdated = status, at })
+}
+
+// AddChange appends c when the scope shows its appointment, as the policy of appointment_change does.
+func (r *fakeRepository) AddChange(ctx context.Context, c appointment.Change) (string, error) {
+	if ctx.Value(txKey{}) == nil {
+		return "", errors.New("AddChange outside a transaction")
+	}
+	if r.err != nil {
+		return "", r.err
+	}
+	for _, a := range r.appts {
+		if a.ID == c.AppointmentID && r.visible(a) {
+			c.ID = fmt.Sprintf("c%07d-0000-4000-8000-000000000000", len(r.changes)+1)
+			r.changes = append(r.changes, c)
+			return c.ID, nil
+		}
+	}
+	return "", appointment.ErrNotFound
+}
+
+func (r *fakeRepository) Changes(ctx context.Context, id string) ([]appointment.Change, error) {
+	r.seen(ctx, "Changes")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []appointment.Change
+	for _, c := range r.changes {
+		if c.AppointmentID == id {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+// fakeTokens keeps the stored links.
+type fakeTokens struct {
+	err    error
+	stored []appointment.Token
+}
+
+func (t *fakeTokens) InsertToken(ctx context.Context, tok appointment.Token) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("InsertToken outside a transaction")
+	}
+	if t.err != nil {
+		return t.err
+	}
+	t.stored = append(t.stored, tok)
+	return nil
+}
+
+func (t *fakeTokens) DeleteTokensExpiredBefore(_ context.Context, before time.Time) (int64, error) {
+	var n int64
+	t.stored = slices.DeleteFunc(t.stored, func(tok appointment.Token) bool {
+		if tok.StartAt.Before(before) {
+			n++
+			return true
+		}
+		return false
+	})
+	return n, t.err
 }
 
 // fakeConsents gives the consent state per patient and clinic.
@@ -384,6 +448,10 @@ func (j *fakeJobs) EnqueueQuestionnaireDiscard(ctx context.Context, id, org stri
 	return j.add(ctx, "questionnaire_discard "+id+" "+org)
 }
 
+func (j *fakeJobs) EnqueueSlotFreed(ctx context.Context, slotID, org string) error {
+	return j.add(ctx, "slot_freed "+slotID+" "+org)
+}
+
 func (j *fakeJobs) EnqueueReminder(ctx context.Context, id, org string, at time.Time) error {
 	return j.add(ctx, fmt.Sprintf("reminder %s %s at %s", id, org, at.Format(time.RFC3339)))
 }
@@ -423,10 +491,14 @@ type fixture struct {
 	clinics  *fakeClinics
 	roles    *fakeRoles
 	jobs     *fakeJobs
+	tokens   *fakeTokens
 	stats    *fakeStatsQueue
 	audit    *fakeAuditor
 	svc      *appointment.Service
 }
+
+// linkURL is the fixture's base of one-time links.
+const linkURL = "https://api.salus.invalid/"
 
 // slotAt is a bookable half-hour slot of the role and clinic at t.
 func slotAt(id, role, org string, t time.Time) slot.Bookable {
@@ -444,14 +516,15 @@ func newFixture(appts ...appointment.Appointment) *fixture {
 			slotU:    slotAt(slotU, roleU, clinicU, start),
 			slotB:    slotAt(slotB, roleB, clinicB, start),
 		}},
-		clinics: &fakeClinics{}, roles: &fakeRoles{}, jobs: &fakeJobs{}, stats: &fakeStatsQueue{}, audit: &fakeAuditor{},
+		clinics: &fakeClinics{}, roles: &fakeRoles{}, jobs: &fakeJobs{}, tokens: &fakeTokens{}, stats: &fakeStatsQueue{},
+		audit: &fakeAuditor{},
 	}
 	f.repo = &fakeRepository{consents: f.consents, appts: appts}
 	f.patients = &fakePatients{repo: f.repo}
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,
-		Stats: f.stats,
+		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats,
 	})
 	return f
 }

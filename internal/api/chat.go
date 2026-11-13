@@ -110,9 +110,15 @@ func chatNotificationRoutes(p chatNotificationPorts, log *slog.Logger) []func(*h
 		c, ok, err := clinicCaller(ctx)
 		return notification.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID, Admin: c.Admin}, ok, err
 	}
+	// The clinic's appointment settings (docs/plans/appointments.md, step 0) sit beside its chat settings.
+	appointmentRules := organization.NewAppointments(organization.AppointmentsPorts{
+		Repo: organization.NewPostgresAppointmentsRepository(p.pool), Audit: p.audit, Tx: p.tx, Clock: clock.System{},
+		SMSAvailable: false, // config.LoadSMS has only the fake until an SMS provider is chosen (docs/plans/appointments.md Q2)
+	})
 	return []func(*http.ServeMux){
 		organization.NewHTTPHandler(settings, settingsCaller, log).Routes,
 		notification.NewHTTPHandler(notifications, notificationCaller, log).Routes,
+		organization.NewAppointmentsHandler(appointmentRules, clinicCaller, log).Routes,
 	}
 }
 

@@ -33,6 +33,21 @@ type Repository interface {
 	// SetStatus moves the booked appointment id to status at at and returns it at its next version;
 	// ErrClosed when it is not booked.
 	SetStatus(ctx context.Context, id string, status Status, at time.Time) (Appointment, error)
+	// AddChange appends c to the history of its appointment, with the appointment's clinic and patient, and returns
+	// its id; ErrNotFound when the scope does not show the appointment.
+	AddChange(ctx context.Context, c Change) (string, error)
+	// Changes returns the history of the appointment id, oldest first, as the scope shows it.
+	Changes(ctx context.Context, id string) ([]Change, error)
+}
+
+// TokenRepository stores the one-time links of reminders (appointment_action_token, ADR 0015): only their hash.
+// InsertToken runs in a notifier job's scope (SetClinic and SetNotice of Repository, on the same transaction); the
+// retention role's purges every clinic's.
+type TokenRepository interface {
+	// InsertToken stores the link t.
+	InsertToken(ctx context.Context, t Token) error
+	// DeleteTokensExpiredBefore deletes the links that expired before before, and counts them.
+	DeleteTokensExpiredBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 // StatsRepository reads the appointments for the aggregate builds, on salus_stats.

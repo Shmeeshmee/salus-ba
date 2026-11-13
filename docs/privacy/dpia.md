@@ -2091,3 +2091,36 @@ Provenance is removed as entered-in-error, not deleted.
 | A clinic's Provenance is lost with the entry | The foreign key has no action, so deleting an entry with a Provenance fails; the service deletes only an entry no clinic confirmed or wrote; the application can neither change nor delete a Provenance (no grant, tested) |
 | A forged Provenance (another role, another write) | Each insert is tied to the write it attests: the entry at that version and in the state it left (confirmed for a confirmation, entered-in-error for a removal, in the profile for the patient's addition), the recorder for a recording, the confirmer for a confirmation, the entry's clinic for a change or removal, the entry's patient for theirs, and one Provenance per version (migration tests). Which role of a clinic changed or removed its clinic's entry is bound by the service only (the caller's role); the database checks the clinic |
 | A removed entry's record is withheld from the patient | A removed entry and its Provenances are shown to no one in the app, but they are the patient's data: the Art. 15 access and portability export (datarequest, `Patient/$everything`, not built yet) must include them; recorded as a requirement in docs/plans/patient-history.md |
+
+## Appointments (`docs/plans/appointments.md`, ADR 0015)
+
+### Step 0: the contract (migration 00054, renumbered at merge)
+
+**Processing added.** Whether a patient confirmed an appointment and how (a one-time link or the app); the history of
+an appointment's changes (confirmation, reschedule, a status set or corrected, by whom and how); one-time action
+links sent in reminders; the clinic's appointment settings (reminder times, the SMS option, rescheduling, the
+waitlist, the repeat no-show flag: not personal data). Lawful basis as for the appointment: the contract with the
+patient (Art. 6(1)(b)) and the clinic's care record (Art. 9(2)(h)). The patient's phone may carry SMS reminders and
+waitlist offers, opt-in per patient and channel, never marketing (owner, 2026-11-13, Q1; docs/booking/SPEC.md §4). No
+processor is wired in: `pkg/sms` and `pkg/payments` run their fakes; the SMS provider is planned
+(docs/privacy/processors.md) and nothing is charged.
+
+**Personal data added.** `appointment.confirmed_at`, `confirmed_via`, `reschedule_count`, `booked_via`;
+`appointment_change` (kept with the appointment); `appointment_action_token` (the SHA-256 of a link's token, bound to
+one appointment, its patient and account, the channel and the language; deleted 30 days after it expires). The
+periods are placeholders that need a legal decision before production (Q9), as the booking's.
+
+**Who sees what.** The history of an appointment: the patient their own (without who or which job made a change), the
+clinic's staff with full access to the appointment (`access.Appointment`), as row-level security says (the patient's
+own; the clinic's while the care consent is active, and the past ones after a revocation). A link's token is found
+only through a `SECURITY DEFINER` function by its hash; its row is read in the issuing job's scope or the patient's.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A link's token leaks from the database or a log | Only its SHA-256 is stored; the route pattern is logged, never the path; the audit names the appointment, never the token |
+| A link prefetcher or a forwarded message changes an appointment | A `GET` never changes anything (SAL-34's misuse tests); an action is single use, expires at the start, and touches only its appointment |
+| A history row is altered to hide a correction | `appointment_change` is append-only: no `UPDATE` or `DELETE` grant, triggers refuse both and `TRUNCATE` for every role |
+| A patient learns who at the clinic changed their appointment | The patient's view of the history carries no account or agent |
+| A history row claims a staff member or a patient's app it was not | The insert policy ties `via` to the scope: the patient's scope writes `app` or `link` by the patient's own account (or a job), the clinic's scope `staff` by an account of that clinic (or a job) |

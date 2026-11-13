@@ -192,7 +192,7 @@ func TestRetentionApply_DeletesEndedSessionsAndInvitesAndLogsOnlyTablesAndCounts
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "trends_cell 0", "trends_rise 0", "video_session 0", "webhook_dead_letter 0"}; !slices.Equal(audited, want) {
+	if want := []string{"appointment_action_token 0", "binary 0", "invite 1", "questionnaire_response 0", "session 1", "slot 0", "trends_cell 0", "trends_rise 0", "video_session 0", "webhook_dead_letter 0"}; !slices.Equal(audited, want) {
 		t.Errorf("audited %v, want one event per table with its row count", audited)
 	}
 }
@@ -282,7 +282,7 @@ func composeSectionsWith(t *testing.T, variable string) []string {
 // repositories on it. Every other job, and River itself, runs on the salus_app pool.
 func TestNew_HandsTheRetentionPoolToTheRetentionPurgersOnly(t *testing.T) {
 	uses := poolUses(t, "retentionPool")
-	if want := []string{"auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
+	if want := []string{"appointment.NewPostgresTokenRepository", "auth.NewPostgresRepository", "binary.NewPostgresRepository", "newRetention", "notification.NewPostgresRepository",
 		"questionnaireresponse.NewPostgresRepository", "slot.NewPostgresRepository", "trends.NewPostgresRepository", "videosession.NewPostgresRepository"}; !slices.Equal(uses, want) {
 		t.Errorf("retentionPool is passed to %v, want only %v", uses, want)
 	}

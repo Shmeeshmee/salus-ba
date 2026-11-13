@@ -69,7 +69,7 @@ func (s *Chat) Settings(ctx context.Context, c Caller) (ChatSettings, error) {
 func (s *Chat) SetSettings(ctx context.Context, c Caller, in ChatSettings) (ChatSettings, error) {
 	if err := adminOf(c); err != nil {
 		if aerr := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-			return s.Audit.Record(ctx, chatEvent(c, auditevent.OutcomeMinorFailure))
+			return s.Audit.Record(ctx, settingsEvent(c, auditevent.OutcomeMinorFailure))
 		}); aerr != nil {
 			return ChatSettings{}, fmt.Errorf("organization: chat settings: %w", aerr)
 		}
@@ -88,7 +88,7 @@ func (s *Chat) SetSettings(ctx context.Context, c Caller, in ChatSettings) (Chat
 		if err := s.Repo.PutChatSettings(ctx, c.OrganizationID, in, s.Clock.Now()); err != nil {
 			return err
 		}
-		return s.Audit.Record(ctx, chatEvent(c, auditevent.OutcomeSuccess))
+		return s.Audit.Record(ctx, settingsEvent(c, auditevent.OutcomeSuccess))
 	})
 	if err != nil {
 		return ChatSettings{}, fmt.Errorf("organization: chat settings: %w", err)
@@ -189,8 +189,8 @@ func adminOf(c Caller) error {
 	return nil
 }
 
-// chatEvent is the audit of a change of the chat settings by c of their clinic.
-func chatEvent(c Caller, outcome auditevent.Outcome) auditevent.AuditEvent {
+// settingsEvent is the audit of a change of the chat or appointment settings by c of their clinic.
+func settingsEvent(c Caller, outcome auditevent.Outcome) auditevent.AuditEvent {
 	id := c.OrganizationID
 	if outcome != auditevent.OutcomeSuccess {
 		id = ""

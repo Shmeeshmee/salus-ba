@@ -13,13 +13,11 @@ import (
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/payments"
 )
 
-// The patient's cancellation window and the reminder's lead: both 24 hours before the start.
-const (
-	patientCancelBefore = 24 * time.Hour
-	reminderBefore      = 24 * time.Hour
-)
+// patientCancelBefore is the patient's cancellation window: until 24 hours before the start.
+const patientCancelBefore = 24 * time.Hour
 
 // Transactor runs fn in a transaction carried by the context, joining one already there
 // (postgres.Transactor).
@@ -74,6 +72,8 @@ type Jobs interface {
 	EnqueueReminder(ctx context.Context, id, org string, at time.Time) error
 	EnqueueQuestionnaireRequest(ctx context.Context, id, org string) error
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
+	// EnqueueSlotFreed hands a freed slot still ahead to the waitlist (waitlist_slot_freed, SAL-35).
+	EnqueueSlotFreed(ctx context.Context, slotID, org string) error
 }
 
 // StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
@@ -96,6 +96,14 @@ type Ports struct {
 	Roles    Roles
 	Jobs     Jobs
 	Stats    StatsQueue // every write; not needed by a Service that only reads
+	// Prices gives a booking's price and Payments takes it (service_purchase.go): no price exists before the payments
+	// epic (SAL-23), so both are nil in every binary and nothing is charged.
+	Prices   Prices
+	Payments payments.Provider
+	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
+	// by a Service that issues links (IssueLink, the notifier's reminders).
+	Tokens  TokenRepository
+	LinkURL string
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -131,9 +139,31 @@ func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointmen
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
 	}
+	// Paid before the booking's transaction, refunded when the booking then fails (ADR 0015 "pkg/payments"). The key
+	// is the patient's and the slot's until the payments epic gives a booking a request id of its own.
+	receipt, err := s.purchase(ctx, c, b, "booking:"+c.PatientID+":"+b.ID)
+	switch {
+	case errors.Is(err, payments.ErrDeclined):
+		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrPaymentDeclined)
+	case err != nil:
+		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
+	}
+	out, err := s.bookSlot(ctx, c, b, now)
+	if err != nil {
+		// Not cut short by the request's end: a charge must not stay without its booking.
+		if rerr := s.refund(context.WithoutCancel(ctx), receipt); rerr != nil {
+			return Appointment{}, errors.Join(err, fmt.Errorf("appointment: book: refund: %w", rerr))
+		}
+		return Appointment{}, err
+	}
+	return out, nil
+}
+
+// bookSlot books the slot b for c in one transaction, audited; each refusal is audited in a transaction of its own.
+func (s *Service) bookSlot(ctx context.Context, c Caller, b slot.Bookable, now time.Time) (Appointment, error) {
 	var out Appointment
 	var refused error
-	err = s.Tx.WithTx(ctx, func(ctx context.Context) error {
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		if out, refused, err = s.book(ctx, c, b, now); err != nil || refused != nil {
 			return err
@@ -181,7 +211,7 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	}
 	out, err = s.Repo.Create(ctx, Appointment{
 		PatientID: c.PatientID, PractitionerRoleID: b.PractitionerRoleID, OrganizationID: b.OrganizationID, SlotID: b.ID,
-		Start: b.Start, End: b.End, Created: now,
+		Start: b.Start, End: b.End, Created: now, BookedVia: BookedDirect,
 	})
 	if err != nil {
 		return Appointment{}, nil, err
@@ -195,10 +225,8 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
 		return Appointment{}, nil, err
 	}
-	if at := out.Start.Add(-reminderBefore); at.After(now) {
-		if err := s.Jobs.EnqueueReminder(ctx, out.ID, out.OrganizationID, at); err != nil {
-			return Appointment{}, nil, err
-		}
+	if err := s.scheduleReminders(ctx, out, now); err != nil {
+		return Appointment{}, nil, err
 	}
 	return out, nil, nil
 }

@@ -34,6 +34,16 @@ type ChatRepository interface {
 	PutChatSettings(ctx context.Context, org string, s ChatSettings, at time.Time) error
 }
 
+// AppointmentsRepository stores the clinics' appointment settings (migration 00054), row-level secured like the
+// clinics: every method sees only the clinic set by SetOrganization.
+type AppointmentsRepository interface {
+	SetOrganization(ctx context.Context, id string) error
+	// AppointmentSettings returns the clinic's settings, and false when it has none stored.
+	AppointmentSettings(ctx context.Context, org string) (AppointmentSettings, bool, error)
+	// PutAppointmentSettings stores the clinic's settings, last updated at at.
+	PutAppointmentSettings(ctx context.Context, org string, s AppointmentSettings, at time.Time) error
+}
+
 // StatsRepository reads the clinics for the aggregate builds, on salus_stats.
 type StatsRepository interface {
 	// Locations returns every clinic with its time zone, by id.

@@ -55,10 +55,24 @@ type resource struct {
 	Participant       []participant         `json:"participant"`
 }
 
-// participant is the patient, the practitioner or the practitioner role, each accepted.
+// participant is the patient, the practitioner or the practitioner role: the practitioner and the role accepted, the
+// patient as patientStatus says.
 type participant struct {
 	Status string         `json:"status"`
 	Actor  fhir.Reference `json:"actor"`
+}
+
+// patientStatus is the patient participant's ParticipationStatus (docs/plans/appointments.md Q3, ADR 0015): declined
+// once they cancelled it themselves (reason pat, by their account), accepted once they confirmed, tentative until then.
+// A cancellation by staff or by the revocation of the consent (reason pat, by no account) leaves it as it was.
+func patientStatus(a Appointment) string {
+	switch {
+	case a.Status == StatusCancelled && a.Reason == ReasonPatient && a.CancelledBy != "":
+		return "declined"
+	case !a.ConfirmedAt.IsZero():
+		return "accepted"
+	}
+	return "tentative"
 }
 
 func instant(t time.Time) string { return t.UTC().Format(time.RFC3339) }
@@ -71,7 +85,7 @@ func toFHIR(s Seen) resource {
 	}
 	res := resource{
 		ResourceType: "Appointment", ID: a.ID, Status: a.Status, Meta: fhir.NewMeta(a.VersionID, a.LastUpdated),
-		Start: instant(a.Start), End: instant(a.End), Participant: []participant{{Status: "accepted", Actor: patient}},
+		Start: instant(a.Start), End: instant(a.End), Participant: []participant{{Status: patientStatus(a), Actor: patient}},
 	}
 	if s.PractitionerID != "" {
 		res.Participant = append(res.Participant, participant{Status: "accepted", Actor: fhir.Reference{Reference: "Practitioner/" + s.PractitionerID}})

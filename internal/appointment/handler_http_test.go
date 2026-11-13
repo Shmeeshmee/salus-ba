@@ -16,10 +16,11 @@ import (
 
 // stubAppointments answers with what it is given and keeps what it was asked.
 type stubAppointments struct {
-	err    error
-	caller appointment.Caller
-	out    appointment.Appointment
-	args   []string
+	err     error
+	caller  appointment.Caller
+	out     appointment.Appointment
+	args    []string
+	changes []appointment.Change
 }
 
 func (s *stubAppointments) Book(_ context.Context, c appointment.Caller, slotID string) (appointment.Appointment, error) {
@@ -30,6 +31,11 @@ func (s *stubAppointments) Book(_ context.Context, c appointment.Caller, slotID 
 func (s *stubAppointments) Cancel(_ context.Context, c appointment.Caller, id string) (appointment.Appointment, error) {
 	s.caller, s.args = c, []string{"Cancel", id}
 	return s.out, s.err
+}
+
+func (s *stubAppointments) Changes(_ context.Context, c appointment.Caller, id string) ([]appointment.Change, error) {
+	s.caller, s.args = c, []string{"Changes", id}
+	return s.changes, s.err
 }
 
 func (s *stubAppointments) SetStatus(_ context.Context, c appointment.Caller, id string, status appointment.Status) (appointment.Appointment, error) {
@@ -43,7 +49,7 @@ var (
 		Start: start, End: start.Add(30 * time.Minute), Created: now, LastUpdated: now, Status: appointment.StatusBooked, VersionID: 1,
 	}
 	bookedJSON = `{"start":"2030-01-07T09:00:00Z","end":"2030-01-07T09:30:00Z","id":"` + apptA + `","organizationId":"` + clinicA +
-		`","practitionerRoleId":"` + roleA1 + `","slotId":"` + slotFree + `","status":"booked","versionId":1}` + "\n"
+		`","practitionerRoleId":"` + roleA1 + `","slotId":"` + slotFree + `","status":"booked","bookedVia":"direct","versionId":1,"rescheduleCount":0}` + "\n"
 )
 
 func serveAppt(t *testing.T, svc *stubAppointments, caller func(context.Context) (appointment.Caller, bool, error), log *bytes.Buffer, method, path, body string) *httptest.ResponseRecorder {
@@ -151,5 +157,44 @@ func TestHandler_LogsAnInternalErrorWithoutIDsOrDetail(t *testing.T) {
 	}
 	if rec := serveAppt(t, &stubAppointments{}, failing, &log, http.MethodPost, "/appointments", `{"slotId":"x"}`); rec.Code != http.StatusInternalServerError {
 		t.Errorf("POST /appointments when the caller cannot be resolved = %d, want 500", rec.Code)
+	}
+}
+
+// The history goes out with each kind's fields only, never who made a change, and refusals as their codes.
+func TestHTTPChanges_SendsTheHistoryWithoutWhoMadeIt(t *testing.T) {
+	var log bytes.Buffer
+	svc := &stubAppointments{changes: []appointment.Change{
+		{At: now, Kind: appointment.ChangeRescheduled, Via: appointment.ViaApp, ByAccountID: accountA, FromSlotID: slotFree, ToSlotID: slotSoon,
+			FromStart: start, FromEnd: start.Add(30 * time.Minute), ToStart: start.Add(time.Hour), ToEnd: start.Add(90 * time.Minute)},
+		{At: now, Kind: appointment.ChangeStatusSet, Via: appointment.ViaSystem, Agent: "consultation_window_close",
+			FromStatus: appointment.StatusBooked, ToStatus: appointment.StatusNoShow},
+	}}
+	rec := serveAppt(t, svc, as(pract), &log, http.MethodGet, "/appointments/"+apptA+"/changes", "")
+	want := `{"changes":[{"at":"2030-01-01T08:00:00Z","from_start":"2030-01-07T09:00:00Z","from_end":"2030-01-07T09:30:00Z",` +
+		`"to_start":"2030-01-07T10:00:00Z","to_end":"2030-01-07T10:30:00Z","kind":"rescheduled","via":"app"},` +
+		`{"at":"2030-01-01T08:00:00Z","kind":"status_set","via":"system","from_status":"booked","to_status":"noshow"}]}` + "\n"
+	if rec.Code != http.StatusOK || rec.Body.String() != want || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Errorf("GET changes = %d %s, want 200 %s", rec.Code, rec.Body, want)
+	}
+	if svc.caller != pract || svc.args[1] != apptA {
+		t.Errorf("asked %+v as %+v", svc.args, svc.caller)
+	}
+	for _, tt := range []struct {
+		err  error
+		body string
+		code int
+	}{
+		{appointment.ErrNotFound, "not_found", http.StatusNotFound},
+		{appointment.ErrForbidden, "forbidden", http.StatusForbidden},
+		{appointment.ErrRescheduleLimit, "reschedule_limit", http.StatusConflict},
+	} {
+		rec := serveAppt(t, &stubAppointments{err: tt.err}, as(pract), &log, http.MethodGet, "/appointments/"+apptA+"/changes", "")
+		if rec.Code != tt.code || !strings.Contains(rec.Body.String(), tt.body) {
+			t.Errorf("%v: %d %s, want %d %s", tt.err, rec.Code, rec.Body, tt.code, tt.body)
+		}
+	}
+	signedOut := func(context.Context) (appointment.Caller, bool, error) { return appointment.Caller{}, false, nil }
+	if rec := serveAppt(t, svc, signedOut, &log, http.MethodGet, "/appointments/"+apptA+"/changes", ""); rec.Code != http.StatusUnauthorized {
+		t.Errorf("signed out: %d, want 401", rec.Code)
 	}
 }

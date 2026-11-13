@@ -38,6 +38,26 @@ ON CONFLICT (organization_id) DO UPDATE
 SET hours = EXCLUDED.hours, response_time_hours = EXCLUDED.response_time_hours,
     email_after_minutes = EXCLUDED.email_after_minutes, updated_at = EXCLUDED.updated_at;
 
+-- name: AppointmentSettings :one
+-- The clinic's appointment settings (00054); row-level security shows only the clinic set.
+SELECT reminder_offsets_minutes, sms_reminders, reschedule_notice_hours, reschedule_max, waitlist_enabled, waitlist_hold_minutes,
+       noshow_flag_threshold, noshow_flag_window_days
+FROM organization_appointment_settings
+WHERE organization_id = @organization_id;
+
+-- name: PutAppointmentSettings :exec
+INSERT INTO organization_appointment_settings (organization_id, reminder_offsets_minutes, sms_reminders, reschedule_notice_hours,
+                                               reschedule_max, waitlist_enabled, waitlist_hold_minutes, noshow_flag_threshold,
+                                               noshow_flag_window_days, updated_at)
+VALUES (@organization_id, @reminder_offsets_minutes, @sms_reminders, @reschedule_notice_hours, @reschedule_max, @waitlist_enabled,
+        @waitlist_hold_minutes, @noshow_flag_threshold, @noshow_flag_window_days, @updated_at)
+ON CONFLICT (organization_id) DO UPDATE
+SET reminder_offsets_minutes = EXCLUDED.reminder_offsets_minutes, sms_reminders = EXCLUDED.sms_reminders,
+    reschedule_notice_hours = EXCLUDED.reschedule_notice_hours, reschedule_max = EXCLUDED.reschedule_max,
+    waitlist_enabled = EXCLUDED.waitlist_enabled, waitlist_hold_minutes = EXCLUDED.waitlist_hold_minutes,
+    noshow_flag_threshold = EXCLUDED.noshow_flag_threshold, noshow_flag_window_days = EXCLUDED.noshow_flag_window_days,
+    updated_at = EXCLUDED.updated_at;
+
 -- name: ListLocationsForStats :many
 -- Every clinic with its time zone, location and contribution: the columns salus_stats may read.
 SELECT id, time_zone, region_id, city_id, location_since, analytics_contributes, contributes_since
