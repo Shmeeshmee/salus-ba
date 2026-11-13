@@ -108,6 +108,8 @@ visits there not shared (read by the clinic's scope through `history_shared`, le
 | Pre-visit summary | 16.7 ms | 46.9 ms | 94.8 ms |
 | First page of 30, after merging main (00046's once-per-query lookups), 2026-11-13 | 16.2 ms | 63.6 ms | 101.7 ms |
 | Pre-visit summary, after merging main, 2026-11-13 | 13.2 ms | 22.1 ms | 24.9 ms |
+| First page of 30, after the review fixes and SAL-41's wiring, load average 4.3, 2026-11-13 | 11.4 ms | 18.1 ms | 21.6 ms |
+| Pre-visit summary, same run (now with SAL-41's real reads) | 18.1 ms | 21.9 ms | 25.5 ms |
 
 Every page of 100 to the last (9 pages, 804 items): the last 28 ms, the slowest 43 ms. After the merge: the last 12.9 ms, the slowest 29.8 ms (the first page's p95 and p99 moved with
 the load of the other stacks on the machine; p50 did not). The cost was the per-visit
@@ -126,8 +128,8 @@ per page (`questionnaire.Service.Titles`); the shared-version read needs a pract
 patient (00051's lookups take the practitioner); a response opens with its questions; a shared visit without a clinic
 name still says it is shared. Not done: ICD-10 names, no lookup by code exists; a visit has nothing to open
 beyond the items listed with it. Audit rows are one INSERT each (about 30 per page): `auditevent` has no batch insert
-on main, so none was added. The bench was not rerun: the host's load average was 11.7 to 16.8 during the review
-fixes, above the 8 asked for, so the readings above stay as measured.
+on main, so none was added. The bench was rerun after SAL-41's wiring on a quieter host (load average 4.3 to 4.7):
+every page of 100 to the last, 9 pages and 804 items, the last 9.0 ms, the slowest 21.3 ms.
 
 Open for the owner: any appointment of the practitioner's with the patient at the clinic, of any status (cancelled,
 years old), opens the history (`access.Profile`, as the plan says), and the summary accepts a cancelled appointment;
