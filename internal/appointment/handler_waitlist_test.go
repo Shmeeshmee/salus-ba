@@ -16,14 +16,14 @@ import (
 // stubWaitlist answers with what it is given and keeps what it was asked.
 type stubWaitlist struct {
 	err     error
-	caller  appointment.Caller
-	in      appointment.NewEntry
 	filter  appointment.WaitlistFilter
-	entry   appointment.WaitlistEntry
-	clinic  appointment.ClinicEntry
 	appt    appointment.Appointment
+	caller  appointment.Caller
 	args    []string
 	entries []appointment.WaitlistEntry
+	in      appointment.NewEntry
+	entry   appointment.WaitlistEntry
+	clinic  appointment.ClinicEntry
 }
 
 func (s *stubWaitlist) Join(_ context.Context, c appointment.Caller, in appointment.NewEntry) (appointment.WaitlistEntry, error) {
@@ -164,16 +164,17 @@ func TestWaitlistHandler_ActsOnEntriesAndOffers(t *testing.T) {
 	t.Parallel()
 	svc := &stubWaitlist{appt: bookedA, clinic: appointment.ClinicEntry{Entry: theEntry}}
 	for _, tt := range []struct {
-		caller       appointment.Caller
-		method, path string
-		body         string
-		status       int
-		want         []string
+		method string
+		path   string
+		body   string
+		caller appointment.Caller
+		want   []string
+		status int
 	}{
-		{me, http.MethodDelete, "/waitlist/" + entryID, "", http.StatusNoContent, []string{"Withdraw", entryID}},
-		{me, http.MethodPost, "/waitlist/offers/of/accept", "", http.StatusCreated, []string{"Accept", "of"}},
-		{me, http.MethodPost, "/waitlist/offers/of/decline", "", http.StatusNoContent, []string{"Decline", "of"}},
-		{admin, http.MethodPut, "/clinic/waitlist/" + entryID + "/priority", `{"priority":40}`, http.StatusOK, []string{"SetPriority", entryID, "4"}},
+		{caller: me, method: http.MethodDelete, path: "/waitlist/" + entryID, body: "", status: http.StatusNoContent, want: []string{"Withdraw", entryID}},
+		{caller: me, method: http.MethodPost, path: "/waitlist/offers/of/accept", body: "", status: http.StatusCreated, want: []string{"Accept", "of"}},
+		{caller: me, method: http.MethodPost, path: "/waitlist/offers/of/decline", body: "", status: http.StatusNoContent, want: []string{"Decline", "of"}},
+		{caller: admin, method: http.MethodPut, path: "/clinic/waitlist/" + entryID + "/priority", body: `{"priority":40}`, status: http.StatusOK, want: []string{"SetPriority", entryID, "4"}},
 	} {
 		rec := serveWaitlist(t, svc, tt.caller, tt.method, tt.path, tt.body)
 		if rec.Code != tt.status || strings.Join(svc.args, " ") != strings.Join(tt.want, " ") {

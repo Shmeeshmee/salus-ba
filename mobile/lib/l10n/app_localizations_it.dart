@@ -1795,4 +1795,104 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Visite condivise da altre cliniche';
+
+  @override
+  String get waitlistTitle => 'La mia lista d\'attesa';
+
+  @override
+  String get waitlistJoinButton =>
+      'Nessun orario adatto? Si iscriva alla lista d\'attesa';
+
+  @override
+  String get waitlistJoinTitle => 'Iscrizione alla lista d\'attesa';
+
+  @override
+  String get waitlistExplained =>
+      'Quando si libera un orario con questo medico, viene offerto ai pazienti in attesa, uno alla volta. Riceverà una notifica e potrà prenotarlo nell\'app finché è riservato a lei.';
+
+  @override
+  String get waitlistHowLong => 'Per quanto tempo?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days giorni',
+      one: '$days giorno',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'In quale momento della giornata?';
+
+  @override
+  String get waitlistAnyTime => 'In qualsiasi momento';
+
+  @override
+  String get waitlistMornings => 'Mattina, dalle 08:00 alle 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Pomeriggio, dalle 12:00 alle 17:00';
+
+  @override
+  String get waitlistJoin => 'Iscriviti alla lista d\'attesa';
+
+  @override
+  String get waitlistJoined => 'È iscritto alla lista d\'attesa.';
+
+  @override
+  String get waitlistEmpty => 'Non è iscritto a nessuna lista d\'attesa.';
+
+  @override
+  String get waitlistAPractitioner => 'Un medico';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'In attesa fino al $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Si è liberato un orario per lei';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Riservato a lei fino alle $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Accettando prenota questo orario. Quando i pagamenti saranno disponibili in Salus, accettando lo pagherà anche.';
+
+  @override
+  String get waitlistAccept => 'Accetta e prenota';
+
+  @override
+  String get waitlistDecline => 'Rifiuta';
+
+  @override
+  String get waitlistBooked =>
+      'Il suo appuntamento è prenotato. Lo trova in I miei appuntamenti.';
+
+  @override
+  String get waitlistDeclined =>
+      'Ha rifiutato l\'orario. Resta nella lista d\'attesa.';
+
+  @override
+  String get waitlistWithdraw => 'Esci dalla lista d\'attesa';
+
+  @override
+  String get waitlistWithdrawn => 'È uscito dalla lista d\'attesa.';
+
+  @override
+  String get waitlistOff => 'Questa struttura non ha una lista d\'attesa.';
+
+  @override
+  String get waitlistTooMany =>
+      'È già iscritto cinque volte alla lista d\'attesa di questa struttura. Prima ne lasci una.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Questo orario non è più riservato a lei. Resta nella lista d\'attesa.';
 }

@@ -214,10 +214,10 @@ func TestAccept_BooksTheOfferedSlot(t *testing.T) {
 func TestAccept_RefusesWhatCannotBeBooked(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		change func(w *waitlistFixture, id string)
-		caller appointment.Caller
 		want   error
+		change func(w *waitlistFixture, id string)
 		name   string
+		caller appointment.Caller
 		at     time.Duration
 	}{
 		{name: "staff", caller: admin, want: appointment.ErrForbidden},

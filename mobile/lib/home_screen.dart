@@ -17,6 +17,7 @@ import 'messages.dart';
 import 'profile_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
+import 'waitlist_screen.dart';
 
 /// The signed-in patient: the profile first when there is none, then booking, appointments, their history,
 /// consents and sign-out.
@@ -166,6 +167,10 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () =>
               _open(() => AppointmentsScreen(booking: booking, now: now, media: widget.media, files: widget.files)),
           child: Text(t.myAppointments),
+        ),
+        OutlinedButton(
+          onPressed: () => _open(() => WaitlistScreen(booking: booking, now: now)),
+          child: Text(t.waitlistTitle),
         ),
         if (widget.chats case final chats?)
           OutlinedButton(

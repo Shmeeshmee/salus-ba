@@ -2343,5 +2343,128 @@
   "consentForHistory": "Visits shared from other clinics",
   "@consentForHistory": {
     "description": "SAL-42: My consents, the label of a history consent. Draft, waiting for the owner."
+  },
+  "waitlistTitle": "My waitlist",
+  "@waitlistTitle": {
+    "description": "SAL-35: the patient's waitlist screen and its button on the home screen. Draft, waiting for the owner."
+  },
+  "waitlistJoinButton": "No suitable time? Join the waitlist",
+  "@waitlistJoinButton": {
+    "description": "SAL-35: under a practitioner's free times. Draft, waiting for the owner."
+  },
+  "waitlistJoinTitle": "Join the waitlist",
+  "@waitlistJoinTitle": {
+    "description": "SAL-35: the join screen's title. Draft, waiting for the owner."
+  },
+  "waitlistExplained": "When a time with this practitioner becomes free, it is offered to the patients waiting, one at a time. You get a notification and can book it in the app while it is held for you.",
+  "@waitlistExplained": {
+    "description": "[legal] SAL-35: how offers work, on the join screen. Draft, waiting for the owner."
+  },
+  "waitlistHowLong": "For how long?",
+  "@waitlistHowLong": {
+    "description": "SAL-35: heading of the span choice. Draft, waiting for the owner."
+  },
+  "waitlistDays": "{days, plural, one{{days} day} other{{days} days}}",
+  "@waitlistDays": {
+    "description": "SAL-35: a span to wait, from today. Draft, waiting for the owner.",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "waitlistWhen": "At what time of day?",
+  "@waitlistWhen": {
+    "description": "SAL-35: heading of the time-of-day choice. Draft, waiting for the owner."
+  },
+  "waitlistAnyTime": "Any time",
+  "@waitlistAnyTime": {
+    "description": "SAL-35: no time of day. Draft, waiting for the owner."
+  },
+  "waitlistMornings": "Mornings, 08:00 to 12:00",
+  "@waitlistMornings": {
+    "description": "SAL-35: in the clinic's zone. Draft, waiting for the owner."
+  },
+  "waitlistAfternoons": "Afternoons, 12:00 to 17:00",
+  "@waitlistAfternoons": {
+    "description": "SAL-35: in the clinic's zone. Draft, waiting for the owner."
+  },
+  "waitlistJoin": "Join the waitlist",
+  "@waitlistJoin": {
+    "description": "SAL-35: the join button. Draft, waiting for the owner."
+  },
+  "waitlistJoined": "You are on the waitlist.",
+  "@waitlistJoined": {
+    "description": "SAL-35: after joining. Draft, waiting for the owner."
+  },
+  "waitlistEmpty": "You are not on any waitlist.",
+  "@waitlistEmpty": {
+    "description": "SAL-35: no active entry. Draft, waiting for the owner."
+  },
+  "waitlistAPractitioner": "A practitioner",
+  "@waitlistAPractitioner": {
+    "description": "SAL-35: an entry whose practitioner is no longer listed, or a specialty. Draft, waiting for the owner."
+  },
+  "waitlistUntil": "Waiting until {date}",
+  "@waitlistUntil": {
+    "description": "SAL-35: the entry's last day. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "waitlistOfferTitle": "A time is free for you",
+  "@waitlistOfferTitle": {
+    "description": "SAL-35: an open offer. Draft, waiting for the owner."
+  },
+  "waitlistHeldUntil": "Held for you until {time}",
+  "@waitlistHeldUntil": {
+    "description": "SAL-35: the hold's end, in the clinic's zone. Draft, waiting for the owner.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "waitlistAcceptEffect": "Accepting books this time for you. Once payments are available in Salus, accepting also pays for it.",
+  "@waitlistAcceptEffect": {
+    "description": "[legal] SAL-35: that accepting books the time, and pays for it once payments exist. Draft, waiting for the owner."
+  },
+  "waitlistAccept": "Accept and book",
+  "@waitlistAccept": {
+    "description": "[legal] SAL-35: the acceptance button. Draft, waiting for the owner."
+  },
+  "waitlistDecline": "Decline",
+  "@waitlistDecline": {
+    "description": "SAL-35: decline the offer. Draft, waiting for the owner."
+  },
+  "waitlistBooked": "Your appointment is booked. You find it under My appointments.",
+  "@waitlistBooked": {
+    "description": "SAL-35: after accepting. Draft, waiting for the owner."
+  },
+  "waitlistDeclined": "You declined the time. You stay on the waitlist.",
+  "@waitlistDeclined": {
+    "description": "SAL-35: after declining. Draft, waiting for the owner."
+  },
+  "waitlistWithdraw": "Leave the waitlist",
+  "@waitlistWithdraw": {
+    "description": "SAL-35: withdraw the entry. Draft, waiting for the owner."
+  },
+  "waitlistWithdrawn": "You left the waitlist.",
+  "@waitlistWithdrawn": {
+    "description": "SAL-35: after withdrawing. Draft, waiting for the owner."
+  },
+  "waitlistOff": "This clinic has no waitlist.",
+  "@waitlistOff": {
+    "description": "SAL-35: 409 waitlist_off. Draft, waiting for the owner."
+  },
+  "waitlistTooMany": "You are on this clinic's waitlist five times already. Leave one of them first.",
+  "@waitlistTooMany": {
+    "description": "SAL-35: 409 too_many_entries. Draft, waiting for the owner."
+  },
+  "waitlistOfferExpired": "This time is no longer held for you. You stay on the waitlist.",
+  "@waitlistOfferExpired": {
+    "description": "SAL-35: 409 offer_expired. Draft, waiting for the owner."
   }
 }

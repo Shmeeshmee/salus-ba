@@ -1804,4 +1804,104 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Visites partagées d’autres cliniques';
+
+  @override
+  String get waitlistTitle => 'Ma liste d\'attente';
+
+  @override
+  String get waitlistJoinButton =>
+      'Aucun créneau ne convient ? Inscrivez-vous sur la liste d\'attente';
+
+  @override
+  String get waitlistJoinTitle => 'Inscription sur la liste d\'attente';
+
+  @override
+  String get waitlistExplained =>
+      'Lorsqu\'un créneau se libère chez ce praticien, il est proposé aux patients en attente, l\'un après l\'autre. Vous recevez une notification et pouvez le réserver dans l\'application tant qu\'il vous est réservé.';
+
+  @override
+  String get waitlistHowLong => 'Pour combien de temps ?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days jours',
+      one: '$days jour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'À quel moment de la journée ?';
+
+  @override
+  String get waitlistAnyTime => 'À tout moment';
+
+  @override
+  String get waitlistMornings => 'Le matin, de 08:00 à 12:00';
+
+  @override
+  String get waitlistAfternoons => 'L\'après-midi, de 12:00 à 17:00';
+
+  @override
+  String get waitlistJoin => 'M\'inscrire sur la liste d\'attente';
+
+  @override
+  String get waitlistJoined => 'Vous êtes sur la liste d\'attente.';
+
+  @override
+  String get waitlistEmpty => 'Vous n\'êtes sur aucune liste d\'attente.';
+
+  @override
+  String get waitlistAPractitioner => 'Un praticien';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'En attente jusqu\'au $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Un créneau s\'est libéré pour vous';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Réservé pour vous jusqu\'à $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'En acceptant, vous réservez ce créneau. Lorsque le paiement sera disponible dans Salus, accepter le paiera aussi.';
+
+  @override
+  String get waitlistAccept => 'Accepter et réserver';
+
+  @override
+  String get waitlistDecline => 'Refuser';
+
+  @override
+  String get waitlistBooked =>
+      'Votre rendez-vous est réservé. Vous le trouverez dans Mes rendez-vous.';
+
+  @override
+  String get waitlistDeclined =>
+      'Vous avez refusé le créneau. Vous restez sur la liste d\'attente.';
+
+  @override
+  String get waitlistWithdraw => 'Quitter la liste d\'attente';
+
+  @override
+  String get waitlistWithdrawn => 'Vous avez quitté la liste d\'attente.';
+
+  @override
+  String get waitlistOff => 'Cet établissement n\'a pas de liste d\'attente.';
+
+  @override
+  String get waitlistTooMany =>
+      'Vous êtes déjà inscrit cinq fois sur la liste d\'attente de cet établissement. Quittez d\'abord l\'une des inscriptions.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Ce créneau ne vous est plus réservé. Vous restez sur la liste d\'attente.';
 }

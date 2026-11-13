@@ -183,7 +183,9 @@ func TestWaitlist_TwoAcceptancesBookOnce(t *testing.T) {
 		offer, p, _ := openOffer(t, owner, s)
 		accept := func() error { _, err := svc.Accept(t.Context(), callerOf(c, p), offer); return err }
 		errs := atOnce(accept, accept)
-		if ok := (errs[0] == nil) != (errs[1] == nil); !ok || !(errors.Is(errs[0], appointment.ErrOfferExpired) || errors.Is(errs[1], appointment.ErrOfferExpired)) {
+		oneBooked := (errs[0] == nil) != (errs[1] == nil)
+		oneExpired := errors.Is(errs[0], appointment.ErrOfferExpired) || errors.Is(errs[1], appointment.ErrOfferExpired)
+		if !oneBooked || !oneExpired {
 			t.Fatalf("round %d: Accept() twice = %v, %v; want one booking and one offer_expired", round, errs[0], errs[1])
 		}
 		var n int

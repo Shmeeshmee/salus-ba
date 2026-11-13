@@ -12,6 +12,7 @@ import 'profile_screen.dart';
 import 'session.dart';
 import 'sharing.dart';
 import 'ui.dart' as ui;
+import 'waitlist_screen.dart';
 import 'zones.dart';
 
 /// How far ahead slots exist: the scheduler generates 28 days (docs/booking/SPEC.md "Slot generation").
@@ -91,6 +92,13 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
     if (mounted) reload();
   }
 
+  /// The waitlist for this practitioner (SAL-35), for a patient who finds no time that suits them.
+  Future<void> _joinWaitlist() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => JoinWaitlistScreen(booking: widget.booking, now: widget.now, clinic: widget.clinic, role: widget.role),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final last = DateTime.utc(_today.year, _today.month, _today.day + _days - 1);
@@ -124,6 +132,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
               ),
             ],
           ),
+          TextButton(onPressed: _joinWaitlist, child: Text(t.waitlistJoinButton)),
         ],
       ],
     );

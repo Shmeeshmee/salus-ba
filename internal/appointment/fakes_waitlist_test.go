@@ -217,8 +217,12 @@ func (w *fakeWaitlist) CloseOffer(ctx context.Context, id string, state appointm
 	return appointment.Offer{}, appointment.ErrNotFound
 }
 
-func (w *fakeWaitlist) DeleteEntriesClosedBefore(context.Context, time.Time) (int64, error) { return 2, w.err }
-func (w *fakeWaitlist) DeleteOffersClosedBefore(context.Context, time.Time) (int64, error)  { return 3, w.err }
+func (w *fakeWaitlist) DeleteEntriesClosedBefore(context.Context, time.Time) (int64, error) {
+	return 2, w.err
+}
+func (w *fakeWaitlist) DeleteOffersClosedBefore(context.Context, time.Time) (int64, error) {
+	return 3, w.err
+}
 
 // fakeSettings gives each clinic's appointment settings: the defaults with the waitlist on, unless off.
 type fakeSettings struct {

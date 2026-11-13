@@ -484,7 +484,9 @@ type WaitlistPurger struct {
 }
 
 // NewWaitlistEntryPurger returns the purger of waitlist_entry on repo, built on the retention role's pool.
-func NewWaitlistEntryPurger(repo WaitlistRepository) *WaitlistPurger { return &WaitlistPurger{repo: repo} }
+func NewWaitlistEntryPurger(repo WaitlistRepository) *WaitlistPurger {
+	return &WaitlistPurger{repo: repo}
+}
 
 // NewWaitlistOfferPurger returns the purger of waitlist_offer on repo: the offers of the entries the entry purger
 // deletes (the foreign key also deletes them with their entry).

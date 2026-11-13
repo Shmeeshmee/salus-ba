@@ -100,10 +100,6 @@ type Ports struct {
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices
 	Payments payments.Provider
-	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
-	// by a Service that issues links (IssueLink, the notifier's reminders).
-	Tokens  TokenRepository
-	LinkURL string
 	// SAL-35, the waitlist: Waitlist stores it, Settings gives the clinic's rules (organization.Appointments), Offered
 	// moves its slots (slot.Service), OfferJobs enqueues an offer's expiry and Notices tells the patient of it (both
 	// River jobs); Quiet tells whether a patient is inside their quiet hours (nil until SAL-33: nobody is).
@@ -113,6 +109,10 @@ type Ports struct {
 	OfferJobs OfferJobs
 	Notices   OfferNotices
 	Quiet     QuietHours
+	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
+	// by a Service that issues links (IssueLink, the notifier's reminders).
+	Tokens  TokenRepository
+	LinkURL string
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A

@@ -2124,3 +2124,41 @@ only through a `SECURITY DEFINER` function by its hash; its row is read in the i
 | A history row is altered to hide a correction | `appointment_change` is append-only: no `UPDATE` or `DELETE` grant, triggers refuse both and `TRUNCATE` for every role |
 | A patient learns who at the clinic changed their appointment | The patient's view of the history carries no account or agent |
 | A history row claims a staff member or a patient's app it was not | The insert policy ties `via` to the scope: the patient's scope writes `app` or `link` by the patient's own account (or a job), the clinic's scope `staff` by an account of that clinic (or a job) |
+
+### SAL-35: the waitlist (migration 00056, renumbered at merge)
+
+**Processing added.** A patient joins a clinic's waitlist for one of its practitioners or a specialty, between two
+dates and, optionally, a time of day (`waitlist_entry`: patient, clinic, role or specialty, dates, times, priority,
+status, timestamps). When a slot is freed (a cancellation, a reschedule, a declined or withdrawn offer), the worker
+holds it (`slot.status` `busy-tentative`) for the first matching entry for the clinic's hold (15 minutes by default) and
+records the offer (`waitlist_offer`: the entry, slot and its period, the role, clinic, patient, expiry, state and the
+appointment its acceptance booked). The patient is told by e-mail (clinic, date and time, the hold's end, a link to the
+app) and by a push with a fixed text and no data payload; they accept in the app, signed in, which books the
+appointment (`booked_via` `waitlist`) through the purchase step (nothing is charged before SAL-23), or decline. The
+clinic's staff see the waitlist in offer order and move an entry up or remove it. The clinic turns the waitlist on
+(off by default). Lawful basis: the contract with the patient (Art. 6(1)(b)); that a patient waits for a practitioner
+or a specialty is health data, processed for care (Art. 9(2)(h)) under the patient's active care consent, checked when
+they join and again before every offer and acceptance.
+
+**Personal data added.** `waitlist_entry` and `waitlist_offer` as above, both deleted 30 days after the entry was
+booked or withdrawn, or after its last day (the offers with their entry). No new field of the patient is read: the
+e-mail address and the push devices are the existing ones. The periods are placeholders that need a legal decision
+before production (Q9).
+
+**Who sees what.** The patient their own entries and offers. The clinic sees its entries while the patient's care
+consent there is active (row-level security, as the appointment's), and the patient's name only where `access.Profile`
+gives it (the admin with the consent; a practitioner only for patients with an appointment in their role); the clinic's
+jobs see every offer of the clinic, to hand a slot on, whatever the consent. Every read and write is audited, the
+jobs' with the job as agent (the entry as `Appointment/<entry id>`, FHIR's waitlist being an Appointment status).
+The public directory never sees a held slot. Job arguments carry opaque ids only.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A freed slot is booked twice, or held while it is booked | The offer's row lock serialises acceptance and expiry; the slot moves only from the status before it (free to held, held to busy or free), its row locked by the job that hands it on; one open offer per slot and per entry (partial unique indexes); the exclusion constraint guards last. Concurrency tests on Postgres check after every round that a slot is busy exactly when an appointment holds it and held exactly when an open offer does |
+| An offer reveals the patient's health to others | The e-mail names the clinic, the date and time only, never a practitioner or specialty; the push is generic; the offer is accepted only in the app, signed in |
+| A patient keeps being offered after revoking the consent | The `consent_revoked` job withdraws their entries and open offers there and hands the slots on; every offer and acceptance checks the consent again |
+| A waitlist that a patient forgot keeps their data | Entries end after their last day (at most 90 days ahead) and are deleted 30 days after they close or end, with their offers |
+| A held slot stays hidden after its offer ended | Every decline, withdrawal and expiry hands the slot on in a job that locks it; with nobody matching it is free again |
+| The quiet hours and SMS of SAL-33 are bypassed | Until SAL-33's deliveries replace the plain e-mail and push, offers go by e-mail and push only, never SMS; the quiet-hours check is a seam that passes nobody over until then |

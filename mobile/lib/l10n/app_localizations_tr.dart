@@ -1781,4 +1781,104 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Diğer kliniklerden paylaşılan ziyaretler';
+
+  @override
+  String get waitlistTitle => 'Bekleme listem';
+
+  @override
+  String get waitlistJoinButton =>
+      'Uygun saat yok mu? Bekleme listesine katılın';
+
+  @override
+  String get waitlistJoinTitle => 'Bekleme listesine katıl';
+
+  @override
+  String get waitlistExplained =>
+      'Bu doktorda bir saat boşaldığında, bekleyen hastalara sırayla teklif edilir. Bir bildirim alırsınız ve saat sizin için ayrılmışken uygulamada randevu alabilirsiniz.';
+
+  @override
+  String get waitlistHowLong => 'Ne kadar süreyle?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days gün',
+      one: '$days gün',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'Günün hangi saatinde?';
+
+  @override
+  String get waitlistAnyTime => 'Herhangi bir saat';
+
+  @override
+  String get waitlistMornings => 'Sabah, 08:00 ile 12:00 arası';
+
+  @override
+  String get waitlistAfternoons => 'Öğleden sonra, 12:00 ile 17:00 arası';
+
+  @override
+  String get waitlistJoin => 'Bekleme listesine katıl';
+
+  @override
+  String get waitlistJoined => 'Bekleme listesindesiniz.';
+
+  @override
+  String get waitlistEmpty => 'Hiçbir bekleme listesinde değilsiniz.';
+
+  @override
+  String get waitlistAPractitioner => 'Bir doktor';
+
+  @override
+  String waitlistUntil(String date) {
+    return '$date tarihine kadar bekliyorsunuz';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Sizin için bir saat boşaldı';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return '$time saatine kadar sizin için ayrıldı';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Kabul ettiğinizde bu saat için randevunuz alınır. Salus\'ta ödeme mümkün olduğunda, kabul ettiğinizde ücreti de ödenir.';
+
+  @override
+  String get waitlistAccept => 'Kabul et ve randevu al';
+
+  @override
+  String get waitlistDecline => 'Reddet';
+
+  @override
+  String get waitlistBooked =>
+      'Randevunuz alındı. Randevularım bölümünde bulabilirsiniz.';
+
+  @override
+  String get waitlistDeclined =>
+      'Saati reddettiniz. Bekleme listesinde kalıyorsunuz.';
+
+  @override
+  String get waitlistWithdraw => 'Bekleme listesinden çık';
+
+  @override
+  String get waitlistWithdrawn => 'Bekleme listesinden çıktınız.';
+
+  @override
+  String get waitlistOff => 'Bu kliniğin bekleme listesi yok.';
+
+  @override
+  String get waitlistTooMany =>
+      'Bu kliniğin bekleme listesinde zaten beş kez varsınız. Önce birinden çıkın.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Bu saat artık sizin için ayrılmış değil. Bekleme listesinde kalıyorsunuz.';
 }

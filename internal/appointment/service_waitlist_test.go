@@ -46,10 +46,10 @@ func TestJoin_PutsThePatientOnTheClinicsWaitlist(t *testing.T) {
 func TestJoin_RefusesWhatTheRulesDoNotAllow(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		change  func(w *waitlistFixture, in *appointment.NewEntry)
-		caller  appointment.Caller
 		want    error
+		change  func(w *waitlistFixture, in *appointment.NewEntry)
 		name    string
+		caller  appointment.Caller
 		audited bool
 	}{
 		{name: "staff", caller: admin, want: appointment.ErrForbidden, audited: true},
@@ -61,7 +61,9 @@ func TestJoin_RefusesWhatTheRulesDoNotAllow(t *testing.T) {
 		}, want: appointment.ErrInvalidEntry},
 		{name: "dates out of order", change: func(_ *waitlistFixture, in *appointment.NewEntry) { in.Earliest = in.Latest.AddDate(0, 0, 1) }, want: appointment.ErrInvalidEntry},
 		{name: "times out of order", change: func(_ *waitlistFixture, in *appointment.NewEntry) { in.Times = appointment.Times{Start: 600, End: 540} }, want: appointment.ErrInvalidEntry},
-		{name: "times past midnight", change: func(_ *waitlistFixture, in *appointment.NewEntry) { in.Times = appointment.Times{Start: 600, End: 1441} }, want: appointment.ErrInvalidEntry},
+		{name: "times past midnight", change: func(_ *waitlistFixture, in *appointment.NewEntry) {
+			in.Times = appointment.Times{Start: 600, End: 1441}
+		}, want: appointment.ErrInvalidEntry},
 		{name: "a past day", change: func(_ *waitlistFixture, in *appointment.NewEntry) { in.Earliest = day(now).AddDate(0, 0, -1) }, want: appointment.ErrInvalidEntry, audited: true},
 		{name: "more than 90 days ahead", change: func(_ *waitlistFixture, in *appointment.NewEntry) { in.Latest = day(now).AddDate(0, 0, 91) }, want: appointment.ErrInvalidEntry, audited: true},
 		{name: "another clinic's role", change: func(_ *waitlistFixture, in *appointment.NewEntry) { in.PractitionerRoleID = roleB }, want: appointment.ErrInvalidEntry, audited: true},
@@ -193,9 +195,9 @@ func TestClinicWaitlist_NamesThePatientsAsProfileAllows(t *testing.T) {
 func TestWithdraw_EndsTheEntryAndHandsItsOfferedSlotOn(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		caller appointment.Caller
 		want   error
 		name   string
+		caller appointment.Caller
 	}{
 		{name: "the patient", caller: me},
 		{name: "the clinic's admin", caller: admin},
@@ -242,14 +244,14 @@ func TestSetPriority_StaffMoveAnEntryUp(t *testing.T) {
 		t.Errorf("audit %+v, want first %+v", w.audit.events, want)
 	}
 	for name, tt := range map[string]struct {
+		want     error
 		caller   appointment.Caller
 		priority int
-		want     error
 	}{
-		"above 100":      {admin, 101, appointment.ErrInvalidPriority},
-		"below 0":        {admin, -1, appointment.ErrInvalidPriority},
-		"by the patient": {me, 10, appointment.ErrForbidden},
-		"another clinic": {adminB, 10, appointment.ErrNotFound},
+		"above 100":      {caller: admin, priority: 101, want: appointment.ErrInvalidPriority},
+		"below 0":        {caller: admin, priority: -1, want: appointment.ErrInvalidPriority},
+		"by the patient": {caller: me, priority: 10, want: appointment.ErrForbidden},
+		"another clinic": {caller: adminB, priority: 10, want: appointment.ErrNotFound},
 	} {
 		if _, err := w.svc.SetPriority(t.Context(), tt.caller, id, tt.priority); !errors.Is(err, tt.want) {
 			t.Errorf("SetPriority(%s) = %v, want %v", name, err, tt.want)

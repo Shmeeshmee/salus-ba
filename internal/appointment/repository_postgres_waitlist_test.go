@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
@@ -59,13 +60,16 @@ func (w waitlistDB) patient(t *testing.T, consented bool) string {
 
 // entry is an entry's columns for the owner's insert; zero values take the defaults of add.
 type entry struct {
-	patient, role, specialty string
-	earliest, latest         string
-	created                  time.Time
-	endsAt                   time.Time
-	times                    *appointment.Times
-	priority                 int
-	status                   string
+	created   time.Time
+	endsAt    time.Time
+	times     *appointment.Times
+	patient   string
+	role      string
+	specialty string
+	earliest  string
+	latest    string
+	status    string
+	priority  int
 }
 
 // add inserts e as the owner and returns its id: by default role A1, from the 1st to the 31st of January 2030, active,
@@ -265,69 +269,78 @@ func TestWaitlistRepository_EntriesAndOffersRoundTrip(t *testing.T) {
 	if err != nil || offer.State != appointment.OfferOpen || !offer.Start.Equal(start) {
 		t.Fatalf("InsertOffer() = %+v, %v", offer, err)
 	}
-	err = w.in(t, a, func(ctx context.Context, r appointment.WaitlistRepository) error {
-		mine, err := r.PatientEntries(ctx, a)
-		if err != nil {
-			return err
-		}
-		if len(mine) != 2 || mine[0].ID != bySpecialty.ID || mine[1].Offer.ID != offer.ID || !mine[1].Offer.ExpiresAt.Equal(offer.ExpiresAt) {
-			return fmt.Errorf("PatientEntries() = %+v", mine)
-		}
-		if n, err := r.CountActiveEntries(ctx, a, clinicA, now); err != nil || n != 2 {
-			return fmt.Errorf("CountActiveEntries() = %d, %v", n, err)
-		}
-		if n, err := r.CountActiveEntries(ctx, a, clinicA, start); err != nil || n != 0 {
-			return fmt.Errorf("CountActiveEntries(after they end) = %d, %v", n, err)
-		}
-		o, open, err := r.OpenOffer(ctx, "", joined.ID)
-		if err != nil || !open || o.ID != offer.ID {
-			return fmt.Errorf("OpenOffer(entry) = %+v, %v, %v", o, open, err)
-		}
-		_, err = r.OfferForUpdate(ctx, offer.ID)
+	if err := w.in(t, a, func(ctx context.Context, r appointment.WaitlistRepository) error {
+		return patientSeesTheirOwn(ctx, r, a, bySpecialty.ID, joined.ID, offer)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.in(t, "", func(ctx context.Context, r appointment.WaitlistRepository) error {
+		return clinicOrdersAndCloses(ctx, r, w, bySpecialty.ID, joined.ID, offer.ID)
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// patientSeesTheirOwn checks, in the patient's scope, their entries newest first with the open offer, the count of
+// active ones, and the open offer of the entry.
+func patientSeesTheirOwn(ctx context.Context, r appointment.WaitlistRepository, a, newest, offered string, offer appointment.Offer) error {
+	mine, err := r.PatientEntries(ctx, a)
+	if err != nil {
 		return err
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
-	err = w.in(t, "", func(ctx context.Context, r appointment.WaitlistRepository) error {
-		if _, err := r.SetPriority(ctx, bySpecialty.ID, 9, now); err != nil {
-			return err
-		}
-		all, err := r.ClinicEntries(ctx, clinicA, "", "")
-		if err != nil || len(all) != 2 || all[0].ID != bySpecialty.ID || all[0].Priority != 9 {
-			return fmt.Errorf("ClinicEntries() = %+v, %v; want the moved one first", all, err)
-		}
-		if other, err := r.ClinicEntries(ctx, clinicA, w.roleOther, "394579002"); err != nil || len(other) != 0 {
-			return fmt.Errorf("ClinicEntries(another role) = %+v, %v", other, err)
-		}
-		if role, err := r.ClinicEntries(ctx, clinicA, w.s.roleA1, generalPractice); err != nil || len(role) != 2 {
-			return fmt.Errorf("ClinicEntries(role A1 with its specialty) = %+v, %v", role, err)
-		}
-		if o, open, err := r.OpenOffer(ctx, slotFree, ""); err != nil || !open || o.ID != offer.ID {
-			return fmt.Errorf("OpenOffer(slot) = %+v, %v, %v", o, open, err)
-		}
-		closed, err := r.CloseOffer(ctx, offer.ID, appointment.OfferExpired, "", now)
-		if err != nil || closed.State != appointment.OfferExpired {
-			return fmt.Errorf("CloseOffer() = %+v, %v", closed, err)
-		}
-		if _, err := r.CloseOffer(ctx, offer.ID, appointment.OfferDeclined, "", now); err == nil {
-			return fmt.Errorf("a closed offer closed again")
-		}
-		if _, err := r.CloseEntry(ctx, joined.ID, appointment.WaitlistWithdrawn, now); err != nil {
-			return err
-		}
-		if _, err := r.SetPriority(ctx, joined.ID, 3, now); err == nil {
-			return fmt.Errorf("a closed entry was moved")
-		}
-		active, err := r.ActiveEntries(ctx, a, clinicA)
-		if err != nil || len(active) != 1 || active[0].ID != bySpecialty.ID {
-			return fmt.Errorf("ActiveEntries() = %+v, %v", active, err)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
+	if len(mine) != 2 || mine[0].ID != newest || mine[1].Offer.ID != offer.ID || !mine[1].Offer.ExpiresAt.Equal(offer.ExpiresAt) {
+		return fmt.Errorf("PatientEntries() = %+v", mine)
 	}
+	if n, err := r.CountActiveEntries(ctx, a, clinicA, now); err != nil || n != 2 {
+		return fmt.Errorf("CountActiveEntries() = %d, %v", n, err)
+	}
+	if n, err := r.CountActiveEntries(ctx, a, clinicA, start); err != nil || n != 0 {
+		return fmt.Errorf("CountActiveEntries(after they end) = %d, %v", n, err)
+	}
+	o, open, err := r.OpenOffer(ctx, "", offered)
+	if err != nil || !open || o.ID != offer.ID {
+		return fmt.Errorf("OpenOffer(entry) = %+v, %v, %v", o, open, err)
+	}
+	_, err = r.OfferForUpdate(ctx, offer.ID)
+	return err
+}
+
+// clinicOrdersAndCloses checks, in the clinic's scope, the offer order after a move, the role's entries with its
+// specialty's, the slot's open offer, and that a closed offer or entry does not change again.
+func clinicOrdersAndCloses(ctx context.Context, r appointment.WaitlistRepository, w waitlistDB, moved, offered, offer string) error {
+	if _, err := r.SetPriority(ctx, moved, 9, now); err != nil {
+		return err
+	}
+	all, err := r.ClinicEntries(ctx, clinicA, "", "")
+	if err != nil || len(all) != 2 || all[0].ID != moved || all[0].Priority != 9 {
+		return fmt.Errorf("ClinicEntries() = %+v, %v; want the moved one first", all, err)
+	}
+	if other, err := r.ClinicEntries(ctx, clinicA, w.roleOther, "394579002"); err != nil || len(other) != 0 {
+		return fmt.Errorf("ClinicEntries(another role) = %+v, %v", other, err)
+	}
+	if role, err := r.ClinicEntries(ctx, clinicA, w.s.roleA1, generalPractice); err != nil || len(role) != 2 {
+		return fmt.Errorf("ClinicEntries(role A1 with its specialty) = %+v, %v", role, err)
+	}
+	if o, open, err := r.OpenOffer(ctx, slotFree, ""); err != nil || !open || o.ID != offer {
+		return fmt.Errorf("OpenOffer(slot) = %+v, %v, %v", o, open, err)
+	}
+	if closed, err := r.CloseOffer(ctx, offer, appointment.OfferExpired, "", now); err != nil || closed.State != appointment.OfferExpired {
+		return fmt.Errorf("CloseOffer() = %+v, %v", closed, err)
+	}
+	if _, err := r.CloseOffer(ctx, offer, appointment.OfferDeclined, "", now); err == nil {
+		return fmt.Errorf("a closed offer closed again")
+	}
+	if _, err := r.CloseEntry(ctx, offered, appointment.WaitlistWithdrawn, now); err != nil {
+		return err
+	}
+	if _, err := r.SetPriority(ctx, offered, 3, now); err == nil {
+		return fmt.Errorf("a closed entry was moved")
+	}
+	active, err := r.ActiveEntries(ctx, w.s.patientA, clinicA)
+	if err != nil || len(active) != 1 || active[0].ID != moved {
+		return fmt.Errorf("ActiveEntries() = %+v, %v", active, err)
+	}
+	return nil
 }
 
 // Retention deletes, on the retention role's pool, the entries closed or ended before the cut-off with their offers.
@@ -399,10 +412,10 @@ func TestCandidates_TenThousandEntriesInAClinic(t *testing.T) {
 			if err := appointment.NewPostgresRepository(w.app).SetClinic(ctx, clinicA); err != nil {
 				return err
 			}
-			began := time.Now()
+			began := clock.System{}.Now()
 			var err error
 			got, err = appointment.NewPostgresWaitlistRepository(w.app).Candidates(ctx, m, 10)
-			took = append(took, time.Since(began))
+			took = append(took, clock.System{}.Now().Sub(began))
 			return err
 		})
 		if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
@@ -297,7 +298,7 @@ func TestWaitlist_TheFreeSlotSearchStaysFastWithOfferedSlots(t *testing.T) {
 				return err
 			}
 			cost = plan[0].Plan.TotalCost
-			began := time.Now()
+			began := clock.System{}.Now()
 			r, err := db.Query(ctx, search, schedule)
 			if err != nil {
 				return err
@@ -315,7 +316,7 @@ func TestWaitlist_TheFreeSlotSearchStaysFastWithOfferedSlots(t *testing.T) {
 				rows++
 			}
 			r.Close()
-			took = time.Since(began)
+			took = clock.System{}.Now().Sub(began)
 			if err := r.Err(); err != nil {
 				return err
 			}
