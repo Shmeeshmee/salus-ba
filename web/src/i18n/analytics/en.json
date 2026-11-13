@@ -73,5 +73,13 @@
   "weekday": "Day",
   "fewer": "Fewer",
   "more": "More",
-  "openBar": "{name}. Open its breakdown"
+  "openBar": "{name}. Open its breakdown",
+  "noShowRate": "No-show rate per month",
+  "noShowRatePercent": "No-show rate (%)",
+  "refilled": "Slots refilled from the waitlist",
+  "refilledSlots": "Refilled slots",
+  "noShowRateByPractitioner": "No-show rate by practitioner",
+  "noShowRateBySpecialty": "No-show rate by specialty",
+  "percent": "Percent of the attended and missed appointments",
+  "noSpecialty": "No specialty"
 }

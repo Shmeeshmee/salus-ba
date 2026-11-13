@@ -8,6 +8,7 @@ import { drillInto, drillOf, type Diagnosis } from './drill'
 import { DiagnosisFilter, MonthRange, PractitionerFilter, SpecialtyFilter } from './Filters'
 import { Heatmap } from './Heatmap'
 import { LineChart } from './LineChart'
+import { NoShowCharts } from './NoShowCharts'
 
 export type ClinicReference = { groups: DiagnosisGroup[]; specialties: Specialty[]; staff: Member[]; timeZone: string }
 
@@ -22,7 +23,7 @@ function monthsAround(now: Date, zone: string): { months: Month[]; current: Mont
 }
 
 // zero fills the months the API leaves out (a month with no appointment): the clinic's counts are exact.
-const zero: Omit<AppointmentMonth, 'period'> = { booked: 0, fulfilled: 0, noshow: 0, cancelled: 0 }
+const zero: Omit<AppointmentMonth, 'period'> = { booked: 0, fulfilled: 0, noshow: 0, cancelled: 0, refilled: 0 }
 
 // ClinicView is My clinic (SAL-20, plan §4): the clinic's appointments over time and by weekday and hour, its
 // diagnoses by group with the drill-down, and for an admin the breakdown by practitioner. A practitioner who is not
@@ -90,6 +91,9 @@ export function ClinicView({ data, reference, admin, now }: { data: AnalyticsDat
               series={[{ key: 'diagnoses', label: t('analytics.diagnoses'), color: 'var(--series-2)', values: periods.map((p) => d.rows.find((r) => r.key === p)?.count ?? 0) }]}
             />
           )}
+        </Loaded>
+        <Loaded state={appointments.state}>
+          {(a) => <NoShowCharts figures={a} periods={periods} admin={admin} specialties={reference.specialties} staffName={staffName} />}
         </Loaded>
         {admin && (
           <Loaded state={appointments.state}>

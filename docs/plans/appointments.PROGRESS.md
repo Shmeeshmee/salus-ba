@@ -83,11 +83,17 @@ As built (agent decisions, for the owner to review):
 | Settings section | Rendered inside the clinic settings panel once the clinic is read, with its own save button ("Save the flag"); it saves the whole appointment settings row with only its two fields changed |
 | Ports | `appointment.Ports.NoShows` and `.Rules` (`ClinicRules`, `organization.Appointments.For`); the other wave packages may add a settings port of the same shape: merge them into one at merge time |
 
-Follow-ups: the analytics charts' series (no-show rate, refilled, per specialty) once PR #75 (SAL-22) is on main; the
-flag in the calendar's week view after SAL-34's `Calendar.tsx`; the rendering of `status_corrected` rows in SAL-34's
+Charts (PR #75 reached main during this package, merged in): My clinic gains the no-show rate per month, the slots
+refilled from the waitlist, and for admins the no-show rate per practitioner and per specialty
+(`web/src/analytics/NoShowCharts.tsx`). The rate is no-shows over fulfilled plus no-shows (booked ones are still
+ahead, cancelled ones were never due), in whole percent: an agent decision for the owner to review.
+
+Follow-ups: the flag in the calendar's week view after SAL-34's `Calendar.tsx`; the rendering of `status_corrected` rows in SAL-34's
 `AppointmentChanges.tsx` after its merge.
 
 Copy waiting for the owner (web, five staff languages, `calendar` area, keys `noshow.*`): the correction buttons
 ("Correct to fulfilled", "Correct to no-show"), its dialog (two questions, the 30-day line, "Correct", "Keep it"), its
 errors, the flag's tag ("{count} no-shows") and tooltip, and the settings section (title, intro, the two fields and
-their hints, the validation message, "Save the flag", "Saved.").
+their hints, the validation message, "Save the flag", "Saved."); the charts' names (`analytics` area: "No-show rate per
+month", "No-show rate (%)", "Slots refilled from the waitlist", "Refilled slots", "No-show rate by practitioner", "No-show
+rate by specialty", the percent unit, "No specialty").

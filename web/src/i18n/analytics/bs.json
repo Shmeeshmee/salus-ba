@@ -73,5 +73,13 @@
   "weekday": "Dan",
   "fewer": "Manje",
   "more": "Više",
-  "openBar": "{name}. Otvori raščlanjivanje"
+  "openBar": "{name}. Otvori raščlanjivanje",
+  "noShowRate": "Stopa nedolazaka po mjesecima",
+  "noShowRatePercent": "Stopa nedolazaka (%)",
+  "refilled": "Termini popunjeni s liste čekanja",
+  "refilledSlots": "Popunjeni termini",
+  "noShowRateByPractitioner": "Stopa nedolazaka po ljekaru",
+  "noShowRateBySpecialty": "Stopa nedolazaka po specijalnosti",
+  "percent": "Postotak obavljenih i propuštenih termina",
+  "noSpecialty": "Bez specijalnosti"
 }
