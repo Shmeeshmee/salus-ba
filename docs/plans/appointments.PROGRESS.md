@@ -65,9 +65,12 @@ over October and November 2026 with every status, corrections both ways, waitlis
 change: the series, per practitioner and per specialty equal the raw appointments whose latest history status is
 noshow, and the waitlist bookings). Through the stack: `TestNew_NoShowsAreCorrectedWithin30DaysAndFlaggedForStaffOnly`.
 
-Not measured: the plan's notes ask for no number here. The flag costs two queries per distinct patient of the range
-(the consent and the patient's appointments at the clinic), as the staff search does; a calendar week is the expected
-range (at most 62 days).
+Measured (independent review, `internal/worker` `BenchmarkNoShowFlags`, i7-14700HX, compose Postgres): the flags of 62 days of a busy
+synthetic clinic (1 550 appointments of 600 patients, each with 6 past appointments, every appointment audited) took
+660 to 680 ms with two queries per patient (the consent and the patient's whole history); 130 to 155 ms with the
+patients' no-shows counted in one grouped query (`CountNoShowsSince`). The consent is still read once per patient
+(`consent.Service.State`, the other domain's port, as the staff search does); a batch read there is the next step if
+a range ever needs it.
 
 As built (agent decisions, for the owner to review):
 
@@ -75,7 +78,9 @@ As built (agent decisions, for the owner to review):
 | --- | --- |
 | `refilled` | Every appointment booked through the waitlist that starts in the month, whatever its status now (as `booked` counts) |
 | The flag's window | The patient's `noshow` appointments at the clinic that started in the last `noshow_flag_window_days` days up to now, counted on read in the clinic's scope; flagged at `noshows >= threshold` |
-| Who sees a flag | Staff, for each appointment of the range they see in full; a practitioner their own role's only; each flagged appointment's read audited (search, `TREAT`), one event without an entity when none is; a patient gets 404, audited |
+| Who sees a flag | Staff, for each appointment of the range they see in full; a practitioner their own role's only; every appointment of the range seen in full is audited, flagged or not (search, `TREAT`; review), one event without an entity when none is; a patient gets 404, audited |
+| A rate without closed appointments | No value, never 0 %: a gap in the monthly line (named "No closed appointments", also in the table view) and no bar per practitioner or specialty (review) |
+| Saving the flag's settings | `PUT /clinic/appointment-settings` replaces the row and has no version: the section reads the settings again just before its `PUT` and changes only its two fields (review), so another section's or a concurrent admin's save is kept, but for a write landing in the milliseconds between the two |
 | An admin's refusals | An admin asking to set a status on an appointment they may not correct (booked, cancelled, another clinic's, unknown) gets 403 `forbidden`, as before for every admin request |
 | Superseded expectations | `internal/api` `checkMarking`'s "the practitioner again" now repeats `fulfilled` (409); a `noshow` there is a correction (Q6). Web `AppointmentDetail.test` "no actions on an appointment no longer booked" now checks a cancelled one, and a fulfilled one offering only the correction |
 | Where the flag shows | On the appointment's page beside its status (`AppointmentDetail.tsx`), not yet in the week view: `Calendar.tsx` is SAL-34's (follow-up) |
@@ -96,4 +101,4 @@ Copy waiting for the owner (web, five staff languages, `calendar` area, keys `no
 errors, the flag's tag ("{count} no-shows") and tooltip, and the settings section (title, intro, the two fields and
 their hints, the validation message, "Save the flag", "Saved."); the charts' names (`analytics` area: "No-show rate per
 month", "No-show rate (%)", "Slots refilled from the waitlist", "Refilled slots", "No-show rate by practitioner", "No-show
-rate by specialty", the percent unit, "No specialty").
+rate by specialty", the percent unit, "No specialty", "No closed appointments").

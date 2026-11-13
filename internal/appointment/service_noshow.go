@@ -60,9 +60,9 @@ func (s *Service) correctStatus(ctx context.Context, c Caller, v view, status St
 // NoShowFlags returns the repeat no-show flags (Q7) of the appointments starting in [from, to) that the staff caller
 // sees in full: those whose patient has at least the clinic's threshold of noshow appointments at the clinic that
 // started in the clinic's window up to now, read in the clinic's scope; none while the threshold is 0 (the default).
-// Each flagged appointment's read is audited, or one event without an entity when none is. ErrInvalidRange for a
-// range missing, reversed or longer than 62 days (nothing read); ErrNotFound, audited, to a patient: the flag is
-// never theirs to see.
+// Every appointment of the range seen in full is audited, flagged or not (that one is not flagged says something of
+// its patient too), or one event without an entity when there is none. ErrInvalidRange for a range missing, reversed
+// or longer than 62 days (nothing read); ErrNotFound, audited, to a patient: the flag is never theirs to see.
 func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time) ([]NoShowFlag, error) {
 	if from.IsZero() || !to.After(from) || to.Sub(from) > maxFlagRange {
 		return nil, ErrInvalidRange
@@ -76,15 +76,19 @@ func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time)
 		if err != nil || set.NoShowFlagThreshold == 0 {
 			return err
 		}
-		if out, err = s.noShowFlags(ctx, c, set, from, to); err != nil {
+		seen, err := s.flagRange(ctx, c, from, to)
+		if err != nil {
 			return err
 		}
-		for _, f := range out {
-			if err := s.record(ctx, c, auditevent.CodeSearchType, "Appointment", f.AppointmentID, auditevent.OutcomeSuccess); err != nil {
+		if out, err = s.flagged(ctx, c.OrganizationID, set, seen); err != nil {
+			return err
+		}
+		for _, a := range seen {
+			if err := s.record(ctx, c, auditevent.CodeSearchType, "Appointment", a.ID, auditevent.OutcomeSuccess); err != nil {
 				return err
 			}
 		}
-		if len(out) == 0 {
+		if len(seen) == 0 {
 			return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)
 		}
 		return nil
@@ -95,9 +99,9 @@ func (s *Service) NoShowFlags(ctx context.Context, c Caller, from, to time.Time)
 	return out, nil
 }
 
-// noShowFlags gives the flags of the range under the clinic's settings set, in the transaction in ctx: an admin's of
-// every role, a practitioner's of their own role only.
-func (s *Service) noShowFlags(ctx context.Context, c Caller, set organization.AppointmentSettings, from, to time.Time) ([]NoShowFlag, error) {
+// flagRange gives the appointments of [from, to) that the staff caller sees in full, by start, in the clinic's scope
+// set on the transaction in ctx: an admin's of every role, a practitioner's of their own role only.
+func (s *Service) flagRange(ctx context.Context, c Caller, from, to time.Time) ([]Appointment, error) {
 	if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 		return nil, err
 	}
@@ -120,46 +124,46 @@ func (s *Service) noShowFlags(ctx context.Context, c Caller, set organization.Ap
 	if err != nil {
 		return nil, err
 	}
-	since := s.Clock.Now().AddDate(0, 0, -set.NoShowFlagWindowDays)
-	known := map[string]missed{}
-	var out []NoShowFlag
+	consents := map[string]access.Consent{}
+	var out []Appointment
 	for _, a := range all {
-		m, ok := known[a.PatientID]
+		state, ok := consents[a.PatientID]
 		if !ok {
-			if m, err = s.missed(ctx, a.PatientID, c.OrganizationID, since); err != nil {
+			if state, err = s.Consents.State(ctx, a.PatientID, c.OrganizationID); err != nil {
 				return nil, err
 			}
-			known[a.PatientID] = m
+			consents[a.PatientID] = state
 		}
-		if m.noShows >= set.NoShowFlagThreshold && access.Appointment(viewer, m.facts, visit(a)) == access.Full {
-			out = append(out, NoShowFlag{AppointmentID: a.ID, NoShows: m.noShows, WindowDays: set.NoShowFlagWindowDays})
+		if access.Appointment(viewer, access.Facts{Patient: a.PatientID, Clinic: c.OrganizationID, Consent: state}, visit(a)) == access.Full {
+			out = append(out, a)
 		}
 	}
 	return out, nil
 }
 
-// missed is a patient's access facts in a clinic and how many of their appointments there since a time were no-shows.
-type missed struct {
-	facts   access.Facts
-	noShows int
-}
-
-// missed gathers the patient's facts in the clinic org, as the scope shows them, and counts their noshow
-// appointments there that started since since, up to now.
-func (s *Service) missed(ctx context.Context, patientID, org string, since time.Time) (missed, error) {
-	state, err := s.Consents.State(ctx, patientID, org)
-	if err != nil {
-		return missed{}, err
+// flagged gives the flags of the appointments seen under the clinic's settings set: their patients' no-shows in the
+// window up to now, counted in one query.
+func (s *Service) flagged(ctx context.Context, org string, set organization.AppointmentSettings, seen []Appointment) ([]NoShowFlag, error) {
+	if len(seen) == 0 {
+		return nil, nil
 	}
-	all, err := s.Repo.Search(ctx, Filter{PatientID: patientID, OrganizationID: org})
-	if err != nil {
-		return missed{}, err
+	known := map[string]bool{}
+	var patients []string
+	for _, a := range seen {
+		if !known[a.PatientID] {
+			known[a.PatientID] = true
+			patients = append(patients, a.PatientID)
+		}
 	}
-	out := missed{facts: access.Facts{Patient: patientID, Clinic: org, Consent: state, Visits: visits(all)}}
 	now := s.Clock.Now()
-	for _, a := range all {
-		if a.Status == StatusNoShow && !a.Start.Before(since) && !a.Start.After(now) {
-			out.noShows++
+	counts, err := s.NoShows.NoShowsSince(ctx, org, patients, now.AddDate(0, 0, -set.NoShowFlagWindowDays), now)
+	if err != nil {
+		return nil, err
+	}
+	var out []NoShowFlag
+	for _, a := range seen {
+		if n := counts[a.PatientID]; n >= set.NoShowFlagThreshold {
+			out = append(out, NoShowFlag{AppointmentID: a.ID, NoShows: n, WindowDays: set.NoShowFlagWindowDays})
 		}
 	}
 	return out, nil

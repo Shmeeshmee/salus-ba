@@ -119,3 +119,12 @@ WHERE id = @id AND status = @from_status::text AND status IN ('fulfilled', 'nosh
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
           cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
+
+-- name: CountNoShowsSince :many
+-- Each patient's noshow appointments at the clinic that started in [since, until], in one query for a range's
+-- patients (the repeat no-show flag); a patient without any has no row.
+SELECT patient_id, count(*)::integer AS noshows
+FROM appointment
+WHERE organization_id = @organization_id AND patient_id = ANY (@patient_ids::uuid[]) AND status = 'noshow'
+  AND lower(period) >= @since::timestamptz AND lower(period) <= @until::timestamptz
+GROUP BY patient_id;

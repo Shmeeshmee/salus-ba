@@ -41,6 +41,16 @@ func flagsFixture(threshold, days int) *fixture {
 	), threshold, days)
 }
 
+func countCalls(calls []string, name string) int {
+	n := 0
+	for _, c := range calls {
+		if c == name {
+			n++
+		}
+	}
+	return n
+}
+
 // Q7: with the clinic's threshold on, staff get "N no-shows in the last D days" beside each appointment of the range
 // they see in full whose patient missed at least the threshold at the clinic in the window, counted on read; each
 // flagged appointment's read is audited. Patient B (one no-show at the clinic) is under the threshold; the no-show
@@ -56,9 +66,15 @@ func TestNoShowFlags_FlagsTheAppointmentsOfPatientsWhoMissedTheThreshold(t *test
 	if err != nil || !slices.Equal(got, want) {
 		t.Errorf("the admin's NoShowFlags() = %+v, %v; want %+v", got, err, want)
 	}
+	// Every appointment of the range seen in full is audited, flagged or not: that it is not flagged says something
+	// about its patient too.
 	checkEvents(t, "NoShowFlags", f.audit,
 		event(admin, auditevent.CodeSearchType, "Appointment", flagBookedA, auditevent.OutcomeSuccess),
+		event(admin, auditevent.CodeSearchType, "Appointment", flagBookedB, auditevent.OutcomeSuccess),
 		event(admin, auditevent.CodeSearchType, "Appointment", flagBookedA2, auditevent.OutcomeSuccess))
+	if countCalls(f.repo.calls, "Search") != 1 || countCalls(f.repo.calls, "NoShowsSince") != 1 {
+		t.Errorf("calls %v; want one search of the range and the no-shows of its patients counted in one query", f.repo.calls)
+	}
 
 	// The practitioner of role A1 sees only their own appointments in full.
 	f = flagsFixture(2, 180)
@@ -66,6 +82,7 @@ func TestNoShowFlags_FlagsTheAppointmentsOfPatientsWhoMissedTheThreshold(t *test
 	if err != nil || !slices.Equal(got, want[:1]) {
 		t.Errorf("the practitioner's NoShowFlags() = %+v, %v; want %+v", got, err, want[:1])
 	}
+	checkEvents(t, "the practitioner's NoShowFlags", f.audit, event(pract, auditevent.CodeSearchType, "Appointment", flagBookedA, auditevent.OutcomeSuccess))
 	// A wider window counts the older no-show too; a threshold of 3 then flags.
 	f = flagsFixture(3, 365)
 	if got, err = f.svc.NoShowFlags(t.Context(), admin, week.from, week.to); err != nil || len(got) != 2 || got[0].NoShows != 3 || got[0].WindowDays != 365 {

@@ -2164,8 +2164,8 @@ statistics column is a count's dimension, with no patient identifier.
 
 **Who sees what.** The flag: the clinic's staff only, for the appointments they see in full (`access.Appointment`:
 a practitioner their own role's, the admin the clinic's with the patient's care consent active); a patient's request
-is refused (404) and audited. It never refuses or delays a booking and is not shown in the patient's app. Each
-flagged appointment's read is audited. The figures per practitioner and per specialty: the admin only (SAL-20's rule
+is refused (404) and audited. It never refuses or delays a booking and is not shown in the patient's app. Every appointment of the range the caller sees in full is audited, flagged or not (that one is not flagged also says
+something of its patient). The figures per practitioner and per specialty: the admin only (SAL-20's rule
 C2: a specialty with one practitioner is that colleague's figures).
 
 **Risks and measures.**

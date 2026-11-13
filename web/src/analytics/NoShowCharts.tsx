@@ -1,8 +1,14 @@
 import { useT } from '../i18n/useT'
-import { BarChart } from './BarChart'
+import { BarChart, type Bar } from './BarChart'
 import { noShowRate, type ClinicAppointments, type Month, type Specialty } from './data'
 import { LineChart } from './LineChart'
 import { useSpecialtyName } from './names'
+
+// rated is the bar of a key's no-show rate, or none when it closed no appointment: no bar is not a 0 % bar.
+function rated(key: string, label: string, noshow: number, fulfilled: number): Bar[] {
+  const count = noShowRate(noshow, fulfilled)
+  return count === undefined ? [] : [{ key, label, count, fixed: true }]
+}
 
 type Props = {
   figures: ClinicAppointments
@@ -23,7 +29,15 @@ export function NoShowCharts({ figures, periods, admin, specialties, staffName }
       <LineChart
         title={t('analytics.noShowRate')}
         periods={periods}
-        series={[{ key: 'rate', label: t('analytics.noShowRatePercent'), color: 'var(--series-3)', values: periods.map((p) => noShowRate(month(p)?.noshow ?? 0, month(p)?.fulfilled ?? 0)) }]}
+        series={[
+          {
+            key: 'rate',
+            label: t('analytics.noShowRatePercent'),
+            color: 'var(--series-3)',
+            values: periods.map((p) => noShowRate(month(p)?.noshow ?? 0, month(p)?.fulfilled ?? 0)),
+            missing: t('analytics.noClosedAppointments'),
+          },
+        ]}
       />
       <LineChart
         title={t('analytics.refilled')}
@@ -34,19 +48,14 @@ export function NoShowCharts({ figures, periods, admin, specialties, staffName }
         <BarChart
           title={t('analytics.noShowRateByPractitioner')}
           unit={t('analytics.percent')}
-          bars={(figures.practitioners ?? []).map((p) => ({ key: p.practitionerRole, label: staffName(p.practitionerRole), count: noShowRate(p.noshow, p.fulfilled), fixed: true }))}
+          bars={(figures.practitioners ?? []).flatMap((p) => rated(p.practitionerRole, staffName(p.practitionerRole), p.noshow, p.fulfilled))}
         />
       )}
       {admin && (
         <BarChart
           title={t('analytics.noShowRateBySpecialty')}
           unit={t('analytics.percent')}
-          bars={(figures.specialties ?? []).map((s) => ({
-            key: s.specialty,
-            label: s.specialty === '' ? t('analytics.noSpecialty') : specialtyName(s.specialty),
-            count: noShowRate(s.noshow, s.fulfilled),
-            fixed: true,
-          }))}
+          bars={(figures.specialties ?? []).flatMap((x) => rated(x.specialty, x.specialty === '' ? t('analytics.noSpecialty') : specialtyName(x.specialty), x.noshow, x.fulfilled))}
         />
       )}
     </>

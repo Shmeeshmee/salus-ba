@@ -81,5 +81,6 @@
   "noShowRateByPractitioner": "Стопа недолазака по љекару",
   "noShowRateBySpecialty": "Стопа недолазака по специјалности",
   "percent": "Проценат обављених и пропуштених термина",
-  "noSpecialty": "Без специјалности"
+  "noSpecialty": "Без специјалности",
+  "noClosedAppointments": "Нема затворених термина"
 }

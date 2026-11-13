@@ -38,6 +38,26 @@ describe('ClinicSettingsNoShows', () => {
     expectCsrfOnWrites(requests)
   })
 
+  it('reads the settings again just before saving, so another section’s or another admin’s change is kept', async () => {
+    let reads = 0
+    const { requests } = renderSection({
+      'GET /clinic/appointment-settings': () => Response.json(reads++ === 0 ? settings : { ...settings, waitlist_enabled: false, reminder_offsets_minutes: [120] }),
+      'PUT /clinic/appointment-settings': async (r) => Response.json(await r.json()),
+    })
+
+    fireEvent.change(await screen.findByLabelText('Flag from this many no-shows'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the flag' }))
+
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    expect(reads).toBe(2)
+    expect(await requests.find((r) => r.method === 'PUT')!.json()).toEqual({
+      ...settings,
+      waitlist_enabled: false,
+      reminder_offsets_minutes: [120],
+      noshow_flag_threshold: 2,
+    })
+  })
+
   it.each([
     ['a threshold over 10', '11', '180'],
     ['a window under 30 days', '2', '29'],

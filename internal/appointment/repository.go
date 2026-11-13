@@ -63,4 +63,7 @@ type NoShowRepository interface {
 	// CorrectStatus moves the appointment id from the status from to to (noshow and fulfilled into each other) at at
 	// and returns it at its next version; ErrClosed when it is not in from (a concurrent change committed first).
 	CorrectStatus(ctx context.Context, id string, from, to Status, at time.Time) (Appointment, error)
+	// NoShowsSince counts, as the scope shows them, each patient's noshow appointments at the clinic org that
+	// started in [since, until]; a patient without any is absent, an id that is not a UUID matches nothing.
+	NoShowsSince(ctx context.Context, org string, patientIDs []string, since, until time.Time) (map[string]int, error)
 }

@@ -454,7 +454,7 @@ class AppointmentsApi {
 
   /// Repeat no-show flags beside the calendar's appointments
   ///
-  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Each flagged appointment's read is audited. Not cached.
+  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Every appointment of the range seen in full is audited, flagged or not. Not cached.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -497,7 +497,7 @@ class AppointmentsApi {
 
   /// Repeat no-show flags beside the calendar's appointments
   ///
-  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Each flagged appointment's read is audited. Not cached.
+  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Every appointment of the range seen in full is audited, flagged or not. Not cached.
   ///
   /// Parameters:
   ///

@@ -335,3 +335,28 @@ func (r *postgresRepository) CorrectStatus(ctx context.Context, id string, from,
 	})
 	return changed(appointmentdb.AppointmentByIDRow(row), err)
 }
+
+func (r *postgresRepository) NoShowsSince(ctx context.Context, org string, patientIDs []string, since, until time.Time) (map[string]int, error) {
+	var o pgtype.UUID
+	if o.Scan(org) != nil {
+		return map[string]int{}, nil
+	}
+	ids := make([]pgtype.UUID, 0, len(patientIDs))
+	for _, p := range patientIDs {
+		var u pgtype.UUID
+		if u.Scan(p) == nil {
+			ids = append(ids, u)
+		}
+	}
+	rows, err := r.q(ctx).CountNoShowsSince(ctx, appointmentdb.CountNoShowsSinceParams{
+		OrganizationID: o, PatientIds: ids, Since: ts(since), Until: ts(until),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(rows))
+	for _, row := range rows {
+		out[row.PatientID.String()] = int(row.Noshows)
+	}
+	return out, nil
+}

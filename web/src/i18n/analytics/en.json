@@ -81,5 +81,6 @@
   "noShowRateByPractitioner": "No-show rate by practitioner",
   "noShowRateBySpecialty": "No-show rate by specialty",
   "percent": "Percent of the attended and missed appointments",
-  "noSpecialty": "No specialty"
+  "noSpecialty": "No specialty",
+  "noClosedAppointments": "No closed appointments"
 }

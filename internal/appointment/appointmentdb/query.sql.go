@@ -266,6 +266,53 @@ func (q *Queries) CorrectAppointmentStatus(ctx context.Context, arg CorrectAppoi
 	return i, err
 }
 
+const countNoShowsSince = `-- name: CountNoShowsSince :many
+SELECT patient_id, count(*)::integer AS noshows
+FROM appointment
+WHERE organization_id = $1 AND patient_id = ANY ($2::uuid[]) AND status = 'noshow'
+  AND lower(period) >= $3::timestamptz AND lower(period) <= $4::timestamptz
+GROUP BY patient_id
+`
+
+type CountNoShowsSinceParams struct {
+	OrganizationID pgtype.UUID
+	PatientIds     []pgtype.UUID
+	Since          pgtype.Timestamptz
+	Until          pgtype.Timestamptz
+}
+
+type CountNoShowsSinceRow struct {
+	PatientID pgtype.UUID
+	Noshows   int32
+}
+
+// Each patient's noshow appointments at the clinic that started in [since, until], in one query for a range's
+// patients (the repeat no-show flag); a patient without any has no row.
+func (q *Queries) CountNoShowsSince(ctx context.Context, arg CountNoShowsSinceParams) ([]CountNoShowsSinceRow, error) {
+	rows, err := q.db.Query(ctx, countNoShowsSince,
+		arg.OrganizationID,
+		arg.PatientIds,
+		arg.Since,
+		arg.Until,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountNoShowsSinceRow
+	for rows.Next() {
+		var i CountNoShowsSinceRow
+		if err := rows.Scan(&i.PatientID, &i.Noshows); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createAppointment = `-- name: CreateAppointment :one
 INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at, booked_via)
 VALUES ($1, $2, $3, $4, tstzrange($5::timestamptz, $6::timestamptz),

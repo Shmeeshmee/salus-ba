@@ -2,6 +2,7 @@ package appointment_test
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -26,6 +27,23 @@ func (n fakeNoShows) CorrectStatus(ctx context.Context, id string, from, to appo
 		}
 	}
 	return appointment.Appointment{}, appointment.ErrClosed
+}
+
+// NoShowsSince counts, as the clinic's scope shows them, the noshow appointments of each patient at org that started
+// in [since, until].
+func (n fakeNoShows) NoShowsSince(ctx context.Context, org string, patients []string, since, until time.Time) (map[string]int, error) {
+	n.r.seen(ctx, "NoShowsSince")
+	if n.r.err != nil {
+		return nil, n.r.err
+	}
+	out := map[string]int{}
+	for _, a := range n.r.appts {
+		if n.r.visible(a) && a.OrganizationID == org && slices.Contains(patients, a.PatientID) && a.Status == appointment.StatusNoShow &&
+			!a.Start.Before(since) && !a.Start.After(until) {
+			out[a.PatientID]++
+		}
+	}
+	return out, nil
 }
 
 // fakeRules is the clinics' appointment settings, the defaults for any clinic without its own.
