@@ -40,8 +40,9 @@ type AppointmentsRepository interface {
 	SetOrganization(ctx context.Context, id string) error
 	// AppointmentSettings returns the clinic's settings, and false when it has none stored.
 	AppointmentSettings(ctx context.Context, org string) (AppointmentSettings, bool, error)
-	// PutAppointmentSettings stores the clinic's settings, last updated at at.
-	PutAppointmentSettings(ctx context.Context, org string, s AppointmentSettings, at time.Time) error
+	// PutAppointmentSettings stores the clinic's settings read at s.Version, last updated at at, and returns the new
+	// version; ErrSettingsChanged when the stored version is no longer s.Version.
+	PutAppointmentSettings(ctx context.Context, org string, s AppointmentSettings, at time.Time) (int, error)
 }
 
 // StatsRepository reads the clinics for the aggregate builds, on salus_stats.

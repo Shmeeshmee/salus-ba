@@ -329,7 +329,7 @@ class AppointmentsApi {
 
   /// The admin's clinic's appointment settings
   ///
-  /// The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md).
+  /// The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md). The ETag is the version read, `W/\"0\"` while none are stored; a save sends it as If-Match.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> getAppointmentSettingsWithHttpInfo({
@@ -361,7 +361,7 @@ class AppointmentsApi {
 
   /// The admin's clinic's appointment settings
   ///
-  /// The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md).
+  /// The defaults (reminders 24 hours and 1 hour before, no SMS, rescheduling until 24 hours before and twice at most, no waitlist with a 15-minute hold, no no-show flag) until the admin sets them (docs/plans/appointments.md). The ETag is the version read, `W/\"0\"` while none are stored; a save sends it as If-Match.
   Future<AppointmentSettings?> getAppointmentSettings({
     Future<void>? abortTrigger,
   }) async {
@@ -620,17 +620,21 @@ class AppointmentsApi {
 
   /// Replace the admin's clinic's appointment settings
   ///
-  /// Every field required; the ranges are the schema's, and the reminder offsets are distinct. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
+  /// Every field required; the ranges are the schema's, and the reminder offsets are distinct. If-Match is the version read (the GET's ETag): a save after another one came first is refused with 412, so no admin's change is lost silently. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
   ///
   /// * [AppointmentSettings] appointmentSettings (required):
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
   Future<Response> setAppointmentSettingsWithHttpInfo(
+    String ifMatch,
     AppointmentSettings appointmentSettings, {
     String? xSalusCSRF,
     Future<void>? abortTrigger,
@@ -648,6 +652,7 @@ class AppointmentsApi {
     if (xSalusCSRF != null) {
       headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
     }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
 
     const contentTypes = <String>['application/json'];
 
@@ -665,20 +670,25 @@ class AppointmentsApi {
 
   /// Replace the admin's clinic's appointment settings
   ///
-  /// Every field required; the ranges are the schema's, and the reminder offsets are distinct. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
+  /// Every field required; the ranges are the schema's, and the reminder offsets are distinct. If-Match is the version read (the GET's ETag): a save after another one came first is refused with 412, so no admin's change is lost silently. A change applies to appointments booked, accepted or rescheduled after it. Audited, also when refused.
   ///
   /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
   ///
   /// * [AppointmentSettings] appointmentSettings (required):
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
   Future<AppointmentSettings?> setAppointmentSettings(
+    String ifMatch,
     AppointmentSettings appointmentSettings, {
     String? xSalusCSRF,
     Future<void>? abortTrigger,
   }) async {
     final response = await setAppointmentSettingsWithHttpInfo(
+      ifMatch,
       appointmentSettings,
       xSalusCSRF: xSalusCSRF,
       abortTrigger: abortTrigger,

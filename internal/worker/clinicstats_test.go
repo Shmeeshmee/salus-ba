@@ -9,6 +9,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
+	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -71,7 +72,7 @@ func TestWorker_RefreshesTheRecentDaysNightly(t *testing.T) {
 
 func TestNew_RefusesToStartWithoutTheStatsPool(t *testing.T) {
 	_, app := pgtest.NewAppDatabase(t)
-	if _, err := worker.New(app, app, nil, liveKit(t), testFiles(t), webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
+	if _, err := worker.New(app, app, nil, liveKit(t), testFiles(t), webhookKey, retention.DefaultPolicy(), worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
 		t.Fatal("New() error = nil without the stats pool")
 	}
 }

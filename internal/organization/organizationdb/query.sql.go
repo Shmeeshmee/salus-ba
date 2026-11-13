@@ -13,7 +13,7 @@ import (
 
 const appointmentSettings = `-- name: AppointmentSettings :one
 SELECT reminder_offsets_minutes, sms_reminders, reschedule_notice_hours, reschedule_max, waitlist_enabled, waitlist_hold_minutes,
-       noshow_flag_threshold, noshow_flag_window_days
+       noshow_flag_threshold, noshow_flag_window_days, version
 FROM organization_appointment_settings
 WHERE organization_id = $1
 `
@@ -27,9 +27,10 @@ type AppointmentSettingsRow struct {
 	WaitlistHoldMinutes    int32
 	NoshowFlagThreshold    int32
 	NoshowFlagWindowDays   int32
+	Version                int32
 }
 
-// The clinic's appointment settings (00054); row-level security shows only the clinic set.
+// The clinic's appointment settings (00054) and their version (00058); row-level security shows only the clinic set.
 func (q *Queries) AppointmentSettings(ctx context.Context, organizationID pgtype.UUID) (AppointmentSettingsRow, error) {
 	row := q.db.QueryRow(ctx, appointmentSettings, organizationID)
 	var i AppointmentSettingsRow
@@ -42,6 +43,7 @@ func (q *Queries) AppointmentSettings(ctx context.Context, organizationID pgtype
 		&i.WaitlistHoldMinutes,
 		&i.NoshowFlagThreshold,
 		&i.NoshowFlagWindowDays,
+		&i.Version,
 	)
 	return i, err
 }
@@ -109,6 +111,48 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.ContributesSince,
 	)
 	return i, err
+}
+
+const insertAppointmentSettings = `-- name: InsertAppointmentSettings :one
+INSERT INTO organization_appointment_settings (organization_id, reminder_offsets_minutes, sms_reminders, reschedule_notice_hours,
+                                               reschedule_max, waitlist_enabled, waitlist_hold_minutes, noshow_flag_threshold,
+                                               noshow_flag_window_days, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10)
+ON CONFLICT (organization_id) DO NOTHING
+RETURNING version
+`
+
+type InsertAppointmentSettingsParams struct {
+	OrganizationID         pgtype.UUID
+	ReminderOffsetsMinutes []int32
+	SmsReminders           bool
+	RescheduleNoticeHours  int32
+	RescheduleMax          int32
+	WaitlistEnabled        bool
+	WaitlistHoldMinutes    int32
+	NoshowFlagThreshold    int32
+	NoshowFlagWindowDays   int32
+	UpdatedAt              pgtype.Timestamptz
+}
+
+// The clinic's first settings, version 1; no row when another save stored them first.
+func (q *Queries) InsertAppointmentSettings(ctx context.Context, arg InsertAppointmentSettingsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, insertAppointmentSettings,
+		arg.OrganizationID,
+		arg.ReminderOffsetsMinutes,
+		arg.SmsReminders,
+		arg.RescheduleNoticeHours,
+		arg.RescheduleMax,
+		arg.WaitlistEnabled,
+		arg.WaitlistHoldMinutes,
+		arg.NoshowFlagThreshold,
+		arg.NoshowFlagWindowDays,
+		arg.UpdatedAt,
+	)
+	var version int32
+	err := row.Scan(&version)
+	return version, err
 }
 
 const listLocationsForStats = `-- name: ListLocationsForStats :many
@@ -250,49 +294,6 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 	return i, err
 }
 
-const putAppointmentSettings = `-- name: PutAppointmentSettings :exec
-INSERT INTO organization_appointment_settings (organization_id, reminder_offsets_minutes, sms_reminders, reschedule_notice_hours,
-                                               reschedule_max, waitlist_enabled, waitlist_hold_minutes, noshow_flag_threshold,
-                                               noshow_flag_window_days, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10)
-ON CONFLICT (organization_id) DO UPDATE
-SET reminder_offsets_minutes = EXCLUDED.reminder_offsets_minutes, sms_reminders = EXCLUDED.sms_reminders,
-    reschedule_notice_hours = EXCLUDED.reschedule_notice_hours, reschedule_max = EXCLUDED.reschedule_max,
-    waitlist_enabled = EXCLUDED.waitlist_enabled, waitlist_hold_minutes = EXCLUDED.waitlist_hold_minutes,
-    noshow_flag_threshold = EXCLUDED.noshow_flag_threshold, noshow_flag_window_days = EXCLUDED.noshow_flag_window_days,
-    updated_at = EXCLUDED.updated_at
-`
-
-type PutAppointmentSettingsParams struct {
-	OrganizationID         pgtype.UUID
-	ReminderOffsetsMinutes []int32
-	SmsReminders           bool
-	RescheduleNoticeHours  int32
-	RescheduleMax          int32
-	WaitlistEnabled        bool
-	WaitlistHoldMinutes    int32
-	NoshowFlagThreshold    int32
-	NoshowFlagWindowDays   int32
-	UpdatedAt              pgtype.Timestamptz
-}
-
-func (q *Queries) PutAppointmentSettings(ctx context.Context, arg PutAppointmentSettingsParams) error {
-	_, err := q.db.Exec(ctx, putAppointmentSettings,
-		arg.OrganizationID,
-		arg.ReminderOffsetsMinutes,
-		arg.SmsReminders,
-		arg.RescheduleNoticeHours,
-		arg.RescheduleMax,
-		arg.WaitlistEnabled,
-		arg.WaitlistHoldMinutes,
-		arg.NoshowFlagThreshold,
-		arg.NoshowFlagWindowDays,
-		arg.UpdatedAt,
-	)
-	return err
-}
-
 const putChatSettings = `-- name: PutChatSettings :exec
 INSERT INTO organization_chat_settings (organization_id, hours, response_time_hours, email_after_minutes, updated_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -318,6 +319,51 @@ func (q *Queries) PutChatSettings(ctx context.Context, arg PutChatSettingsParams
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const updateAppointmentSettings = `-- name: UpdateAppointmentSettings :one
+UPDATE organization_appointment_settings
+SET reminder_offsets_minutes = $1, sms_reminders = $2,
+    reschedule_notice_hours = $3, reschedule_max = $4,
+    waitlist_enabled = $5, waitlist_hold_minutes = $6,
+    noshow_flag_threshold = $7, noshow_flag_window_days = $8,
+    updated_at = $9, version = version + 1
+WHERE organization_id = $10 AND version = $11
+RETURNING version
+`
+
+type UpdateAppointmentSettingsParams struct {
+	ReminderOffsetsMinutes []int32
+	SmsReminders           bool
+	RescheduleNoticeHours  int32
+	RescheduleMax          int32
+	WaitlistEnabled        bool
+	WaitlistHoldMinutes    int32
+	NoshowFlagThreshold    int32
+	NoshowFlagWindowDays   int32
+	UpdatedAt              pgtype.Timestamptz
+	OrganizationID         pgtype.UUID
+	Version                int32
+}
+
+// Replaces the clinic's settings read at version, one version up; no row when another save changed them since.
+func (q *Queries) UpdateAppointmentSettings(ctx context.Context, arg UpdateAppointmentSettingsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, updateAppointmentSettings,
+		arg.ReminderOffsetsMinutes,
+		arg.SmsReminders,
+		arg.RescheduleNoticeHours,
+		arg.RescheduleMax,
+		arg.WaitlistEnabled,
+		arg.WaitlistHoldMinutes,
+		arg.NoshowFlagThreshold,
+		arg.NoshowFlagWindowDays,
+		arg.UpdatedAt,
+		arg.OrganizationID,
+		arg.Version,
+	)
+	var version int32
+	err := row.Scan(&version)
+	return version, err
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one

@@ -35,8 +35,8 @@ type Config struct {
 	TOTPKey []byte
 	// RateLimitKey keys the HMAC that names the login rate-limit counters (RATE_LIMIT_KEY, base64).
 	RateLimitKey []byte
-	// WebhookKey seals the clinics' webhook secrets (WEBHOOK_KEY, base64, 32 bytes; or the file WEBHOOK_KEY_FILE
-	// names, as production mounts it from the encrypted volume: keySetting). The api and the worker require it.
+	// WebhookKey seals the clinics' webhook secrets (LoadWebhookKey). Load leaves it empty: the api and the worker,
+	// the two that need it, set it from LoadWebhookKey.
 	WebhookKey []byte
 	// TrustedProxies may set X-Forwarded-For (TRUSTED_PROXY_CIDRS, comma-separated CIDRs).
 	TrustedProxies []netip.Prefix
@@ -72,13 +72,6 @@ func Load() (Config, error) {
 	}
 	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(totpKey); err != nil {
 		return Config{}, errors.New("config: TOTP_KEY is not base64")
-	}
-	webhookKey, err := keySetting("WEBHOOK_KEY")
-	if err != nil {
-		return Config{}, err
-	}
-	if cfg.WebhookKey, err = base64.StdEncoding.DecodeString(webhookKey); err != nil {
-		return Config{}, errors.New("config: WEBHOOK_KEY is not base64")
 	}
 	if cfg.RateLimitKey, err = base64.StdEncoding.DecodeString(os.Getenv("RATE_LIMIT_KEY")); err != nil {
 		return Config{}, errors.New("config: RATE_LIMIT_KEY is not base64")

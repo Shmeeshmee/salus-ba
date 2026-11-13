@@ -28,17 +28,31 @@ func (s *stubRules) Settings(_ context.Context, c organization.Caller) (organiza
 
 func (s *stubRules) SetSettings(_ context.Context, c organization.Caller, in organization.AppointmentSettings) (organization.AppointmentSettings, error) {
 	s.caller, s.in = c, in
-	return in, s.err
+	out := in
+	out.Version++
+	return out, s.err
 }
 
+// serveRules serves one request; a PUT carries If-Match W/"4", as read at version 4.
 func serveRules(t *testing.T, svc *stubRules, signedIn bool, method, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	header := http.Header{}
+	if method == http.MethodPut {
+		header.Set("If-Match", `W/"4"`)
+	}
+	return serveRulesWith(t, svc, signedIn, method, body, header)
+}
+
+func serveRulesWith(t *testing.T, svc *stubRules, signedIn bool, method, body string, header http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 	h := organization.NewAppointmentsHandler(svc, func(context.Context) (organization.Caller, bool, error) { return adminCaller, signedIn, nil },
 		slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
 	mux := http.NewServeMux()
 	h.Routes(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, "/clinic/appointment-settings", strings.NewReader(body)))
+	req := httptest.NewRequestWithContext(t.Context(), method, "/clinic/appointment-settings", strings.NewReader(body))
+	req.Header = header
+	mux.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -67,6 +81,7 @@ func TestAppointmentsHandler_ServesTheSettings(t *testing.T) {
 	}{
 		{organization.ErrNotFound, http.StatusNotFound}, {organization.ErrForbidden, http.StatusForbidden},
 		{organization.ErrInvalidAppointmentSettings, http.StatusBadRequest}, {organization.ErrSMSUnavailable, http.StatusConflict},
+		{organization.ErrSettingsChanged, http.StatusPreconditionFailed},
 		{errors.New("down"), http.StatusInternalServerError},
 	} {
 		if rec := serveRules(t, &stubRules{err: tt.err}, true, http.MethodPut, customJSON); rec.Code != tt.code {
@@ -75,5 +90,33 @@ func TestAppointmentsHandler_ServesTheSettings(t *testing.T) {
 	}
 	if rec := serveRules(t, svc, false, http.MethodGet, ""); rec.Code != http.StatusUnauthorized {
 		t.Errorf("signed out: %d", rec.Code)
+	}
+}
+
+// GET names the version read as a weak ETag; PUT needs If-Match with it, passes it to the service, answers with the
+// new version, and 412 version_conflict when another save came first.
+func TestAppointmentsHandler_VersionsTheSettings(t *testing.T) {
+	stored := customSet
+	stored.Version = 4
+	if rec := serveRules(t, &stubRules{settings: stored}, true, http.MethodGet, ""); rec.Header().Get("ETag") != `W/"4"` {
+		t.Errorf("GET ETag = %q, want W/\"4\"", rec.Header().Get("ETag"))
+	}
+	svc := &stubRules{}
+	rec := serveRules(t, svc, true, http.MethodPut, customJSON)
+	if rec.Code != http.StatusOK || svc.in.Version != 4 || rec.Header().Get("ETag") != `W/"5"` {
+		t.Errorf("PUT = %d, asked version %d, ETag %q; want 200, 4, W/\"5\"", rec.Code, svc.in.Version, rec.Header().Get("ETag"))
+	}
+	for _, match := range []string{"", "4", `W/"x"`, `"-1"`} {
+		h := http.Header{}
+		if match != "" {
+			h.Set("If-Match", match)
+		}
+		if rec := serveRulesWith(t, &stubRules{}, true, http.MethodPut, customJSON, h); rec.Code != http.StatusBadRequest {
+			t.Errorf("PUT with If-Match %q = %d, want 400", match, rec.Code)
+		}
+	}
+	rec = serveRules(t, &stubRules{err: organization.ErrSettingsChanged}, true, http.MethodPut, customJSON)
+	if rec.Code != http.StatusPreconditionFailed || !strings.Contains(rec.Body.String(), `"version_conflict"`) {
+		t.Errorf("stale PUT = %d %s, want 412 version_conflict", rec.Code, rec.Body)
 	}
 }

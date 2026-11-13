@@ -35,13 +35,17 @@ func (r *fakeAppointmentsRepository) AppointmentSettings(ctx context.Context, or
 	return s, ok, nil
 }
 
-func (r *fakeAppointmentsRepository) PutAppointmentSettings(ctx context.Context, org string, s organization.AppointmentSettings, at time.Time) error {
+func (r *fakeAppointmentsRepository) PutAppointmentSettings(ctx context.Context, org string, s organization.AppointmentSettings, at time.Time) (int, error) {
 	r.seen(ctx, "PutAppointmentSettings")
 	if org != r.clinic {
-		return errors.New("fake: outside the scope")
+		return 0, errors.New("fake: outside the scope")
 	}
+	if s.Version != r.settings[org].Version {
+		return 0, organization.ErrSettingsChanged
+	}
+	s.Version++
 	r.settings[org], r.putAt = s, at
-	return nil
+	return s.Version, nil
 }
 
 func newAppointments(repo *fakeAppointmentsRepository, audit *fakeAuditor) *organization.Appointments {
@@ -85,6 +89,9 @@ func TestAppointments_TheAdminReadsAndSetsTheClinicsSettings(t *testing.T) {
 	}
 	if got, err = svc.SetSettings(t.Context(), adminOfA, customSet); err != nil || !same(got, customSet) {
 		t.Fatalf("SetSettings() = %+v, %v", got, err)
+	}
+	if got.Version != 1 {
+		t.Errorf("SetSettings() version %d, want 1 after the first save", got.Version)
 	}
 	if !same(repo.settings[clinicA], customSet) || !repo.putAt.Equal(now) {
 		t.Errorf("stored %+v at %v", repo.settings[clinicA], repo.putAt)
@@ -173,5 +180,38 @@ func TestAppointments_FailsWithTheBackend(t *testing.T) {
 	audit := &fakeAuditor{err: errors.New("audit down")}
 	if _, err := newAppointments(newFakeAppointmentsRepository(), audit).SetSettings(t.Context(), organization.Caller{OrganizationID: clinicA}, customSet); err == nil || errors.Is(err, organization.ErrForbidden) {
 		t.Errorf("SetSettings() with the audit down = %v, want the failure", err)
+	}
+}
+
+// A save names the version it read: one read at an older version is refused, stores nothing and is not audited as a
+// change; the next save reads the version the last one returned.
+func TestAppointments_RefusesASaveOfAnOlderVersion(t *testing.T) {
+	repo, audit := newFakeAppointmentsRepository(), &fakeAuditor{}
+	svc := newAppointments(repo, audit)
+	read, err := svc.Settings(t.Context(), adminOfA)
+	if err != nil || read.Version != 0 {
+		t.Fatalf("Settings() = version %d, %v; want 0 while none is stored", read.Version, err)
+	}
+	first := customSet
+	first.Version = read.Version
+	saved, err := svc.SetSettings(t.Context(), adminOfA, first)
+	if err != nil || saved.Version != 1 {
+		t.Fatalf("first SetSettings() = version %d, %v", saved.Version, err)
+	}
+	stale := organization.DefaultAppointmentSettings()
+	stale.Version = read.Version
+	if _, err := svc.SetSettings(t.Context(), adminOfA, stale); !errors.Is(err, organization.ErrSettingsChanged) {
+		t.Fatalf("SetSettings(read at 0) after a save = %v, want ErrSettingsChanged", err)
+	}
+	if got := repo.settings[clinicA]; !same(got, customSet) || got.Version != 1 {
+		t.Errorf("stored %+v, want the first save's", got)
+	}
+	if len(audit.events) != 1 {
+		t.Errorf("audit %+v, want only the first save", audit.events)
+	}
+	again := stale
+	again.Version = saved.Version
+	if got, err := svc.SetSettings(t.Context(), adminOfA, again); err != nil || got.Version != 2 {
+		t.Errorf("SetSettings(read at 1) = version %d, %v; want 2", got.Version, err)
 	}
 }

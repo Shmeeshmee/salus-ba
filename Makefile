@@ -17,7 +17,12 @@ E2E     := $(COMPOSE) run --rm -T playwright
 
 # The services the Go tests reach (the tools service's depends_on), and the tests themselves.
 TEST_SERVICES := postgres redis mailpit mailpit-starttls mailpit-tls livekit objectstore clamd
-GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
+# At most TEST_PACKAGES test packages at once: go test's default is one per CPU, and on a 28-CPU host the uncached
+# suite needed more than Postgres's 400 connections (peak 394 sampled, three tests failed with 53300; at 8: peak 212,
+# none failed, 234 s against 190 s: docs/plans/appointments.PROGRESS.md, "Post-appointments gaps"). The cap makes
+# the peak independent of the host's CPUs.
+TEST_PACKAGES ?= 8
+GO_TEST        = go test -p $(TEST_PACKAGES) $(TESTFLAGS) ./... && go -C tools test -p $(TEST_PACKAGES) $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
 .PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-reminders bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \

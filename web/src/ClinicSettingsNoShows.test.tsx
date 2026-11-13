@@ -73,6 +73,30 @@ describe('ClinicSettingsNoShows', () => {
     expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
   })
 
+  it('says when someone else saved the settings first, keeping what was entered', async () => {
+    renderSection({ 'PUT /clinic/appointment-settings': () => apiError(412, 'version_conflict') })
+
+    fireEvent.change(await screen.findByLabelText('Flag from this many no-shows'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the flag' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Settings were changed by someone else — reload the page. What you entered stays in the form.')
+    expect((screen.getByLabelText('Flag from this many no-shows') as HTMLInputElement).value).toBe('4')
+  })
+
+  it('sends nothing when someone else changed these two fields since they were shown', async () => {
+    let reads = 0
+    const { requests } = renderSection({
+      'GET /clinic/appointment-settings': () => Response.json(reads++ === 0 ? settings : { ...settings, noshow_flag_threshold: 6 }),
+    })
+
+    fireEvent.change(await screen.findByLabelText('Flag from this many no-shows'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save the flag' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Settings were changed by someone else — reload the page. What you entered stays in the form.')
+    expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
+    expect((screen.getByLabelText('Flag from this many no-shows') as HTMLInputElement).value).toBe('2')
+  })
+
   it('says so when the settings cannot be loaded or saved', async () => {
     renderSection({ 'GET /clinic/appointment-settings': () => apiError(500, 'internal error') })
     expect((await screen.findByRole('alert')).textContent).toBe('The no-show settings could not be loaded. Reload the page to try again.')

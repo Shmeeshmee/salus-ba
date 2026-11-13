@@ -1,12 +1,12 @@
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Calendar } from './Calendar'
-import type { Account } from './api/client'
+import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
 import { formatDate } from './i18n/format'
 import type { Language } from './i18n/languages'
 import { renderInLanguage } from './i18n/renderInLanguage'
-import { fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
+import { apiError, fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, practitioner, searchset, staffRoute } from './test/fixtures'
 
 afterEach(cleanup)
@@ -21,9 +21,11 @@ const week = [
   appointment('e1000000-0000-4000-8000-000000000003', '2026-11-12T09:00:00Z', '2026-11-12T09:30:00Z', { status: 'cancelled' }, 'Bo Sample'),
 ]
 
+const flags = 'GET /clinic/noshow-flags'
+
 function renderCalendar(account: Account, routes: Record<string, Route>, clock = now, language: Language = 'en') {
-  const fake = fakeFetch({ ...clinicRoute, ...routes })
-  renderInLanguage(<Calendar fhir={newFhirClient(fake.fetch)} account={account} now={clock} />, language)
+  const fake = fakeFetch({ ...clinicRoute, [flags]: () => Response.json({ flags: [] }), ...routes })
+  renderInLanguage(<Calendar api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} now={clock} />, language)
   return fake
 }
 
@@ -211,5 +213,33 @@ describe('Calendar in a language', () => {
     renderCalendar(practitioner, { [search]: () => fhirJSON(searchset([week[0]])) }, now, 'bs')
 
     expect(await screen.findByText('Potvrđen')).toBeTruthy()
+  })
+  describe('the repeat no-show flag', () => {
+    const flagged = { flags: [{ appointment_id: week[1].id, noshows: 3, window_days: 180 }] }
+
+    it("asks for the week's flags and tags the flagged appointment, as the day view does", async () => {
+      const { requests } = renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)), [flags]: () => Response.json(flagged) })
+
+      const wednesday = within(await screen.findByRole('region', { name: 'Wed 11 Nov' })).getByRole('link')
+      await vi.waitFor(() => expect(wednesday.textContent).toContain('3 no-shows'))
+      const tag = within(wednesday).getByText('3 no-shows')
+      expect(tag.getAttribute('title')).toBe(
+        '3 missed appointments at this clinic in the last 180 days. Shown to staff only. It never stops the patient from booking.',
+      )
+      expect(within(screen.getByRole('region', { name: 'Mon 9 Nov' })).getByRole('link').textContent).not.toContain('no-show')
+      const asked = requests.find((r) => new URL(r.url).pathname === '/clinic/noshow-flags')!
+      expect(Object.fromEntries(new URL(asked.url).searchParams)).toEqual({ from: '2026-11-08T23:00:00.000Z', to: '2026-11-15T23:00:00.000Z' })
+    })
+
+    it('shows the week without flags when they cannot be read, the rule is off, or for an admin as for a practitioner', async () => {
+      renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)), [flags]: () => apiError(500, 'internal error') })
+      expect((await screen.findByText('Ada Example')).closest('a')!.textContent).not.toContain('no-show')
+      expect(screen.queryByText(/no-shows?$/)).toBeNull()
+      cleanup()
+
+      renderCalendar(admin, { ...staffRoute, [search]: () => fhirJSON(searchset(week)), [flags]: () => Response.json(flagged) })
+      const wednesday = within(await screen.findByRole('region', { name: 'Wed 11 Nov' })).getByRole('link')
+      await vi.waitFor(() => expect(wednesday.textContent).toContain('3 no-shows'))
+    })
   })
 })

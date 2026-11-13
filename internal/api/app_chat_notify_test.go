@@ -2,8 +2,11 @@ package api_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -88,15 +91,66 @@ func TestNew_ServesTheClinicsAppointmentSettings(t *testing.T) {
 	rules := `{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":12,"reschedule_max":1,` +
 		`"waitlist_enabled":true,"waitlist_hold_minutes":20,"noshow_flag_threshold":2,"noshow_flag_window_days":90}`
 	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reminder_offsets_minutes":[1440,60]`)
-	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", rules); rec.Code != http.StatusOK {
-		t.Errorf("PUT appointment settings = %d %s", rec.Code, rec.Body)
+	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", rules); rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT without If-Match = %d %s, want 400", rec.Code, rec.Body)
 	}
+	c.d.admin.ifMatch = `W/"0"`
+	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", rules); rec.Code != http.StatusOK || rec.Header().Get("ETag") != `W/"1"` {
+		t.Errorf("PUT appointment settings = %d %s, ETag %q", rec.Code, rec.Body, rec.Header().Get("ETag"))
+	}
+	c.d.admin.ifMatch = ""
 	expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, `"reschedule_notice_hours":12`)
+	if rec := c.d.admin.do(http.MethodGet, "/clinic/appointment-settings", ""); rec.Header().Get("ETag") != `W/"1"` {
+		t.Errorf("GET ETag = %q, want W/\"1\"", rec.Header().Get("ETag"))
+	}
+	c.d.admin.ifMatch = `W/"1"`
 	if rec := c.d.admin.do(http.MethodPut, "/clinic/appointment-settings", strings.Replace(rules, `"sms_reminders":false`, `"sms_reminders":true`, 1)); rec.Code != http.StatusConflict ||
 		!strings.Contains(rec.Body.String(), "sms_unavailable") {
 		t.Errorf("PUT with SMS on, the fake engine = %d %s, want 409 sms_unavailable", rec.Code, rec.Body)
 	}
 	if rec := c.d.practitioner.do(http.MethodGet, "/clinic/appointment-settings", ""); rec.Code != http.StatusForbidden {
 		t.Errorf("the practitioner reads the appointment settings = %d, want 403", rec.Code)
+	}
+}
+
+// Two admins' saves of the settings read at the same version, sent at the same time: exactly one is stored (200) and
+// the other is refused with 412 version_conflict; the stored settings are the winner's.
+func TestNew_ConcurrentAppointmentSettingsSavesLeaveOneWinner(t *testing.T) {
+	c := newConsultationApp(t)
+	body := func(hours int) string {
+		return fmt.Sprintf(`{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":%d,"reschedule_max":1,`+
+			`"waitlist_enabled":false,"waitlist_hold_minutes":20,"noshow_flag_threshold":0,"noshow_flag_window_days":90}`, hours)
+	}
+	for round, version := range []string{`W/"0"`, `W/"1"`} {
+		recs := make([]*httptest.ResponseRecorder, 2)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for i := range recs {
+			admin := *c.d.admin
+			admin.ifMatch = version
+			wg.Go(func() {
+				<-start
+				recs[i] = admin.do(http.MethodPut, "/clinic/appointment-settings", body(10*round+i+1))
+			})
+		}
+		close(start)
+		wg.Wait()
+		var winner string
+		codes := map[int]int{}
+		for i, rec := range recs {
+			codes[rec.Code]++
+			switch rec.Code {
+			case http.StatusOK:
+				winner = fmt.Sprintf(`"reschedule_notice_hours":%d`, 10*round+i+1)
+			case http.StatusPreconditionFailed:
+				if !strings.Contains(rec.Body.String(), `"version_conflict"`) {
+					t.Errorf("412 body %s, want version_conflict", rec.Body)
+				}
+			}
+		}
+		if codes[http.StatusOK] != 1 || codes[http.StatusPreconditionFailed] != 1 {
+			t.Fatalf("saves at %s = %v, want one 200 and one 412", version, codes)
+		}
+		expectHTTP(t, c.d.admin, http.MethodGet, "/clinic/appointment-settings", http.StatusOK, winner)
 	}
 }

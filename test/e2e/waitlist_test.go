@@ -21,10 +21,7 @@ const offerSubject = "A time you were waiting for is free"
 // accepting it books the appointment through the waitlist. The clinic's list then shows the entry booked.
 func TestWaitlist_AFreedSlotIsOfferedAndAcceptedThroughTheApp(t *testing.T) {
 	clinic := newBookableClinic(t)
-	var settings map[string]any
-	clinic.admin.must(http.StatusOK, http.MethodGet, "/clinic/appointment-settings", nil, &settings)
-	settings["waitlist_enabled"] = true
-	clinic.admin.must(http.StatusOK, http.MethodPut, "/clinic/appointment-settings", settings, nil)
+	clinic.admin.changeAppointmentSettings(func(settings map[string]any) { settings["waitlist_enabled"] = true })
 
 	role := publicRole(t, clinic.id)
 	waiting := newPatientWithProfile(t)

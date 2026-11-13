@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ApiClient } from './api/client'
 import { attempt } from './api/result'
+import { saveAppointmentSettings } from './appointmentSettings'
 import type { components } from './api/schema'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -44,14 +45,9 @@ function RemindersForm({ settings, api, onSaved }: { settings: Settings; api: Ap
   const [saved, setSaved] = useState(false)
   const { busy, error, onSubmit } = useSubmit(async () => {
     setSaved(false)
-    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
-    // section or another admin saved since the page opened is kept and only this section's fields change.
-    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
-    if (!fresh.ok) return t('common.somethingWrong')
-    const res = await attempt(
-      api.PUT('/clinic/appointment-settings', { body: { ...fresh.data, reminder_offsets_minutes: offsets, sms_reminders: sms } }),
-    )
-    if (!res.ok) return saveMessage(t, res.code, res.response?.status)
+    // Only this section's fields change; someone else's save of them since they were shown is a conflict.
+    const res = await saveAppointmentSettings(api, settings, { reminder_offsets_minutes: offsets, sms_reminders: sms })
+    if (!res.ok) return res.conflict ? t('appointments.settingsConflict') : saveMessage(t, res.code, res.status)
     onSaved(res.data)
     setSaved(true)
     return undefined

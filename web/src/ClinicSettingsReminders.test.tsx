@@ -65,6 +65,16 @@ describe('ClinicSettingsReminders', () => {
     expect(reads).toBe(2)
   })
 
+  it('says when someone else saved the settings first, keeping what was entered', async () => {
+    renderReminders({ 'PUT /clinic/appointment-settings': () => apiError(412, 'version_conflict') })
+
+    fireEvent.click(await screen.findByLabelText('Reminders by SMS'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save reminders' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Settings were changed by someone else — reload the page. What you entered stays in the form.')
+    expect((screen.getByLabelText('Reminders by SMS') as HTMLInputElement).checked).toBe(true)
+  })
+
   it('shows the reminders, the earliest first', async () => {
     renderReminders({})
 

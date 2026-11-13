@@ -186,6 +186,25 @@ func TestRun_FailsWithoutTheObjectStoreSettings(t *testing.T) {
 	}
 }
 
+// Outside dev the binary does not start without its webhook key: each environment sets its own.
+func TestRun_FailsOutsideDevWithoutTheWebhookKey(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+	t.Setenv("TOTP_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtdG90cC1rZXktMzI=")
+	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=")
+	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
+	setLiveKit(t)
+	setObjectStore(t)
+	t.Setenv("WEBHOOK_KEY", "")
+	t.Setenv("WEBHOOK_KEY_FILE", "")
+	t.Setenv("SALUS_ENV", "production")
+
+	err := run(t.Context(), &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") {
+		t.Fatalf("run() error = %v, want one naming WEBHOOK_KEY", err)
+	}
+}
+
 // The default drafter keeps no calls: an api running for months holds no more memory than its first draft. The
 // Anthropic engine needs its key.
 func TestNewDrafter_TheFakeKeepsNoCallsAndAnthropicNeedsItsKey(t *testing.T) {

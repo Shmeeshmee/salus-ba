@@ -53,10 +53,7 @@ func TestReminders_TheReminderEmailArrivesAtItsTimeWithAOneTimeLink(t *testing.T
 	slots := []string{slot}
 	// Due between 5 and 65 seconds from now: the offset in whole minutes just under the time to the start.
 	offset := int(start.Sub(clock.System{}.Now().Add(5*time.Second)) / time.Minute)
-	var settings map[string]any
-	clinic.admin.must(http.StatusOK, http.MethodGet, "/clinic/appointment-settings", nil, &settings)
-	settings["reminder_offsets_minutes"] = []int{offset}
-	clinic.admin.must(http.StatusOK, http.MethodPut, "/clinic/appointment-settings", settings, nil)
+	clinic.admin.changeAppointmentSettings(func(settings map[string]any) { settings["reminder_offsets_minutes"] = []int{offset} })
 
 	p.must(http.StatusCreated, http.MethodPost, "/appointments", map[string]string{"slotId": slots[0]}, nil)
 	text := mailTextWithin(t, p.addr, reminderSubject, 2*time.Minute)

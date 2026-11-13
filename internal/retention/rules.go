@@ -8,9 +8,35 @@ import (
 // day is a calendar day for retention periods; a period in days is rounded up so it is never short.
 const day = 24 * time.Hour
 
-// Rules returns the rule of every table with personal data. The periods are defaults that need a legal
-// decision before production (docs/accounts/SPEC.md section 4).
-func Rules() []Rule {
+// clinicalTables are the clinical record's tables: what happens to them is the policy's ClinicalData, kept (pending
+// lawyer L1–L3).
+var clinicalTables = []string{
+	"encounter", "condition", "allergy_intolerance", "medication_statement", "allergy_intolerance_provenance",
+	"medication_statement_provenance", "document_draft", "transcript_segment", "appointment", "appointment_change",
+}
+
+// operationalLogTables are the operational logs (when each reminder was due, which channel a notification went
+// through): deleted after the policy's OperationalLogs (pending lawyer L1–L3).
+var operationalLogTables = []string{"appointment_reminder", "notification_delivery"}
+
+// Rules returns the rule of every table with personal data, the clinical tables' and the operational logs' as the
+// policy says. The periods are defaults that need a legal decision before production (docs/accounts/SPEC.md section
+// 4).
+func Rules(p Policy) []Rule {
+	rules := tableRules()
+	for i, r := range rules {
+		switch {
+		case slices.Contains(clinicalTables, r.Table):
+			rules[i].Then, rules[i].Keep = p.ClinicalData, 0
+		case slices.Contains(operationalLogTables, r.Table):
+			rules[i].Keep = p.OperationalLogs
+		}
+	}
+	return rules
+}
+
+// tableRules are the rules as written, before the policy.
+func tableRules() []Rule {
 	return append([]Rule{
 		{
 			Table: "audit_event",
