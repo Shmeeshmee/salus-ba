@@ -1,0 +1,32 @@
+{
+  "title": "Ihr Termin",
+  "appointment": "Termin bei {clinic}: {when}.",
+  "state_confirmed": "Sie haben bestätigt, dass Sie kommen.",
+  "state_unconfirmed": "Bitte bestätigen Sie, dass Sie kommen.",
+  "confirm": "Teilnahme bestätigen",
+  "cancel_heading": "Termin absagen",
+  "cancel_effect": {
+    "defaultMessage": "Mit der Absage wird die Zeit für andere Patientinnen und Patienten frei; die Absage kann nicht rückgängig gemacht werden. Sie erhalten eine E-Mail zur Absage.",
+    "description": "legal"
+  },
+  "cancel_tick": {
+    "defaultMessage": "Ja, ich möchte diesen Termin absagen",
+    "description": "legal"
+  },
+  "cancel_button": "Termin absagen",
+  "cancel_closed": {
+    "defaultMessage": "Der Termin beginnt in weniger als 24 Stunden und kann hier nicht mehr abgesagt werden. Um ihn abzusagen, wenden Sie sich an die Klinik.",
+    "description": "legal"
+  },
+  "reschedule": "Um eine andere Uhrzeit zu wählen, öffnen Sie die Salus-App.",
+  "used_confirm": "Sie haben diesen Termin bestätigt.",
+  "used_cancel": "Sie haben diesen Termin abgesagt.",
+  "invalid": "Dieser Link funktioniert nicht mehr. Öffnen Sie die Salus-App, um Ihre Termine zu sehen.",
+  "rate_limited": "Zu viele Anfragen von Ihrer Verbindung. Versuchen Sie es in einigen Minuten erneut.",
+  "confirm_cancel_required": "Um abzusagen, setzen Sie das Häkchen und drücken Sie die Schaltfläche erneut.",
+  "invalid_request": "Die Anfrage wurde nicht verstanden. Öffnen Sie den Link aus Ihrer Nachricht erneut.",
+  "forbidden": "Die Anfrage wurde abgelehnt. Öffnen Sie den Link aus Ihrer Nachricht erneut.",
+  "date": "{weekday}, {day}. {month} {year}, {time} Uhr ({zone})",
+  "weekdays": "Sonntag|Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag",
+  "months": "Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember"
+}

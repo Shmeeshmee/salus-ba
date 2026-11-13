@@ -2,6 +2,7 @@ package appointment_test
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -300,18 +301,18 @@ func TestDecline_HandsTheSlotOn(t *testing.T) {
 func TestOfferNotice_GivesTheOfferAndTheAccount(t *testing.T) {
 	t.Parallel()
 	w, id, _ := offered(t, now)
-	got, err := w.svc.OfferNotice(t.Context(), "reminder_email", clinicA, id)
+	got, err := w.svc.OfferNotice(t.Context(), "waitlist_offer_email", clinicA, id)
 	if err != nil || got.AccountID != accountA || got.Offer.ID != id {
 		t.Fatalf("OfferNotice() = %+v, %v; want the offer and patient A's account", got, err)
 	}
 	want := []auditevent.AuditEvent{
-		jobEvent("reminder_email", clinicA, auditevent.CodeRead, "Appointment", w.wl.entries[0].ID),
-		jobEvent("reminder_email", clinicA, auditevent.CodeRead, "Patient", patientA),
+		jobEvent("waitlist_offer_email", clinicA, auditevent.CodeRead, "Appointment", w.wl.entries[0].ID),
+		jobEvent("waitlist_offer_email", clinicA, auditevent.CodeRead, "Patient", patientA),
 	}
 	if !slices.Equal(w.audit.events, want) {
 		t.Errorf("audit %+v, want %+v", w.audit.events, want)
 	}
-	if _, err := w.svc.OfferNotice(t.Context(), "reminder_email", clinicB, id); !errors.Is(err, appointment.ErrNotFound) {
+	if _, err := w.svc.OfferNotice(t.Context(), "waitlist_offer_email", clinicB, id); !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("OfferNotice(another clinic) = %v, want ErrNotFound", err)
 	}
 }
@@ -341,5 +342,63 @@ func TestAccept_AnOfferAcceptedOnAnotherDeviceGivesItsAppointment(t *testing.T) 
 	}
 	if _, err := w.svc.Accept(t.Context(), other, id); !errors.Is(err, appointment.ErrNotFound) {
 		t.Errorf("Accept(another patient) = %v, want ErrNotFound", err)
+	}
+}
+
+// A patient no delivery reaches (no channel on that carries an offer), or without a profile the clinic sees, is passed
+// over: no slot is held for nobody, and nobody's profile stops the offer for the others (delta review, findings 3 and 5).
+func TestHandOn_PassesOverWhomNoOfferReaches(t *testing.T) {
+	t.Parallel()
+	const ghost = "cc000000-0000-4000-8000-0000000000cc"
+	w := newWaitlistFixture(now)
+	w.consents.state[ghost+clinicA] = access.Consent{Active: true}
+	g := w.entry(ghost, roleA1, 0)
+	a := w.entry(patientA, roleA1, 0)
+	b := w.entry(patientB, roleA1, 0)
+	w.wl.cands = []string{g, a, b}
+	w.quiet.unreachable[accountA] = true
+	if err := w.svc.HandOn(t.Context(), clinicA, slotFree); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.wl.offers) != 1 || w.wl.offers[0].EntryID != b {
+		t.Errorf("offers %+v, want patient B's: no profile for the first, no channel for patient A", w.wl.offers)
+	}
+	if want := []string{"waitlist_slot_freed", "waitlist_slot_freed"}; !slices.Equal(*w.quiet.agents, want) {
+		t.Errorf("reach asked as %v, want the job's agent", *w.quiet.agents)
+	}
+}
+
+// When every candidate is inside their quiet hours, the slot stays free and is handed on again at the earliest end of
+// those quiet hours; past the first page of candidates, the search goes on, so the eleventh gets it when the first ten
+// are quiet (delta review, finding 2).
+func TestHandOn_TriesAgainAfterTheQuietHoursAndLooksPastTheFirstPage(t *testing.T) {
+	t.Parallel()
+	w := newWaitlistFixture(now)
+	morning, later := now.Add(10*time.Hour), now.Add(11*time.Hour)
+	w.wl.cands = []string{w.entry(patientA, roleA1, 0), w.entry(patientB, roleA1, 0)}
+	w.quiet.quiet[accountA], w.quiet.quiet[accountB] = true, true
+	w.quiet.quietUntil[accountA], w.quiet.quietUntil[accountB] = later, morning
+	if err := w.svc.HandOn(t.Context(), clinicA, slotFree); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"hand_on " + slotFree + " " + clinicA + " at " + morning.Format(time.RFC3339)}; len(w.wl.offers) != 0 ||
+		!slices.Equal(w.jobs.enqueued, want) || w.offered.status(slotFree) != slot.StatusFree {
+		t.Errorf("offers %+v, jobs %v, slot %s; want none, the hand-on at %v, the slot free", w.wl.offers, w.jobs.enqueued, w.offered.status(slotFree), morning)
+	}
+
+	w = newWaitlistFixture(now)
+	const many = 11
+	for i := range many {
+		id := fmt.Sprintf("d%07d-0000-4000-8000-0000000000dd", i)
+		w.consents.state[id+clinicA] = access.Consent{Active: true}
+		w.wl.cands = append(w.wl.cands, w.entry(id, roleA1, 0))
+	}
+	w.wl.cands = append(w.wl.cands, w.entry(patientA, roleA1, 0))
+	// The first eleven have no profile the fake knows: passed over like quiet ones; patient A comes twelfth.
+	if err := w.svc.HandOn(t.Context(), clinicA, slotFree); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.wl.offers) != 1 || w.wl.offers[0].PatientID != patientA {
+		t.Errorf("offers %+v, want patient A's, past the first page", w.wl.offers)
 	}
 }

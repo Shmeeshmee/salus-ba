@@ -57,7 +57,8 @@ func waitlistAt(t *testing.T, app *pgxpool.Pool, clk clock.Clock, change ...func
 		Patients: patient.NewService(patient.NewPostgresRepository(app), audit, tx, clk, consents, appointment.NewFacts(repo)),
 		Jobs:     appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs),
 		Waitlist: appointment.NewPostgresWaitlistRepository(app), Offered: slots, OfferJobs: appointment.NewRiverOfferJobs(jobs),
-		Rules: rules, Reminders: appointment.NewPostgresReminderRepository(app), Notices: offers, Quiet: offers,
+		Rules: rules, Reminders: appointment.NewPostgresReminderRepository(app), Notices: offers, Reach: offers,
+		SelfService: appointment.NewPostgresSelfServiceRepository(app),
 	}
 	for _, c := range change {
 		c(&p)
@@ -71,6 +72,12 @@ func waitlistClinic(t *testing.T, owner *pgxpool.Pool, n int, offsets ...time.Du
 	t.Helper()
 	c := seedClinic(t, owner, n, offsets...)
 	if _, err := owner.Exec(t.Context(), `INSERT INTO organization_appointment_settings (organization_id, waitlist_enabled) VALUES ($1, true)`, inviteClinic); err != nil {
+		t.Fatal(err)
+	}
+	// The waiting patients keep e-mail on with no quiet hours, so an offer reaches them whatever the time of day the
+	// test runs at (TestWaitlist_ANightTimeOfferWaitsForTheMorning has the defaults' quiet hours).
+	if _, err := owner.Exec(t.Context(), `INSERT INTO notification_preference (account_id, push, email, sms) SELECT unnest($1::uuid[]), false, true, false`,
+		c.accounts); err != nil {
 		t.Fatal(err)
 	}
 	for i, p := range c.patients {
@@ -155,13 +162,17 @@ func TestWaitlist_AnAcceptanceRacingTheExpiryBooksOrHandsOnNeverBoth(t *testing.
 			t.Fatalf("round %d: no offer", round)
 		}
 		early, late := waitlistAt(t, app, clock.Fixed{T: expires.Add(-time.Millisecond)}), waitlistAt(t, app, clock.Fixed{T: expires.Add(time.Millisecond)})
-		// The expiry starts later each round, from at once to well after the acceptance: the rounds between meet on
-		// the offer's lock.
-		delay := []time.Duration{0, time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond, 8 * time.Millisecond,
-			16 * time.Millisecond, 32 * time.Millisecond, 250 * time.Millisecond}[round]
+		// One side starts later each round, from the acceptance well after the expiry to the expiry well after the
+		// acceptance: the rounds between meet on the offer's lock.
+		delay := []time.Duration{-250 * time.Millisecond, -8 * time.Millisecond, -2 * time.Millisecond, 0, time.Millisecond,
+			4 * time.Millisecond, 16 * time.Millisecond, 250 * time.Millisecond}[round]
 		errs := atOnce(
-			func() error { _, err := early.Accept(t.Context(), callerOf(c, p), offer); return err },
-			func() error { time.Sleep(delay); return late.ExpireOffer(t.Context(), inviteClinic, offer) },
+			func() error {
+				time.Sleep(-min(delay, 0))
+				_, err := early.Accept(t.Context(), callerOf(c, p), offer)
+				return err
+			},
+			func() error { time.Sleep(max(delay, 0)); return late.ExpireOffer(t.Context(), inviteClinic, offer) },
 		)
 		switch {
 		case errs[1] != nil:
@@ -479,4 +490,68 @@ func TestWaitlist_APageOfTheClinicsListAtTenThousandEntries(t *testing.T) {
 			t.Errorf("%s: a page takes %v, want well under two seconds", name, took[2])
 		}
 	}
+}
+
+// A patient reschedules (SAL-34): the slot they leave is handed to the waitlist through waitlist_slot_freed, and the
+// job (HandOn, as the worker runs it with the job's arguments) offers it to a waiting patient, never to the one who
+// moved off it.
+func TestWaitlist_ARescheduleHandsTheSlotItLeavesToTheWaitlist(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	c := waitlistClinic(t, owner, 2, 72*time.Hour, 74*time.Hour)
+	svc := waitlistAt(t, app, clock.System{})
+	mover := appointment.Caller{AccountID: c.accounts[1], PatientID: c.patients[1]}
+	a, err := svc.Book(t.Context(), mover, c.slots[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Reschedule(t.Context(), mover, a.ID, c.slots[1]); err != nil {
+		t.Fatalf("Reschedule() = %v", err)
+	}
+	var args string
+	if err := owner.QueryRow(t.Context(), `SELECT args::text FROM river_job WHERE kind = 'waitlist_slot_freed'`).Scan(&args); err != nil ||
+		args != `{"slot_id": "`+c.slots[0]+`", "organization_id": "`+inviteClinic+`"}` {
+		t.Fatalf("waitlist_slot_freed %s (%v), want the slot left", args, err)
+	}
+	if err := svc.HandOn(t.Context(), inviteClinic, c.slots[0]); err != nil {
+		t.Fatal(err)
+	}
+	if offer, p, _ := openOffer(t, owner, c.slots[0]); offer == "" || p != c.patients[0] {
+		t.Errorf("offer %q to %s, want one to the waiting patient %s", offer, p, c.patients[0])
+	}
+	checkWaitlistInStep(t, owner, 0)
+}
+
+// At night, the default quiet hours (22:00 to 08:00 in the clinic's zone) pass every waiting patient over: the slot stays
+// free and its hand-on is scheduled once, at 08:00 the next morning (delta review, findings 1 and 2).
+func TestWaitlist_ANightTimeOfferWaitsForTheMorning(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	c := waitlistClinic(t, owner, 2, 96*time.Hour)
+	if _, err := owner.Exec(t.Context(), `DELETE FROM notification_preference`); err != nil { // the defaults: quiet hours on
+		t.Fatal(err)
+	}
+	loc, err := time.LoadLocation("Europe/Sarajevo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	today := clock.System{}.Now().In(loc)
+	night := time.Date(today.Year(), today.Month(), today.Day(), 23, 30, 0, 0, loc)
+	morning := time.Date(today.Year(), today.Month(), today.Day()+1, 8, 0, 0, 0, loc)
+	svc := waitlistAt(t, app, clock.Fixed{T: night})
+	for range 2 {
+		if err := svc.HandOn(t.Context(), inviteClinic, c.slots[0]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if offer, _, _ := openOffer(t, owner, c.slots[0]); offer != "" {
+		t.Errorf("an offer at night: %s", offer)
+	}
+	var at time.Time
+	var n int
+	if err := owner.QueryRow(t.Context(), `SELECT count(*), max(scheduled_at) FROM river_job WHERE kind = 'waitlist_slot_freed'`).Scan(&n, &at); err != nil ||
+		n != 1 || !at.Equal(morning) {
+		t.Errorf("%d hand-ons, at %v (%v); want one at %v", n, at, err, morning)
+	}
+	checkWaitlistInStep(t, owner, 0)
 }

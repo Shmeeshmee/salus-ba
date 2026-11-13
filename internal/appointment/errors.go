@@ -50,6 +50,10 @@ var (
 	ErrOfferNotDue = errors.New("appointment: offer not due to expire")
 	// ErrInvalidPriority is returned for a waitlist priority outside 0 to 100 (SAL-35).
 	ErrInvalidPriority = errors.New("appointment: invalid priority")
+	// ErrLinkRateLimited is returned when an address looked up too many links in a short time (SAL-34).
+	ErrLinkRateLimited = errors.New("appointment: too many link lookups")
+	// ErrConfirmCancelRequired is returned for a link's cancel without its ticked box (ADR 0015 "Scanners that click").
+	ErrConfirmCancelRequired = errors.New("appointment: cancel not confirmed")
 	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
 	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
 	ErrReminderGone = errors.New("appointment: reminder no longer applies")

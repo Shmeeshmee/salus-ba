@@ -1,0 +1,9 @@
+Vaš termin ima novo vrijeme
+
+Vaš je termin u ustanovi {{.Clinic}} premješten.
+Novi datum i vrijeme: {{.When}}
+
+Za pregled ili otkazivanje termina otvorite aplikaciju Salus:
+{{.Link}}
+
+Termin možete otkazati najkasnije 24 sata prije početka.

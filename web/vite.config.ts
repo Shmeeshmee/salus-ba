@@ -17,7 +17,7 @@ export default defineConfig({
       '/invites': apiUrl,
       '/practitioner-roles': apiUrl,
       // Only the JSON actions: /appointments/<id> and /appointments/<id>/call are screens of the app.
-      '^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$': apiUrl,
+      '^/appointments/[^/]+/(cancel|status|changes|questionnaires|consultation(/join|/end)?)$': apiUrl,
       '/questionnaire-responses': apiUrl,
       '/binaries': apiUrl, // the files of questionnaire answers: status and content
       '/specialties': apiUrl,

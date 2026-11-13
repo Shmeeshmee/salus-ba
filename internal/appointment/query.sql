@@ -108,6 +108,102 @@ WHERE organization_id = @organization_id AND status = 'fulfilled'
   AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
 ORDER BY lower(period);
 
+-- SAL-34 (docs/plans/appointments.md): the patient's confirmation and reschedule, and the use of a one-time link.
+
+-- name: AppointmentByIDForUpdate :one
+-- AppointmentByID, locking the row until the transaction ends: a reschedule decides on what it reads, and a concurrent
+-- reschedule or cancellation waits for it. Row-level security asks the UPDATE policies too.
+SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM appointment
+WHERE id = @id
+FOR UPDATE;
+
+-- name: ConfirmAppointment :one
+-- Only a booked, unconfirmed appointment, in the patient's scope (appointment_guard_change).
+UPDATE appointment
+SET confirmed_at = @at, confirmed_via = @via, updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = 'booked' AND confirmed_at IS NULL
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
+
+-- name: RescheduleAppointment :one
+-- The period and the slot together, the count up by one, and the confirmation in the app when there was none (choosing
+-- the time confirms it; a confirmation never changes). Only a booked appointment still at the count the reschedule
+-- was decided on; an overlap with the role's other appointments violates appointment_no_double_booking (23P01).
+UPDATE appointment
+SET period = tstzrange(@start_at::timestamptz, @end_at::timestamptz), slot_id = @slot_id, reschedule_count = reschedule_count + 1,
+    confirmed_at = COALESCE(confirmed_at, @at), confirmed_via = COALESCE(confirmed_via, 'app'),
+    updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = 'booked' AND reschedule_count = @from_count
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
+
+-- name: FindActionToken :one
+-- The ids of the link with the hash, whatever the scope (appointment_action_token_find, SECURITY DEFINER).
+SELECT f.id::uuid AS id, f.appointment_id::uuid AS appointment_id, f.organization_id::uuid AS organization_id,
+       f.patient_id::uuid AS patient_id, f.account_id::uuid AS account_id
+FROM appointment_action_token_find(@token_hash::bytea) AS f;
+
+-- name: ActionTokenByID :one
+-- In the link's patient's scope.
+SELECT id, created_at, start_at, used_at, appointment_id, organization_id, patient_id, account_id, reminder_id, token_hash,
+       channel, language, used_action
+FROM appointment_action_token
+WHERE id = @id;
+
+-- name: UseActionToken :execrows
+-- Once: a used link has used_at set and is never changed again (the trigger refuses it for every role).
+UPDATE appointment_action_token
+SET used_at = @at, used_action = @action
+WHERE id = @id AND used_at IS NULL;
+
+-- SAL-33 (docs/plans/appointments.md): the reminders.
+
+-- name: InsertReminder :one
+-- A scheduled reminder; none when the appointment has one of that offset for that start already.
+INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
+VALUES (@appointment_id, @organization_id, @patient_id, @offset_minutes, @start_at, @due_at)
+ON CONFLICT (appointment_id, offset_minutes, start_at) WHERE state IN ('scheduled', 'dispatched') DO NOTHING
+RETURNING id, created_at;
+
+-- name: CancelReminders :execrows
+-- The scheduled ones, and the dispatched ones whose sends may still be held: all of them are dead with the change.
+UPDATE appointment_reminder SET state = 'cancelled'
+WHERE appointment_id = @appointment_id AND state IN ('scheduled', 'dispatched');
+
+-- name: LockReminder :one
+SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
+FROM appointment_reminder
+WHERE id = @id
+FOR UPDATE;
+
+-- name: ReminderByID :one
+SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
+FROM appointment_reminder
+WHERE id = @id;
+
+-- name: SetReminderState :execrows
+UPDATE appointment_reminder SET state = @state, dispatched_at = sqlc.narg(dispatched_at)
+WHERE id = @id AND state = 'scheduled';
+
+-- name: OverdueReminders :many
+-- The sweep's page, of every clinic (the view reads with its owner's rights): due by at, the start still ahead.
+SELECT id, organization_id, due_at
+FROM appointment_reminder_scheduled
+WHERE due_at <= @at::timestamptz AND start_at > @at::timestamptz
+  AND (due_at, id) > (@after_due::timestamptz, @after_id::uuid)
+ORDER BY due_at, id
+LIMIT @max::integer;
+
+-- name: DeleteRemindersDueBefore :execrows
+-- Retention, as salus_retention.
+DELETE FROM appointment_reminder
+WHERE due_at < @before::timestamptz;
+
 -- SAL-35: the waitlist (waitlist_entry, waitlist_offer).
 
 -- name: InsertWaitlistEntry :one
@@ -206,6 +302,7 @@ WHERE e.organization_id = @organization_id AND e.status = 'active' AND e.ends_at
                     AND (a.slot_id = @slot_id
                          OR (a.status = 'booked' AND a.period && tstzrange(@start_at::timestamptz, @end_at::timestamptz))))
   AND NOT EXISTS (SELECT 1 FROM appointment_change c WHERE c.patient_id = e.patient_id AND c.from_slot_id = @slot_id)
+  AND NOT (e.id = ANY (@skip::uuid[]))
 ORDER BY e.priority DESC, e.created_at, e.id
 LIMIT @max_rows
 -- The entries a concurrent job or withdrawal holds are passed over; the one chosen stays locked until the offer is stored.
@@ -260,45 +357,3 @@ WHERE closed_at < @before::timestamptz OR (status = 'active' AND ends_at < @befo
 DELETE FROM waitlist_offer o
 USING waitlist_entry e
 WHERE o.entry_id = e.id AND (e.closed_at < @before::timestamptz OR (e.status = 'active' AND e.ends_at < @before::timestamptz));
--- SAL-33 (docs/plans/appointments.md): the reminders.
-
--- name: InsertReminder :one
--- A scheduled reminder; none when the appointment has one of that offset for that start already.
-INSERT INTO appointment_reminder (appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at)
-VALUES (@appointment_id, @organization_id, @patient_id, @offset_minutes, @start_at, @due_at)
-ON CONFLICT (appointment_id, offset_minutes, start_at) WHERE state IN ('scheduled', 'dispatched') DO NOTHING
-RETURNING id, created_at;
-
--- name: CancelReminders :execrows
--- The scheduled ones, and the dispatched ones whose sends may still be held: all of them are dead with the change.
-UPDATE appointment_reminder SET state = 'cancelled'
-WHERE appointment_id = @appointment_id AND state IN ('scheduled', 'dispatched');
-
--- name: LockReminder :one
-SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
-FROM appointment_reminder
-WHERE id = @id
-FOR UPDATE;
-
--- name: ReminderByID :one
-SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
-FROM appointment_reminder
-WHERE id = @id;
-
--- name: SetReminderState :execrows
-UPDATE appointment_reminder SET state = @state, dispatched_at = sqlc.narg(dispatched_at)
-WHERE id = @id AND state = 'scheduled';
-
--- name: OverdueReminders :many
--- The sweep's page, of every clinic (the view reads with its owner's rights): due by at, the start still ahead.
-SELECT id, organization_id, due_at
-FROM appointment_reminder_scheduled
-WHERE due_at <= @at::timestamptz AND start_at > @at::timestamptz
-  AND (due_at, id) > (@after_due::timestamptz, @after_id::uuid)
-ORDER BY due_at, id
-LIMIT @max::integer;
-
--- name: DeleteRemindersDueBefore :execrows
--- Retention, as salus_retention.
-DELETE FROM appointment_reminder
-WHERE due_at < @before::timestamptz;

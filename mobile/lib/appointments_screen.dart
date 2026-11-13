@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'appointment_actions.dart';
 import 'booking.dart';
 import 'call.dart';
 import 'call_screen.dart';
@@ -164,6 +165,20 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     }
   }
 
+  /// An action of the appointment's panel succeeded: its sentence, and the list read again.
+  Future<void> _done(String message) async {
+    setState(() {
+      _message = message;
+      _error = null;
+    });
+    await reload();
+  }
+
+  void _failed(String message) => setState(() {
+    _message = null;
+    _error = message;
+  });
+
   @override
   Widget build(BuildContext context) {
     final now = widget.now();
@@ -221,6 +236,18 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
               place == null ? t.unlistedClinic : [place.$2.name, place.$1.name].where((s) => s.isNotEmpty).join(', '),
             ),
             Text(_status(t, a.status)),
+            if (open)
+              AppointmentActionsPanel(
+                key: ValueKey(a.id),
+                booking: widget.booking,
+                now: widget.now,
+                appointment: a,
+                zone: zone,
+                clinic: place?.$1,
+                role: place?.$2,
+                onDone: _done,
+                onFailed: _failed,
+              ),
             if (window == JoinWindow.open) ...[
               const SizedBox(height: 8),
               FilledButton(onPressed: () => _join(a, place?.$1), child: Text(t.joinConsultation)),

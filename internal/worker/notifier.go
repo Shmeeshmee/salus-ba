@@ -110,6 +110,9 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 	river.AddWorker(workers, &appointmentEmailWorker[appointment.ReminderEmailArgs]{send: func(ctx context.Context, a appointment.ReminderEmailArgs) error {
 		return mail.SendAppointmentReminder(ctx, a.AppointmentID, a.OrganizationID)
 	}})
+	river.AddWorker(workers, &appointmentEmailWorker[appointment.RescheduledEmailArgs]{send: func(ctx context.Context, a appointment.RescheduledEmailArgs) error {
+		return mail.SendAppointmentRescheduled(ctx, a.AppointmentID, a.OrganizationID)
+	}})
 	river.AddWorker(workers, &appointmentEmailWorker[composition.SignedEmailArgs]{send: func(ctx context.Context, a composition.SignedEmailArgs) error {
 		return mail.SendDocumentSigned(ctx, a.AppointmentID, a.OrganizationID)
 	}})

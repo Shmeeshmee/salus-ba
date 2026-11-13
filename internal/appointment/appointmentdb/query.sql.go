@@ -11,6 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const actionTokenByID = `-- name: ActionTokenByID :one
+SELECT id, created_at, start_at, used_at, appointment_id, organization_id, patient_id, account_id, reminder_id, token_hash,
+       channel, language, used_action
+FROM appointment_action_token
+WHERE id = $1
+`
+
+type ActionTokenByIDRow struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	StartAt        pgtype.Timestamptz
+	UsedAt         pgtype.Timestamptz
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	AccountID      pgtype.UUID
+	ReminderID     pgtype.UUID
+	TokenHash      []byte
+	Channel        string
+	Language       Language
+	UsedAction     pgtype.Text
+}
+
+// In the link's patient's scope.
+func (q *Queries) ActionTokenByID(ctx context.Context, id pgtype.UUID) (ActionTokenByIDRow, error) {
+	row := q.db.QueryRow(ctx, actionTokenByID, id)
+	var i ActionTokenByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartAt,
+		&i.UsedAt,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.AccountID,
+		&i.ReminderID,
+		&i.TokenHash,
+		&i.Channel,
+		&i.Language,
+		&i.UsedAction,
+	)
+	return i, err
+}
+
 const activeWaitlistEntries = `-- name: ActiveWaitlistEntries :many
 SELECT id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
        times_start_minute, times_end_minute, priority, status, specialty
@@ -166,6 +211,66 @@ type AppointmentByIDForShareRow struct {
 func (q *Queries) AppointmentByIDForShare(ctx context.Context, id pgtype.UUID) (AppointmentByIDForShareRow, error) {
 	row := q.db.QueryRow(ctx, appointmentByIDForShare, id)
 	var i AppointmentByIDForShareRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.SlotID,
+		&i.CancelledByAccountID,
+		&i.VersionID,
+		&i.Status,
+		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
+const appointmentByIDForUpdate = `-- name: AppointmentByIDForUpdate :one
+
+SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM appointment
+WHERE id = $1
+FOR UPDATE
+`
+
+type AppointmentByIDForUpdateRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// SAL-34 (docs/plans/appointments.md): the patient's confirmation and reschedule, and the use of a one-time link.
+// AppointmentByID, locking the row until the transaction ends: a reschedule decides on what it reads, and a concurrent
+// reschedule or cancellation waits for it. Row-level security asks the UPDATE policies too.
+func (q *Queries) AppointmentByIDForUpdate(ctx context.Context, id pgtype.UUID) (AppointmentByIDForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, appointmentByIDForUpdate, id)
+	var i AppointmentByIDForUpdateRow
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -381,6 +486,69 @@ func (q *Queries) CloseWaitlistOffer(ctx context.Context, arg CloseWaitlistOffer
 	return i, err
 }
 
+const confirmAppointment = `-- name: ConfirmAppointment :one
+UPDATE appointment
+SET confirmed_at = $1, confirmed_via = $2, updated_at = $1, version_id = version_id + 1
+WHERE id = $3 AND status = 'booked' AND confirmed_at IS NULL
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+`
+
+type ConfirmAppointmentParams struct {
+	At  pgtype.Timestamptz
+	Via pgtype.Text
+	ID  pgtype.UUID
+}
+
+type ConfirmAppointmentRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// Only a booked, unconfirmed appointment, in the patient's scope (appointment_guard_change).
+func (q *Queries) ConfirmAppointment(ctx context.Context, arg ConfirmAppointmentParams) (ConfirmAppointmentRow, error) {
+	row := q.db.QueryRow(ctx, confirmAppointment, arg.At, arg.Via, arg.ID)
+	var i ConfirmAppointmentRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.SlotID,
+		&i.CancelledByAccountID,
+		&i.VersionID,
+		&i.Status,
+		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const countActiveWaitlistEntries = `-- name: CountActiveWaitlistEntries :one
 SELECT count(*)::integer FROM waitlist_entry
 WHERE patient_id = $1 AND organization_id = $2 AND status = 'active' AND ends_at > $3::timestamptz
@@ -533,6 +701,34 @@ func (q *Queries) DeleteWaitlistOffersClosedBefore(ctx context.Context, before p
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const findActionToken = `-- name: FindActionToken :one
+SELECT f.id::uuid AS id, f.appointment_id::uuid AS appointment_id, f.organization_id::uuid AS organization_id,
+       f.patient_id::uuid AS patient_id, f.account_id::uuid AS account_id
+FROM appointment_action_token_find($1::bytea) AS f
+`
+
+type FindActionTokenRow struct {
+	ID             pgtype.UUID
+	AppointmentID  pgtype.UUID
+	OrganizationID pgtype.UUID
+	PatientID      pgtype.UUID
+	AccountID      pgtype.UUID
+}
+
+// The ids of the link with the hash, whatever the scope (appointment_action_token_find, SECURITY DEFINER).
+func (q *Queries) FindActionToken(ctx context.Context, tokenHash []byte) (FindActionTokenRow, error) {
+	row := q.db.QueryRow(ctx, findActionToken, tokenHash)
+	var i FindActionTokenRow
+	err := row.Scan(
+		&i.ID,
+		&i.AppointmentID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.AccountID,
+	)
+	return i, err
 }
 
 const insertActionToken = `-- name: InsertActionToken :exec
@@ -1334,6 +1530,83 @@ func (q *Queries) ReminderByID(ctx context.Context, id pgtype.UUID) (ReminderByI
 	return i, err
 }
 
+const rescheduleAppointment = `-- name: RescheduleAppointment :one
+UPDATE appointment
+SET period = tstzrange($1::timestamptz, $2::timestamptz), slot_id = $3, reschedule_count = reschedule_count + 1,
+    confirmed_at = COALESCE(confirmed_at, $4), confirmed_via = COALESCE(confirmed_via, 'app'),
+    updated_at = $4, version_id = version_id + 1
+WHERE id = $5 AND status = 'booked' AND reschedule_count = $6
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+`
+
+type RescheduleAppointmentParams struct {
+	StartAt   pgtype.Timestamptz
+	EndAt     pgtype.Timestamptz
+	SlotID    pgtype.UUID
+	At        pgtype.Timestamptz
+	ID        pgtype.UUID
+	FromCount int16
+}
+
+type RescheduleAppointmentRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// The period and the slot together, the count up by one, and the confirmation in the app when there was none (choosing
+// the time confirms it; a confirmation never changes). Only a booked appointment still at the count the reschedule
+// was decided on; an overlap with the role's other appointments violates appointment_no_double_booking (23P01).
+func (q *Queries) RescheduleAppointment(ctx context.Context, arg RescheduleAppointmentParams) (RescheduleAppointmentRow, error) {
+	row := q.db.QueryRow(ctx, rescheduleAppointment,
+		arg.StartAt,
+		arg.EndAt,
+		arg.SlotID,
+		arg.At,
+		arg.ID,
+		arg.FromCount,
+	)
+	var i RescheduleAppointmentRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.SlotID,
+		&i.CancelledByAccountID,
+		&i.VersionID,
+		&i.Status,
+		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const searchAppointments = `-- name: SearchAppointments :many
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
        cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
@@ -1560,6 +1833,27 @@ func (q *Queries) SetWaitlistPriority(ctx context.Context, arg SetWaitlistPriori
 	return i, err
 }
 
+const useActionToken = `-- name: UseActionToken :execrows
+UPDATE appointment_action_token
+SET used_at = $1, used_action = $2
+WHERE id = $3 AND used_at IS NULL
+`
+
+type UseActionTokenParams struct {
+	At     pgtype.Timestamptz
+	Action pgtype.Text
+	ID     pgtype.UUID
+}
+
+// Once: a used link has used_at set and is never changed again (the trigger refuses it for every role).
+func (q *Queries) UseActionToken(ctx context.Context, arg UseActionTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, useActionToken, arg.At, arg.Action, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const waitlistCandidates = `-- name: WaitlistCandidates :many
 SELECT e.id, e.created_at, e.ends_at, e.closed_at, e.patient_id, e.organization_id, e.practitioner_role_id, e.earliest, e.latest,
        e.times_start_minute, e.times_end_minute, e.priority, e.status, e.specialty
@@ -1576,8 +1870,9 @@ WHERE e.organization_id = $1 AND e.status = 'active' AND e.ends_at > $2::timesta
                     AND (a.slot_id = $8
                          OR (a.status = 'booked' AND a.period && tstzrange($9::timestamptz, $10::timestamptz))))
   AND NOT EXISTS (SELECT 1 FROM appointment_change c WHERE c.patient_id = e.patient_id AND c.from_slot_id = $8)
+  AND NOT (e.id = ANY ($11::uuid[]))
 ORDER BY e.priority DESC, e.created_at, e.id
-LIMIT $11
+LIMIT $12
 FOR UPDATE OF e SKIP LOCKED
 `
 
@@ -1592,6 +1887,7 @@ type WaitlistCandidatesParams struct {
 	SlotID             pgtype.UUID
 	StartAt            pgtype.Timestamptz
 	EndAt              pgtype.Timestamptz
+	Skip               []pgtype.UUID
 	MaxRows            int32
 }
 
@@ -1629,6 +1925,7 @@ func (q *Queries) WaitlistCandidates(ctx context.Context, arg WaitlistCandidates
 		arg.SlotID,
 		arg.StartAt,
 		arg.EndAt,
+		arg.Skip,
 		arg.MaxRows,
 	)
 	if err != nil {

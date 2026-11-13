@@ -7,6 +7,7 @@ import { isStaffLanguage, staffLanguages } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
 import { languageNames } from './language'
 import { useLoad } from './load'
+import { ClinicSettingsReschedule } from './ClinicSettingsReschedule'
 import { Alert, Field, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 import type { components } from './api/schema'
@@ -19,7 +20,8 @@ type Place = components['schemas']['Place']
 // listed in the patient app, whether its patients get a copy of their transcripts, its location (a region and a
 // city of GET /places) and whether it contributes to the All of Salus figures, with If-Match on the version read.
 // platform is whether the All of Salus view is on (GET /auth/me features): off, the opt-out and the location hint,
-// which speak of that view, are not shown (docs/plans/analytics.md §2a). The reminders section follows (SAL-33).
+// which speak of that view, are not shown (docs/plans/analytics.md §2a). Below them, the clinic's rescheduling rules
+// (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33).
 export function ClinicSettings({
   api,
   fhir,
@@ -74,6 +76,7 @@ export function ClinicSettings({
             onReload={reload}
           />
         )}
+        {load.name === 'loaded' && <ClinicSettingsReschedule api={api} />}
       </section>
       <ClinicSettingsReminders api={api} />
     </>

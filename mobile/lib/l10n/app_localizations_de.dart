@@ -1853,6 +1853,63 @@ class AppLocalizationsDe extends AppLocalizations {
       'Diese Einstellungen konnten nicht gespeichert werden. Prüfen Sie sie und versuchen Sie es erneut.';
 
   @override
+  String get confirmAttendance => 'Teilnahme bestätigen';
+
+  @override
+  String get appointmentConfirmedStatus => 'Bestätigt';
+
+  @override
+  String get appointmentConfirmedNotice => 'Ihr Termin ist bestätigt.';
+
+  @override
+  String get changeTime => 'Uhrzeit ändern';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Die Uhrzeit kann bis $date um $time geändert werden.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Verbleibende Änderungen der Uhrzeit: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Neue Uhrzeit wählen';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Derzeit gebucht: $date um $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Termin verschieben?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Ihr Termin wird auf $date um $time verschoben. Die bisherige Uhrzeit wird freigegeben.';
+  }
+
+  @override
+  String get moveAppointment => 'Termin verschieben';
+
+  @override
+  String get appointmentMoved =>
+      'Ihr Termin ist auf die neue Uhrzeit verschoben.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Die Uhrzeit dieses Termins kann in der App nicht mehr geändert werden. Bitte wenden Sie sich an die Klinik.';
+
+  @override
+  String get rescheduleLimit =>
+      'Die Uhrzeit dieses Termins wurde so oft geändert, wie die Klinik es erlaubt.';
+
+  @override
+  String get notReschedulable =>
+      'Die Uhrzeit dieses Termins kann in der App nicht geändert werden.';
+
+  @override
   String get waitlistTitle => 'Meine Warteliste';
 
   @override

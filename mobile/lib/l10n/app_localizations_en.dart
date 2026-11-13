@@ -1824,6 +1824,62 @@ class AppLocalizationsEn extends AppLocalizations {
       'These settings could not be saved. Check them and try again.';
 
   @override
+  String get confirmAttendance => 'Confirm I will come';
+
+  @override
+  String get appointmentConfirmedStatus => 'Confirmed';
+
+  @override
+  String get appointmentConfirmedNotice => 'Your appointment is confirmed.';
+
+  @override
+  String get changeTime => 'Change the time';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'The time can be changed until $date at $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Time changes left: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Choose a new time';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Booked now: $date at $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Move your appointment?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Your appointment will move to $date at $time. Your current time will be released.';
+  }
+
+  @override
+  String get moveAppointment => 'Move appointment';
+
+  @override
+  String get appointmentMoved => 'Your appointment is moved to the new time.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'The time of this appointment can no longer be changed in the app. Please contact the clinic.';
+
+  @override
+  String get rescheduleLimit =>
+      'This appointment\'s time has been changed as often as the clinic allows.';
+
+  @override
+  String get notReschedulable =>
+      'The time of this appointment cannot be changed in the app.';
+
+  @override
   String get waitlistTitle => 'My waitlist';
 
   @override

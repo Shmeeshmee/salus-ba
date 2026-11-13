@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -172,7 +173,7 @@ func (w *fakeWaitlist) Candidates(ctx context.Context, m appointment.Match, n in
 		if !ok || len(out) == n {
 			continue
 		}
-		e, offered := w.entries[i], false
+		e, offered := w.entries[i], slices.Contains(m.Skip, id)
 		for _, o := range w.offers {
 			offered = offered || o.EntryID == id && (o.State == appointment.OfferOpen || o.SlotID == m.SlotID)
 		}
@@ -252,13 +253,13 @@ func (a *fakeAuditor) RecordAll(ctx context.Context, es []auditevent.AuditEvent)
 	return nil
 }
 
-// fakeSettings gives each clinic's appointment settings: the defaults with the waitlist on, unless off.
-type fakeSettings struct {
+// fakeWaitlistRules gives each clinic's appointment settings: the defaults with the waitlist on, unless off.
+type fakeWaitlistRules struct {
 	err error
 	off map[string]bool
 }
 
-func (s *fakeSettings) For(_ context.Context, org string) (organization.AppointmentSettings, error) {
+func (s *fakeWaitlistRules) For(_ context.Context, org string) (organization.AppointmentSettings, error) {
 	set := organization.DefaultAppointmentSettings()
 	set.WaitlistEnabled = !s.off[org]
 	return set, s.err
@@ -322,15 +323,26 @@ func (j fakeOfferJobs) EnqueueOfferExpire(ctx context.Context, id, org string, a
 	return j.jobs.add(ctx, fmt.Sprintf("offer_expire %s %s at %s", id, org, at.Format(time.RFC3339)))
 }
 
+func (j fakeOfferJobs) EnqueueHandOn(ctx context.Context, slotID, org string, at time.Time) error {
+	return j.jobs.add(ctx, fmt.Sprintf("hand_on %s %s at %s", slotID, org, at.Format(time.RFC3339)))
+}
+
 func (j fakeOfferJobs) NotifyOffer(ctx context.Context, o appointment.Offer, accountID string) error {
 	return j.jobs.add(ctx, "offer_notify "+o.ID+" "+o.OrganizationID+" "+accountID)
 }
 
-// fakeQuiet says the accounts in quiet are inside their quiet hours.
-type fakeQuiet struct{ quiet map[string]bool }
+// fakeReach reaches every account but those unreachable, and says the accounts in quiet are inside their quiet hours
+// until quietUntil; it keeps the agents it was asked as.
+type fakeReach struct {
+	quiet       map[string]bool
+	unreachable map[string]bool
+	quietUntil  map[string]time.Time
+	agents      *[]string
+}
 
-func (q fakeQuiet) Quiet(_ context.Context, _, accountID string, _ time.Time) (bool, error) {
-	return q.quiet[accountID], nil
+func (r fakeReach) Reach(_ context.Context, agent, _, accountID string, _ time.Time) (appointment.Reach, error) {
+	*r.agents = append(*r.agents, agent)
+	return appointment.Reach{Reachable: !r.unreachable[accountID], Quiet: r.quiet[accountID], QuietUntil: r.quietUntil[accountID]}, nil
 }
 
 // waitlistFixture is the fixture with the waitlist's ports: patient A's and B's active consents with clinic A, and the
@@ -338,9 +350,9 @@ func (q fakeQuiet) Quiet(_ context.Context, _, accountID string, _ time.Time) (b
 type waitlistFixture struct {
 	*fixture
 	wl       *fakeWaitlist
-	settings *fakeSettings
+	settings *fakeWaitlistRules
 	offered  *fakeOfferedSlots
-	quiet    fakeQuiet
+	quiet    fakeReach
 	ports    appointment.Ports
 }
 
@@ -350,15 +362,15 @@ func newWaitlistFixture(at time.Time) *waitlistFixture {
 	w := &waitlistFixture{
 		fixture:  f,
 		wl:       &fakeWaitlist{repo: f.repo, consents: f.consents},
-		settings: &fakeSettings{off: map[string]bool{}},
+		settings: &fakeWaitlistRules{off: map[string]bool{}},
 		offered:  &fakeOfferedSlots{slots: map[string]slot.Bookable{slotFree: slotAt(slotFree, roleA1, clinicA, start)}},
-		quiet:    fakeQuiet{quiet: map[string]bool{}},
+		quiet:    fakeReach{quiet: map[string]bool{}, unreachable: map[string]bool{}, quietUntil: map[string]time.Time{}, agents: new([]string)},
 	}
 	jobs := fakeOfferJobs{jobs: f.jobs}
 	w.ports = appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: at},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats,
-		Waitlist: w.wl, Rules: w.settings, Reminders: f.reminders, Offered: w.offered, OfferJobs: jobs, Notices: jobs, Quiet: w.quiet,
+		Waitlist: w.wl, Rules: w.settings, Reminders: f.reminders, Offered: w.offered, OfferJobs: jobs, Notices: jobs, Reach: w.quiet,
 	}
 	f.svc = appointment.NewService(w.ports)
 	return w

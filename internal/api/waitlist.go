@@ -26,5 +26,5 @@ func waitlistPorts(p *appointment.Ports, pool *pgxpool.Pool, audit *auditevent.S
 		Devices: notification.NewPostgresRepository(pool), Rules: appointmentRules(pool, audit, tx), Audit: audit, Tx: tx, Clock: clock.System{},
 	})
 	p.Waitlist, p.Offered, p.OfferJobs = appointment.NewPostgresWaitlistRepository(pool), slots, appointment.NewRiverOfferJobs(jobs)
-	p.Notices, p.Quiet = offers, offers
+	p.Notices, p.Reach = offers, offers
 }

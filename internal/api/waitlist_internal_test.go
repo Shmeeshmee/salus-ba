@@ -16,7 +16,7 @@ func TestWaitlistPorts_GiveTheOffersTheirDeliveriesAndQuietHours(t *testing.T) {
 	t.Parallel()
 	var p appointment.Ports
 	waitlistPorts(&p, nil, &auditevent.Service{}, &postgres.Transactor{}, nil, &organization.Service{}, &slot.Service{})
-	if p.Waitlist == nil || p.Offered == nil || p.OfferJobs == nil || p.Notices == nil || p.Quiet == nil {
+	if p.Waitlist == nil || p.Offered == nil || p.OfferJobs == nil || p.Notices == nil || p.Reach == nil {
 		t.Errorf("ports %+v, want the waitlist's all set", p)
 	}
 }

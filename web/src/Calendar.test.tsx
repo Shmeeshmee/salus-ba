@@ -52,7 +52,7 @@ describe('Calendar', () => {
     expect(first.textContent).toContain('Ada Example')
 
     const wednesday = within(screen.getByRole('region', { name: 'Wed 11 Nov' })).getByRole('link')
-    expect(wednesday.textContent).toBe('14:00–14:30')
+    expect(wednesday.textContent).toBe('14:00–14:30Confirmed')
 
     const thursday = within(screen.getByRole('region', { name: 'Thu 12 Nov' })).getByRole('link')
     expect(thursday.textContent).toContain('Cancelled')
@@ -185,5 +185,31 @@ describe('Calendar in a language', () => {
     renderCalendar(practitioner, { [search]: () => fhirJSON(searchset(week)) }, now, 'sr-Cyrl')
 
     expect(await screen.findByText('14:00–14:30')).toBeTruthy()
+  })
+
+  it("badges a booked appointment by the patient's confirmation, and a closed one not at all", async () => {
+    const tentative = (a: ReturnType<typeof appointment>) => ({
+      ...a,
+      participant: a.participant.map((p) => (p.actor.reference.startsWith('Patient/') ? { ...p, status: 'tentative' } : p)),
+    })
+    const declined = (a: ReturnType<typeof appointment>) => ({
+      ...a,
+      participant: a.participant.map((p) => (p.actor.reference.startsWith('Patient/') ? { ...p, status: 'declined' } : p)),
+    })
+    renderCalendar(practitioner, { [search]: () => fhirJSON(searchset([week[0], tentative(week[1]), declined(week[2])])) })
+
+    const monday = within(await screen.findByRole('region', { name: 'Mon 9 Nov' })).getByRole('link')
+    expect(within(monday).getByText('Confirmed').className).toContain('confirmed')
+    const wednesday = within(screen.getByRole('region', { name: 'Wed 11 Nov' })).getByRole('link')
+    expect(within(wednesday).getByText('Not confirmed').className).toContain('unconfirmed')
+    const thursday = within(screen.getByRole('region', { name: 'Thu 12 Nov' })).getByRole('link')
+    expect(within(thursday).queryByText('Confirmed')).toBeNull()
+    expect(within(thursday).queryByText('Not confirmed')).toBeNull()
+  })
+
+  it('names the confirmation in the language', async () => {
+    renderCalendar(practitioner, { [search]: () => fhirJSON(searchset([week[0]])) }, now, 'bs')
+
+    expect(await screen.findByText('Potvrđen')).toBeTruthy()
   })
 })

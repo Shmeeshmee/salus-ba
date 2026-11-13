@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -87,9 +88,33 @@ func NewRiverOfferJobs(client *river.Client[pgx.Tx]) OfferJobs {
 	return &riverJobs{client: client}
 }
 
+// EnqueueHandOn enqueues waitlist_slot_freed for the slot at at (the morning after its candidates' quiet hours), once
+// while one waits or runs (unique by its arguments).
+func (j *riverJobs) EnqueueHandOn(ctx context.Context, slotID, org string, at time.Time) error {
+	tx, ok := postgres.Tx(ctx)
+	if !ok {
+		return postgres.ErrNoTx
+	}
+	_, err := j.client.InsertTx(ctx, tx, SlotFreedArgs{SlotID: slotID, OrganizationID: org}, &river.InsertOpts{
+		Queue: river.QueueDefault, ScheduledAt: at,
+		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
+			rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateRetryable, rivertype.JobStateScheduled,
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("appointment: enqueue a later hand-on: %w", err)
+	}
+	return nil
+}
+
 // EnqueueOfferExpire enqueues waitlist_offer_expire on the default queue, which the worker works, at the offer's end.
 func (j *riverJobs) EnqueueOfferExpire(ctx context.Context, offerID, org string, at time.Time) error {
 	return j.insertOn(ctx, river.QueueDefault, OfferExpireArgs{OfferID: offerID, OrganizationID: org}, at)
+}
+
+// EnqueueRescheduled enqueues appointment_rescheduled_email on the email queue (SAL-34).
+func (j *riverJobs) EnqueueRescheduled(ctx context.Context, id, org string) error {
+	return j.insert(ctx, RescheduledEmailArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
 }
 
 // insert enqueues args on the email queue in the transaction in ctx, to run at at (zero for now).

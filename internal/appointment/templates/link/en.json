@@ -1,0 +1,32 @@
+{
+  "title": "Your appointment",
+  "appointment": "Appointment at {clinic} on {when}.",
+  "state_confirmed": "You have confirmed that you will come.",
+  "state_unconfirmed": "Please confirm that you will come.",
+  "confirm": "Confirm I will come",
+  "cancel_heading": "Cancel the appointment",
+  "cancel_effect": {
+    "defaultMessage": "Cancelling frees the time for other patients and cannot be undone. You will receive an e-mail about the cancellation.",
+    "description": "legal"
+  },
+  "cancel_tick": {
+    "defaultMessage": "Yes, I want to cancel this appointment",
+    "description": "legal"
+  },
+  "cancel_button": "Cancel the appointment",
+  "cancel_closed": {
+    "defaultMessage": "The appointment starts in less than 24 hours and can no longer be cancelled here. To cancel it, contact the clinic.",
+    "description": "legal"
+  },
+  "reschedule": "To choose another time, open the Salus app.",
+  "used_confirm": "You confirmed this appointment.",
+  "used_cancel": "You cancelled this appointment.",
+  "invalid": "This link no longer works. Open the Salus app to see your appointments.",
+  "rate_limited": "Too many requests from your connection. Try again in a few minutes.",
+  "confirm_cancel_required": "To cancel, tick the box and press the button again.",
+  "invalid_request": "The request was not understood. Open the link from your message again.",
+  "forbidden": "The request was refused. Open the link from your message again.",
+  "date": "{weekday} {day} {month} {year}, {time} ({zone})",
+  "weekdays": "Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday",
+  "months": "January|February|March|April|May|June|July|August|September|October|November|December"
+}

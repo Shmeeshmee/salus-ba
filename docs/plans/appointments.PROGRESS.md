@@ -137,6 +137,58 @@ As built (agent decisions, for the owner to review):
 | `repository_sms.go` | Not created: archcheck lets only `repository_postgres.go` import the sqlc package, so the SMS usage's queries are there, beside the deliveries' |
 | `NewNotifier` | Takes a `worker.Notifier` struct (sender, pusher, SMS, the three URLs) instead of positional arguments |
 | SMS usage route | 403 for anyone but the clinic's admin, patients included |
+
+## SAL-34: one-tap confirm or cancel, self-service rescheduling (branch `appt-34-confirm-reschedule`)
+
+No migration. Built: in `appointment`, `Confirm`, `Actions` (`service_confirm.go`), `Reschedule` (`service_reschedule.go`),
+`Link` and `UseLink` (`service_link_use.go`) on a new `SelfServiceRepository` port (the lock, the confirmation, the
+move, the link's lookup by hash, read and single use; Postgres in its SAL-34 block) and a `LinkLimiter` (Redis,
+`repository_redis.go`); `ActionsHandler` (`POST /appointments/{id}/confirm`, `POST /appointments/{id}/reschedule`,
+`GET /appointments/{id}/actions`) and `LinkHandler` (`GET`, `POST /a/{token}`: `html/template`, its catalogs in
+`templates/link/<language>.json` in the ten patient languages, checked by `make i18n-check`). The link's cancel
+passes `ViaLink` through `Caller.Via`, a field of the call; its audit events name the patient's account with the agent
+`action_link`. The reschedule frees the old slot through the `slotFreed` seam (`waitlist_slot_freed`), calls
+`cancelReminders` and `scheduleReminders`, `settle`, refreshes both days' statistics and enqueues
+`appointment_rescheduled_email` (notifier, ten languages). Web: the confirmation badge in `Calendar.tsx`,
+`AppointmentChanges.tsx`, `ClinicSettingsReschedule.tsx`; mobile: `appointment_actions.dart`, `reschedule_screen.dart`.
+The Vite proxy and the Caddyfile route `/appointments/{id}/changes` and `/clinic/appointment-settings`;
+`scripts/check-caddy-routes.sh` also fails unless Caddy's log filter deletes the URI.
+
+Misuse tests: any number of `GET`s change nothing (`TestLink_ShowsTheClinicTheTimeAndTheActionsAndChangesNothing`); a
+second `POST` is refused (`TestUseLink_ConfirmsOnceAsThePatientThroughTheLink`, and on Postgres
+`TestUseToken_TwoAtOnceUseTheLinkOnce`); expired, revoked-consent, cancelled, rescheduled, unknown and another
+appointment's links (`TestLink_LinksThatNoLongerWork`); a cancel without the box (`TestUseLink_CancelsWithTheTickedBox…`);
+no and a foreign `Origin` (`TestLinkUse_Refusals`); the token never in the log or the audit
+(`TestLinkPage_TheAccessLogNamesTheRouteNotTheToken`, `TestLink_ATokenIsNeverInAnAuditEvent`); the rate limit
+(`TestLink_RateLimitedPerAddressUnderAnHMAC`, `TestRedisLinkLimiter_…`). Reschedule on Postgres: three at once of one
+appointment respect the limit, racing a booking of the target slot and a cancellation keep slots in step, the
+exclusion constraint's refusal audited in its own transaction (`internal/api/reschedule_test.go`). e2e:
+`TestLinks_ThePatientConfirmsAndCancelsThroughTheLinkAndReschedulesInTheApp`, from the reminder e-mail in Mailpit. Nothing to measure was asked of SAL-34.
+
+As built (agent decisions, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| e2e's link | Taken from SAL-33's reminder e-mail in Mailpit (the clinic's offset just under the time to the start, so the reminder is due within a minute) |
+| The page's own origin | The `POST`'s `Origin` host must be the request's `Host` (the api's own host, which serves `APPOINTMENT_LINK_URL`'s links); a missing or `null` `Origin` is refused |
+| Consent | A reschedule needs the care consent active (`409 consent_required`, added to the OpenAPI), as a booking; a link no longer works under a consent no longer active; the in-app confirmation needs none (the revocation cancels the appointments it applies to) |
+| Confirming a confirmed appointment through a link | Refused without using the link, so it can still cancel; the page (303) shows the confirmed state |
+| A used link's page | Its outcome with the start it was issued for (`start_at`), whatever the appointment became since |
+| Rate limit | 30 link lookups (`GET` or `POST`) per IPv4 address or IPv6 /64 in 10 minutes, Redis `ratelimit:link:<HMAC of the address>` (cleared by `make e2e` with the others) |
+| Unknown link's language | The browser's `Accept-Language` among the ten, else Bosnian; a known link's own language otherwise |
+| Join window | Opens 10 minutes before the start, as `videosession`'s: the constant is repeated in `appointment` (`joinOpensBefore`) |
+| Refusal order of a reschedule | Self-service off, another role or clinic, the join window open (`not_reschedulable`); then the notice (`reschedule_window_closed`); then the limit; then its own slot (`slot_unavailable`); then the consent |
+| The reschedule e-mail | A new notifier job, `appointment_rescheduled_email`, in the reschedule's transaction; it sends the time current when it runs |
+| Client address | `httpx.ClientIP` (moved from `auth`, which now uses it), for the rate limit only |
+| Referrer policy | `strict-origin`, not ADR 0015's `no-referrer` (review of #92): under `no-referrer` browsers send `Origin: null` with the form's `POST` (Fetch, "append a request Origin header"), which the `Origin` check refuses. A Referer then carries the api's origin only, never the token's path. ADR 0015 "GET never changes anything" is amended to match |
+| A link's use | Reads the appointment under its row lock (`ByIDForUpdate`) and decides validity on that row, so a reschedule or cancellation committed after the page was read leaves an old-time link useless (review of #92) |
+| Settings in the patient's transaction | `organization.Appointments.For` sets the clinic's scope; the reschedule and the actions drop it and set the patient's again right after (review of #92) |
+| Web history | Behind "Show changes" on the appointment's page, read (and audited) only when asked |
+
+Copy waiting for the owner (all of it new): the link page in ten languages (`internal/appointment/templates/link/`; `legal`:
+`cancel_effect`, `cancel_tick`, `cancel_closed`), the reschedule e-mail (`rescheduled.txt`, ten languages), the
+mobile actions and picker (ten languages; `legal`: `rescheduleConfirmBody`), the web badge, history and reschedule
+settings (five languages).
 | Handing a slot on | One path, `handOn`: the job locks the slot (`ForWaitlist`), leaves it when booked or held by an open offer, gives back a held slot whose offer closed, then offers it to the first entry the matching query and the consent check give, or leaves it free. Decline, withdrawal and revocation close the offer in the patient's scope and enqueue `waitlist_slot_freed`; the expiry closes it and hands on in its own transaction |
 | Offer visibility | The clinic's jobs see every offer of the clinic whatever the patient's consent (they must see an open offer of a slot to leave it held); entries stay consent-gated, and an offer is inserted only for an entry the clinic sees |
 | Offer's role | `waitlist_offer` gains `practitioner_role_id` (the slot's), so an acceptance books without reading the slot first |
@@ -176,6 +228,22 @@ its own `Settings` port is gone. `TestWaitlistPorts_GiveTheOffersTheirDeliveries
 `TestNewRevocations_GiveTheOffersTheirDeliveriesAndQuietHours` (internal/worker) check the wiring. New copy: the offer
 SMS in ten languages (`waitlist_offer_sms.txt`, GSM-7 without diacritics where the language allows, as SAL-33's
 reminder; one part for a short clinic name).
+
+At SAL-34's merge (2026-11-13): a reschedule's and a link cancel's freed slot reaches the waitlist through the same
+`waitlist_slot_freed` (`TestWaitlist_ARescheduleHandsTheSlotItLeavesToTheWaitlist`: the job's arguments name the slot
+left, and the job offers it to a waiting patient, never to the one who moved off it). The acceptance-against-expiry
+race now delays either side (the acceptance got faster), so both outcomes are seen every run (4 and 4).
+
+Delta review of 7afdb7e..60b090f (2026-11-13), all fixed test-first:
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| 1. Tests failed at night (the defaults' quiet hours) | The real-stack tests and the e2e journey give the waiting patients no quiet hours; one explicit night case with a fixed clock | `TestWaitlist_ANightTimeOfferWaitsForTheMorning` |
+| 2. Passed-over patients in quiet hours lost the slot; the search stopped at 10 | `firstReachable` reads past passed-over entries a page at a time (100 at most); when all are passed over and some for quiet hours, `waitlist_slot_freed` is scheduled at the earliest end of those, unique by its slot (`EnqueueHandOn`). Recorded in the plan's "Waitlist matching" | `TestHandOn_TriesAgainAfterTheQuietHoursAndLooksPastTheFirstPage`, `TestWaitlist_ANightTimeOfferWaitsForTheMorning` |
+| 3. A patient without a profile stopped the offer for everyone | Passed over | `TestHandOn_PassesOverWhomNoOfferReaches` |
+| 4. Offer sends audited as reminders | `waitlist_offer_email`, `_push`, `_sms`; the reach read carries the job's agent | `TestSendDelivery_TheOffersSendsAreAuditedAsTheirOwn`, `TestReach_TellsTheQuietHoursAndWhetherAChannelCarriesTheOffer` |
+| 5. A slot held for a patient nothing reaches | `Ports.Quiet` becomes `Ports.Reach` (`notification.Service.Reach`): reachable when e-mail is on, push on with a device, or SMS opted into at a clinic that offers it; otherwise passed over | as finding 4, `TestHandOn_PassesOverWhomNoOfferReaches` |
+| 6. Compose and send race | Benign and the same as the reminders': a send that composed just before the offer closed still goes; the patient then finds the offer closed in the app | (noted) |
 
 Copy waiting for the owner: the offer e-mail, push and SMS in ten languages
 (`internal/notification/templates/*/waitlist_offer*.txt`); the mobile `waitlist*` strings in ten languages (`legal`:

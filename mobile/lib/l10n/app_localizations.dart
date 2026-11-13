@@ -2958,6 +2958,96 @@ abstract class AppLocalizations {
   /// **'These settings could not be saved. Check them and try again.'**
   String get remindersInvalid;
 
+  /// SAL-34: button on an unconfirmed upcoming appointment; the patient confirms they will come. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm I will come'**
+  String get confirmAttendance;
+
+  /// SAL-34: under an upcoming appointment the patient confirmed. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed'**
+  String get appointmentConfirmedStatus;
+
+  /// SAL-34: notice after confirming. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is confirmed.'**
+  String get appointmentConfirmedNotice;
+
+  /// SAL-34: button opening the reschedule picker. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Change the time'**
+  String get changeTime;
+
+  /// SAL-34: until when the patient may change the time, in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The time can be changed until {date} at {time}.'**
+  String rescheduleUntil(String date, String time);
+
+  /// SAL-34: how many more times the time may be changed (the clinic's limit). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Time changes left: {count}'**
+  String reschedulesLeft(int count);
+
+  /// SAL-34: title of the reschedule picker. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a new time'**
+  String get rescheduleTitle;
+
+  /// SAL-34: the appointment's current time on the picker. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Booked now: {date} at {time}'**
+  String rescheduleCurrent(String date, String time);
+
+  /// SAL-34: dialog title before moving the appointment. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Move your appointment?'**
+  String get rescheduleConfirmTitle;
+
+  /// [legal] SAL-34: dialog text, the effect of a reschedule. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment will move to {date} at {time}. Your current time will be released.'**
+  String rescheduleConfirmBody(String date, String time);
+
+  /// SAL-34: dialog button that moves the appointment. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Move appointment'**
+  String get moveAppointment;
+
+  /// SAL-34: notice after a reschedule. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is moved to the new time.'**
+  String get appointmentMoved;
+
+  /// SAL-34: reschedule refused, inside the clinic's notice. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The time of this appointment can no longer be changed in the app. Please contact the clinic.'**
+  String get rescheduleWindowClosed;
+
+  /// SAL-34: reschedule refused, the clinic's limit reached. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'This appointment\'s time has been changed as often as the clinic allows.'**
+  String get rescheduleLimit;
+
+  /// SAL-34: reschedule refused, the clinic's rules never allow it (another role, the join window open, self-service off). Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The time of this appointment cannot be changed in the app.'**
+  String get notReschedulable;
+
   /// SAL-35: the patient's waitlist screen and its button on the home screen. Draft, waiting for the owner.
   ///
   /// In en, this message translates to:

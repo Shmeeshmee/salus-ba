@@ -35,6 +35,9 @@ func TestEmails_AreWrittenInEveryLanguage(t *testing.T) {
 			{func(s *notification.Service) error { return s.SendAppointmentReminder(t.Context(), apptID, clinicID) }, "reminder", appointment.StatusBooked, false},
 			{func(s *notification.Service) error { return s.SendAppointmentReminder(t.Context(), apptID, clinicID) }, "reminder_questionnaire", appointment.StatusBooked, true},
 			{func(s *notification.Service) error { return s.SendDocumentSigned(t.Context(), apptID, clinicID) }, "signed", appointment.StatusFulfilled, false},
+			{func(s *notification.Service) error {
+				return s.SendAppointmentRescheduled(t.Context(), apptID, clinicID)
+			}, "rescheduled", appointment.StatusBooked, false},
 		} {
 			s := newMailAsking(&fakeAppointments{status: k.status}, &fakeAccounts{language: lang}, zonedClinics{}, sender, &fakeQuestionnaires{outstanding: k.outstanding})
 			if err := k.send(s); err != nil {
@@ -45,7 +48,7 @@ func TestEmails_AreWrittenInEveryLanguage(t *testing.T) {
 		for _, outstanding := range []bool{false, true} {
 			sendReminderEmail(t, lang, sender, outstanding)
 		}
-		names := []string{"invite", "booked", "booked_questionnaire", "cancelled", "reminder", "reminder_questionnaire", "signed", "reminder_email", "reminder_email_questionnaire"}
+		names := []string{"invite", "booked", "booked_questionnaire", "cancelled", "reminder", "reminder_questionnaire", "signed", "rescheduled", "reminder_email", "reminder_email_questionnaire"}
 		if len(sender.sent) != len(names) {
 			t.Fatalf("%s: sent %d e-mails, want %d", lang, len(sender.sent), len(names))
 		}

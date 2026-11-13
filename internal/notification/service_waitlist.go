@@ -27,23 +27,48 @@ func (s *Service) NotifyOffer(ctx context.Context, o appointment.Offer, accountI
 	return nil
 }
 
-// Quiet tells whether the account's patient is inside their quiet hours at at, in their zone, else the clinic org's
-// (appointment.QuietHours: such an entry is passed over for an offer). The read of their settings is audited with the
-// offer's delivery as agent.
-func (s *Service) Quiet(ctx context.Context, org, accountID string, at time.Time) (bool, error) {
-	if s.p.Deliveries == nil || s.p.Audit == nil || s.clinics == nil {
-		return false, errors.New("notification: quiet hours: the Service was built without the deliveries' ports")
+// The audit agents of an offer's sends, by channel (the deliveries' jobs are the reminders', shared).
+var agentOfferSend = map[Channel]string{
+	ChannelEmail: "waitlist_offer_email", ChannelPush: "waitlist_offer_push", ChannelSMS: "waitlist_offer_sms",
+}
+
+// Reach tells the job agent whether an offer would reach the account's patient at at: Reachable when a channel of theirs
+// carries it (e-mail on, push on with a device, SMS opted into at a clinic that offers it), Quiet while inside their
+// quiet hours (their zone, else the clinic org's) until QuietUntil (appointment.Reachability: either passes the entry
+// over). The reads of their settings and devices are audited with the agent; the clinic's scope is kept.
+func (s *Service) Reach(ctx context.Context, agent, org, accountID string, at time.Time) (appointment.Reach, error) {
+	if err := s.delivers(false); err != nil {
+		return appointment.Reach{}, err
 	}
-	p, err := s.preferencesOf(ctx, agentOf(KindWaitlistOffer), org, accountID)
-	if err != nil || p.Quiet == nil {
-		return false, err
+	p, err := s.preferencesOf(ctx, agent, org, accountID)
+	if err != nil {
+		return appointment.Reach{}, err
+	}
+	rules, err := s.rulesKeepingScope(ctx, org)
+	if err != nil {
+		return appointment.Reach{}, err
+	}
+	var r appointment.Reach
+	r.Reachable = p.Channels.Email || (p.Channels.SMS && rules.SMSReminders)
+	if !r.Reachable && p.Channels.Push {
+		devices, err := s.p.Devices.Devices(ctx, accountID)
+		if err != nil {
+			return appointment.Reach{}, err
+		}
+		if err := s.p.Audit.Record(ctx, accountRead(agent, org, accountID, "push_device", len(devices))); err != nil {
+			return appointment.Reach{}, err
+		}
+		r.Reachable = len(devices) > 0
+	}
+	if p.Quiet == nil {
+		return r, nil
 	}
 	loc, err := s.zoneOf(ctx, org, p)
 	if err != nil {
-		return false, fmt.Errorf("notification: quiet hours: %w", err)
+		return appointment.Reach{}, fmt.Errorf("notification: reach: %w", err)
 	}
-	_, inside := quietEnd(at, *p.Quiet, loc)
-	return inside, nil
+	r.QuietUntil, r.Quiet = quietEnd(at, *p.Quiet, loc)
+	return r, nil
 }
 
 // composeOffer writes d's message of a waitlist offer, or errGone when it no longer applies: the offer closed or its
@@ -51,7 +76,7 @@ func (s *Service) Quiet(ctx context.Context, org, accountID string, at time.Time
 // clinic, the time offered and the hold's end in the clinic's zone with its name, and the link to the app (accepting
 // happens there, signed in); nothing of a practitioner or specialty.
 func (s *Service) composeOffer(ctx context.Context, d Delivery) (outgoing, error) {
-	agent := agentSend[d.Channel]
+	agent := agentOfferSend[d.Channel]
 	n, err := s.p.Offers.OfferNotice(ctx, agent, d.OrganizationID, d.SourceID)
 	switch {
 	case errors.Is(err, appointment.ErrNotFound):

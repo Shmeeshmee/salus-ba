@@ -17,9 +17,11 @@ import (
 const (
 	// offerLead: a slot is offered only when it starts at least the clinic's hold plus this ahead.
 	offerLead = 60 * time.Minute
-	// candidatesPerOffer bounds the entries read for one offer; those whose patient may not be offered it now (no care
-	// consent, quiet hours) are passed over.
+	// candidatesPerOffer is how many entries the matching query reads at a time, and maxCandidates how many an offer
+	// reads at most: those whose patient may not be offered it now (no care consent, quiet hours, no channel that
+	// reaches them) are passed over and the next ones read.
 	candidatesPerOffer = 10
+	maxCandidates      = 100
 )
 
 // The agents of the waitlist's jobs: their kinds.
@@ -37,9 +39,11 @@ type OfferedSlots interface {
 	Unoffer(ctx context.Context, org, id string) (bool, error)
 }
 
-// OfferJobs enqueues an offer's expiry at its end (waitlist_offer_expire), in the transaction in ctx.
+// OfferJobs enqueues an offer's expiry at its end (waitlist_offer_expire), and the hand-on of a slot at a later time
+// (waitlist_slot_freed, unique by its slot while waiting), in the transaction in ctx.
 type OfferJobs interface {
 	EnqueueOfferExpire(ctx context.Context, offerID, org string, at time.Time) error
+	EnqueueHandOn(ctx context.Context, slotID, org string, at time.Time) error
 }
 
 // OfferNotices tells the patient of a new offer, in the offer's transaction: notification.Service's deliveries (SAL-33),
@@ -48,10 +52,11 @@ type OfferNotices interface {
 	NotifyOffer(ctx context.Context, o Offer, accountID string) error
 }
 
-// QuietHours tells whether the patient of the account is inside their quiet hours at at (notification.Service): such an
-// entry is passed over for that offer.
-type QuietHours interface {
-	Quiet(ctx context.Context, org, accountID string, at time.Time) (bool, error)
+// Reachability tells, for the job agent, whether an offer would reach the account's patient at at (some channel of
+// theirs is on and can carry it) and whether they are inside their quiet hours then, and until when
+// (notification.Service). Either passes the entry over.
+type Reachability interface {
+	Reach(ctx context.Context, agent, org, accountID string, at time.Time) (Reach, error)
 }
 
 // HandOn offers the slot slotID of the clinic org to the next matching entry of its waitlist (the waitlist_slot_freed
@@ -116,8 +121,7 @@ func (s *Service) handOn(ctx context.Context, agent, org, slotID string) error {
 
 // nextEntry returns the first entry the free slot b may be offered to at now, and the clinic's hold; none (an empty
 // ID) while the clinic's waitlist is off, the slot starts within the hold and offerLead, its role is not active, or no
-// entry matches. An entry whose patient's care consent is not active, or who is inside their quiet hours, is passed
-// over. The read of the candidates is audited with the job as agent.
+// entry matches (firstReachable). The read of the candidates is audited with the job as agent.
 func (s *Service) nextEntry(ctx context.Context, agent, org string, b slot.Bookable, now time.Time) (candidate, time.Duration, error) {
 	set, err := s.Rules.For(ctx, org)
 	if err != nil {
@@ -131,40 +135,74 @@ func (s *Service) nextEntry(ctx context.Context, agent, org string, b slot.Booka
 	if err != nil || !ok {
 		return candidate{}, 0, err
 	}
-	candidates, err := s.Waitlist.Candidates(ctx, m, candidatesPerOffer)
-	if err != nil || len(candidates) == 0 {
-		return candidate{}, 0, err
-	}
 	if err := s.recordJob(ctx, agent, org, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess); err != nil {
 		return candidate{}, 0, err
 	}
-	for _, e := range candidates {
-		if e.OrganizationID != org {
-			continue // not on row-level security alone
-		}
-		consent, err := s.Consents.State(ctx, e.PatientID, org)
+	e, err := s.firstReachable(ctx, agent, org, m)
+	return e, hold, err
+}
+
+// firstReachable reads the slot's candidates in offer order, a page at a time and maxCandidates at most, and returns
+// the first whose patient may be offered it now: their care consent active, a profile, a channel that reaches them, not
+// inside their quiet hours. When none is and some were passed over for their quiet hours, the slot is handed on again
+// at the earliest end of those (when still free and ahead then); none returned is an empty ID.
+func (s *Service) firstReachable(ctx context.Context, agent, org string, m Match) (candidate, error) {
+	var morning time.Time
+	for read := 0; read < maxCandidates; read += candidatesPerOffer {
+		page, err := s.Waitlist.Candidates(ctx, m, candidatesPerOffer)
 		if err != nil {
-			return candidate{}, 0, err
+			return candidate{}, err
 		}
-		if !consent.Active {
-			continue
-		}
-		p, err := s.Patients.Lookup(ctx, e.PatientID)
-		if err != nil {
-			return candidate{}, 0, err
-		}
-		if err := s.recordJob(ctx, agent, org, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess); err != nil {
-			return candidate{}, 0, err
-		}
-		if quiet, err := s.Quiet.Quiet(ctx, org, p.AccountID, now); err != nil || quiet {
-			if err != nil {
-				return candidate{}, 0, err
+		for _, e := range page {
+			m.Skip = append(m.Skip, e.ID)
+			c, quietUntil, err := s.mayOffer(ctx, agent, org, e, m.Now)
+			if err != nil || c.ID != "" {
+				return c, err
 			}
-			continue
+			if !quietUntil.IsZero() && (morning.IsZero() || quietUntil.Before(morning)) {
+				morning = quietUntil
+			}
 		}
-		return candidate{WaitlistEntry: e, accountID: p.AccountID}, hold, nil
+		if len(page) < candidatesPerOffer {
+			break
+		}
 	}
-	return candidate{}, 0, nil
+	if morning.IsZero() {
+		return candidate{}, nil
+	}
+	return candidate{}, s.OfferJobs.EnqueueHandOn(ctx, m.SlotID, org, morning)
+}
+
+// mayOffer gives e as a candidate when its patient may be offered the slot at now; otherwise none, and when they are
+// passed over for their quiet hours, when those end.
+func (s *Service) mayOffer(ctx context.Context, agent, org string, e WaitlistEntry, now time.Time) (candidate, time.Time, error) {
+	if e.OrganizationID != org {
+		return candidate{}, time.Time{}, nil // not on row-level security alone
+	}
+	consent, err := s.Consents.State(ctx, e.PatientID, org)
+	if err != nil || !consent.Active {
+		return candidate{}, time.Time{}, err
+	}
+	p, err := s.Patients.Lookup(ctx, e.PatientID)
+	switch {
+	case errors.Is(err, patient.ErrNotFound): // no profile the clinic sees: nobody to tell
+		return candidate{}, time.Time{}, nil
+	case err != nil:
+		return candidate{}, time.Time{}, err
+	}
+	if err := s.recordJob(ctx, agent, org, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess); err != nil {
+		return candidate{}, time.Time{}, err
+	}
+	r, err := s.Reach.Reach(ctx, agent, org, p.AccountID, now)
+	switch {
+	case err != nil:
+		return candidate{}, time.Time{}, err
+	case !r.Reachable:
+		return candidate{}, time.Time{}, nil
+	case r.Quiet:
+		return candidate{}, r.QuietUntil, nil
+	}
+	return candidate{WaitlistEntry: e, accountID: p.AccountID}, time.Time{}, nil
 }
 
 // candidate is an entry chosen for an offer, with its patient's account (to tell them).

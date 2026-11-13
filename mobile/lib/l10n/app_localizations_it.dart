@@ -1841,6 +1841,63 @@ class AppLocalizationsIt extends AppLocalizations {
       'Non è stato possibile salvare queste impostazioni. Controllale e riprova.';
 
   @override
+  String get confirmAttendance => 'Confermi la presenza';
+
+  @override
+  String get appointmentConfirmedStatus => 'Confermato';
+
+  @override
+  String get appointmentConfirmedNotice => 'Il Suo appuntamento è confermato.';
+
+  @override
+  String get changeTime => 'Cambi orario';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'L\'orario può essere cambiato fino al giorno $date alle ore $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Cambi di orario rimanenti: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Scelga un nuovo orario';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Prenotato ora: il giorno $date alle ore $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Spostare l\'appuntamento?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Il Suo appuntamento sarà spostato al giorno $date alle ore $time. L\'orario attuale sarà liberato.';
+  }
+
+  @override
+  String get moveAppointment => 'Sposta appuntamento';
+
+  @override
+  String get appointmentMoved =>
+      'Il Suo appuntamento è stato spostato al nuovo orario.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'L\'orario di questo appuntamento non può più essere cambiato nell\'app. Contatti la clinica.';
+
+  @override
+  String get rescheduleLimit =>
+      'L\'orario di questo appuntamento è stato cambiato tante volte quante la clinica consente.';
+
+  @override
+  String get notReschedulable =>
+      'L\'orario di questo appuntamento non può essere cambiato nell\'app.';
+
+  @override
   String get waitlistTitle => 'La mia lista d\'attesa';
 
   @override

@@ -80,7 +80,7 @@ func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Cl
 		Clinics:  clinics,
 		Roles:    practitionerrole.NewService(practitionerrole.Ports{Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Waitlist: appointment.NewPostgresWaitlistRepository(pool), Offered: slots, OfferJobs: appointment.NewRiverOfferJobs(jobs),
-		Rules: rules, Notices: offers, Quiet: offers, // the offers' deliveries and quiet hours (SAL-33's, SAL-35)
+		Rules: rules, Notices: offers, Reach: offers, // the offers' deliveries and quiet hours (SAL-33's, SAL-35)
 		Patients: patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, nil, nil),
 		// A cancellation cancels the reminders; the sweep (the same service) enqueues the lost ones again.
 		Reminders: appointment.NewPostgresReminderRepository(pool),

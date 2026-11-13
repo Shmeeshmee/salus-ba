@@ -40,6 +40,10 @@ var (
 	reminderEmail = appointmentEmail{
 		agent: appointment.ReminderEmailArgs{}.Kind(), applies: appointment.StatusBooked, template: "reminder", asksQuestionnaire: true,
 	}
+	// rescheduledEmail tells the patient the new time of their appointment (SAL-34), while it is booked.
+	rescheduledEmail = appointmentEmail{
+		agent: appointment.RescheduledEmailArgs{}.Kind(), applies: appointment.StatusBooked, template: "rescheduled",
+	}
 	// signedEmail applies in every status: a document is signed during the consultation or after it.
 	signedEmail = appointmentEmail{agent: composition.SignedEmailArgs{}.Kind(), template: "signed"}
 )
@@ -63,6 +67,12 @@ func (s *Service) SendAppointmentBooked(ctx context.Context, id, org string) err
 // whoever cancelled it (the appointment_cancelled_email job).
 func (s *Service) SendAppointmentCancelled(ctx context.Context, id, org string) error {
 	return s.sendAppointment(ctx, cancelledEmail, id, org)
+}
+
+// SendAppointmentRescheduled tells the patient of the appointment id of the clinic org its new time after they moved it
+// (the appointment_rescheduled_email job), while it is booked; a later reschedule's job sends the time then current.
+func (s *Service) SendAppointmentRescheduled(ctx context.Context, id, org string) error {
+	return s.sendAppointment(ctx, rescheduledEmail, id, org)
 }
 
 // SendDocumentSigned tells the patient of the appointment id of the clinic org that a document of it is ready in

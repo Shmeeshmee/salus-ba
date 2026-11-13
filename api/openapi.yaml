@@ -4924,7 +4924,7 @@ paths:
       summary: The patient confirms they will come
       description: >-
         The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its
-        history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+        history (`via` `app`). Not cached. Audited, also when refused.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -4967,8 +4967,8 @@ paths:
       description: >-
         The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the
         consultation's join window has opened. The new slot is held and the old one freed (and offered to the
-        waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached.
-        Audited, also when refused. Built in SAL-34 (404 until then).
+        waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it; the patient gets
+        an e-mail with the new time. Not cached. Audited, also when refused.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -5010,7 +5010,8 @@ paths:
           description: >-
             `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic
             allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off;
-            `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked.
+            `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked;
+            `consent_required`: the patient's consent with the clinic is no longer active.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5023,7 +5024,7 @@ paths:
       summary: What the patient may do with their appointment now
       description: >-
         For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many
-        reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+        reschedules are left, by the clinic's rules. Not cached. Audited as a read of the appointment.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -5069,8 +5070,9 @@ paths:
         often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this
         appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more:
         a link is single use for one action. An unknown or expired link, or one issued for another start than the
-        appointment's now, answers the same page saying it no longer works. A GET never changes anything. No
-        session. Built in SAL-34 (404 until then).
+        appointment's now, or one of an appointment no longer booked or under a consent no longer active, answers the
+        same page saying it no longer works. A GET never changes anything. No session. Audited as a read by the
+        patient's account with the agent `action_link`. Lookups are limited per address (an HMAC of it in Redis).
       tags: [appointment-links]
       security: []
       responses:
@@ -5078,7 +5080,7 @@ paths:
           description: The page.
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
-            Referrer-Policy: {schema: {type: string, const: no-referrer}}
+            Referrer-Policy: {schema: {type: string, const: strict-origin}}
             X-Robots-Tag: {schema: {type: string, const: noindex}}
           content:
             text/html:
@@ -5096,8 +5098,9 @@ paths:
         The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked)
         while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link
         never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only;
-        the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built
-        in SAL-34 (404 until then).
+        the `Origin` must be the page's own (its host the request's). Answers 303 to the page, which shows the result,
+        also when the link no longer works, the confirmation was made already or the 24 hours have begun (the page
+        says what is true now); a refused action leaves the link unused. No session.
       tags: [appointment-links]
       security: []
       requestBody:

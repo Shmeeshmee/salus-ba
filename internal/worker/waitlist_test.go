@@ -22,6 +22,7 @@ func seedWaitlisted(t *testing.T, db logins, b booking) (patient, entry string) 
 	if err := db.owner.QueryRow(ctx, `WITH a AS (INSERT INTO account (email, password_hash, role, language) VALUES ('waiting@example.test', 'h', 'patient', 'en') RETURNING id),
 		p AS (INSERT INTO patient (account_id, given_name, family_name, birth_date) SELECT id, 'Bo', 'Example', '1990-01-01' FROM a RETURNING id),
 		c AS (INSERT INTO consent (patient_id, organization_id, status, date_time) SELECT id, $1, 'active', now() - interval '1 day' FROM p RETURNING patient_id),
+		n AS (INSERT INTO notification_preference (account_id, push, email, sms) SELECT id, false, true, false FROM a), -- no quiet hours: any time of day
 		e AS (INSERT INTO waitlist_entry (patient_id, organization_id, practitioner_role_id, earliest, latest, ends_at)
 		      SELECT c.patient_id, $1, a.practitioner_role_id, current_date, current_date + 14, current_date + 15 FROM c, appointment a WHERE a.id = $2
 		      RETURNING patient_id, id)

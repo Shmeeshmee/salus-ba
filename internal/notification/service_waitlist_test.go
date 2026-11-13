@@ -171,25 +171,55 @@ func TestSendDelivery_AnOfferNoLongerOpenSendsNothing(t *testing.T) {
 	}
 }
 
-// Quiet hours, for the offer to pass an entry over: in the patient's zone, else the clinic's; none set is never quiet.
-func TestQuiet_IsInsideThePatientsQuietHours(t *testing.T) {
+// Whether an offer reaches the patient now, for the offer to pass an entry over: their quiet hours in their zone, else
+// the clinic's, and until when; and whether any channel of theirs carries it (delta review, finding 5).
+func TestReach_TellsTheQuietHoursAndWhetherAChannelCarriesTheOffer(t *testing.T) {
 	f, _ := offerFixture(offerMade, "en")
 	q := &notification.QuietHours{Start: "22:00", End: "08:00"}
+	on := notification.Channels{Email: true}
 	for _, tt := range []struct {
-		at    time.Time
-		quiet *notification.QuietHours
-		zone  string
-		want  bool
+		at        time.Time
+		until     time.Time
+		quiet     *notification.QuietHours
+		zone      string
+		channels  notification.Channels
+		want      bool
+		reachable bool
 	}{
-		{at: time.Date(2030, 1, 7, 22, 30, 0, 0, time.UTC), quiet: q, want: true},                    // 23:30 in Sarajevo
-		{at: time.Date(2030, 1, 7, 12, 0, 0, 0, time.UTC), quiet: q},                                 // 13:00
-		{at: time.Date(2030, 1, 7, 14, 0, 0, 0, time.UTC), quiet: q, zone: "Asia/Tokyo", want: true}, // 23:00 in Tokyo, 15:00 in Sarajevo
-		{at: time.Date(2030, 1, 7, 22, 30, 0, 0, time.UTC)},
+		{at: time.Date(2030, 1, 7, 22, 30, 0, 0, time.UTC), quiet: q, channels: on, want: true, reachable: true, until: time.Date(2030, 1, 8, 7, 0, 0, 0, time.UTC)},                     // 23:30 in Sarajevo
+		{at: time.Date(2030, 1, 7, 12, 0, 0, 0, time.UTC), quiet: q, channels: on, reachable: true},                                                                                      // 13:00
+		{at: time.Date(2030, 1, 7, 14, 0, 0, 0, time.UTC), quiet: q, channels: on, zone: "Asia/Tokyo", want: true, reachable: true, until: time.Date(2030, 1, 7, 23, 0, 0, 0, time.UTC)}, // 23:00 in Tokyo
+		{at: time.Date(2030, 1, 7, 22, 30, 0, 0, time.UTC), channels: on, reachable: true},
+		{at: offerMade, channels: notification.Channels{Push: true}, reachable: true}, // a device
+		{at: offerMade, channels: notification.Channels{SMS: true}, reachable: true},  // the clinic offers SMS
+		{at: offerMade, channels: notification.Channels{}},                            // nothing on
 	} {
-		f.deliveries.prefs[patientAccount] = notification.Preferences{Quiet: tt.quiet, TimeZone: tt.zone}
-		got, err := f.svc.Quiet(t.Context(), remindClin, patientAccount, tt.at)
-		if err != nil || got != tt.want {
-			t.Errorf("Quiet(%v, %s) = %v, %v; want %v", tt.at, tt.zone, got, err, tt.want)
+		f.deliveries.prefs[patientAccount] = notification.Preferences{Channels: tt.channels, Quiet: tt.quiet, TimeZone: tt.zone}
+		got, err := f.svc.Reach(t.Context(), "waitlist_slot_freed", remindClin, patientAccount, tt.at)
+		if err != nil || got.Quiet != tt.want || got.Reachable != tt.reachable || !got.QuietUntil.Equal(tt.until) {
+			t.Errorf("Reach(%v, %s, %+v) = %+v, %v; want quiet %v until %v, reachable %v", tt.at, tt.zone, tt.channels, got, err, tt.want, tt.until, tt.reachable)
 		}
+	}
+	delete(f.repo.devices, device)
+	f.deliveries.prefs[patientAccount] = notification.Preferences{Channels: notification.Channels{Push: true}}
+	if got, err := f.svc.Reach(t.Context(), "waitlist_slot_freed", remindClin, patientAccount, offerMade); err != nil || got.Reachable {
+		t.Errorf("Reach(push on, no device) = %+v, %v; want unreachable", got, err)
+	}
+	if e := f.audit.events[len(f.audit.events)-1]; e.AgentName != "waitlist_slot_freed" {
+		t.Errorf("audit %+v, want the job's agent", e)
+	}
+}
+
+// An offer's sends read the offer as their own agents, not the reminders' (delta review, finding 4).
+func TestSendDelivery_TheOffersSendsAreAuditedAsTheirOwn(t *testing.T) {
+	f, offers := offerFixture(offerMade, "en")
+	if err := f.svc.NotifyOffer(t.Context(), offered(), patientAccount); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelEmail).ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(offers.asked, []string{"waitlist_offer_email"}) {
+		t.Errorf("the offer read as %v, want waitlist_offer_email", offers.asked)
 	}
 }

@@ -2331,7 +2331,7 @@ export interface paths {
         put?: never;
         /**
          * The patient confirms they will come
-         * @description The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+         * @description The patient's own appointment, while booked and ahead; confirming again answers the same. Recorded in its history (`via` `app`). Not cached. Audited, also when refused.
          */
         post: operations["confirmAppointment"];
         delete?: never;
@@ -2351,7 +2351,7 @@ export interface paths {
         put?: never;
         /**
          * The patient moves their appointment to another free slot of the same practitioner role
-         * @description The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it. Not cached. Audited, also when refused. Built in SAL-34 (404 until then).
+         * @description The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it; the patient gets an e-mail with the new time. Not cached. Audited, also when refused.
          */
         post: operations["rescheduleAppointment"];
         delete?: never;
@@ -2369,7 +2369,7 @@ export interface paths {
         };
         /**
          * What the patient may do with their appointment now
-         * @description For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Built in SAL-34 (404 until then).
+         * @description For the patient's app: whether confirming, cancelling and rescheduling are possible, until when, and how many reschedules are left, by the clinic's rules. Not cached. Audited as a read of the appointment.
          */
         get: operations["getAppointmentActions"];
         put?: never;
@@ -2392,13 +2392,13 @@ export interface paths {
         };
         /**
          * The page of a reminder's one-time link
-         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. A GET never changes anything. No session. Built in SAL-34 (404 until then).
+         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, or one of an appointment no longer booked or under a consent no longer active, answers the same page saying it no longer works. A GET never changes anything. No session. Audited as a read by the patient's account with the agent `action_link`. Lookups are limited per address (an HMAC of it in Redis).
          */
         get: operations["getAppointmentLinkPage"];
         put?: never;
         /**
          * Confirm or cancel through a reminder's one-time link
-         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own (its host the request's). Answers 303 to the page, which shows the result, also when the link no longer works, the confirmation was made already or the 24 hours have begun (the page says what is true now); a refused action leaves the link unused. No session.
          */
         post: operations["actOnAppointmentLink"];
         delete?: never;
@@ -10664,7 +10664,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked. */
+            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked; `consent_required`: the patient's consent with the clinic is no longer active. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10735,7 +10735,7 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
-                    "Referrer-Policy"?: "no-referrer";
+                    "Referrer-Policy"?: "strict-origin";
                     "X-Robots-Tag"?: "noindex";
                     [name: string]: unknown;
                 };

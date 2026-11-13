@@ -452,6 +452,10 @@ func (j *fakeJobs) EnqueueSlotFreed(ctx context.Context, slotID, org string) err
 	return j.add(ctx, "slot_freed "+slotID+" "+org)
 }
 
+func (j *fakeJobs) EnqueueRescheduled(ctx context.Context, id, org string) error {
+	return j.add(ctx, "rescheduled "+id+" "+org)
+}
+
 func (j *fakeJobs) EnqueueReminders(ctx context.Context, rs []appointment.Reminder) error {
 	for _, r := range rs {
 		if err := j.add(ctx, fmt.Sprintf("reminder %s %s at %s", r.ID, r.OrganizationID, r.DueAt.Format(time.RFC3339))); err != nil {

@@ -29,6 +29,11 @@ func TestWaitlist_AFreedSlotIsOfferedAndAcceptedThroughTheApp(t *testing.T) {
 	role := publicRole(t, clinic.id)
 	waiting := newPatientWithProfile(t)
 	waiting.must(http.StatusCreated, http.MethodPost, "/consents", map[string]string{"organizationId": clinic.id}, nil)
+	// No quiet hours, so the offer is made whatever the time of day the journey runs at (the defaults pass a patient in
+	// their quiet hours over until the morning).
+	waiting.must(http.StatusOK, http.MethodPut, "/me/notification-settings", map[string]any{
+		"channels": map[string]bool{"push": true, "email": true, "sms": false},
+	}, nil)
 	loc, err := time.LoadLocation("Europe/Sarajevo")
 	if err != nil {
 		t.Fatal(err)
@@ -50,26 +55,7 @@ func TestWaitlist_AFreedSlotIsOfferedAndAcceptedThroughTheApp(t *testing.T) {
 	holder.must(http.StatusCreated, http.MethodPost, "/appointments", map[string]string{"slotId": slotID}, &booked)
 	holder.must(http.StatusOK, http.MethodPost, "/appointments/"+booked.ID+"/cancel", nil, nil)
 
-	var offer struct{ ID, SlotStart string }
-	eventually(t, "the worker offers the freed time to the waiting patient", func() bool {
-		var mine struct {
-			Entries []struct {
-				Offer *struct {
-					ID        string `json:"id"`
-					SlotStart string `json:"slot_start"`
-				}
-				ID string
-			}
-		}
-		waiting.must(http.StatusOK, http.MethodGet, "/me/waitlist", nil, &mine)
-		for _, e := range mine.Entries {
-			if e.ID == entry.ID && e.Offer != nil {
-				offer.ID, offer.SlotStart = e.Offer.ID, e.Offer.SlotStart
-				return true
-			}
-		}
-		return false
-	})
+	offer := offeredTo(t, waiting, entry.ID)
 	if got, err := time.Parse(time.RFC3339, offer.SlotStart); err != nil || !got.Equal(start) {
 		t.Errorf("the offer's time %q, want the freed slot's %v", offer.SlotStart, start)
 	}
@@ -125,4 +111,29 @@ func freeSlotAfter(t *testing.T, c *api, schedule string, after time.Duration) (
 		t.Fatal(err)
 	}
 	return slots.Entry[0].Resource.ID, start
+}
+
+// offeredTo waits for the worker's offer of the patient's entry, and returns its id and time.
+func offeredTo(t *testing.T, p *patient, entry string) (offer struct{ ID, SlotStart string }) {
+	t.Helper()
+	eventually(t, "the worker offers the freed time to the waiting patient", func() bool {
+		var mine struct {
+			Entries []struct {
+				Offer *struct {
+					ID        string `json:"id"`
+					SlotStart string `json:"slot_start"`
+				}
+				ID string
+			}
+		}
+		p.must(http.StatusOK, http.MethodGet, "/me/waitlist", nil, &mine)
+		for _, e := range mine.Entries {
+			if e.ID == entry && e.Offer != nil {
+				offer.ID, offer.SlotStart = e.Offer.ID, e.Offer.SlotStart
+				return true
+			}
+		}
+		return false
+	})
+	return offer
 }

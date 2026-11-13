@@ -349,4 +349,11 @@ describe("the clinic's location and its contribution to the platform figures", (
     expect(await screen.findByLabelText('Регија')).toBeTruthy()
     expect(screen.getByLabelText('Град')).toBeTruthy()
   })
+
+  it("has the clinic's rescheduling rules beside its details", async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(await screen.findByRole('heading', { name: 'Rescheduling' })).toBeTruthy()
+    expect(((await screen.findByLabelText('Notice in hours')) as HTMLInputElement).value).toBe('24')
+  })
 })

@@ -134,6 +134,21 @@ class Booking {
 
   Future<void> cancel(String appointmentId) => apiCall(() => _appointments.cancelAppointment(appointmentId));
 
+  /// What the patient may do with the appointment now, by the clinic's rules (SAL-34).
+  Future<api.AppointmentActions> actions(String appointmentId) async {
+    final actions = await apiCall(() => _appointments.getAppointmentActions(appointmentId));
+    if (actions == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return actions;
+  }
+
+  /// Confirms that the patient will come; confirming again answers the same.
+  Future<void> confirm(String appointmentId) => apiCall(() => _appointments.confirmAppointment(appointmentId));
+
+  /// Moves the appointment to the free slot [slotId] of its practitioner role.
+  Future<void> reschedule(String appointmentId, String slotId) => apiCall(
+    () => _appointments.rescheduleAppointment(appointmentId, api.RescheduleAppointmentRequest(slotId: slotId)),
+  );
+
   /// A token for the appointment's video consultation (docs/consultation/SPEC.md "Join response"). The token is a
   /// secret: it goes to LiveKit and nowhere else.
   Future<api.ConsultationJoin> join(String appointmentId) async {
