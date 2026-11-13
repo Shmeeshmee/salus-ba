@@ -1,6 +1,7 @@
 package binary
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -127,7 +128,8 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 		case err != nil:
 			return err
 		}
-		e := entry{c: c, org: b.OrganizationID, interaction: auditevent.CodeRead, purpose: g.Purpose, binaryID: b.ID, responseID: b.ResponseID}
+		// Under the staff reader's clinic, also for a file of another clinic's visit shared with it (ADR 0014).
+		e := entry{c: c, org: cmp.Or(c.OrganizationID, b.OrganizationID), interaction: auditevent.CodeRead, purpose: g.Purpose, binaryID: b.ID, responseID: b.ResponseID}
 		if refused = check(b); refused != nil {
 			e.outcome = auditevent.OutcomeMinorFailure
 			return s.record(ctx, e)

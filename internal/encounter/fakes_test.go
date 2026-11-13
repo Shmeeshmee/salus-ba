@@ -86,6 +86,7 @@ type fakeRepository struct {
 	clinic     string
 	encounters []encounter.Encounter
 	searched   []encounter.Filter
+	shared     []string // another clinic's finished encounters the clinic's scope shows (encounter_shared)
 }
 
 // historyAsk is what PatientHistory was last asked.
@@ -99,7 +100,7 @@ func (r *fakeRepository) visible(e encounter.Encounter) bool {
 	if r.patient != "" {
 		return e.PatientID == r.patient
 	}
-	return r.clinic != "" && e.OrganizationID == r.clinic
+	return r.clinic != "" && (e.OrganizationID == r.clinic || (e.Status == encounter.StatusFinished && slices.Contains(r.shared, e.ID)))
 }
 
 func (r *fakeRepository) SetPatient(_ context.Context, id string) error {

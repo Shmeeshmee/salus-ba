@@ -36,7 +36,8 @@ import (
 // TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled: the patient joins first and
 // waits; the practitioner signs in to the web app, joins from the appointment, sees and hears the patient; the
 // Encounter is in-progress; the practitioner ends the consultation, the patient is disconnected, the Encounter is
-// finished and the appointment fulfilled. The document the practitioner signed in the call is the patient's to open.
+// finished and the appointment fulfilled. The document the practitioner signed in the call is the patient's to open,
+// and the visit and the document are in the practitioner's view of the patient's history (SAL-40).
 func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIsFulfilled(t *testing.T) {
 	clinic := newBookableClinic(t)
 	p := newPatientWithProfile(t)
@@ -65,6 +66,7 @@ func TestConsultation_ThePractitionerEndsTheCallFromTheWebAppAndTheAppointmentIs
 	theSignedDiagnosisIsAConfirmedCondition(t, appt.ID, "J06.9")
 	theClinicsDiagnosisFiguresCountIt(t, clinic, "J06.9")
 	patientOpensTheSignedDocument(t, clinic, p, appt.ID, template, term)
+	practitionerSeesThePatientsHistory(t, clinic, p, appt.ID, "J06.9")
 }
 
 // theSignedDiagnosisIsAConfirmedCondition: the code the practitioner confirmed in the browser is the one Condition

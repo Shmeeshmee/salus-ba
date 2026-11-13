@@ -17,6 +17,8 @@ class HistorySummary {
     this.allergies = const [],
     this.medications = const [],
     this.openItems = const [],
+    this.allergiesUnavailable,
+    this.medicationsUnavailable,
   });
 
   ///
@@ -33,6 +35,24 @@ class HistorySummary {
 
   List<OpenItem> openItems;
 
+  /// The allergies could not be read; the empty list means nothing is known, not none recorded.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? allergiesUnavailable;
+
+  /// The medications could not be read; the empty list means nothing is known, not none recorded.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? medicationsUnavailable;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -40,7 +60,9 @@ class HistorySummary {
           other.lastVisit == lastVisit &&
           _deepEquality.equals(other.allergies, allergies) &&
           _deepEquality.equals(other.medications, medications) &&
-          _deepEquality.equals(other.openItems, openItems);
+          _deepEquality.equals(other.openItems, openItems) &&
+          other.allergiesUnavailable == allergiesUnavailable &&
+          other.medicationsUnavailable == medicationsUnavailable;
 
   @override
   int get hashCode =>
@@ -48,11 +70,13 @@ class HistorySummary {
       (lastVisit == null ? 0 : lastVisit!.hashCode) +
       (allergies.hashCode) +
       (medications.hashCode) +
-      (openItems.hashCode);
+      (openItems.hashCode) +
+      (allergiesUnavailable == null ? 0 : allergiesUnavailable!.hashCode) +
+      (medicationsUnavailable == null ? 0 : medicationsUnavailable!.hashCode);
 
   @override
   String toString() =>
-      'HistorySummary[lastVisit=$lastVisit, allergies=$allergies, medications=$medications, openItems=$openItems]';
+      'HistorySummary[lastVisit=$lastVisit, allergies=$allergies, medications=$medications, openItems=$openItems, allergiesUnavailable=$allergiesUnavailable, medicationsUnavailable=$medicationsUnavailable]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -64,6 +88,16 @@ class HistorySummary {
     json[r'allergies'] = this.allergies;
     json[r'medications'] = this.medications;
     json[r'openItems'] = this.openItems;
+    if (this.allergiesUnavailable != null) {
+      json[r'allergiesUnavailable'] = this.allergiesUnavailable;
+    } else {
+      json[r'allergiesUnavailable'] = null;
+    }
+    if (this.medicationsUnavailable != null) {
+      json[r'medicationsUnavailable'] = this.medicationsUnavailable;
+    } else {
+      json[r'medicationsUnavailable'] = null;
+    }
     return json;
   }
 
@@ -98,6 +132,10 @@ class HistorySummary {
         allergies: SummaryAllergy.listFromJson(json[r'allergies']),
         medications: SummaryMedication.listFromJson(json[r'medications']),
         openItems: OpenItem.listFromJson(json[r'openItems']),
+        allergiesUnavailable:
+            mapValueOfType<bool>(json, r'allergiesUnavailable'),
+        medicationsUnavailable:
+            mapValueOfType<bool>(json, r'medicationsUnavailable'),
       );
     }
     return null;

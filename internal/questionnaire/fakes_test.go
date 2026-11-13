@@ -40,12 +40,14 @@ type fakeRepository struct {
 	translationsErr error                                  // of Translations alone
 	referenced      map[string][]string                    // the versions each patient's responses reference
 	translated      map[string][]questionnaire.Translation // by version
+	shared          map[string][]string                    // the versions each clinic's scope reads through history_questionnaire, by clinic and practitioner
 	clinic          string
 	patient         string
 	rows            []questionnaire.Questionnaire
 	defaults        []questionnaire.Default
 	outside         []string
 	next            int
+	sharedCalls     int
 	leak            bool
 }
 
@@ -102,6 +104,39 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (questionnaire.Que
 		return r.rows[i], nil
 	}
 	return questionnaire.Questionnaire{}, questionnaire.ErrNotFound
+}
+
+// Shared gives the versions of ids the clinic's scope reads through history_questionnaire for the practitioner (a
+// shared response answers them and the practitioner has an appointment with its patient): shared is keyed by
+// clinic and practitioner.
+func (r *fakeRepository) Shared(ctx context.Context, practitionerID string, ids []string) ([]questionnaire.Questionnaire, error) {
+	r.seen(ctx, "Shared")
+	r.sharedCalls++
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []questionnaire.Questionnaire
+	for _, q := range r.rows {
+		if slices.Contains(ids, q.ID) && slices.Contains(r.shared[r.clinic+" "+practitionerID], q.ID) {
+			out = append(out, q)
+		}
+	}
+	return out, nil
+}
+
+// ByIDs gives the versions of ids the scope shows (roughly: every row; the service must check the clinic).
+func (r *fakeRepository) ByIDs(ctx context.Context, ids []string) ([]questionnaire.Questionnaire, error) {
+	r.seen(ctx, "ByIDs")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []questionnaire.Questionnaire
+	for _, q := range r.rows {
+		if slices.Contains(ids, q.ID) {
+			out = append(out, q)
+		}
+	}
+	return out, nil
 }
 
 func (r *fakeRepository) Lock(ctx context.Context, id string) (questionnaire.Questionnaire, error) {

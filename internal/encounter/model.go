@@ -32,6 +32,13 @@ type Encounter struct {
 	VersionID          int32 // meta.versionId
 }
 
+// Visit is an encounter in a practitioner's view of the patient's history (ADR 0014): Shared marks another
+// clinic's visit the patient shared with the practitioner's clinic.
+type Visit struct {
+	Encounter
+	Shared bool
+}
+
 // Filter narrows a search: the appointment, the patient and the practitioner behind the role, when set.
 type Filter struct {
 	AppointmentID  string
