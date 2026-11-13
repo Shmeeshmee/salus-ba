@@ -228,7 +228,11 @@ describe('Calendar in a language', () => {
       )
       expect(within(screen.getByRole('region', { name: 'Mon 9 Nov' })).getByRole('link').textContent).not.toContain('no-show')
       const asked = requests.find((r) => new URL(r.url).pathname === '/clinic/noshow-flags')!
-      expect(Object.fromEntries(new URL(asked.url).searchParams)).toEqual({ from: '2026-11-08T23:00:00.000Z', to: '2026-11-15T23:00:00.000Z' })
+      expect(Object.fromEntries(new URL(asked.url).searchParams)).toEqual({
+        from: '2026-11-08T23:00:00.000Z',
+        to: '2026-11-15T23:00:00.000Z',
+        practitioner: cy.practitionerId,
+      })
     })
 
     it('shows the week without flags when they cannot be read, the rule is off, or for an admin as for a practitioner', async () => {

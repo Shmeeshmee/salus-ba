@@ -97,7 +97,7 @@ function Week({ api, fhir, practitionerId, start, zone, now, joins }: WeekProps)
     return (bundle.entry ?? []).map((e) => e.resource).sort((a, b) => a.start.localeCompare(b.start))
   }, [fhir, practitionerId, from.getTime(), to.getTime()])
   const at = useNow(now)
-  const flags = useNoShowFlags(api, from, to)
+  const flags = useNoShowFlags(api, practitionerId, from, to)
 
   if (state.name === 'loading') return <p className="muted">{t('common.loading')}</p>
   if (state.name === 'failed') return <Alert message={t('calendar.loadFailed')} />

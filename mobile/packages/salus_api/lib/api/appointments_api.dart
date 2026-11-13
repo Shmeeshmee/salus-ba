@@ -463,9 +463,13 @@ class AppointmentsApi {
   /// * [DateTime] from (required):
   ///
   /// * [DateTime] to (required):
+  ///
+  /// * [String] practitioner:
+  ///   A Practitioner id: only that practitioner's appointments are read, flagged and audited (the calendar shows one practitioner's week). A practitioner naming another, or an unknown id, gets none.
   Future<Response> listNoShowFlagsWithHttpInfo(
     DateTime from,
     DateTime to, {
+    String? practitioner,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -480,6 +484,9 @@ class AppointmentsApi {
 
     queryParams.addAll(_queryParams('', 'from', from));
     queryParams.addAll(_queryParams('', 'to', to));
+    if (practitioner != null) {
+      queryParams.addAll(_queryParams('', 'practitioner', practitioner));
+    }
 
     const contentTypes = <String>[];
 
@@ -504,14 +511,19 @@ class AppointmentsApi {
   /// * [DateTime] from (required):
   ///
   /// * [DateTime] to (required):
+  ///
+  /// * [String] practitioner:
+  ///   A Practitioner id: only that practitioner's appointments are read, flagged and audited (the calendar shows one practitioner's week). A practitioner naming another, or an unknown id, gets none.
   Future<NoShowFlags?> listNoShowFlags(
     DateTime from,
     DateTime to, {
+    String? practitioner,
     Future<void>? abortTrigger,
   }) async {
     final response = await listNoShowFlagsWithHttpInfo(
       from,
       to,
+      practitioner: practitioner,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

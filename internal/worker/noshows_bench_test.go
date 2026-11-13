@@ -77,7 +77,7 @@ func BenchmarkNoShowFlags(b *testing.B) {
 	}
 	b.ResetTimer()
 	for b.Loop() {
-		flags, err := svc.NoShowFlags(b.Context(), c, now, now.Add(62*24*time.Hour))
+		flags, err := svc.NoShowFlags(b.Context(), c, now, now.Add(62*24*time.Hour), "")
 		if err != nil || len(flags) != 62*25 {
 			b.Fatalf("%d flags, %v; want every appointment of the range", len(flags), err)
 		}

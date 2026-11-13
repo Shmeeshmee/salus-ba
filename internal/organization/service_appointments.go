@@ -75,7 +75,7 @@ func (s *Appointments) Settings(ctx context.Context, c Caller) (AppointmentSetti
 // SetSettings replaces the settings of the admin's clinic, read at in.Version, with in, audited as an update of the
 // clinic, and returns them at their new version; refusals as Settings', audited too. ErrInvalidAppointmentSettings
 // for settings out of their ranges, ErrSMSUnavailable for the SMS option while no SMS provider sends,
-// ErrSettingsChanged when another save came after in.Version was read (nothing stored, nothing audited).
+// ErrSettingsChanged when another save came after in.Version was read (nothing stored; audited as refused).
 func (s *Appointments) SetSettings(ctx context.Context, c Caller, in AppointmentSettings) (AppointmentSettings, error) {
 	if err := adminOf(c); err != nil {
 		if aerr := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -103,7 +103,12 @@ func (s *Appointments) SetSettings(ctx context.Context, c Caller, in Appointment
 		out.Version = version
 		return s.Audit.Record(ctx, settingsEvent(c, auditevent.OutcomeSuccess))
 	})
-	if errors.Is(err, ErrSettingsChanged) {
+	if errors.Is(err, ErrSettingsChanged) { // refused, audited as refused: the save's transaction rolled back
+		if aerr := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+			return s.Audit.Record(ctx, settingsEvent(c, auditevent.OutcomeMinorFailure))
+		}); aerr != nil {
+			return AppointmentSettings{}, fmt.Errorf("organization: appointment settings: %w", aerr)
+		}
 		return AppointmentSettings{}, ErrSettingsChanged
 	}
 	if err != nil {

@@ -11257,6 +11257,8 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
+                /** @description A Practitioner id: only that practitioner's appointments are read, flagged and audited (the calendar shows one practitioner's week). A practitioner naming another, or an unknown id, gets none. */
+                practitioner?: string;
             };
             header?: never;
             path?: never;
