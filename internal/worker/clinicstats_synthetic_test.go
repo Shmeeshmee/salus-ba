@@ -218,11 +218,12 @@ func checkAppointments(t *testing.T, p statsPools, svc *clinicstats.Service, c c
 		t.Errorf("heatmap\n got %v\nwant %v", figures.Heatmap, heat)
 	}
 	var totals []clinicstats.PractitionerTotal
-	rawQuery(t, p.owner, `SELECT practitioner_role_id::text, count(*) FILTER (WHERE status = 'fulfilled')
+	rawQuery(t, p.owner, `SELECT practitioner_role_id::text, count(*) FILTER (WHERE status = 'fulfilled'),
+			count(*) FILTER (WHERE status = 'noshow'), count(*)
 		FROM appointment WHERE organization_id = $1 AND `+localStart+`::date BETWEEN $2 AND $3 GROUP BY 1 ORDER BY 2 DESC, 1`,
 		func(r interface{ Scan(...any) error }) error {
 			var x clinicstats.PractitionerTotal
-			err := r.Scan(&x.PractitionerRoleID, &x.Fulfilled)
+			err := r.Scan(&x.PractitionerRoleID, &x.Fulfilled, &x.NoShow, &x.Booked)
 			totals = append(totals, x)
 			return err
 		}, org, first, last)

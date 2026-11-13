@@ -63,7 +63,8 @@ func (q *Queries) AppointmentHeatmap(ctx context.Context, arg AppointmentHeatmap
 }
 
 const appointmentPractitioners = `-- name: AppointmentPractitioners :many
-SELECT practitioner_role_id, coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled
+SELECT practitioner_role_id, coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled,
+       coalesce(sum(count) FILTER (WHERE status = 'noshow'), 0)::bigint AS noshow, sum(count)::bigint AS booked
 FROM clinic_appointment_stat
 WHERE organization_id = $1 AND day BETWEEN $2 AND $3
   AND ($4::uuid IS NULL OR practitioner_role_id = $4)
@@ -83,9 +84,11 @@ type AppointmentPractitionersParams struct {
 type AppointmentPractitionersRow struct {
 	PractitionerRoleID pgtype.UUID
 	Fulfilled          int64
+	Noshow             int64
+	Booked             int64
 }
 
-// The fulfilled appointments per role, most first.
+// The fulfilled appointments per role, most first, with the no-shows and every appointment (SAL-36).
 func (q *Queries) AppointmentPractitioners(ctx context.Context, arg AppointmentPractitionersParams) ([]AppointmentPractitionersRow, error) {
 	rows, err := q.db.Query(ctx, appointmentPractitioners,
 		arg.OrganizationID,
@@ -101,7 +104,12 @@ func (q *Queries) AppointmentPractitioners(ctx context.Context, arg AppointmentP
 	var items []AppointmentPractitionersRow
 	for rows.Next() {
 		var i AppointmentPractitionersRow
-		if err := rows.Scan(&i.PractitionerRoleID, &i.Fulfilled); err != nil {
+		if err := rows.Scan(
+			&i.PractitionerRoleID,
+			&i.Fulfilled,
+			&i.Noshow,
+			&i.Booked,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -117,7 +125,8 @@ SELECT to_char(day, 'YYYY-MM')::text AS period,
        sum(count)::bigint AS booked,
        coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled,
        coalesce(sum(count) FILTER (WHERE status = 'noshow'), 0)::bigint AS noshow,
-       coalesce(sum(count) FILTER (WHERE status = 'cancelled'), 0)::bigint AS cancelled
+       coalesce(sum(count) FILTER (WHERE status = 'cancelled'), 0)::bigint AS cancelled,
+       coalesce(sum(count) FILTER (WHERE booked_via = 'waitlist'), 0)::bigint AS refilled
 FROM clinic_appointment_stat
 WHERE organization_id = $1 AND day BETWEEN $2 AND $3
   AND ($4::uuid IS NULL OR practitioner_role_id = $4)
@@ -140,6 +149,7 @@ type AppointmentSeriesRow struct {
 	Fulfilled int64
 	Noshow    int64
 	Cancelled int64
+	Refilled  int64
 }
 
 // A clinic's appointments per month of the local days from_day to to_day: every one, and those of each final status.
@@ -160,6 +170,69 @@ func (q *Queries) AppointmentSeries(ctx context.Context, arg AppointmentSeriesPa
 		var i AppointmentSeriesRow
 		if err := rows.Scan(
 			&i.Period,
+			&i.Booked,
+			&i.Fulfilled,
+			&i.Noshow,
+			&i.Cancelled,
+			&i.Refilled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const appointmentSpecialties = `-- name: AppointmentSpecialties :many
+SELECT specialty_code AS specialty, sum(count)::bigint AS booked,
+       coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled,
+       coalesce(sum(count) FILTER (WHERE status = 'noshow'), 0)::bigint AS noshow,
+       coalesce(sum(count) FILTER (WHERE status = 'cancelled'), 0)::bigint AS cancelled
+FROM clinic_appointment_stat
+WHERE organization_id = $1 AND day BETWEEN $2 AND $3
+  AND ($4::uuid IS NULL OR practitioner_role_id = $4)
+  AND ($5::text = '' OR specialty_code = $5)
+GROUP BY 1
+ORDER BY 2 DESC, 1
+`
+
+type AppointmentSpecialtiesParams struct {
+	OrganizationID     pgtype.UUID
+	FromDay            pgtype.Date
+	ToDay              pgtype.Date
+	PractitionerRoleID pgtype.UUID
+	Specialty          string
+}
+
+type AppointmentSpecialtiesRow struct {
+	Specialty string
+	Booked    int64
+	Fulfilled int64
+	Noshow    int64
+	Cancelled int64
+}
+
+// SAL-36: the appointments per specialty (” for none), most first, as AppointmentSeries counts them.
+func (q *Queries) AppointmentSpecialties(ctx context.Context, arg AppointmentSpecialtiesParams) ([]AppointmentSpecialtiesRow, error) {
+	rows, err := q.db.Query(ctx, appointmentSpecialties,
+		arg.OrganizationID,
+		arg.FromDay,
+		arg.ToDay,
+		arg.PractitionerRoleID,
+		arg.Specialty,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AppointmentSpecialtiesRow
+	for rows.Next() {
+		var i AppointmentSpecialtiesRow
+		if err := rows.Scan(
+			&i.Specialty,
 			&i.Booked,
 			&i.Fulfilled,
 			&i.Noshow,
@@ -274,9 +347,9 @@ func (q *Queries) DiagnosisCounts(ctx context.Context, arg DiagnosisCountsParams
 }
 
 const insertAppointmentCounts = `-- name: InsertAppointmentCounts :exec
-INSERT INTO clinic_appointment_stat (organization_id, practitioner_role_id, day, hour, specialty_code, status, count)
+INSERT INTO clinic_appointment_stat (organization_id, practitioner_role_id, day, hour, specialty_code, status, booked_via, count)
 SELECT $1::uuid, unnest($2::uuid[]), unnest($3::date[]), unnest($4::smallint[]),
-       unnest($5::text[]), unnest($6::text[]), unnest($7::integer[])
+       unnest($5::text[]), unnest($6::text[]), unnest($7::text[]), unnest($8::integer[])
 `
 
 type InsertAppointmentCountsParams struct {
@@ -286,6 +359,7 @@ type InsertAppointmentCountsParams struct {
 	Hours          []int16
 	Specialties    []string
 	Statuses       []string
+	BookedVias     []string
 	Counts         []int32
 }
 
@@ -298,6 +372,7 @@ func (q *Queries) InsertAppointmentCounts(ctx context.Context, arg InsertAppoint
 		arg.Hours,
 		arg.Specialties,
 		arg.Statuses,
+		arg.BookedVias,
 		arg.Counts,
 	)
 	return err

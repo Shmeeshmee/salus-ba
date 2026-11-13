@@ -37,6 +37,11 @@ var (
 	ErrPaymentDeclined = errors.New("appointment: payment declined")
 	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
 	ErrLinkInvalid = errors.New("appointment: link invalid")
+	// ErrCorrectionWindowClosed is returned when a no-show or an attendance is corrected more than 30 days after the
+	// start (SAL-36, Q6).
+	ErrCorrectionWindowClosed = errors.New("appointment: correction window closed")
+	// ErrInvalidRange is returned for a range of the no-show flags that is missing, reversed or too long (SAL-36).
+	ErrInvalidRange = errors.New("appointment: invalid range")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

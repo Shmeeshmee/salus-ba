@@ -24,11 +24,11 @@ func TestNew_ServesTheClinicsStatisticsToItsStaffAndAuditsThem(t *testing.T) {
 	const appts = "/analytics/clinic/appointments?from=2026-01-01&to=2026-12-31"
 	const diags = "/analytics/clinic/diagnoses?from=2026-01-01&to=2026-12-31&by=group"
 
-	if rec := d.admin.do(http.MethodGet, appts, ""); rec.Code != http.StatusOK || rec.Body.String() != `{"practitioners":[],"series":[],"heatmap":[]}`+"\n" {
+	if rec := d.admin.do(http.MethodGet, appts, ""); rec.Code != http.StatusOK || rec.Body.String() != `{"practitioners":[],"specialties":[],"series":[],"heatmap":[]}`+"\n" {
 		t.Errorf("GET appointments as the admin = %d %s", rec.Code, rec.Body)
 	}
-	if rec := d.practitioner.do(http.MethodGet, appts, ""); rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "practitioners") {
-		t.Errorf("GET appointments as the practitioner = %d %s, want no practitioners", rec.Code, rec.Body)
+	if rec := d.practitioner.do(http.MethodGet, appts, ""); rec.Code != http.StatusOK || (strings.Contains(rec.Body.String(), "practitioners") || strings.Contains(rec.Body.String(), "specialties")) {
+		t.Errorf("GET appointments as the practitioner = %d %s, want no practitioners nor specialties", rec.Code, rec.Body)
 	}
 	if rec := d.practitioner.do(http.MethodGet, diags+"&practitionerRole="+d.roleID, ""); rec.Code != http.StatusOK || rec.Body.String() != `{"rows":[]}`+"\n" {
 		t.Errorf("GET their own diagnoses as the practitioner = %d %s", rec.Code, rec.Body)

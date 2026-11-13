@@ -560,3 +560,7 @@ p.hint.join { margin-bottom: 20px; }
 .term-options li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
 .term-options li[aria-selected='true'], .term-options li:hover { background: var(--color-mint-faint); }
 .allergy-warning .strong, .entry-list .strong { font-weight: 600; }
+
+/* SAL-36: the repeat no-show flag beside an appointment, and its setting below the clinic's settings. */
+.tag.noshow-flag { color: var(--color-ink); border-color: var(--color-border-strong); background: var(--color-page); }
+.settings-part { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--color-border); }

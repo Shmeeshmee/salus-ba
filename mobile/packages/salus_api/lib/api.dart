@@ -94,6 +94,7 @@ part 'model/clinic_appointments.dart';
 part 'model/clinic_appointments_heatmap_inner.dart';
 part 'model/clinic_appointments_practitioners_inner.dart';
 part 'model/clinic_appointments_series_inner.dart';
+part 'model/clinic_appointments_specialties_inner.dart';
 part 'model/clinic_diagnoses.dart';
 part 'model/clinic_diagnoses_rows_inner.dart';
 part 'model/clinic_waitlist.dart';

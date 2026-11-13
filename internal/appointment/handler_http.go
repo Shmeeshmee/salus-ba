@@ -233,6 +233,7 @@ var errorCodes = []struct {
 	{ErrRescheduleLimit, "reschedule_limit", http.StatusConflict},
 	{ErrNotReschedulable, "not_reschedulable", http.StatusConflict},
 	{ErrPaymentDeclined, "payment_declined", http.StatusConflict},
+	{ErrCorrectionWindowClosed, "correction_window_closed", http.StatusConflict},
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {

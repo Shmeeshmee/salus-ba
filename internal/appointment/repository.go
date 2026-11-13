@@ -57,3 +57,10 @@ type StatsRepository interface {
 	// Fulfilled returns a clinic's fulfilled appointments starting in [from, to), oldest first.
 	Fulfilled(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error)
 }
+
+// NoShowRepository corrects how an appointment went (SAL-36), in the transaction and scope in ctx.
+type NoShowRepository interface {
+	// CorrectStatus moves the appointment id from the status from to to (noshow and fulfilled into each other) at at
+	// and returns it at its next version; ErrClosed when it is not in from (a concurrent change committed first).
+	CorrectStatus(ctx context.Context, id string, from, to Status, at time.Time) (Appointment, error)
+}

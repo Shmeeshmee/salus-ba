@@ -35,8 +35,20 @@ const places = {
   ],
 }
 
+const appointmentSettings = {
+  reminder_offsets_minutes: [1440, 60],
+  sms_reminders: false,
+  reschedule_notice_hours: 24,
+  reschedule_max: 2,
+  waitlist_enabled: false,
+  waitlist_hold_minutes: 15,
+  noshow_flag_threshold: 0,
+  noshow_flag_window_days: 180,
+}
+
 function renderSettings(routes: Record<string, Route>, language: Language = 'en', platform = true) {
-  const fake = fakeFetch({ 'GET /places': () => Response.json(places), ...routes })
+  // The no-show flag's section (ClinicSettingsNoShows) reads the clinic's appointment settings beside the form.
+  const fake = fakeFetch({ 'GET /places': () => Response.json(places), 'GET /clinic/appointment-settings': () => Response.json(appointmentSettings), ...routes })
   renderInLanguage(
     <ClinicSettings api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} organizationId={id} platform={platform} />,
     language,

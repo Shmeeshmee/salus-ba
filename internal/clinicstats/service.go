@@ -35,8 +35,9 @@ type Service struct{ p Ports }
 // NewService returns the Service on its ports.
 func NewService(p Ports) *Service { return &Service{p: p} }
 
-// Appointments returns the clinic's appointments by month, the heatmap of their weekdays and hours and, for an
-// admin, the fulfilled ones per role. ErrInvalidQuery for a bad range (not audited: nothing is read);
+// Appointments returns the clinic's appointments by month (with the slots refilled from the waitlist), the heatmap of
+// their weekdays and hours and, for an admin, the figures per role and per specialty (SAL-36; C2: never to anyone
+// else). ErrInvalidQuery for a bad range (not audited: nothing is read);
 // ErrForbidden, audited, to a caller who is neither the clinic's admin nor a practitioner of it, and to a
 // practitioner who is not an admin asking for another role or for a specialty.
 func (s *Service) Appointments(ctx context.Context, c Caller, q AppointmentQuery) (AppointmentFigures, error) {
@@ -55,9 +56,13 @@ func (s *Service) Appointments(ctx context.Context, c Caller, q AppointmentQuery
 		if out.Heatmap, err = s.p.Repo.Heatmap(ctx, c.OrganizationID, q); err != nil {
 			return err
 		}
-		if c.Admin {
-			out.Practitioners, err = s.p.Repo.Practitioners(ctx, c.OrganizationID, q)
+		if !c.Admin {
+			return nil
 		}
+		if out.Practitioners, err = s.p.Repo.Practitioners(ctx, c.OrganizationID, q); err != nil {
+			return err
+		}
+		out.Specialties, err = s.p.Repo.Specialties(ctx, c.OrganizationID, q)
 		return err
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
+import { NoShowCorrection, NoShowFlag } from './NoShows'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
 import { Alert, Link } from './ui'
@@ -24,7 +25,8 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient; consultation
 // has the profile (SPEC "FHIR reads and searches"), so it is not asked for. The practitioner records the
 // outcome once the appointment has started; the practitioner and the admin can cancel it. The practitioner joins
 // the video consultation inside its window (an admin cannot join), and both see whether each side joined.
-// Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them. Its own
+// Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them. Both
+// correct a no-show into fulfilled and back within 30 days, and see the repeat no-show flag (SAL-36). Its own
 // practitioner also opens the patient's history and the pre-visit summary (SAL-40), read and audited only once asked
 // for.
 // Everything above the questionnaires is read in one load, so the page appears in one piece: a section that came
@@ -112,6 +114,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       <p className="when">
         <span>{t('calendar.when', { date: f.date(start, zone, 'long'), start: f.time(start, zone), end: f.time(end, zone) })}</span>
         <span className={`tag ${appt.status}`}>{t(`calendar.status.${appt.status}`)}</span>
+        <NoShowFlag api={api} id={appt.id} start={start} />
       </p>
       {profile && <Profile patient={profile} />}
       {practitioner && join === 'open' && (
@@ -126,6 +129,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
       {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
+      {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}
     </>
   )
 }

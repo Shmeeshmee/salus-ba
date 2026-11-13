@@ -11,10 +11,10 @@ DELETE FROM clinic_diagnosis_stat
 WHERE organization_id = @organization_id AND day BETWEEN @first_day AND @last_day;
 
 -- name: InsertAppointmentCounts :exec
-INSERT INTO clinic_appointment_stat (organization_id, practitioner_role_id, day, hour, specialty_code, status, count)
+INSERT INTO clinic_appointment_stat (organization_id, practitioner_role_id, day, hour, specialty_code, status, booked_via, count)
 -- The arrays are of one length: unnest in the select list zips them.
 SELECT @organization_id::uuid, unnest(@roles::uuid[]), unnest(@days::date[]), unnest(@hours::smallint[]),
-       unnest(@specialties::text[]), unnest(@statuses::text[]), unnest(@counts::integer[]);
+       unnest(@specialties::text[]), unnest(@statuses::text[]), unnest(@booked_vias::text[]), unnest(@counts::integer[]);
 
 -- name: InsertDiagnosisCounts :exec
 -- An empty subgroup is none (NULL).
@@ -30,7 +30,8 @@ SELECT to_char(day, 'YYYY-MM')::text AS period,
        sum(count)::bigint AS booked,
        coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled,
        coalesce(sum(count) FILTER (WHERE status = 'noshow'), 0)::bigint AS noshow,
-       coalesce(sum(count) FILTER (WHERE status = 'cancelled'), 0)::bigint AS cancelled
+       coalesce(sum(count) FILTER (WHERE status = 'cancelled'), 0)::bigint AS cancelled,
+       coalesce(sum(count) FILTER (WHERE booked_via = 'waitlist'), 0)::bigint AS refilled
 FROM clinic_appointment_stat
 WHERE organization_id = @organization_id AND day BETWEEN @from_day AND @to_day
   AND (sqlc.narg(practitioner_role_id)::uuid IS NULL OR practitioner_role_id = sqlc.narg(practitioner_role_id))
@@ -49,8 +50,22 @@ GROUP BY 1, 2
 ORDER BY 1, 2;
 
 -- name: AppointmentPractitioners :many
--- The fulfilled appointments per role, most first.
-SELECT practitioner_role_id, coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled
+-- The fulfilled appointments per role, most first, with the no-shows and every appointment (SAL-36).
+SELECT practitioner_role_id, coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled,
+       coalesce(sum(count) FILTER (WHERE status = 'noshow'), 0)::bigint AS noshow, sum(count)::bigint AS booked
+FROM clinic_appointment_stat
+WHERE organization_id = @organization_id AND day BETWEEN @from_day AND @to_day
+  AND (sqlc.narg(practitioner_role_id)::uuid IS NULL OR practitioner_role_id = sqlc.narg(practitioner_role_id))
+  AND (@specialty::text = '' OR specialty_code = @specialty)
+GROUP BY 1
+ORDER BY 2 DESC, 1;
+
+-- name: AppointmentSpecialties :many
+-- SAL-36: the appointments per specialty ('' for none), most first, as AppointmentSeries counts them.
+SELECT specialty_code AS specialty, sum(count)::bigint AS booked,
+       coalesce(sum(count) FILTER (WHERE status = 'fulfilled'), 0)::bigint AS fulfilled,
+       coalesce(sum(count) FILTER (WHERE status = 'noshow'), 0)::bigint AS noshow,
+       coalesce(sum(count) FILTER (WHERE status = 'cancelled'), 0)::bigint AS cancelled
 FROM clinic_appointment_stat
 WHERE organization_id = @organization_id AND day BETWEEN @from_day AND @to_day
   AND (sqlc.narg(practitioner_role_id)::uuid IS NULL OR practitioner_role_id = sqlc.narg(practitioner_role_id))

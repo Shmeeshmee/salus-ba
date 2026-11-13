@@ -49,8 +49,8 @@ func TestHTTPAppointments_ReturnsTheFigures(t *testing.T) {
 		PerPractitioner: true,
 	}}
 	rec := serveStats(t, svc, true, "/analytics/clinic/appointments?from=2026-01-01&to=2026-12-31&practitionerRole="+roleA1+"&specialty="+gp)
-	want := `{"practitioners":[{"practitionerRole":"` + roleA1 + `","fulfilled":40}],` +
-		`"series":[{"period":"2026-01","booked":120,"fulfilled":98,"noshow":6,"cancelled":16}],"heatmap":[{"weekday":1,"hour":9,"count":14}]}` + "\n"
+	want := `{"practitioners":[{"practitionerRole":"` + roleA1 + `","fulfilled":40,"noshow":0,"booked":0}],"specialties":[],` +
+		`"series":[{"period":"2026-01","booked":120,"fulfilled":98,"noshow":6,"cancelled":16,"refilled":0}],"heatmap":[{"weekday":1,"hour":9,"count":14}]}` + "\n"
 	if rec.Code != http.StatusOK || rec.Body.String() != want {
 		t.Errorf("GET = %d %s, want 200 %s", rec.Code, rec.Body, want)
 	}

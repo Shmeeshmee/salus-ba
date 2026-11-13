@@ -102,7 +102,11 @@ type Ports struct {
 	Payments payments.Provider
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
-	Tokens  TokenRepository
+	Tokens TokenRepository
+	// NoShows corrects a no-show or an attendance, and Rules gives the clinic's repeat no-show flag (SAL-36,
+	// service_noshow.go): needed only by the api's Service.
+	NoShows NoShowRepository
+	Rules   ClinicRules
 	LinkURL string
 }
 

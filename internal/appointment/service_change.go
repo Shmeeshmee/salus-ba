@@ -214,14 +214,16 @@ func (s *Service) cancelled(ctx context.Context, a Appointment, who Change) erro
 
 // SetStatus marks the booked appointment id fulfilled or noshow, by its practitioner, once its start has
 // passed, and returns it; after a revocation too, for an appointment that started before it (the care
-// record, access.RecordsOutcome). ErrInvalidStatus for any other status (before any access), ErrForbidden to
-// anyone but its practitioner, ErrNotFound for one the caller may not see, ErrNotStarted before the start, ErrClosed for one no longer booked; each refusal but the first is
-// audited.
+// record, access.RecordsOutcome). Its practitioner and the clinic's admin also correct a noshow into fulfilled
+// and back within 30 days of the start (SAL-36, service_noshow.go). ErrInvalidStatus for any other status (before
+// any access), ErrForbidden to anyone but its practitioner (an admin: but a correction), ErrNotFound for one the
+// caller may not see, ErrNotStarted before the start, ErrClosed for one no longer booked (and not to correct),
+// ErrCorrectionWindowClosed after the 30 days; each refusal but the first is audited.
 func (s *Service) SetStatus(ctx context.Context, c Caller, id string, status Status) (Appointment, error) {
 	if status != StatusFulfilled && status != StatusNoShow {
 		return Appointment{}, ErrInvalidStatus
 	}
-	if c.patient() || c.Admin || c.PractitionerID == "" {
+	if c.patient() || (!c.Admin && c.PractitionerID == "") {
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
 	}
 	var out Appointment
@@ -252,9 +254,13 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 	switch {
 	case err != nil:
 		return Appointment{}, nil, err
+	case v.level == access.None && c.Admin: // an admin corrects only: whether the id exists is not disclosed
+		return Appointment{}, ErrForbidden, nil
 	case v.level == access.None:
 		return Appointment{}, ErrNotFound, nil
-	case !access.RecordsOutcome(v.viewer, v.facts, visit(v.a)):
+	case corrects(v.a.Status, status):
+		return s.correctStatus(ctx, c, v, status, now)
+	case c.Admin || !access.RecordsOutcome(v.viewer, v.facts, visit(v.a)):
 		return Appointment{}, ErrForbidden, nil
 	case v.a.Status != StatusBooked:
 		return Appointment{}, ErrClosed, nil

@@ -216,6 +216,7 @@ enum ErrorErrorEnum {
   ifMatchRequired._(r'if_match_required'),
   websocketRequired._(r'websocket_required'),
   origin._(r'origin'),
+  correctionWindowClosed._(r'correction_window_closed'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -411,6 +412,8 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.websocketRequired;
         case r'origin':
           return ErrorErrorEnum.origin;
+        case r'correction_window_closed':
+          return ErrorErrorEnum.correctionWindowClosed;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

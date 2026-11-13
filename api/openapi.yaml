@@ -1299,12 +1299,12 @@ paths:
   /appointments/{id}/status:
     post:
       operationId: setAppointmentStatus
-      summary: Mark an appointment fulfilled or no-show
+      summary: Mark an appointment fulfilled or no-show, or correct it
       description: >-
         The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its
-        history (GET /appointments/{id}/changes). From SAL-36 the practitioner and the clinic's admin also correct a
-        `noshow` to `fulfilled` and back within 30 days of the start (409 `correction_window_closed` after). Not
-        cached. Audited, also when refused.
+        history (GET /appointments/{id}/changes). The practitioner and the clinic's admin also correct a `noshow` to
+        `fulfilled` and back within 30 days of the start (SAL-36, docs/plans/appointments.md Q6), kept in its history
+        as `status_corrected`; 409 `correction_window_closed` after. Not cached. Audited, also when refused.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -1342,8 +1342,8 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "403":
           description: >-
-            `forbidden`: a patient or an admin; the clinic sees the appointment at the name, times and status
-            only; or `csrf`.
+            `forbidden`: a patient; an admin marking a booked appointment, or correcting one they may not (another
+            clinic's, an unknown id); the clinic sees the appointment at the name, times and status only; or `csrf`.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -1355,7 +1355,8 @@ paths:
         "409":
           description: >-
             `appointment_not_started`: the start has not passed; `appointment_closed`: the appointment is no
-            longer booked.
+            longer booked (and the request is not a correction); `correction_window_closed`: a correction more than
+            30 days after the start.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -4728,9 +4729,10 @@ paths:
       description: >-
         The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed
         within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`,
-        `booked` counting every appointment and the others those with that status now; the heatmap of the ones
-        not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin
-        only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin
+        `booked` counting every appointment, the others those with that status now and `refilled` those booked
+        through the waitlist (SAL-36); the heatmap of the ones not cancelled by ISO weekday (1 is Monday) and local
+        hour, busy cells only; and, for the clinic's admin only, the figures per practitioner role and per specialty
+        (absent for anyone else). The no-show rate is the client's: `noshow` over `booked`. A practitioner who is not an admin
         may narrow to their own role only, never to a specialty. Every read is audited on the clinic.
       tags: [analytics]
       security:
@@ -5454,9 +5456,11 @@ paths:
       x-salus-package: SAL-36
       summary: Repeat no-show flags beside the calendar's appointments
       description: >-
-        For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) the caller sees
-        in full whose patient missed at least the threshold in the window; empty when the rule is off. Computed on
-        read, never stored. Built in SAL-36 (404 until then).
+        For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62
+        days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the
+        last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never
+        shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Each flagged
+        appointment's read is audited. Not cached.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -5466,12 +5470,14 @@ paths:
         - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
       responses:
         "200":
-          description: The flags.
+          description: The flags, by the appointments' start.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
           content:
             application/json:
               schema: {$ref: "#/components/schemas/NoShowFlags"}
         "400":
-          description: "`invalid_request`."
+          description: "`invalid_request`: `from` or `to` missing or not RFC 3339, reversed, or more than 62 days apart."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -7193,6 +7199,7 @@ components:
             - if_match_required
             - websocket_required
             - origin
+            - correction_window_closed
         linkIds:
           type: array
           items: {type: string}
@@ -8339,13 +8346,14 @@ components:
           type: array
           items:
             type: object
-            required: [period, booked, fulfilled, noshow, cancelled]
+            required: [period, booked, fulfilled, noshow, cancelled, refilled]
             properties:
               period: {type: string, description: "The month, YYYY-MM."}
               booked: {type: integer, format: int64, description: Every appointment starting in the month.}
               fulfilled: {type: integer, format: int64}
               noshow: {type: integer, format: int64}
               cancelled: {type: integer, format: int64}
+              refilled: {type: integer, format: int64, description: "Booked through the waitlist (a freed slot refilled), whatever the status now (SAL-36)."}
         heatmap:
           type: array
           items:
@@ -8360,10 +8368,24 @@ components:
           description: For the clinic's admin only.
           items:
             type: object
-            required: [practitionerRole, fulfilled]
+            required: [practitionerRole, fulfilled, noshow, booked]
             properties:
               practitionerRole: {type: string, format: uuid}
               fulfilled: {type: integer, format: int64}
+              noshow: {type: integer, format: int64}
+              booked: {type: integer, format: int64, description: Every appointment of the role (SAL-36).}
+        specialties:
+          type: array
+          description: For the clinic's admin only (SAL-36), most booked first.
+          items:
+            type: object
+            required: [specialty, booked, fulfilled, noshow, cancelled]
+            properties:
+              specialty: {type: string, description: "The role's SNOMED CT specialty code; empty for roles without one."}
+              booked: {type: integer, format: int64}
+              fulfilled: {type: integer, format: int64}
+              noshow: {type: integer, format: int64}
+              cancelled: {type: integer, format: int64}
     ClinicDiagnoses:
       type: object
       required: [rows]

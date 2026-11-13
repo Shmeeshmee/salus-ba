@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ApiClient } from './api/client'
 import { FhirError, settingsOf, withSettings, type ClinicSettings as Settings, type FhirClient, type Organization } from './api/fhir'
 import { attempt } from './api/result'
+import { ClinicSettingsNoShows } from './ClinicSettingsNoShows'
 import { isStaffLanguage, staffLanguages } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
 import { languageNames } from './language'
@@ -72,6 +73,7 @@ export function ClinicSettings({
           onReload={reload}
         />
       )}
+      {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
     </section>
   )
 }

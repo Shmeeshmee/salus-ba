@@ -194,6 +194,78 @@ func (q *Queries) CancelAppointment(ctx context.Context, arg CancelAppointmentPa
 	return i, err
 }
 
+const correctAppointmentStatus = `-- name: CorrectAppointmentStatus :one
+
+UPDATE appointment
+SET status = $1::text, updated_at = $2, version_id = version_id + 1
+WHERE id = $3 AND status = $4::text AND status IN ('fulfilled', 'noshow') AND $1::text IN ('fulfilled', 'noshow')
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+`
+
+type CorrectAppointmentStatusParams struct {
+	ToStatus   string
+	At         pgtype.Timestamptz
+	ID         pgtype.UUID
+	FromStatus string
+}
+
+type CorrectAppointmentStatusRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// SAL-36 (docs/plans/appointments.md): no-shows.
+// A no-show corrected into an attendance or back: only from the status the correction names, and only between those
+// two.
+func (q *Queries) CorrectAppointmentStatus(ctx context.Context, arg CorrectAppointmentStatusParams) (CorrectAppointmentStatusRow, error) {
+	row := q.db.QueryRow(ctx, correctAppointmentStatus,
+		arg.ToStatus,
+		arg.At,
+		arg.ID,
+		arg.FromStatus,
+	)
+	var i CorrectAppointmentStatusRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.SlotID,
+		&i.CancelledByAccountID,
+		&i.VersionID,
+		&i.Status,
+		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const createAppointment = `-- name: CreateAppointment :one
 INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at, booked_via)
 VALUES ($1, $2, $3, $4, tstzrange($5::timestamptz, $6::timestamptz),
@@ -442,7 +514,7 @@ func (q *Queries) ListAppointmentChanges(ctx context.Context, appointmentID pgty
 }
 
 const listBookedForStats = `-- name: ListBookedForStats :many
-SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
+SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status, booked_via
 FROM appointment
 WHERE organization_id = $1 AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
 ORDER BY lower(period), status
@@ -459,6 +531,7 @@ type ListBookedForStatsRow struct {
 	PatientID          pgtype.UUID
 	PractitionerRoleID pgtype.UUID
 	Status             string
+	BookedVia          string
 }
 
 // A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read.
@@ -476,6 +549,7 @@ func (q *Queries) ListBookedForStats(ctx context.Context, arg ListBookedForStats
 			&i.PatientID,
 			&i.PractitionerRoleID,
 			&i.Status,
+			&i.BookedVia,
 		); err != nil {
 			return nil, err
 		}

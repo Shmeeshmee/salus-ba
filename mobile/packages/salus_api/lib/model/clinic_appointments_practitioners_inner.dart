@@ -15,32 +15,46 @@ class ClinicAppointmentsPractitionersInner {
   ClinicAppointmentsPractitionersInner({
     required this.practitionerRole,
     required this.fulfilled,
+    required this.noshow,
+    required this.booked,
   });
 
   String practitionerRole;
 
   int fulfilled;
 
+  int noshow;
+
+  /// Every appointment of the role (SAL-36).
+  int booked;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ClinicAppointmentsPractitionersInner &&
           other.practitionerRole == practitionerRole &&
-          other.fulfilled == fulfilled;
+          other.fulfilled == fulfilled &&
+          other.noshow == noshow &&
+          other.booked == booked;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (practitionerRole.hashCode) + (fulfilled.hashCode);
+      (practitionerRole.hashCode) +
+      (fulfilled.hashCode) +
+      (noshow.hashCode) +
+      (booked.hashCode);
 
   @override
   String toString() =>
-      'ClinicAppointmentsPractitionersInner[practitionerRole=$practitionerRole, fulfilled=$fulfilled]';
+      'ClinicAppointmentsPractitionersInner[practitionerRole=$practitionerRole, fulfilled=$fulfilled, noshow=$noshow, booked=$booked]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'practitionerRole'] = this.practitionerRole;
     json[r'fulfilled'] = this.fulfilled;
+    json[r'noshow'] = this.noshow;
+    json[r'booked'] = this.booked;
     return json;
   }
 
@@ -63,12 +77,22 @@ class ClinicAppointmentsPractitionersInner {
             'Required key "ClinicAppointmentsPractitionersInner[fulfilled]" is missing from JSON.');
         assert(json[r'fulfilled'] != null,
             'Required key "ClinicAppointmentsPractitionersInner[fulfilled]" has a null value in JSON.');
+        assert(json.containsKey(r'noshow'),
+            'Required key "ClinicAppointmentsPractitionersInner[noshow]" is missing from JSON.');
+        assert(json[r'noshow'] != null,
+            'Required key "ClinicAppointmentsPractitionersInner[noshow]" has a null value in JSON.');
+        assert(json.containsKey(r'booked'),
+            'Required key "ClinicAppointmentsPractitionersInner[booked]" is missing from JSON.');
+        assert(json[r'booked'] != null,
+            'Required key "ClinicAppointmentsPractitionersInner[booked]" has a null value in JSON.');
         return true;
       }());
 
       return ClinicAppointmentsPractitionersInner(
         practitionerRole: mapValueOfType<String>(json, r'practitionerRole')!,
         fulfilled: mapValueOfType<int>(json, r'fulfilled')!,
+        noshow: mapValueOfType<int>(json, r'noshow')!,
+        booked: mapValueOfType<int>(json, r'booked')!,
       );
     }
     return null;
@@ -130,5 +154,7 @@ class ClinicAppointmentsPractitionersInner {
   static const requiredKeys = <String>{
     'practitionerRole',
     'fulfilled',
+    'noshow',
+    'booked',
   };
 }

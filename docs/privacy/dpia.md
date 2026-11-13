@@ -2124,3 +2124,36 @@ only through a `SECURITY DEFINER` function by its hash; its row is read in the i
 | A history row is altered to hide a correction | `appointment_change` is append-only: no `UPDATE` or `DELETE` grant, triggers refuse both and `TRUNCATE` for every role |
 | A patient learns who at the clinic changed their appointment | The patient's view of the history carries no account or agent |
 | A history row claims a staff member or a patient's app it was not | The insert policy ties `via` to the scope: the patient's scope writes `app` or `link` by the patient's own account (or a job), the clinic's scope `staff` by an account of that clinic (or a job) |
+
+### SAL-36: no-shows, their correction and the clinic's reports (migration 00057, renumbered at merge)
+
+**Processing added.** The practitioner marks a no-show (as before) or the system does at the consultation's end
+(the window closes after the practitioner joined and the patient never did); both are kept in `appointment_change`
+(`status_set`, `via` `staff` or `system`). The appointment's practitioner and the clinic's admin may correct a no-show
+into an attendance and back within 30 days of the start (owner, Q6), each correction a `status_corrected` row by
+staff, audited as an update. The repeat no-show flag (owner, Q7): with the clinic's threshold on (off by default),
+staff see "N no-shows in the last D days" beside a patient's appointments, counted on read from the patient's
+appointments at that clinic in the clinic's scope, never stored. `clinic_appointment_stat` gains `booked_via`
+(counts only), and the clinic's figures gain the slots refilled from the waitlist, the no-shows and bookings per
+practitioner role, and the figures per specialty. Lawful basis as for the appointment: the clinic's care record and
+the management of its services (Art. 9(2)(h)).
+
+**Personal data added.** None stored: the flag is computed on read; the history's columns are step 0's; the new
+statistics column is a count's dimension, with no patient identifier.
+
+**Who sees what.** The flag: the clinic's staff only, for the appointments they see in full (`access.Appointment`:
+a practitioner their own role's, the admin the clinic's with the patient's care consent active); a patient's request
+is refused (404) and audited. It never refuses or delays a booking and is not shown in the patient's app. Each
+flagged appointment's read is audited. The figures per practitioner and per specialty: the admin only (SAL-20's rule
+C2: a specialty with one practitioner is that colleague's figures).
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient labelled unreliable and refused care | The flag is staff-only and advisory: no booking path reads it (Q7); it is off until the admin sets a threshold; prepayment or protection waits for SAL-23 and SAL-37 and their own DPIA |
+| A wrong no-show (a connection failure, a late practitioner) counting against a patient | The practitioner or the admin corrects it within 30 days, kept in the history; the system marks a no-show only when the practitioner joined and the patient never did (a practitioner who never joined leaves the appointment booked) |
+| A correction rewriting history | `appointment_change` is append-only; a correction is a new row with who made it; corrections only between `noshow` and `fulfilled`, refused after 30 days (service, and the SQL moves only from the status named) |
+| The flag revealing a patient's attendance at the clinic to staff outside their care | Only for appointments the caller sees in full; counted only from the patient's appointments at the caller's own clinic, in its row-level security scope (after a revocation the future appointments are not seen, so not flagged) |
+| No-show counts per practitioner as employee monitoring | Admins only, as SAL-20's per-practitioner figures; open question L5 stands |
+| Waitlist bookings singling out a patient in small counts | Counts only, inside the clinic that holds the records |

@@ -1,6 +1,7 @@
 package clinicstats
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -59,6 +60,7 @@ func (r *postgresRepository) Replace(ctx context.Context, orgID string, first, l
 		}
 		a.Roles, a.Days, a.Hours = append(a.Roles, role), append(a.Days, pgDate(c.Day)), append(a.Hours, int16(c.Hour))
 		a.Specialties, a.Statuses, a.Counts = append(a.Specialties, c.SpecialtyCode), append(a.Statuses, c.Status), append(a.Counts, c.Count)
+		a.BookedVias = append(a.BookedVias, cmp.Or(c.BookedVia, "direct")) // a count without a way of booking is direct
 	}
 	if err := q.InsertAppointmentCounts(ctx, a); err != nil {
 		return err
@@ -115,7 +117,7 @@ func (r *postgresRepository) Series(ctx context.Context, orgID string, q Appoint
 	}
 	out := make([]Period, len(rows))
 	for i, row := range rows {
-		out[i] = Period{Period: row.Period, Booked: row.Booked, Fulfilled: row.Fulfilled, NoShow: row.Noshow, Cancelled: row.Cancelled}
+		out[i] = Period{Period: row.Period, Booked: row.Booked, Fulfilled: row.Fulfilled, NoShow: row.Noshow, Cancelled: row.Cancelled, Refilled: row.Refilled}
 	}
 	return out, nil
 }
@@ -151,7 +153,25 @@ func (r *postgresRepository) Practitioners(ctx context.Context, orgID string, q 
 	}
 	out := make([]PractitionerTotal, len(rows))
 	for i, row := range rows {
-		out[i] = PractitionerTotal{PractitionerRoleID: row.PractitionerRoleID.String(), Fulfilled: row.Fulfilled}
+		out[i] = PractitionerTotal{PractitionerRoleID: row.PractitionerRoleID.String(), Fulfilled: row.Fulfilled, NoShow: row.Noshow, Booked: row.Booked}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Specialties(ctx context.Context, orgID string, q AppointmentQuery) ([]SpecialtyTotal, error) {
+	f, err := newFilter(orgID, q.From, q.To, q.PractitionerRoleID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.q(ctx).AppointmentSpecialties(ctx, clinicstatsdb.AppointmentSpecialtiesParams{
+		OrganizationID: f.org, FromDay: f.from, ToDay: f.to, PractitionerRoleID: f.role, Specialty: q.Specialty,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SpecialtyTotal, len(rows))
+	for i, row := range rows {
+		out[i] = SpecialtyTotal{Specialty: row.Specialty, Booked: row.Booked, Fulfilled: row.Fulfilled, NoShow: row.Noshow, Cancelled: row.Cancelled}
 	}
 	return out, nil
 }

@@ -454,7 +454,7 @@ class AppointmentsApi {
 
   /// Repeat no-show flags beside the calendar's appointments
   ///
-  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) the caller sees in full whose patient missed at least the threshold in the window; empty when the rule is off. Computed on read, never stored. Built in SAL-36 (404 until then).
+  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Each flagged appointment's read is audited. Not cached.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -497,7 +497,7 @@ class AppointmentsApi {
 
   /// Repeat no-show flags beside the calendar's appointments
   ///
-  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) the caller sees in full whose patient missed at least the threshold in the window; empty when the rule is off. Computed on read, never stored. Built in SAL-36 (404 until then).
+  /// For the clinic's staff, with the clinic's threshold on: the appointments starting in [from, to) (at most 62 days) the caller sees in full whose patient missed at least the threshold of appointments at the clinic in the last `window_days` days (`noshows` of them); empty when the rule is off. Computed on read, never stored, never shown to the patient and never a reason to refuse a booking (docs/plans/appointments.md Q7). Each flagged appointment's read is audited. Not cached.
   ///
   /// Parameters:
   ///
@@ -699,9 +699,9 @@ class AppointmentsApi {
     return null;
   }
 
-  /// Mark an appointment fulfilled or no-show
+  /// Mark an appointment fulfilled or no-show, or correct it
   ///
-  /// The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). From SAL-36 the practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (409 `correction_window_closed` after). Not cached. Audited, also when refused.
+  /// The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). The practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (SAL-36, docs/plans/appointments.md Q6), kept in its history as `status_corrected`; 409 `correction_window_closed` after. Not cached. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -747,9 +747,9 @@ class AppointmentsApi {
     );
   }
 
-  /// Mark an appointment fulfilled or no-show
+  /// Mark an appointment fulfilled or no-show, or correct it
   ///
-  /// The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). From SAL-36 the practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (409 `correction_window_closed` after). Not cached. Audited, also when refused.
+  /// The appointment's practitioner marks it `fulfilled` or `noshow` once its start has passed, once, kept in its history (GET /appointments/{id}/changes). The practitioner and the clinic's admin also correct a `noshow` to `fulfilled` and back within 30 days of the start (SAL-36, docs/plans/appointments.md Q6), kept in its history as `status_corrected`; 409 `correction_window_closed` after. Not cached. Audited, also when refused.
   ///
   /// Parameters:
   ///

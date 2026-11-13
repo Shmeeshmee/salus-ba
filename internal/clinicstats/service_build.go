@@ -145,18 +145,19 @@ func date(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-// countAppointments counts the appointments by local day and hour of their start, role and status.
+// countAppointments counts the appointments by local day and hour of their start, role, status and how they were
+// booked.
 func countAppointments(starts []appointment.Start, specialties map[string]string, zone *time.Location) []AppointmentCount {
 	type key struct {
-		day          time.Time
-		role, status string
-		hour         int
+		day               time.Time
+		role, status, via string
+		hour              int
 	}
 	n := map[key]int32{}
 	var order []key
 	for _, a := range starts {
 		t := a.Start.In(zone)
-		k := key{day: date(t), hour: t.Hour(), role: a.PractitionerRoleID, status: string(a.Status)}
+		k := key{day: date(t), hour: t.Hour(), role: a.PractitionerRoleID, status: string(a.Status), via: string(a.BookedVia)}
 		if n[k] == 0 {
 			order = append(order, k)
 		}
@@ -164,7 +165,9 @@ func countAppointments(starts []appointment.Start, specialties map[string]string
 	}
 	out := make([]AppointmentCount, len(order))
 	for i, k := range order {
-		out[i] = AppointmentCount{Day: k.day, Hour: int32(k.hour), PractitionerRoleID: k.role, SpecialtyCode: specialties[k.role], Status: k.status, Count: n[k]}
+		out[i] = AppointmentCount{
+			Day: k.day, Hour: int32(k.hour), PractitionerRoleID: k.role, SpecialtyCode: specialties[k.role], Status: k.status, BookedVia: k.via, Count: n[k],
+		}
 	}
 	return out
 }

@@ -123,3 +123,41 @@ func TestStatsRepository_ReadsTheClinicsAppointmentsInTheRange(t *testing.T) {
 		t.Errorf("another clinic: %+v, %v", other, err)
 	}
 }
+
+// The builds count the slots refilled from the waitlist (SAL-36): each appointment says how it was booked.
+func TestStatsStarts_SayHowEachWasBooked(t *testing.T) {
+	at := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	stats := appointment.NewStats(fakeStatsRepo{rows: []appointment.Booked{
+		{Start: at, PatientID: "p1", PractitionerRoleID: "r", Status: appointment.StatusFulfilled, BookedVia: appointment.BookedWaitlist},
+		{Start: at, PatientID: "p2", PractitionerRoleID: "r", Status: appointment.StatusFulfilled, BookedVia: appointment.BookedDirect},
+	}})
+	got, err := stats.Starts(context.Background(), "org", at, at, nil)
+	if err != nil || len(got) != 2 || got[0].BookedVia != appointment.BookedWaitlist || got[1].BookedVia != appointment.BookedDirect {
+		t.Errorf("Starts = %+v, %v", got, err)
+	}
+}
+
+// salus_stats reads how each appointment was booked.
+func TestStatsRepository_ReadsHowEachWasBooked(t *testing.T) {
+	t.Parallel()
+	owner, _ := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner)
+	at := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	for i, via := range []string{"waitlist", "direct"} {
+		start := at.Add(time.Duration(i) * time.Hour)
+		if _, err := owner.Exec(t.Context(), `INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, status, booked_via)
+			VALUES ($1, $2, $3, gen_random_uuid(), tstzrange($4::timestamptz, $4::timestamptz + interval '30 minutes'), 'booked', $5)`,
+			s.patientA, s.roleA1, clinicA, start, via); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pool, err := postgres.Open(t.Context(), pgtest.StatsURL(t, owner.Config().ConnString()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	got, err := appointment.NewPostgresStatsRepository(pool).Booked(t.Context(), clinicA, at, at.Add(24*time.Hour))
+	if err != nil || len(got) != 2 || got[0].BookedVia != appointment.BookedWaitlist || got[1].BookedVia != appointment.BookedDirect {
+		t.Errorf("Booked = %+v, %v", got, err)
+	}
+}

@@ -207,7 +207,7 @@ func (r *postgresStatsRepository) Booked(ctx context.Context, orgID string, from
 	out := make([]Booked, len(rows))
 	for i, row := range rows {
 		out[i] = Booked{Start: row.StartAt.Time.UTC(), PatientID: row.PatientID.String(),
-			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status)}
+			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status), BookedVia: BookedVia(row.BookedVia)}
 	}
 	return out, nil
 }
@@ -317,4 +317,21 @@ func (r *postgresStatsRepository) Fulfilled(ctx context.Context, orgID string, f
 			PractitionerRoleID: row.PractitionerRoleID.String(), Status: Status(row.Status)}
 	}
 	return out, nil
+}
+
+// NewPostgresNoShowRepository returns the NoShowRepository on db (salus_app), in the transaction in the context when
+// there is one (SAL-36).
+func NewPostgresNoShowRepository(db postgres.Querier) NoShowRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) CorrectStatus(ctx context.Context, id string, from, to Status, at time.Time) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	row, err := r.q(ctx).CorrectAppointmentStatus(ctx, appointmentdb.CorrectAppointmentStatusParams{
+		ID: u, FromStatus: string(from), ToStatus: string(to), At: ts(at),
+	})
+	return changed(appointmentdb.AppointmentByIDRow(row), err)
 }

@@ -20,6 +20,8 @@ type Repository interface {
 	Series(ctx context.Context, orgID string, q AppointmentQuery) ([]Period, error)
 	Heatmap(ctx context.Context, orgID string, q AppointmentQuery) ([]HeatCell, error)
 	Practitioners(ctx context.Context, orgID string, q AppointmentQuery) ([]PractitionerTotal, error)
+	// Specialties sums the appointments per specialty (SAL-36).
+	Specialties(ctx context.Context, orgID string, q AppointmentQuery) ([]SpecialtyTotal, error)
 	Diagnoses(ctx context.Context, orgID string, q DiagnosisQuery) ([]Count, error)
 }
 

@@ -45,12 +45,13 @@ func (NightlyArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{Queue
 
 // AppointmentCount is one row of clinic_appointment_stat: how many appointments of a role start in a local hour of
 // a day (midnight UTC of the local date) and have a status now. SpecialtyCode is the role's SNOMED CT code at
-// refresh time, empty for none.
+// refresh time, empty for none; BookedVia how they were booked (direct or waitlist, SAL-36).
 type AppointmentCount struct {
 	Day                time.Time
 	PractitionerRoleID string
 	SpecialtyCode      string
 	Status             string
+	BookedVia          string
 	Hour               int32
 	Count              int32
 }
@@ -113,13 +114,15 @@ type DiagnosisQuery struct {
 }
 
 // Period is a month's appointments (YYYY-MM): Booked counts every appointment starting in it, whatever its status
-// now; Fulfilled, NoShow and Cancelled those with that status.
+// now; Fulfilled, NoShow and Cancelled those with that status; Refilled those booked through the waitlist, whatever
+// their status (SAL-36: the slots refilled).
 type Period struct {
 	Period    string
 	Booked    int64
 	Fulfilled int64
 	NoShow    int64
 	Cancelled int64
+	Refilled  int64
 }
 
 // HeatCell is how many appointments that were not cancelled start on an ISO weekday (1 is Monday) in a local hour.
@@ -129,18 +132,31 @@ type HeatCell struct {
 	Hour    int32
 }
 
-// PractitionerTotal is a role's fulfilled appointments.
+// PractitionerTotal is a role's appointments: every one (Booked), and the fulfilled and no-show ones.
 type PractitionerTotal struct {
 	PractitionerRoleID string
 	Fulfilled          int64
+	NoShow             int64
+	Booked             int64
 }
 
-// AppointmentFigures are the appointment figures of a query. Practitioners is set only when PerPractitioner, for
-// an admin.
+// SpecialtyTotal is a specialty's appointments (its SNOMED CT code, empty for roles without one), as Period counts
+// them.
+type SpecialtyTotal struct {
+	Specialty string
+	Booked    int64
+	Fulfilled int64
+	NoShow    int64
+	Cancelled int64
+}
+
+// AppointmentFigures are the appointment figures of a query. Practitioners and Specialties are set only when
+// PerPractitioner, for an admin.
 type AppointmentFigures struct {
 	Series          []Period
 	Heatmap         []HeatCell
 	Practitioners   []PractitionerTotal
+	Specialties     []SpecialtyTotal
 	PerPractitioner bool
 }
 

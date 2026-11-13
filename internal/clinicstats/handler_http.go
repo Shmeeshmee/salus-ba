@@ -42,6 +42,7 @@ type periodJSON struct {
 	Fulfilled int64  `json:"fulfilled"`
 	NoShow    int64  `json:"noshow"`
 	Cancelled int64  `json:"cancelled"`
+	Refilled  int64  `json:"refilled"`
 }
 
 type heatJSON struct {
@@ -53,6 +54,17 @@ type heatJSON struct {
 type practitionerJSON struct {
 	PractitionerRole string `json:"practitionerRole"`
 	Fulfilled        int64  `json:"fulfilled"`
+	NoShow           int64  `json:"noshow"`
+	Booked           int64  `json:"booked"`
+}
+
+// specialtyJSON is an item of the ClinicAppointments schema's specialties (SAL-36).
+type specialtyJSON struct {
+	Specialty string `json:"specialty"`
+	Booked    int64  `json:"booked"`
+	Fulfilled int64  `json:"fulfilled"`
+	NoShow    int64  `json:"noshow"`
+	Cancelled int64  `json:"cancelled"`
 }
 
 type countJSON struct {
@@ -60,9 +72,10 @@ type countJSON struct {
 	Count int64  `json:"count"`
 }
 
-// appointmentsJSON is the ClinicAppointments schema; practitioners only for an admin.
+// appointmentsJSON is the ClinicAppointments schema; practitioners and specialties only for an admin.
 type appointmentsJSON struct {
 	Practitioners *[]practitionerJSON `json:"practitioners,omitempty"`
+	Specialties   *[]specialtyJSON    `json:"specialties,omitempty"`
 	Series        []periodJSON        `json:"series"`
 	Heatmap       []heatJSON          `json:"heatmap"`
 }
@@ -95,9 +108,14 @@ func (h *HTTPHandler) appointments(w http.ResponseWriter, r *http.Request) {
 	if f.PerPractitioner {
 		list := make([]practitionerJSON, len(f.Practitioners))
 		for i, p := range f.Practitioners {
-			list[i] = practitionerJSON{PractitionerRole: p.PractitionerRoleID, Fulfilled: p.Fulfilled}
+			list[i] = practitionerJSON{PractitionerRole: p.PractitionerRoleID, Fulfilled: p.Fulfilled, NoShow: p.NoShow, Booked: p.Booked}
 		}
 		out.Practitioners = &list
+		specialties := make([]specialtyJSON, len(f.Specialties))
+		for i, p := range f.Specialties {
+			specialties[i] = specialtyJSON(p)
+		}
+		out.Specialties = &specialties
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
 	httpx.JSON(w, http.StatusOK, out)
