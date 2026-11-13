@@ -32,8 +32,11 @@ type Auditor interface {
 
 // Encounters gives a draft its encounter with the caller's attendance of its appointment, read in the caller's
 // scope, unaudited (encounter.Service): composition applies its own rule and audits its decision.
+// Shared gives another clinic's visit the patient shared with the caller's clinic when the history's rule lets the
+// caller see it (access.HistoryVisit), unaudited, to read its signed documents.
 type Encounters interface {
 	Access(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, appointment.Attendance, error)
+	Shared(ctx context.Context, c appointment.Caller, id string) (encounter.Encounter, error)
 	// Own gives the calling patient's own encounters, at the clinic org when set (none to staff).
 	Own(ctx context.Context, c appointment.Caller, org string) ([]encounter.Encounter, error)
 }
@@ -124,6 +127,8 @@ func (s *Service) allowedDrafting(ctx context.Context, c appointment.Caller, enc
 func (s *Service) allowedAttendance(ctx context.Context, c appointment.Caller, encounterID string, signed bool) (encounter.Encounter, appointment.Attendance, error) {
 	e, att, err := s.Encounters.Access(ctx, c, encounterID)
 	switch {
+	case errors.Is(err, encounter.ErrNotFound) && signed && c.OrganizationID != "":
+		return s.shared(ctx, c, encounterID)
 	case errors.Is(err, encounter.ErrNotFound):
 		return encounter.Encounter{}, att, errRefused{ErrNotFound}
 	case err != nil:
@@ -151,6 +156,19 @@ func (s *Service) allowedAttendance(ctx context.Context, c appointment.Caller, e
 		return encounter.Encounter{ID: e.ID}, att, errRefused{ErrConsentRequired}
 	}
 	return encounter.Encounter{ID: e.ID}, att, errRefused{ErrForbidden}
+}
+
+// shared is allowed for the signed documents of another clinic's visit the patient shared with the caller's
+// clinic (ADR 0014): the history's rule, read only, never a draft.
+func (s *Service) shared(ctx context.Context, c appointment.Caller, encounterID string) (encounter.Encounter, appointment.Attendance, error) {
+	e, err := s.Encounters.Shared(ctx, c, encounterID)
+	switch {
+	case errors.Is(err, encounter.ErrNotFound):
+		return encounter.Encounter{}, appointment.Attendance{}, errRefused{ErrNotFound}
+	case err != nil:
+		return encounter.Encounter{}, appointment.Attendance{}, err
+	}
+	return e, appointment.Attendance{}, nil
 }
 
 // entry is one audit event of the drafting: who, the interaction on which resource ("" when none is

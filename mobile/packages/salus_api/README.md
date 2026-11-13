@@ -312,6 +312,7 @@ Class | Method | HTTP request | Description
  - [GenerateDraftRequest](doc//GenerateDraftRequest.md)
  - [GrantConsentRequest](doc//GrantConsentRequest.md)
  - [HistoryClinic](doc//HistoryClinic.md)
+ - [HistoryDiagnosis](doc//HistoryDiagnosis.md)
  - [HistoryItem](doc//HistoryItem.md)
  - [HistoryItemType](doc//HistoryItemType.md)
  - [HistoryPage](doc//HistoryPage.md)

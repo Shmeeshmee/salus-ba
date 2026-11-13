@@ -52,6 +52,47 @@ func (q *Queries) ConditionByID(ctx context.Context, id pgtype.UUID) (ConditionB
 	return i, err
 }
 
+const confirmedFields = `-- name: ConfirmedFields :many
+SELECT document_draft_id, field_key, code FROM condition
+WHERE document_draft_id = ANY($1::uuid[]) AND verification_status = 'confirmed' AND organization_id = $2
+UNION
+SELECT h.document_draft_id, h.field_key, h.code FROM history_confirmed_conditions($1::uuid[], $3::uuid) AS h
+`
+
+type ConfirmedFieldsParams struct {
+	Ids            []pgtype.UUID
+	OrganizationID pgtype.UUID
+	PractitionerID pgtype.UUID
+}
+
+type ConfirmedFieldsRow struct {
+	DocumentDraftID pgtype.UUID
+	FieldKey        string
+	Code            string
+}
+
+// The coded fields of the signed documents ids whose Condition is confirmed: the clinic's own (condition_clinic),
+// and a visit's shared with it, for a practitioner with an appointment with its patient there (migration 00051).
+func (q *Queries) ConfirmedFields(ctx context.Context, arg ConfirmedFieldsParams) ([]ConfirmedFieldsRow, error) {
+	rows, err := q.db.Query(ctx, confirmedFields, arg.Ids, arg.OrganizationID, arg.PractitionerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ConfirmedFieldsRow
+	for rows.Next() {
+		var i ConfirmedFieldsRow
+		if err := rows.Scan(&i.DocumentDraftID, &i.FieldKey, &i.Code); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertCondition = `-- name: InsertCondition :exec
 INSERT INTO condition (id, recorded_at, organization_id, patient_id, encounter_id, document_draft_id,
                        practitioner_role_id, field_key, code, verification_status)

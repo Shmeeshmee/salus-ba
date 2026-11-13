@@ -1,0 +1,294 @@
+import { useState } from 'react'
+import { binaryContentURL, type ApiClient } from './api/client'
+import { participant, type Appointment, type FhirClient, type Questionnaire, type QuestionnaireResponse } from './api/fhir'
+import { attempt } from './api/result'
+import type { components } from './api/schema'
+import { useFormat, useT } from './i18n/useT'
+import { useLoad } from './load'
+import { Answers } from './AppointmentQuestionnaires'
+import { doseUnits, oneOf, periodUnits, unitKey } from './entries'
+import { requestsOf, type Request } from './responses'
+import { Alert } from './ui'
+
+type Item = components['schemas']['HistoryItem']
+type Summary = components['schemas']['HistorySummary']
+type T = ReturnType<typeof useT>
+
+// refresh, when it changes, reads the summary again (the call page: the tab shown again, an entry recorded).
+type Props = { api: ApiClient; fhir: FhirClient; patientId: string; appointmentId: string; zone: string; refresh?: string }
+
+// A Composition as its FHIR read gives it: the sections the history shows of a signed document.
+type Composition = { section?: { title: string; text?: { div: string } }[] }
+
+// PatientHistory is the practitioner's view of the patient's history (SAL-40, ADR 0014), from an appointment of
+// theirs: the pre-visit summary on top (allergies, current medications, the last visit, what is open for the
+// appointment), then the visits they may see and what belongs to each, newest first, one page at a time. A visit
+// of another clinic is there only because the patient shared it, and says so with the clinic's name. The server
+// decides what is shown and audits every view; nothing here filters or counts.
+export function PatientHistory({ api, fhir, patientId, appointmentId, zone, refresh }: Props) {
+  const t = useT()
+  // The summary and the history are read apart: a summary that fails never loses the history, nor the other way;
+  // the summary is read again on refresh and on request after a failure, the history's pages are kept.
+  const summary = useLoad(async () => {
+    const res = await attempt(api.GET('/patients/{id}/history/summary', { params: { path: { id: patientId }, query: { appointment: appointmentId } } }))
+    if (!res.ok) throw new Error('summary')
+    return res.data
+  }, [api, patientId, appointmentId, refresh])
+  const { state, set, reload } = useLoad(async () => {
+    const page = await attempt(api.GET('/patients/{id}/history', { params: { path: { id: patientId } } }))
+    if (!page.ok) throw new Error('history')
+    return { items: page.data.items, next: page.data.next }
+  }, [api, patientId])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+
+  async function more() {
+    if (state.name !== 'loaded' || !state.value.next) return
+    setBusy(true)
+    setError(undefined)
+    const res = await attempt(api.GET('/patients/{id}/history', { params: { path: { id: patientId }, query: { cursor: state.value.next } } }))
+    setBusy(false)
+    if (!res.ok) {
+      setError(t('history.loadFailed'))
+      return
+    }
+    set({ ...state.value, items: [...state.value.items, ...res.data.items], next: res.data.next })
+  }
+
+  return (
+    <section className="history" aria-label={t('history.title')}>
+      <h2>{t('history.title')}</h2>
+      {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
+      {state.name === 'failed' && (
+        <>
+          <Alert message={t('history.loadFailed')} />
+          <button type="button" className="quiet" onClick={reload}>
+            {t('history.retry')}
+          </button>
+        </>
+      )}
+      {state.name === 'loaded' && (
+        <>
+          {summary.state.name === 'loaded' && <SummaryView summary={summary.state.value} zone={zone} />}
+          {summary.state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
+          {summary.state.name === 'failed' && (
+            <div className="history-summary">
+              <Alert message={t('history.summaryFailed')} />
+              <button type="button" className="quiet" onClick={summary.reload}>
+                {t('history.retry')}
+              </button>
+            </div>
+          )}
+          <h3>{t('history.items')}</h3>
+          {state.value.items.length === 0 && <p className="muted">{t('history.empty')}</p>}
+          <ul className="history-items">
+            {state.value.items.map((it) => (
+              <li key={it.reference}>
+                <ItemRow api={api} fhir={fhir} item={it} zone={zone} />
+              </li>
+            ))}
+          </ul>
+          <Alert message={error} />
+          {state.value.next && (
+            <div className="actions">
+              <button type="button" disabled={busy} onClick={more}>
+                {t('history.more')}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function SummaryView({ summary, zone }: { summary: Summary; zone: string }) {
+  const t = useT()
+  return (
+    <div className="history-summary">
+      <h3>{t('history.summary')}</h3>
+      <h4>{t('history.allergies')}</h4>
+      {summary.allergiesUnavailable ? (
+        <Alert message={t('history.allergiesUnavailable')} />
+      ) : summary.allergies.length === 0 ? (
+        <p className="muted">{t('history.noAllergies')}</p>
+      ) : (
+        <ul>
+          {summary.allergies.map((a) => (
+            <li key={a.reference}>
+              <span className="history-name">{a.text}</span>
+              {a.reaction && <span>{a.severity ? t('history.reactionSeverity', { reaction: a.reaction, severity: t(`history.severity.${a.severity}`) }) : a.reaction}</span>}
+              {a.confirmed && <span className="tag">{t('history.confirmed')}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h4>{t('history.medications')}</h4>
+      {summary.medicationsUnavailable ? (
+        <Alert message={t('history.medicationsUnavailable')} />
+      ) : summary.medications.length === 0 ? (
+        <p className="muted">{t('history.noMedications')}</p>
+      ) : (
+        <ul>
+          {summary.medications.map((m) => (
+            <li key={m.reference}>
+              <span className="history-name">{m.text}</span>
+              <Dosage dosage={m.dosage} />
+              {m.confirmed && <span className="tag">{t('history.confirmed')}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h4>{t('history.lastVisit')}</h4>
+      {summary.lastVisit ? <ItemLine item={summary.lastVisit} zone={zone} /> : <p className="muted">{t('history.noLastVisit')}</p>}
+      <h4>{t('history.openItems')}</h4>
+      {summary.openItems.length === 0 ? (
+        <p className="muted">{t('history.noOpenItems')}</p>
+      ) : (
+        <ul>
+          {summary.openItems.map((o) => (
+            <li key={o.reference}>{t(`history.open.${o.type}`)}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// Dosage is how a medication is taken, in SAL-41's words for it (the allergies catalog): the dose, how often, as
+// needed; each only when recorded.
+// A unit the catalog does not know is left out, as SAL-41's panel does, never turned into a key.
+function Dosage({ dosage: d }: { dosage: Summary['medications'][number]['dosage'] }) {
+  const t = useT()
+  const doseUnit = oneOf(d.doseUnit, doseUnits)
+  const periodUnit = oneOf(d.periodUnit, periodUnits)
+  return (
+    <>
+      {d.doseValue !== undefined && doseUnit && <span>{t(`allergies.dose.${unitKey(doseUnit)}`, { value: d.doseValue })}</span>}
+      {d.frequency !== undefined && d.period !== undefined && periodUnit && (
+        <span>{t(`allergies.timing.${periodUnit}`, { frequency: d.frequency, period: d.period })}</span>
+      )}
+      {d.asNeeded && <span>{t('allergies.asNeeded')}</span>}
+    </>
+  )
+}
+
+// ItemLine is an item's date, what it is, its title and where it comes from.
+function ItemLine({ item, zone }: { item: Item; zone: string }) {
+  const t = useT()
+  const f = useFormat()
+  return (
+    <span className="history-line">
+      <span className="history-date">{f.dateTime(new Date(item.date), zone)}</span>
+      <span className="history-name">{item.title || t(`history.type.${item.type}`)}</span>
+      {item.title && <span className="muted">{t(`history.type.${item.type}`)}</span>}
+      {item.shared ? (
+        <span className="tag shared">{item.clinic.name ? t('history.sharedFrom', { clinic: item.clinic.name }) : t('history.sharedByPatient')}</span>
+      ) : (
+        <span className="muted">{item.clinic.name}</span>
+      )}
+      {item.diagnoses && item.diagnoses.length > 0 && (
+        <ul className="history-diagnoses">
+          {item.diagnoses.map((d) => (
+            // A document's coded fields are distinct by label and code.
+            <li key={`${d.label} ${d.code}`}>
+              {t('history.diagnosis', { label: d.label, code: d.code })}
+              {!d.confirmed && <span className="tag">{t('history.notConfirmed')}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
+  )
+}
+
+// CallHistory is PatientHistory on the call page, for the appointment's patient, in the practitioner's own time zone.
+export function CallHistory({ api, fhir, appointmentId, refresh }: { api: ApiClient; fhir: FhirClient; appointmentId: string; refresh?: string }) {
+  const t = useT()
+  const { state } = useLoad(async () => participant(await fhir.get<Appointment>(`Appointment/${encodeURIComponent(appointmentId)}`), 'Patient')?.id, [fhir, appointmentId])
+  if (state.name === 'loading') return <p className="muted">{t('common.loading')}</p>
+  if (state.name === 'failed' || !state.value) return <Alert message={t('history.loadFailed')} />
+  return <PatientHistory api={api} fhir={fhir} patientId={state.value} appointmentId={appointmentId} zone={localZone} refresh={refresh} />
+}
+
+const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+// What an item opens to: a signed document's sections, or a response's answers with their questions.
+type Opened = { composition: Composition } | { request: Request }
+
+// ItemRow is an item with what opens it: a signed document's sections or a completed response's answers in place,
+// a file's download.
+function ItemRow({ api, fhir, item, zone }: { api: ApiClient; fhir: FhirClient; item: Item; zone: string }) {
+  const t = useT()
+  const [open, setOpen] = useState<Opened>()
+  const [failed, setFailed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [, id] = item.reference.split('/')
+  const opens = item.type === 'document' || (item.type === 'questionnaire_response' && item.questionnaire !== undefined)
+
+  async function read(): Promise<Opened> {
+    if (item.type === 'document') return { composition: await fhir.get<Composition>(`Composition/${encodeURIComponent(id)}`) }
+    const [response, version] = await Promise.all([
+      fhir.get<QuestionnaireResponse>(`QuestionnaireResponse/${encodeURIComponent(id)}`),
+      fhir.get<Questionnaire>(`Questionnaire/${encodeURIComponent(item.questionnaire ?? '')}`),
+    ])
+    const [request] = requestsOf({ resourceType: 'Bundle', type: 'searchset', entry: [{ fullUrl: '', resource: response }, { fullUrl: '', resource: version }] })
+    return { request }
+  }
+
+  async function toggle() {
+    if (open) {
+      setOpen(undefined)
+      return
+    }
+    setBusy(true)
+    setFailed(false)
+    try {
+      setOpen(await read())
+    } catch {
+      setFailed(true)
+    }
+    setBusy(false)
+  }
+
+  return (
+    <>
+      <ItemLine item={item} zone={zone} />
+      {opens && (
+        <button type="button" className="quiet" aria-expanded={open !== undefined} disabled={busy} onClick={toggle}>
+          {t(open ? 'history.closeDocument' : 'history.openDocument')}
+        </button>
+      )}
+      {item.type === 'attachment' && (
+        <a className="quiet" href={binaryContentURL(id)} download={item.title || ''}>
+          {t('attachments.download')}
+        </a>
+      )}
+      {failed && <Alert message={t(item.type === 'document' ? 'history.documentFailed' : 'history.answersFailed')} />}
+      {open && 'composition' in open && <Sections composition={open.composition} t={t} />}
+      {open && 'request' in open && <Answers api={api} request={open.request} />}
+    </>
+  )
+}
+
+// Sections is a signed document's sections as plain text: the narrative's markup is not rendered.
+function Sections({ composition, t }: { composition: Composition; t: T }) {
+  return (
+    <dl className="history-document" aria-label={t('history.type.document')}>
+      {(composition.section ?? []).map((s, i) => (
+        // A document's sections have no other identity than their place.
+        <div key={i}>
+          <dt>{s.title}</dt>
+          <dd>{s.text ? plain(s.text.div) : '-'}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+// plain is the narrative's text, a line per paragraph or list item.
+function plain(xhtml: string): string {
+  const body = new DOMParser().parseFromString(xhtml, 'text/html').body
+  const lines = Array.from(body.querySelectorAll('p, li'), (e) => e.textContent?.trim() ?? '')
+  return lines.length > 0 ? lines.join('\n') : (body.textContent?.trim() ?? '')
+}

@@ -18,6 +18,7 @@ func TestHistorySchemas_MatchTheirGoTypes(t *testing.T) {
 	for name, value := range map[string]any{
 		"HistoryClinic":            history.Clinic{},
 		"HistoryItem":              history.Item{},
+		"HistoryDiagnosis":         history.Diagnosis{},
 		"HistoryPage":              history.Page{},
 		"HistorySummary":           history.Summary{},
 		"SummaryAllergy":           history.SummaryAllergy{},

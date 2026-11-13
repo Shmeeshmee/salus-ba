@@ -74,7 +74,7 @@ func (s *Service) Signed(ctx context.Context, c appointment.Caller, encounterID 
 		for i, d := range drafts {
 			out[i] = Document{Draft: d, Encounter: enc}
 		}
-		e.org = enc.OrganizationID
+		e.org = auditOrg(c, enc)
 		return s.record(ctx, e)
 	})
 	if err := wrapErr("signed", err, refused); err != nil {
@@ -124,6 +124,15 @@ func (s *Service) PDF(ctx context.Context, c appointment.Caller, id string) (io.
 	return readCloser{Reader: plain, Closer: src}, d.PDF.Size, nil
 }
 
+// auditOrg is the clinic a read of enc's documents is audited under: the staff caller's (also for another clinic's
+// visit shared with it), else the encounter's.
+func auditOrg(c appointment.Caller, enc encounter.Encounter) string {
+	if c.OrganizationID != "" {
+		return c.OrganizationID
+	}
+	return enc.OrganizationID
+}
+
 type readCloser struct {
 	io.Reader
 	io.Closer
@@ -148,7 +157,7 @@ func (s *Service) read(ctx context.Context, c appointment.Caller, typ, id string
 			return err
 		}
 		out = Document{Draft: d, Encounter: enc}
-		e.reference, e.org = typ+"/"+id, enc.OrganizationID
+		e.reference, e.org = typ+"/"+id, auditOrg(c, enc)
 		return s.record(ctx, e)
 	})
 	return out, wrapErr("read", err, refused)

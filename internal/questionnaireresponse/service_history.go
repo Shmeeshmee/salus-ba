@@ -6,8 +6,90 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
+
+// History returns the completed responses of the visits' appointments, with their scanned files only, in the order
+// of visits: for the practitioner's view of the patient's history (SAL-40), with visits exactly as
+// encounter.Service.History gave them to the caller (access.HistoryVisit applied). Never one in progress. Read in the
+// caller's clinic scope (a shared visit's through questionnaire_response_shared) and unaudited: the history audits the
+// ones it shows (Disclosed). ErrNotFound for anyone but a practitioner.
+func (s *Service) History(ctx context.Context, c appointment.Caller, visits []encounter.Visit) ([]Response, error) {
+	if c.OrganizationID == "" || c.Admin {
+		return nil, ErrNotFound
+	}
+	var out []Response
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		// One search per patient, not per visit (PROGRESS, SAL-40): the visits' appointments are picked from it.
+		byAppointment := map[string][]Response{}
+		patients := map[string]bool{}
+		for _, v := range visits {
+			if patients[v.PatientID] {
+				continue
+			}
+			patients[v.PatientID] = true
+			rs, err := s.Repo.Search(ctx, Filter{PatientID: v.PatientID, Status: StatusCompleted})
+			if err != nil {
+				return err
+			}
+			for _, r := range rs {
+				byAppointment[r.AppointmentID] = append(byAppointment[r.AppointmentID], r)
+			}
+		}
+		for _, v := range visits {
+			for _, r := range byAppointment[v.AppointmentID] {
+				if r.PatientID == v.PatientID {
+					r.Attachments = scanned(r.Attachments)
+					out = append(out, r)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("questionnaireresponse: history: %w", err)
+	}
+	return out, nil
+}
+
+// Disclosed audits the responses ids the history shows the caller (with their files), each as a search of it, in
+// the transaction in ctx (or one of its own).
+func (s *Service) Disclosed(ctx context.Context, c appointment.Caller, ids []string) error {
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		for _, id := range ids {
+			if err := s.record(ctx, c, auditevent.CodeSearchType, id, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("questionnaireresponse: disclosed: %w", err)
+	}
+	return nil
+}
+
+// DisclosedFiles audits the files ids of the responses the history shows the caller, each as a search of its
+// Binary, in the transaction in ctx (or one of its own).
+func (s *Service) DisclosedFiles(ctx context.Context, c appointment.Caller, ids []string) error {
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		for _, id := range ids {
+			if err := s.recordEntity(ctx, c, auditevent.CodeSearchType, "Binary/"+id, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("questionnaireresponse: disclosed files: %w", err)
+	}
+	return nil
+}
 
 // PatientHistory returns the calling patient's own completed responses at every clinic, or at the clinic org when
 // set, without their answers, after the page's position, newest first by submission, p.Limit at most: the

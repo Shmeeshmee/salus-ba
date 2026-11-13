@@ -199,8 +199,9 @@ func TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment(t *test
 			t.Errorf("%s: %v, want done %t", tt.name, err, tt.ok)
 		}
 	}
-	if _, err := owner.Exec(t.Context(), clear, a.aFuture); err == nil {
-		t.Error("the owner cleared a confirmation")
+	// The schema owner is not guarded (migrations, the operator, fixtures), as row-level security does not hold it.
+	if _, err := owner.Exec(t.Context(), moveFree, a.aFuture); err != nil {
+		t.Errorf("the owner moves an appointment: %v", err)
 	}
 }
 

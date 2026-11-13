@@ -43,6 +43,9 @@ type Repository interface {
 	Drafts(ctx context.Context, encounterID string) ([]Draft, error)
 	// Signed returns the encounter's final (signed) drafts, in the order they were signed.
 	Signed(ctx context.Context, encounterID string) ([]Draft, error)
+	// SignedOfVisits returns all the final (signed) drafts of the encounters, in the order they were signed; ids
+	// that are not UUIDs match nothing.
+	SignedOfVisits(ctx context.Context, encounterIDs []string) ([]Draft, error)
 	// SignedOf returns the final (signed) drafts of the encounters after the page's position (by signature, then
 	// "Composition/<id>"), newest first, p.Limit at most.
 	SignedOf(ctx context.Context, encounterIDs []string, p keyset.Page) ([]Draft, error)

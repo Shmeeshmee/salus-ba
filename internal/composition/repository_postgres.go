@@ -301,6 +301,30 @@ func (r *postgresRepository) SignedOf(ctx context.Context, encounterIDs []string
 	return out, nil
 }
 
+func (r *postgresRepository) SignedOfVisits(ctx context.Context, encounterIDs []string) ([]Draft, error) {
+	ids := make([]pgtype.UUID, 0, len(encounterIDs))
+	for _, id := range encounterIDs {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			ids = append(ids, u)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).SignedOfEncounters(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Draft, len(rows))
+	for i, row := range rows {
+		if out[i], err = draftOf(compositiondb.DraftRow(row)); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
 // optTS is t, or null when it is zero.
 func optTS(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()} }
 

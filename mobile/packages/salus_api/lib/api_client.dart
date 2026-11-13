@@ -396,6 +396,8 @@ class ApiClient {
           return GrantConsentRequest.fromJson(value);
         case 'HistoryClinic':
           return HistoryClinic.fromJson(value);
+        case 'HistoryDiagnosis':
+          return HistoryDiagnosis.fromJson(value);
         case 'HistoryItem':
           return HistoryItem.fromJson(value);
         case 'HistoryItemType':

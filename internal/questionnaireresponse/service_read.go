@@ -11,12 +11,16 @@ import (
 
 // Read returns the response id as the caller may see it (access.QuestionnaireResponse): the patient their
 // own; the appointment's practitioner the answers once submitted (also after a revocation, for a past
-// appointment: D9) and the name before; the clinic's admin the name. A Name view carries no answers. Read in
+// appointment: D9) and the name before; the clinic's admin the name; a practitioner the history shows another
+// clinic's shared visit to its completed responses (ADR 0014). A Name view carries no answers. Read in
 // the caller's own scope and audited; ErrNotFound to anyone else, audited without the entity.
 func (s *Service) Read(ctx context.Context, c appointment.Caller, id string) (Seen, error) {
 	var out Seen
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		r, _, level, err := s.view(ctx, c, id, s.Repo.ByID)
+		if err == nil && level == access.None {
+			r, level, err = s.shared(ctx, c, id)
+		}
 		switch {
 		case err != nil:
 			return err

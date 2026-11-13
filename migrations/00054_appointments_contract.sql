@@ -28,7 +28,9 @@ GRANT UPDATE (period, slot_id, confirmed_at, confirmed_via, reschedule_count) ON
 -- consent, a revoked clinic's past ones), so this trigger says who may change what: the period and the slot only in
 -- the patient's own scope, of a booked appointment that stays booked, the period and the slot together, the reschedule count up by
 -- exactly one with every change of the period and never otherwise; the confirmation only in the patient's scope (their app, or the
--- one-time link, which acts as the patient), and never cleared once set. For every role, the owner included.
+-- one-time link, which acts as the patient), and never cleared once set. It guards every role but the table's
+-- owner (migrations, salusctl, test fixtures), which row-level security does not hold either (as 00043's
+-- profile_entry_update_check).
 -- +goose StatementBegin
 CREATE FUNCTION appointment_guard_change() RETURNS trigger
     LANGUAGE plpgsql
@@ -39,6 +41,9 @@ DECLARE
                    AND NULLIF(current_setting('app.patient_id', true), '')::uuid = OLD.patient_id;
     moved boolean := NEW.period IS DISTINCT FROM OLD.period OR NEW.slot_id IS DISTINCT FROM OLD.slot_id;
 BEGIN
+    IF current_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.oid = TG_RELID) THEN
+        RETURN NEW;
+    END IF;
     IF moved AND NOT (own AND OLD.status = 'booked' AND NEW.status = 'booked') THEN
         RAISE EXCEPTION 'appointment: only its patient moves a booked appointment' USING ERRCODE = 'insufficient_privilege';
     END IF;
