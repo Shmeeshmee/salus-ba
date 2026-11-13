@@ -88,6 +88,37 @@ bounds; the queries are those of the code, on salus_app with its row-level secur
   lead of an hour or a day.
 - The cost is in the sends' audited reads (the appointment, the patient's account and settings, each audited in the
   same transaction). Not tuned: nothing here is near a limit.
+## SAL-35: the waitlist (branch `appt-35-waitlist`)
+
+Built: migration 00056 (a placeholder) with `slot.status` `busy-tentative`, `waitlist_entry` and `waitlist_offer`
+(row-level security, ownership, retention rules and purgers, migration tests). `slot`: `ForWaitlist` (the slot locked,
+with its schedule's role, through the new `schedule.Service.Lookup`), `Offer`, `TakeOffered`, `Unoffer`. `appointment`:
+`Join`, `MyWaitlist`, `ClinicWaitlist`, `Withdraw`, `SetPriority`, `WithdrawForRevokedConsent` (called by the
+`consent_revoked` worker after the cancellations); `HandOn` (the real `waitlist_slot_freed` worker), `ExpireOffer`
+(`waitlist_offer_expire` at the hold's end), `Accept` (through step 0's purchase step, key `waitlist:<offer>`: charged
+before the transaction, refunded when the booking fails; nothing has a price, so nothing is charged), `Decline`,
+`OfferNotice`; `booked` (the jobs after a booking) shared by both booking paths. The `WaitlistHandler` mounts every
+SAL-35 route of `api/openapi.yaml` (their "404 until then" notes dropped; `profile_required` and `payment_declined`
+added to the 409s). The offer's notice goes through SAL-33's deliveries (below, "At SAL-33's merge"). Web: `Waitlist.tsx` (the clinic's list, priority, removal) at `/waitlist` and
+`ClinicSettingsWaitlist.tsx` under the clinic settings, with the proxy and Caddy route
+`^/(waitlist/.+|clinic/(waitlist(/.*)?|appointment-settings))$`. Mobile: `waitlist_screen.dart` (join from a
+practitioner's free times, the patient's waitlist with the offer's accept and decline), a button on the home screen.
+e2e: `TestWaitlist_AFreedSlotIsOfferedAndAcceptedThroughTheApp`.
+
+Concurrency tests on Postgres (`internal/api/waitlist_race_test.go`, real services, row-level security on), each round
+followed by the invariant that a slot is `busy` exactly when a non-cancelled appointment holds it and `busy-tentative`
+exactly when an open offer does, and no slot has two of either: an acceptance racing the expiry (the expiry delayed from
+0 to 250 ms over eight rounds, both outcomes seen; typically 7 accepted, 1 expired first), two acceptances on two
+devices (one booking, one `offer_expired`), an acceptance racing a direct booking (the direct one always
+`slot_unavailable`), a cancellation racing a freed-slot job (the slot always ends offered to a waiting patient other than
+the one who cancelled), and two freed-slot jobs of one slot (one offer).
+
+Measured (compose Postgres, the tests' throwaway databases, salus_app with row-level security):
+
+| What | Result |
+| --- | --- |
+| Free-slot search with a third of the searched schedule held (`TestWaitlist_TheFreeSlotSearchStaysFastWithOfferedSlots`, `seedSlotSearch`'s directory of ~22 000 slots) | cost 18 409 (main's 18 979 without held slots), 877 rows in 6 to 20 ms, both directory scopes; under a fifth of `jit_optimize_above_cost` |
+| The matching query, 10 candidates of 10 010 entries in one clinic (`TestCandidates_TenThousandEntriesInAClinic`, 2 000 consenting patients) | median 3.6 to 4.0 ms over five runs (3.4 to 9.8 ms) |
 
 As built (agent decisions, for the owner to review):
 
@@ -158,3 +189,65 @@ Copy waiting for the owner (all of it new): the link page in ten languages (`int
 `cancel_effect`, `cancel_tick`, `cancel_closed`), the reschedule e-mail (`rescheduled.txt`, ten languages), the
 mobile actions and picker (ten languages; `legal`: `rescheduleConfirmBody`), the web badge, history and reschedule
 settings (five languages).
+| Handing a slot on | One path, `handOn`: the job locks the slot (`ForWaitlist`), leaves it when booked or held by an open offer, gives back a held slot whose offer closed, then offers it to the first entry the matching query and the consent check give, or leaves it free. Decline, withdrawal and revocation close the offer in the patient's scope and enqueue `waitlist_slot_freed`; the expiry closes it and hands on in its own transaction |
+| Offer visibility | The clinic's jobs see every offer of the clinic whatever the patient's consent (they must see an open offer of a slot to leave it held); entries stay consent-gated, and an offer is inserted only for an entry the clinic sees |
+| Offer's role | `waitlist_offer` gains `practitioner_role_id` (the slot's), so an acceptance books without reading the slot first |
+| `expired` | Not stored: an active entry past `ends_at` (the end of its last day in the clinic's zone) shows as `expired`, matches nothing and no longer counts towards the five; retention deletes it 30 days after `ends_at` |
+| Overlap check | "No other appointment of theirs overlapping" is checked in the clinic's scope, so only the same clinic's appointments count (row-level security hides the others), as a direct booking checks none; noted in the plan |
+| Matching times | An entry's times are minutes after the clinic's midnight; a slot matches when it lies wholly inside them |
+| Staff | Any staff of the clinic list the waitlist, move an entry and remove one; names follow `access.Profile` |
+| Started slots | `Unoffer` frees a held slot even after its start (no offer can hold it, and retention deletes free slots only); the plan's contract is amended |
+| Audit of the entry | An entry is audited as `Appointment/<entry id>` (FHIR's waitlist is an Appointment status); the job's read of candidates as a search without an entity |
+| Retry key | The acceptance's key `waitlist:<offer>` replays the first receipt on a retry after a refund, as the direct booking's key does: SAL-23 settles both. A concurrent acceptance shares the receipt: an offer accepted already gives its appointment again, and a failed acceptance does not refund when the offer is accepted |
+| Join entry point (mobile) | From a practitioner's free times, for that practitioner, over 7, 14, 30 or 90 days, any time, mornings (08:00 to 12:00) or afternoons (12:00 to 17:00); joining for a specialty is in the API only |
+
+Checks (compose project salus-appt35): `make lint`, `make test`, `make archcheck`, `make cover` (91.3%), `make e2e`, `make i18n-check`, `make web-lint`, `make web-typecheck`, `make web-test`, `make mobile-analyze`, `make mobile-test` pass; `make gen-clients` leaves no diff.
+
+Independent review of PR #93 (2026-11-13), all fixed test-first:
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| 1. Two acceptances share the receipt; the loser's refusal refunded it | An offer accepted already gives its appointment again (audited as a read, no purchase); a failed acceptance re-reads the offer and refunds only when it is not accepted | `TestAccept_AnOfferAcceptedOnAnotherDeviceGivesItsAppointment`, `TestWaitlist_TwoAcceptancesBookAndChargeOnce` (priced: one receipt per slot, no refund) |
+| 2. Accept locked offer then entry, withdraw entry then offer | Accept locks the entry first | `TestWaitlist_AnAcceptanceRacingAWithdrawalNeverDeadlocks` (deadlocked without the fix) |
+| 3. The five-entry limit had no lock | `pg_advisory_xact_lock` on (patient, clinic) before the count | `TestWaitlist_ConcurrentJoinsKeepTheLimitOfFive` (six of six joined without it) |
+| 4. The chosen entry was not locked | The matching query takes `FOR UPDATE OF e SKIP LOCKED`; the invariant now also checks that no open offer has a closed entry | `TestCandidates_PassOverAnEntryAnotherTransactionHolds`, `TestWaitlist_TwoSlotsFreedAtOnceOfferTheOneEntryOnce` |
+| 5. The clinic's list read every entry and named each one by one | Status filtered in SQL (`active` by default), pages (`limit` 100, at most 500, `offset`, `next_offset`), the practitioner's visits read once, each patient's consent and name once, every audit event in one insert (`RecordAll`) | `TestClinicEntries_FiltersTheStatusAndPages`, `TestClinicWaitlist_GivesAPageOfTheActiveEntriesByDefault`, `TestWaitlist_APageOfTheClinicsListAtTenThousandEntries`: a page of 100 at offset 5 000 of 10 000 entries, median 53 ms as the admin (100 names), 41 ms as a practitioner (48 to 63 ms, 40 to 61 ms over five runs) |
+| 6. An offer of a revoked patient in the staff's list | None was possible; now tested | `TestClinicEntries_NeverShowAnOfferOfARevokedPatient` |
+| 7. Copy | The second device gets the booking (finding 1), so "You stay on the waitlist" is no longer shown after a booking; the hold's end carries the zone's name, and its date when it ends on a later day | `TestNotifyOffer_AHoldPastMidnightGivesItsDate`, golden e-mails |
+| 8. The contract | The plan amends `Unoffer` (also after the start) and notes the same-clinic overlap check, the offer's `practitioner_role_id`, the list's pages and the repeated acceptance | |
+
+At SAL-33's merge (2026-11-13): an offer's notice is `notification.Service.NotifyOffer`, which calls `Deliver(ctx,
+"waitlist_offer", offerID, org, accountID, Content{Deadline: the offer's end})` in the offer's transaction, so the
+patient's channels, quiet hours (a push or SMS held past the hold's end is dropped; the e-mail goes at once) and the
+clinic's SMS option apply, each sent once; the `waitlist_offer_notify` job and the plain sends are gone. The send's
+composer (`composeOffer`) re-reads the offer and sends nothing once it closed or its hold ended. `Ports.Quiet` is
+`notification.Service.Quiet` (the patient's quiet hours in their zone, else the clinic's): an entry whose patient is
+inside them is passed over. The account comes from `patient.Service.Lookup` in the clinic's scope (audited as a read
+with the job as agent). The waitlist reads the clinic's settings through SAL-33's `Ports.Rules` (the same `For`), so
+its own `Settings` port is gone. `TestWaitlistPorts_GiveTheOffersTheirDeliveriesAndQuietHours` (internal/api) and
+`TestNewRevocations_GiveTheOffersTheirDeliveriesAndQuietHours` (internal/worker) check the wiring. New copy: the offer
+SMS in ten languages (`waitlist_offer_sms.txt`, GSM-7 without diacritics where the language allows, as SAL-33's
+reminder; one part for a short clinic name).
+
+At SAL-34's merge (2026-11-13): a reschedule's and a link cancel's freed slot reaches the waitlist through the same
+`waitlist_slot_freed` (`TestWaitlist_ARescheduleHandsTheSlotItLeavesToTheWaitlist`: the job's arguments name the slot
+left, and the job offers it to a waiting patient, never to the one who moved off it). The acceptance-against-expiry
+race now delays either side (the acceptance got faster), so both outcomes are seen every run (4 and 4).
+
+Delta review of 7afdb7e..60b090f (2026-11-13), all fixed test-first:
+
+| Finding | Fix | Test |
+| --- | --- | --- |
+| 1. Tests failed at night (the defaults' quiet hours) | The real-stack tests and the e2e journey give the waiting patients no quiet hours; one explicit night case with a fixed clock | `TestWaitlist_ANightTimeOfferWaitsForTheMorning` |
+| 2. Passed-over patients in quiet hours lost the slot; the search stopped at 10 | `firstReachable` reads past passed-over entries a page at a time (100 at most); when all are passed over and some for quiet hours, `waitlist_slot_freed` is scheduled at the earliest end of those, unique by its slot (`EnqueueHandOn`). Recorded in the plan's "Waitlist matching" | `TestHandOn_TriesAgainAfterTheQuietHoursAndLooksPastTheFirstPage`, `TestWaitlist_ANightTimeOfferWaitsForTheMorning` |
+| 3. A patient without a profile stopped the offer for everyone | Passed over | `TestHandOn_PassesOverWhomNoOfferReaches` |
+| 4. Offer sends audited as reminders | `waitlist_offer_email`, `_push`, `_sms`; the reach read carries the job's agent | `TestSendDelivery_TheOffersSendsAreAuditedAsTheirOwn`, `TestReach_TellsTheQuietHoursAndWhetherAChannelCarriesTheOffer` |
+| 5. A slot held for a patient nothing reaches | `Ports.Quiet` becomes `Ports.Reach` (`notification.Service.Reach`): reachable when e-mail is on, push on with a device, or SMS opted into at a clinic that offers it; otherwise passed over | as finding 4, `TestHandOn_PassesOverWhomNoOfferReaches` |
+| 6. Compose and send race | Benign and the same as the reminders': a send that composed just before the offer closed still goes; the patient then finds the offer closed in the app | (noted) |
+
+Copy waiting for the owner: the offer e-mail, push and SMS in ten languages
+(`internal/notification/templates/*/waitlist_offer*.txt`); the mobile `waitlist*` strings in ten languages (`legal`:
+`waitlistExplained`, `waitlistAcceptEffect`, `waitlistAccept`); the web `waitlist` area in five languages (after the
+review: `showMore` added, `statusAll` dropped, the status filter uses `status.expired`, `.booked`, `.withdrawn`); the
+offer e-mail's hold end now reads "until 09:10 (Europe/Sarajevo)", or with its date past midnight (Italian "fino alle"
+before a date reads awkwardly in that rare case: the owner's call).

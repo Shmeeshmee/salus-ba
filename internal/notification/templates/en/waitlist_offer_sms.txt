@@ -1,0 +1,1 @@
+Free time: {{.Clinic}}, {{.Day}}/{{.Month}}/{{.Year}} at {{.Time}} ({{.Zone}}), held until {{.Until}}. Book in Salus: {{.Link}}

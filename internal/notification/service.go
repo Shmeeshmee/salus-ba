@@ -38,6 +38,7 @@ type Ports struct {
 	DeliveryJobs DeliveryJobs
 	Devices      Repository // the push devices, and the clinic's scope of the SMS usage
 	Reminders    Reminders
+	Offers       WaitlistOffers // the waitlist's offers (SAL-35)
 	Rules        ClinicRules
 	Languages    Languages
 	Phones       Phones

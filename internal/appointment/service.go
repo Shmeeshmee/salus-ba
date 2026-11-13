@@ -28,6 +28,7 @@ type Transactor interface {
 // Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
 type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
+	RecordAll(ctx context.Context, es []auditevent.AuditEvent) error
 }
 
 // Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope
@@ -104,6 +105,15 @@ type Ports struct {
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices
 	Payments payments.Provider
+	// SAL-35, the waitlist: Waitlist stores it, Offered moves its slots (slot.Service), OfferJobs enqueues an offer's
+	// expiry and a later hand-on (River jobs), Notices tells the patient of it and Reach whether an offer reaches them
+	// now (notification.Service, SAL-33's deliveries); the clinic's rules are Rules'. A Service that makes offers (HandOn,
+	// ExpireOffer) needs all of them, and Patients for the account to tell.
+	Waitlist  WaitlistRepository
+	Offered   OfferedSlots
+	OfferJobs OfferJobs
+	Notices   OfferNotices
+	Reach     Reachability
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
 	Tokens TokenRepository
@@ -230,19 +240,23 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	if err := s.Jobs.EnqueueBooked(ctx, out.ID, out.OrganizationID); err != nil {
-		return Appointment{}, nil, err
+	return out, nil, s.booked(ctx, out, now)
+}
+
+// booked enqueues what follows the booking of a at now, in its transaction (a direct booking's, a waitlist
+// acceptance's): its confirmation, the request of its role's default questionnaire, the refresh of the clinic's
+// statistics and its reminders.
+func (s *Service) booked(ctx context.Context, a Appointment, now time.Time) error {
+	if err := s.Jobs.EnqueueBooked(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
 	}
-	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
-		return Appointment{}, nil, err
+	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
 	}
-	if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
-		return Appointment{}, nil, err
+	if err := s.Stats.EnqueueStatsRefresh(ctx, a.OrganizationID, a.Start); err != nil {
+		return err
 	}
-	if err := s.scheduleReminders(ctx, out, now); err != nil {
-		return Appointment{}, nil, err
-	}
-	return out, nil, nil
+	return s.scheduleReminders(ctx, a, now)
 }
 
 // refuse audits a refused interaction by c in a transaction of its own and returns refusal.

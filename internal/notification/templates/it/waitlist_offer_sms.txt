@@ -1,0 +1,1 @@
+Orario libero: {{.Clinic}}, {{.Day}}/{{.Month}}/{{.Year}} alle {{.Time}} ({{.Zone}}), riservato fino alle {{.Until}}. Prenoti in Salus: {{.Link}}

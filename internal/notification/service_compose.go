@@ -15,9 +15,11 @@ import (
 
 // compose writes d's message, or errGone when it no longer applies: its reminder or appointment changed, or its
 // channel is off now (the patient turned it off, or the clinic its SMS option, while the send waited for the quiet
-// hours to end). Only reminders are composed here: any other kind is errUnsupported (a waitlist offer's composer
-// comes with SAL-35).
+// hours to end). A waitlist offer is composed by composeOffer (SAL-35); any other kind is errUnsupported.
 func (s *Service) compose(ctx context.Context, d Delivery) (outgoing, error) {
+	if d.Kind == KindWaitlistOffer && s.p.Offers != nil {
+		return s.composeOffer(ctx, d)
+	}
 	if d.Kind != KindReminder {
 		return outgoing{}, errUnsupported
 	}
@@ -38,7 +40,7 @@ func (s *Service) compose(ctx context.Context, d Delivery) (outgoing, error) {
 	}
 	switch d.Channel {
 	case ChannelPush:
-		return s.composePush(ctx, agent, d)
+		return s.composePush(ctx, agent, d, "reminder_push")
 	case ChannelEmail:
 		return s.composeEmail(ctx, agent, d, n, prefs)
 	}
@@ -60,8 +62,9 @@ func (s *Service) stillOn(ctx context.Context, d Delivery, p Preferences) (bool,
 	return rules.SMSReminders, err
 }
 
-// composePush is the generic reminder push to d's device, in its account's language: no clinic, time or payload.
-func (s *Service) composePush(ctx context.Context, agent string, d Delivery) (outgoing, error) {
+// composePush is the generic push of d (template: reminder_push, waitlist_offer_push) to d's device, in its account's
+// language: no clinic, time or payload.
+func (s *Service) composePush(ctx context.Context, agent string, d Delivery, template string) (outgoing, error) {
 	dev, err := s.p.Devices.Device(ctx, d.DeviceID)
 	switch {
 	case errors.Is(err, ErrNotFound), err == nil && dev.AccountID != d.AccountID:
@@ -76,7 +79,7 @@ func (s *Service) composePush(ctx context.Context, agent string, d Delivery) (ou
 	if err != nil {
 		return outgoing{}, err
 	}
-	alert, err := s.in(language).message("", "reminder_push", letter{})
+	alert, err := s.in(language).message("", template, letter{})
 	if err != nil {
 		return outgoing{}, err
 	}

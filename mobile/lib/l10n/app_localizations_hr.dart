@@ -1907,4 +1907,105 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get notReschedulable =>
       'Vrijeme ovog termina ne može se promijeniti u aplikaciji.';
+
+  @override
+  String get waitlistTitle => 'Moja lista čekanja';
+
+  @override
+  String get waitlistJoinButton =>
+      'Nema odgovarajućeg termina? Prijavite se na listu čekanja';
+
+  @override
+  String get waitlistJoinTitle => 'Prijava na listu čekanja';
+
+  @override
+  String get waitlistExplained =>
+      'Kad se oslobodi termin kod ovog liječnika, nudi se pacijentima na čekanju, jednom po jednom. Dobit ćete obavijest i termin možete naručiti u aplikaciji dok je rezerviran za vas.';
+
+  @override
+  String get waitlistHowLong => 'Koliko dugo?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days dana',
+      few: '$days dana',
+      one: '$days dan',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'U koje doba dana?';
+
+  @override
+  String get waitlistAnyTime => 'Bilo kada';
+
+  @override
+  String get waitlistMornings => 'Ujutro, od 08:00 do 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Poslijepodne, od 12:00 do 17:00';
+
+  @override
+  String get waitlistJoin => 'Prijavi se na listu čekanja';
+
+  @override
+  String get waitlistJoined => 'Na listi čekanja ste.';
+
+  @override
+  String get waitlistEmpty => 'Niste ni na jednoj listi čekanja.';
+
+  @override
+  String get waitlistAPractitioner => 'Liječnik';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'Čekate do $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'Oslobodio se termin za vas';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Rezerviran za vas do $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Prihvaćanjem naručujete ovaj termin. Kad plaćanje bude dostupno u aplikaciji Salus, prihvaćanjem ćete ga i platiti.';
+
+  @override
+  String get waitlistAccept => 'Prihvati i naruči';
+
+  @override
+  String get waitlistDecline => 'Odbij';
+
+  @override
+  String get waitlistBooked =>
+      'Vaš je termin naručen. Pronaći ćete ga u odjeljku Moji termini.';
+
+  @override
+  String get waitlistDeclined =>
+      'Odbili ste termin. Ostajete na listi čekanja.';
+
+  @override
+  String get waitlistWithdraw => 'Napusti listu čekanja';
+
+  @override
+  String get waitlistWithdrawn => 'Napustili ste listu čekanja.';
+
+  @override
+  String get waitlistOff => 'Ova ustanova nema listu čekanja.';
+
+  @override
+  String get waitlistTooMany =>
+      'Već ste pet puta na listi čekanja ove ustanove. Najprije napustite jednu od prijava.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'Ovaj termin više nije rezerviran za vas. Ostajete na listi čekanja.';
 }

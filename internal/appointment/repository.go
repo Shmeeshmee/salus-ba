@@ -110,3 +110,50 @@ type ReminderRepository interface {
 	// retention role may.
 	DeleteRemindersDueBefore(ctx context.Context, before time.Time) (int64, error)
 }
+
+// WaitlistRepository stores the waitlist (SAL-35): waitlist_entry and waitlist_offer. Row-level security shows the
+// patient's own (SetPatient), and the clinic's (SetClinic) entries with the patient's active care consent and every
+// offer of the clinic.
+type WaitlistRepository interface {
+	// InsertEntry stores the active entry e, created at e.Created, and returns it.
+	InsertEntry(ctx context.Context, e WaitlistEntry) (WaitlistEntry, error)
+	// CountActiveEntries counts the patient's active entries with the clinic that end after now.
+	CountActiveEntries(ctx context.Context, patientID, org string, now time.Time) (int, error)
+	// PatientEntries returns the patient's entries, newest first, each with its open offer.
+	PatientEntries(ctx context.Context, patientID string) ([]WaitlistEntry, error)
+	// ClinicEntries returns a page of the clinic's entries in offer order (priority descending, then created_at), each
+	// with its open offer; with q's role, those of the role or of its specialty; with q's status, those in it.
+	ClinicEntries(ctx context.Context, q ClinicQuery) ([]WaitlistEntry, error)
+	// LockEntries holds the patient's entries with the clinic until the transaction ends: joins run one at a time.
+	LockEntries(ctx context.Context, patientID, org string) error
+	// EntryForUpdate returns the entry id locked until the transaction ends, or ErrNotFound.
+	EntryForUpdate(ctx context.Context, id string) (WaitlistEntry, error)
+	// CloseEntry closes the active entry id with status at at and returns it; ErrNotFound when it is not active.
+	CloseEntry(ctx context.Context, id string, status WaitlistStatus, at time.Time) (WaitlistEntry, error)
+	// SetPriority sets the priority of the active entry id at at and returns it; ErrNotFound when it is not active.
+	SetPriority(ctx context.Context, id string, priority int, at time.Time) (WaitlistEntry, error)
+	// ActiveEntries returns the patient's active entries with the clinic.
+	ActiveEntries(ctx context.Context, patientID, org string) ([]WaitlistEntry, error)
+	// Candidates returns, locked, at most n active entries that m matches, in offer order (those another transaction
+	// holds are passed over): of m's clinic, role or specialty,
+	// day and times, never offered m's slot, without an open offer, of a patient who never held the slot (its
+	// cancelled or rescheduled appointment) and has no booked appointment overlapping it that the scope shows.
+	Candidates(ctx context.Context, m Match, n int) ([]WaitlistEntry, error)
+	// InsertOffer stores the open offer o and returns it.
+	InsertOffer(ctx context.Context, o Offer) (Offer, error)
+	// Offer returns the offer id, or ErrNotFound.
+	Offer(ctx context.Context, id string) (Offer, error)
+	// OfferForUpdate returns the offer id locked until the transaction ends, or ErrNotFound: acceptance and expiry
+	// serialise on it.
+	OfferForUpdate(ctx context.Context, id string) (Offer, error)
+	// OpenOffer returns the open offer of the slot (or, with entry set, of the entry) and whether there is one.
+	OpenOffer(ctx context.Context, slotID, entryID string) (Offer, bool, error)
+	// CloseOffer closes the open offer id with state at at (with the appointment an acceptance booked) and returns it;
+	// ErrNotFound when it is not open.
+	CloseOffer(ctx context.Context, id string, state OfferState, appointmentID string, at time.Time) (Offer, error)
+	// DeleteEntriesClosedBefore deletes the entries that closed, or ended while active, before before, with their
+	// offers (the retention role's), and counts them.
+	DeleteEntriesClosedBefore(ctx context.Context, before time.Time) (int64, error)
+	// DeleteOffersClosedBefore deletes the offers of those entries, and counts them.
+	DeleteOffersClosedBefore(ctx context.Context, before time.Time) (int64, error)
+}

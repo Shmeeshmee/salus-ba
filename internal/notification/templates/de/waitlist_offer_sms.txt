@@ -1,0 +1,1 @@
+Freier Termin: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}} um {{.Time}} ({{.Zone}}), bis {{.Until}} reserviert. Buchen in Salus: {{.Link}}

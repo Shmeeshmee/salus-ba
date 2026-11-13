@@ -36,6 +36,8 @@ type letter struct {
 	// When is the appointment's start in the clinic's zone, written by the language's date.txt.
 	When string
 	Link string
+	// Until is when a waitlist offer's hold ends, HH:MM in the clinic's zone (SAL-35).
+	Until string
 	// The reminders' (SAL-33): WhenLocal is the start in the patient's zone when it differs from the clinic's ("" when
 	// not), ActionLink the one-time link to confirm or cancel, and Day, Month, Year and Time the start in the clinic's
 	// zone for an SMS.

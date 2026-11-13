@@ -1,0 +1,9 @@
+Ein Termin, auf den Sie gewartet haben, ist frei
+
+Bei {{.Clinic}} ist ein Termin frei geworden, auf den Sie gewartet haben.
+Datum und Uhrzeit: {{.When}}
+
+Er ist bis {{.Until}} für Sie reserviert. Danach wird er dem nächsten Patienten angeboten. Wenn Sie ihn in der App annehmen, wird der Termin gebucht.
+
+Um ihn anzunehmen oder abzulehnen, öffnen Sie die Salus-App:
+{{.Link}}

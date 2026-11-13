@@ -1878,4 +1878,103 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notReschedulable =>
       'The time of this appointment cannot be changed in the app.';
+
+  @override
+  String get waitlistTitle => 'My waitlist';
+
+  @override
+  String get waitlistJoinButton => 'No suitable time? Join the waitlist';
+
+  @override
+  String get waitlistJoinTitle => 'Join the waitlist';
+
+  @override
+  String get waitlistExplained =>
+      'When a time with this practitioner becomes free, it is offered to the patients waiting, one at a time. You get a notification and can book it in the app while it is held for you.';
+
+  @override
+  String get waitlistHowLong => 'For how long?';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days days',
+      one: '$days day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'At what time of day?';
+
+  @override
+  String get waitlistAnyTime => 'Any time';
+
+  @override
+  String get waitlistMornings => 'Mornings, 08:00 to 12:00';
+
+  @override
+  String get waitlistAfternoons => 'Afternoons, 12:00 to 17:00';
+
+  @override
+  String get waitlistJoin => 'Join the waitlist';
+
+  @override
+  String get waitlistJoined => 'You are on the waitlist.';
+
+  @override
+  String get waitlistEmpty => 'You are not on any waitlist.';
+
+  @override
+  String get waitlistAPractitioner => 'A practitioner';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'Waiting until $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'A time is free for you';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'Held for you until $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'Accepting books this time for you. Once payments are available in Salus, accepting also pays for it.';
+
+  @override
+  String get waitlistAccept => 'Accept and book';
+
+  @override
+  String get waitlistDecline => 'Decline';
+
+  @override
+  String get waitlistBooked =>
+      'Your appointment is booked. You find it under My appointments.';
+
+  @override
+  String get waitlistDeclined =>
+      'You declined the time. You stay on the waitlist.';
+
+  @override
+  String get waitlistWithdraw => 'Leave the waitlist';
+
+  @override
+  String get waitlistWithdrawn => 'You left the waitlist.';
+
+  @override
+  String get waitlistOff => 'This clinic has no waitlist.';
+
+  @override
+  String get waitlistTooMany =>
+      'You are on this clinic\'s waitlist five times already. Leave one of them first.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'This time is no longer held for you. You stay on the waitlist.';
 }

@@ -110,6 +110,8 @@ app.{$SALUS_DOMAIN} {
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
 	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|changes|questionnaires|consultation(/join|/end)?)$
+	# Removing an entry of the waitlist (SAL-35); /waitlist itself is a screen of the app.
+	@apiWaitlist path_regexp ^/waitlist/.+$
 	# /questionnaires and /questionnaires/<id> are screens of the app too: only their writes go to the api.
 	@apiQuestionnaires {
 		path /questionnaires*
@@ -125,6 +127,9 @@ app.{$SALUS_DOMAIN} {
 		reverse_proxy api:8080
 	}
 	handle @apiQuestionnaires {
+		reverse_proxy api:8080
+	}
+	handle @apiWaitlist {
 		reverse_proxy api:8080
 	}
 	# vite-proxy:end

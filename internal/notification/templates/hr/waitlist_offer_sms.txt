@@ -1,0 +1,1 @@
+Slobodan termin: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}}. u {{.Time}} ({{.Zone}}), do {{.Until}}. Narucite u Salus: {{.Link}}

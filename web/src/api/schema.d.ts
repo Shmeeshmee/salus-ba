@@ -2462,7 +2462,7 @@ export interface paths {
         put?: never;
         /**
          * The patient joins a clinic's waitlist
-         * @description For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused. Built in SAL-35 (404 until then).
+         * @description For a practitioner role or a specialty of the clinic, between two dates and, optionally, a time of day (the clinic's zone). Needs the clinic's waitlist on and the patient's active care consent; at most 5 active entries per clinic, dates at most 90 days ahead. Audited, also when refused.
          */
         post: operations["joinWaitlist"];
         delete?: never;
@@ -2500,7 +2500,7 @@ export interface paths {
         post?: never;
         /**
          * The patient withdraws an entry, or the clinic's staff remove it
-         * @description An open offer of the entry ends with it, and its slot goes to the next entry. Audited. Built in SAL-35.
+         * @description An open offer of the entry ends with it, and its slot goes to the next entry. Audited.
          */
         delete: operations["removeWaitlistEntry"];
         options?: never;
@@ -2519,7 +2519,7 @@ export interface paths {
         put?: never;
         /**
          * The patient accepts an offered slot, which books it
-         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. An offer the patient accepted already (another device) answers its appointment again. Audited, also when refused.
          */
         post: operations["acceptWaitlistOffer"];
         delete?: never;
@@ -2539,7 +2539,7 @@ export interface paths {
         put?: never;
         /**
          * The patient declines an offered slot
-         * @description The entry stays active; the slot goes to the next entry. Built in SAL-35 (404 until then).
+         * @description The entry stays active; the slot goes to the next entry.
          */
         post: operations["declineWaitlistOffer"];
         delete?: never;
@@ -2557,7 +2557,7 @@ export interface paths {
         };
         /**
          * The clinic's waitlist, in offer order
-         * @description For the clinic's staff: entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited. Built in SAL-35 (404 until then).
+         * @description For the clinic's staff: a page of entries by `priority` then join time, each with the patient's name at the level the care consent gives and its open offer. Audited.
          */
         get: operations["listClinicWaitlist"];
         put?: never;
@@ -4528,6 +4528,8 @@ export interface components {
             priority: number;
         };
         ClinicWaitlist: {
+            /** @description The next page's offset; absent after the last page. */
+            next_offset?: number;
             entries: components["schemas"]["ClinicWaitlistEntry"][];
         };
         WaitlistPriority: {
@@ -10974,7 +10976,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `consent_required`, `waitlist_off`, `too_many_entries`. */
+            /** @description `consent_required`, `waitlist_off`, `too_many_entries`; `profile_required` before the patient's profile exists. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11075,7 +11077,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `offer_expired`, `slot_unavailable`, `consent_required`. */
+            /** @description `offer_expired`, `slot_unavailable`, `consent_required`; `payment_declined` once prices exist. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11125,7 +11127,12 @@ export interface operations {
         parameters: {
             query?: {
                 practitioner_role?: string;
+                /** @description The entries in this status; `active` (waiting, not past the last day) when absent. */
                 status?: components["schemas"]["WaitlistStatus"];
+                /** @description Entries per page; 100 when absent. */
+                limit?: number;
+                /** @description Entries skipped, from the start of the offer order. */
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -11133,13 +11140,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The entries. */
+            /** @description A page of the entries. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ClinicWaitlist"];
+                };
+            };
+            /** @description `invalid_request`: an unknown status, or a limit or offset out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthenticated"];

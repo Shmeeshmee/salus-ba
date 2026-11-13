@@ -110,6 +110,16 @@ func (r *fakeRepository) Release(ctx context.Context, id string, at time.Time) (
 	return r.released, r.err
 }
 
+func (r *fakeRepository) Lock(ctx context.Context, id string) (slot.Slot, error) {
+	r.seen(ctx, "Lock:"+id)
+	return r.ByID(ctx, id)
+}
+
+func (r *fakeRepository) Transition(ctx context.Context, id string, from, to slot.Status, at time.Time) (slot.Slot, error) {
+	r.seen(ctx, "Transition:"+id+":"+string(from)+":"+string(to))
+	return slot.Slot{ID: id, OrganizationID: r.clinic, Status: to, LastUpdated: at}, r.holdErr
+}
+
 func (r *fakeRepository) DeleteFreeEndedBefore(ctx context.Context, before time.Time) (int64, error) {
 	r.seen(ctx, "DeleteFreeEndedBefore")
 	r.after = before
@@ -132,6 +142,16 @@ func (s *fakeSchedules) ForGeneration(ctx context.Context, org, id string) (sche
 	}
 	for _, sc := range s.schedules {
 		if sc.ID == id && sc.OrganizationID == org {
+			return sc, nil
+		}
+	}
+	return schedule.Schedule{}, schedule.ErrNotFound
+}
+
+func (s *fakeSchedules) Lookup(ctx context.Context, org, id string) (schedule.Schedule, error) {
+	s.seen(ctx, "Lookup:"+id)
+	for _, sc := range s.schedules {
+		if sc.ID == id && sc.OrganizationID == org && sc.ID != s.failing {
 			return sc, nil
 		}
 	}

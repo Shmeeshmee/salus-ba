@@ -69,12 +69,13 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	appointments := appointment.NewService(appointment.Ports{
 		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk, Patients: patients,
 		Reminders: appointment.NewPostgresReminderRepository(pool), Tokens: appointment.NewPostgresTokenRepository(pool), LinkURL: n.LinkURL,
+		Waitlist: appointment.NewPostgresWaitlistRepository(pool), // the offers' sends read their offer (SAL-35)
 	})
 	mail := notification.NewService(notification.Ports{
 		Invites: accounts, Appointments: appointments, Accounts: accounts, Clinics: clinics,
 		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: n.Sender, WebBaseURL: n.WebBaseURL, PatientAppURL: n.PatientAppURL,
 		Deliveries: notification.NewPostgresDeliveryRepository(pool), DeliveryJobs: notification.NewRiverDeliveryJobs(inserter),
-		Devices: notification.NewPostgresRepository(pool), Reminders: appointments,
+		Devices: notification.NewPostgresRepository(pool), Reminders: appointments, Offers: appointments,
 		Rules:     organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Languages: accounts, Phones: patients, Pusher: n.Pusher, SMS: n.SMS, Audit: audit, Tx: tx, Clock: clk,
 	})

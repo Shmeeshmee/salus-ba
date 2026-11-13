@@ -278,6 +278,23 @@ func appointmentRules() []Rule {
 			Then: ThenDelete,
 		},
 		{
+			Table: "waitlist_entry",
+			Basis: "The contract with the patient (GDPR Art. 6(1)(b)) and, as that a patient waits for a practitioner or a " +
+				"specialty is health data, the provision of care (Art. 9(2)(h)) under the patient's care consent: to offer them a " +
+				"freed slot; deleted 30 days after it was booked or withdrawn, or after its last day, with its offers; needs a " +
+				"legal decision before production (docs/plans/appointments.md \"Personal data\")",
+			Keep: 30 * day, // after closed_at, or ends_at while active
+			Then: ThenDelete,
+		},
+		{
+			Table: "waitlist_offer",
+			Basis: "Who was offered which freed slot and what they did, for the offer order and the hold (GDPR Art. 6(1)(b), " +
+				"Art. 9(2)(h)); deleted with its entry; needs a legal decision before production (docs/plans/appointments.md " +
+				"\"Personal data\")",
+			Keep: 30 * day, // after its entry's closed_at, or ends_at while active
+			Then: ThenDelete,
+		},
+		{
 			Table: "appointment_reminder",
 			Basis: "The contract with the patient (GDPR Art. 6(1)(b)): when each reminder of an appointment is due and whether " +
 				"it went, so it is sent once; deleted 90 days after its due time; needs a legal decision before production " +

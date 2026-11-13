@@ -3047,6 +3047,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The time of this appointment cannot be changed in the app.'**
   String get notReschedulable;
+
+  /// SAL-35: the patient's waitlist screen and its button on the home screen. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'My waitlist'**
+  String get waitlistTitle;
+
+  /// SAL-35: under a practitioner's free times. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'No suitable time? Join the waitlist'**
+  String get waitlistJoinButton;
+
+  /// SAL-35: the join screen's title. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Join the waitlist'**
+  String get waitlistJoinTitle;
+
+  /// [legal] SAL-35: how offers work, on the join screen. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'When a time with this practitioner becomes free, it is offered to the patients waiting, one at a time. You get a notification and can book it in the app while it is held for you.'**
+  String get waitlistExplained;
+
+  /// SAL-35: heading of the span choice. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'For how long?'**
+  String get waitlistHowLong;
+
+  /// SAL-35: a span to wait, from today. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'{days, plural, one{{days} day} other{{days} days}}'**
+  String waitlistDays(int days);
+
+  /// SAL-35: heading of the time-of-day choice. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'At what time of day?'**
+  String get waitlistWhen;
+
+  /// SAL-35: no time of day. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Any time'**
+  String get waitlistAnyTime;
+
+  /// SAL-35: in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Mornings, 08:00 to 12:00'**
+  String get waitlistMornings;
+
+  /// SAL-35: in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Afternoons, 12:00 to 17:00'**
+  String get waitlistAfternoons;
+
+  /// SAL-35: the join button. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Join the waitlist'**
+  String get waitlistJoin;
+
+  /// SAL-35: after joining. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on the waitlist.'**
+  String get waitlistJoined;
+
+  /// SAL-35: no active entry. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not on any waitlist.'**
+  String get waitlistEmpty;
+
+  /// SAL-35: an entry whose practitioner is no longer listed, or a specialty. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'A practitioner'**
+  String get waitlistAPractitioner;
+
+  /// SAL-35: the entry's last day. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting until {date}'**
+  String waitlistUntil(String date);
+
+  /// SAL-35: an open offer. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'A time is free for you'**
+  String get waitlistOfferTitle;
+
+  /// SAL-35: the hold's end, in the clinic's zone. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Held for you until {time}'**
+  String waitlistHeldUntil(String time);
+
+  /// [legal] SAL-35: that accepting books the time, and pays for it once payments exist. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepting books this time for you. Once payments are available in Salus, accepting also pays for it.'**
+  String get waitlistAcceptEffect;
+
+  /// [legal] SAL-35: the acceptance button. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept and book'**
+  String get waitlistAccept;
+
+  /// SAL-35: decline the offer. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get waitlistDecline;
+
+  /// SAL-35: after accepting. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your appointment is booked. You find it under My appointments.'**
+  String get waitlistBooked;
+
+  /// SAL-35: after declining. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You declined the time. You stay on the waitlist.'**
+  String get waitlistDeclined;
+
+  /// SAL-35: withdraw the entry. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave the waitlist'**
+  String get waitlistWithdraw;
+
+  /// SAL-35: after withdrawing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You left the waitlist.'**
+  String get waitlistWithdrawn;
+
+  /// SAL-35: 409 waitlist_off. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'This clinic has no waitlist.'**
+  String get waitlistOff;
+
+  /// SAL-35: 409 too_many_entries. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on this clinic\'s waitlist five times already. Leave one of them first.'**
+  String get waitlistTooMany;
+
+  /// SAL-35: 409 offer_expired. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'This time is no longer held for you. You stay on the waitlist.'**
+  String get waitlistOfferExpired;
 }
 
 class _AppLocalizationsDelegate

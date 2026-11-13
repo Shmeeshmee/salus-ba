@@ -10,6 +10,7 @@ import 'fhir.dart';
 import 'file_prep.dart' show Prepared;
 import 'health_profile.dart';
 import 'session.dart';
+import 'waitlist_screen.dart' show Waitlists;
 
 /// How long an upload may go without sending a byte or hearing its answer before it is stopped (COPY M5).
 const uploadIdle = Duration(seconds: 60);
@@ -35,7 +36,8 @@ class Booking {
       _appointments = api.AppointmentsApi(client),
       _consultation = api.ConsultationApi(client),
       _questionnaires = api.QuestionnairesApi(client),
-      _history = api.HistoryApi(client);
+      _history = api.HistoryApi(client),
+      waitlists = Waitlists(api.WaitlistApi(client));
 
   final api.ApiClient _client;
   final Fhir fhir;
@@ -51,6 +53,9 @@ class Booking {
   final api.ConsultationApi _consultation;
   final api.QuestionnairesApi _questionnaires;
   final api.HistoryApi _history;
+
+  /// The patient's waitlist (SAL-35).
+  final Waitlists waitlists;
 
   /// The signed-in patient's profile, or null before it is first saved.
   Future<api.Patient?> me() async {

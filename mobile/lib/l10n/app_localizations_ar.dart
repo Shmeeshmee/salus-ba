@@ -1940,4 +1940,106 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get notReschedulable => 'لا يمكن تغيير وقت هذا الموعد عبر التطبيق.';
+
+  @override
+  String get waitlistTitle => 'قائمة الانتظار الخاصة بي';
+
+  @override
+  String get waitlistJoinButton =>
+      'لا يوجد موعد مناسب؟ انضم إلى قائمة الانتظار';
+
+  @override
+  String get waitlistJoinTitle => 'الانضمام إلى قائمة الانتظار';
+
+  @override
+  String get waitlistExplained =>
+      'عندما يصبح موعد لدى هذا الطبيب متاحًا، يُعرض على المرضى المنتظرين واحدًا تلو الآخر. سيصلك إشعار ويمكنك حجزه في التطبيق ما دام محجوزًا لك.';
+
+  @override
+  String get waitlistHowLong => 'لأي مدة؟';
+
+  @override
+  String waitlistDays(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: '$days يوم',
+      many: '$days يومًا',
+      few: '$days أيام',
+      two: 'يومان',
+      one: 'يوم واحد',
+      zero: '$days يوم',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get waitlistWhen => 'في أي وقت من اليوم؟';
+
+  @override
+  String get waitlistAnyTime => 'في أي وقت';
+
+  @override
+  String get waitlistMornings => 'صباحًا، من 08:00 إلى 12:00';
+
+  @override
+  String get waitlistAfternoons => 'بعد الظهر، من 12:00 إلى 17:00';
+
+  @override
+  String get waitlistJoin => 'انضم إلى قائمة الانتظار';
+
+  @override
+  String get waitlistJoined => 'أنت في قائمة الانتظار.';
+
+  @override
+  String get waitlistEmpty => 'لست في أي قائمة انتظار.';
+
+  @override
+  String get waitlistAPractitioner => 'طبيب';
+
+  @override
+  String waitlistUntil(String date) {
+    return 'تنتظر حتى $date';
+  }
+
+  @override
+  String get waitlistOfferTitle => 'أصبح موعد متاحًا لك';
+
+  @override
+  String waitlistHeldUntil(String time) {
+    return 'محجوز لك حتى $time';
+  }
+
+  @override
+  String get waitlistAcceptEffect =>
+      'بالقبول تحجز هذا الموعد. وعندما يصبح الدفع متاحًا في Salus، ستدفع ثمنه أيضًا عند القبول.';
+
+  @override
+  String get waitlistAccept => 'اقبل واحجز';
+
+  @override
+  String get waitlistDecline => 'ارفض';
+
+  @override
+  String get waitlistBooked => 'تم حجز موعدك. ستجده في مواعيدي.';
+
+  @override
+  String get waitlistDeclined => 'رفضت الموعد. تبقى في قائمة الانتظار.';
+
+  @override
+  String get waitlistWithdraw => 'مغادرة قائمة الانتظار';
+
+  @override
+  String get waitlistWithdrawn => 'غادرت قائمة الانتظار.';
+
+  @override
+  String get waitlistOff => 'لا توجد قائمة انتظار لدى هذه العيادة.';
+
+  @override
+  String get waitlistTooMany =>
+      'أنت مسجل بالفعل خمس مرات في قائمة انتظار هذه العيادة. غادر إحداها أولًا.';
+
+  @override
+  String get waitlistOfferExpired =>
+      'لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار.';
 }

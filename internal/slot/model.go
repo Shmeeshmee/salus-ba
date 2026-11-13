@@ -6,13 +6,14 @@ package slot
 
 import "time"
 
-// Status is FHIR SlotStatus, the two the product uses.
+// Status is FHIR SlotStatus, the three the product uses.
 type Status string
 
-// The statuses.
+// The statuses. A busy-tentative slot is held for one waitlisted patient's offer (SAL-35).
 const (
-	StatusFree Status = "free"
-	StatusBusy Status = "busy"
+	StatusFree      Status = "free"
+	StatusBusy      Status = "busy"
+	StatusTentative Status = "busy-tentative"
 )
 
 // Period is a slot's start and end, half-open [Start, End).

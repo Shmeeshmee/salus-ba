@@ -218,25 +218,42 @@ func (s *Service) public(ctx context.Context, read func(ctx context.Context) (Sc
 // ForGeneration returns the schedule id of the clinic org, locked until the transaction in ctx ends (the
 // slots_generate job), or ErrNotFound. Not audited: a system step that discloses nothing.
 func (s *Service) ForGeneration(ctx context.Context, org, id string) (Schedule, error) {
+	out, err := s.inClinic(ctx, org, func(ctx context.Context) (Schedule, error) { return s.Repo.Lock(ctx, id) })
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return Schedule{}, fmt.Errorf("schedule: for generation: %w", err)
+	}
+	return out, err
+}
+
+// Lookup returns the schedule id of the clinic org, unlocked, in the transaction in ctx, or ErrNotFound: the role a
+// slot is booked with, for the waitlist's offers (SAL-35). Not audited, like ForGeneration.
+func (s *Service) Lookup(ctx context.Context, org, id string) (Schedule, error) {
+	out, err := s.inClinic(ctx, org, func(ctx context.Context) (Schedule, error) { return s.Repo.ByID(ctx, id) })
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return Schedule{}, fmt.Errorf("schedule: lookup: %w", err)
+	}
+	return out, err
+}
+
+// inClinic reads a schedule of the clinic org with read in the clinic's scope; ErrNotFound for none, or another
+// clinic's.
+func (s *Service) inClinic(ctx context.Context, org string, read func(ctx context.Context) (Schedule, error)) (Schedule, error) {
 	var out Schedule
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.Repo.SetOrganization(ctx, org); err != nil {
 			return err
 		}
 		var err error
-		out, err = s.Repo.Lock(ctx, id)
+		out, err = read(ctx)
 		if err == nil && out.OrganizationID != org { // not on row-level security alone
 			return ErrNotFound
 		}
 		return err
 	})
-	switch {
-	case errors.Is(err, ErrNotFound):
+	if errors.Is(err, ErrNotFound) {
 		return Schedule{}, ErrNotFound
-	case err != nil:
-		return Schedule{}, fmt.Errorf("schedule: for generation: %w", err)
 	}
-	return out, nil
+	return out, err
 }
 
 // Listed returns the schedules of the active roles of listed clinics, for the hourly slot generation. Not

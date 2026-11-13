@@ -11,15 +11,17 @@ import { CallScreen } from './CallScreen'
 import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
+import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
 import { Practitioners } from './Practitioners'
 import { Questionnaires } from './Questionnaires'
+import { Waitlist } from './Waitlist'
 import { SignIn } from './SignIn'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -141,6 +143,10 @@ function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practit
         <ListIcon />
         {t('shell.questionnaires')}
       </Link>
+      <Link to="/waitlist">
+        <WaitlistIcon />
+        {t('waitlist.nav')}
+      </Link>
       {practitioner && (
         <Link to="/chats">
           <ChatIcon />
@@ -200,16 +206,20 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   const questionnaire = questionnairePath.exec(path)
   if (questionnaire) return <Builder key={questionnaire[1]} api={api} fhir={fhir} id={decodeURIComponent(questionnaire[1])} />
   if ((path === '/chats' || chatPath.test(path)) && account.role === 'practitioner') return <ChatRoutes api={api} fhir={fhir} account={account} path={path} />
+  if (path === '/waitlist') return <Waitlist api={api} fhir={fhir} account={account} />
   if (path === '/analytics') return <AnalyticsPage api={api} fhir={fhir} account={account} />
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/clinic' && account.role === 'admin') {
     return (
-      <ClinicSettings
-        api={api}
-        fhir={fhir}
-        organizationId={account.organizationId ?? ''}
-        platform={account.features?.includes('analytics_platform') === true}
-      />
+      <>
+        <ClinicSettings
+          api={api}
+          fhir={fhir}
+          organizationId={account.organizationId ?? ''}
+          platform={account.features?.includes('analytics_platform') === true}
+        />
+        <ClinicSettingsWaitlist api={api} />
+      </>
     )
   }
   return <p className="panel">{t('shell.notFound')}</p>

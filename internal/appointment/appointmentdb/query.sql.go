@@ -56,6 +56,71 @@ func (q *Queries) ActionTokenByID(ctx context.Context, id pgtype.UUID) (ActionTo
 	return i, err
 }
 
+const activeWaitlistEntries = `-- name: ActiveWaitlistEntries :many
+SELECT id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
+       times_start_minute, times_end_minute, priority, status, specialty
+FROM waitlist_entry
+WHERE patient_id = $1 AND organization_id = $2 AND status = 'active'
+ORDER BY created_at, id
+`
+
+type ActiveWaitlistEntriesParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+type ActiveWaitlistEntriesRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+func (q *Queries) ActiveWaitlistEntries(ctx context.Context, arg ActiveWaitlistEntriesParams) ([]ActiveWaitlistEntriesRow, error) {
+	rows, err := q.db.Query(ctx, activeWaitlistEntries, arg.PatientID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ActiveWaitlistEntriesRow
+	for rows.Next() {
+		var i ActiveWaitlistEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.EndsAt,
+			&i.ClosedAt,
+			&i.PatientID,
+			&i.OrganizationID,
+			&i.PractitionerRoleID,
+			&i.Earliest,
+			&i.Latest,
+			&i.TimesStartMinute,
+			&i.TimesEndMinute,
+			&i.Priority,
+			&i.Status,
+			&i.Specialty,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const appointmentByID = `-- name: AppointmentByID :one
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
        cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
@@ -313,6 +378,114 @@ func (q *Queries) CancelReminders(ctx context.Context, appointmentID pgtype.UUID
 	return result.RowsAffected(), nil
 }
 
+const closeWaitlistEntry = `-- name: CloseWaitlistEntry :one
+UPDATE waitlist_entry
+SET status = $1, closed_at = $2, updated_at = $2
+WHERE id = $3 AND status = 'active'
+RETURNING id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
+          times_start_minute, times_end_minute, priority, status, specialty
+`
+
+type CloseWaitlistEntryParams struct {
+	Status string
+	At     pgtype.Timestamptz
+	ID     pgtype.UUID
+}
+
+type CloseWaitlistEntryRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+func (q *Queries) CloseWaitlistEntry(ctx context.Context, arg CloseWaitlistEntryParams) (CloseWaitlistEntryRow, error) {
+	row := q.db.QueryRow(ctx, closeWaitlistEntry, arg.Status, arg.At, arg.ID)
+	var i CloseWaitlistEntryRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.EndsAt,
+		&i.ClosedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.PractitionerRoleID,
+		&i.Earliest,
+		&i.Latest,
+		&i.TimesStartMinute,
+		&i.TimesEndMinute,
+		&i.Priority,
+		&i.Status,
+		&i.Specialty,
+	)
+	return i, err
+}
+
+const closeWaitlistOffer = `-- name: CloseWaitlistOffer :one
+UPDATE waitlist_offer
+SET state = $1, closed_at = $2, appointment_id = $3
+WHERE id = $4 AND state = 'open'
+RETURNING id, created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, appointment_id, state,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+`
+
+type CloseWaitlistOfferParams struct {
+	State         string
+	At            pgtype.Timestamptz
+	AppointmentID pgtype.UUID
+	ID            pgtype.UUID
+}
+
+type CloseWaitlistOfferRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AppointmentID      pgtype.UUID
+	State              string
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+}
+
+func (q *Queries) CloseWaitlistOffer(ctx context.Context, arg CloseWaitlistOfferParams) (CloseWaitlistOfferRow, error) {
+	row := q.db.QueryRow(ctx, closeWaitlistOffer,
+		arg.State,
+		arg.At,
+		arg.AppointmentID,
+		arg.ID,
+	)
+	var i CloseWaitlistOfferRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.EntryID,
+		&i.SlotID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.AppointmentID,
+		&i.State,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const confirmAppointment = `-- name: ConfirmAppointment :one
 UPDATE appointment
 SET confirmed_at = $1, confirmed_via = $2, updated_at = $1, version_id = version_id + 1
@@ -374,6 +547,24 @@ func (q *Queries) ConfirmAppointment(ctx context.Context, arg ConfirmAppointment
 		&i.EndAt,
 	)
 	return i, err
+}
+
+const countActiveWaitlistEntries = `-- name: CountActiveWaitlistEntries :one
+SELECT count(*)::integer FROM waitlist_entry
+WHERE patient_id = $1 AND organization_id = $2 AND status = 'active' AND ends_at > $3::timestamptz
+`
+
+type CountActiveWaitlistEntriesParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	Now            pgtype.Timestamptz
+}
+
+func (q *Queries) CountActiveWaitlistEntries(ctx context.Context, arg CountActiveWaitlistEntriesParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countActiveWaitlistEntries, arg.PatientID, arg.OrganizationID, arg.Now)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createAppointment = `-- name: CreateAppointment :one
@@ -476,6 +667,36 @@ WHERE due_at < $1::timestamptz
 // Retention, as salus_retention.
 func (q *Queries) DeleteRemindersDueBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteRemindersDueBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWaitlistEntriesClosedBefore = `-- name: DeleteWaitlistEntriesClosedBefore :execrows
+DELETE FROM waitlist_entry
+WHERE closed_at < $1::timestamptz OR (status = 'active' AND ends_at < $1::timestamptz)
+`
+
+// Retention, as salus_retention: entries 30 days after they closed, or after their last day while active; their
+// offers go with them.
+func (q *Queries) DeleteWaitlistEntriesClosedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWaitlistEntriesClosedBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWaitlistOffersClosedBefore = `-- name: DeleteWaitlistOffersClosedBefore :execrows
+DELETE FROM waitlist_offer o
+USING waitlist_entry e
+WHERE o.entry_id = e.id AND (e.closed_at < $1::timestamptz OR (e.status = 'active' AND e.ends_at < $1::timestamptz))
+`
+
+// Retention, as salus_retention: the offers of the entries DeleteWaitlistEntriesClosedBefore deletes.
+func (q *Queries) DeleteWaitlistOffersClosedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWaitlistOffersClosedBefore, before)
 	if err != nil {
 		return 0, err
 	}
@@ -640,6 +861,147 @@ func (q *Queries) InsertReminder(ctx context.Context, arg InsertReminderParams) 
 	return i, err
 }
 
+const insertWaitlistEntry = `-- name: InsertWaitlistEntry :one
+
+INSERT INTO waitlist_entry (created_at, updated_at, ends_at, patient_id, organization_id, practitioner_role_id, specialty,
+                            earliest, latest, times_start_minute, times_end_minute)
+VALUES ($1, $1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10)
+RETURNING id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
+          times_start_minute, times_end_minute, priority, status, specialty
+`
+
+type InsertWaitlistEntryParams struct {
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Specialty          pgtype.Text
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+}
+
+type InsertWaitlistEntryRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+// SAL-35: the waitlist (waitlist_entry, waitlist_offer).
+// The patient joins, in their own scope.
+func (q *Queries) InsertWaitlistEntry(ctx context.Context, arg InsertWaitlistEntryParams) (InsertWaitlistEntryRow, error) {
+	row := q.db.QueryRow(ctx, insertWaitlistEntry,
+		arg.CreatedAt,
+		arg.EndsAt,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.PractitionerRoleID,
+		arg.Specialty,
+		arg.Earliest,
+		arg.Latest,
+		arg.TimesStartMinute,
+		arg.TimesEndMinute,
+	)
+	var i InsertWaitlistEntryRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.EndsAt,
+		&i.ClosedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.PractitionerRoleID,
+		&i.Earliest,
+		&i.Latest,
+		&i.TimesStartMinute,
+		&i.TimesEndMinute,
+		&i.Priority,
+		&i.Status,
+		&i.Specialty,
+	)
+	return i, err
+}
+
+const insertWaitlistOffer = `-- name: InsertWaitlistOffer :one
+INSERT INTO waitlist_offer (created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, period)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        tstzrange($8::timestamptz, $9::timestamptz))
+RETURNING id, created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, appointment_id, state,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+`
+
+type InsertWaitlistOfferParams struct {
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+}
+
+type InsertWaitlistOfferRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AppointmentID      pgtype.UUID
+	State              string
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+}
+
+// A job of the clinic offers the slot to an active entry it sees.
+func (q *Queries) InsertWaitlistOffer(ctx context.Context, arg InsertWaitlistOfferParams) (InsertWaitlistOfferRow, error) {
+	row := q.db.QueryRow(ctx, insertWaitlistOffer,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.EntryID,
+		arg.SlotID,
+		arg.OrganizationID,
+		arg.PatientID,
+		arg.PractitionerRoleID,
+		arg.StartAt,
+		arg.EndAt,
+	)
+	var i InsertWaitlistOfferRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.EntryID,
+		&i.SlotID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.AppointmentID,
+		&i.State,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const listAppointmentChanges = `-- name: ListAppointmentChanges :many
 SELECT id, at, appointment_id, by_account_id, from_slot_id, to_slot_id, kind, via, agent, from_status, to_status,
        lower(from_period)::timestamptz AS from_start, upper(from_period)::timestamptz AS from_end,
@@ -749,6 +1111,106 @@ func (q *Queries) ListBookedForStats(ctx context.Context, arg ListBookedForStats
 	return items, nil
 }
 
+const listClinicWaitlistEntries = `-- name: ListClinicWaitlistEntries :many
+SELECT e.id, e.created_at, e.ends_at, e.closed_at, e.patient_id, e.organization_id, e.practitioner_role_id, e.earliest, e.latest,
+       e.times_start_minute, e.times_end_minute, e.priority, e.status, e.specialty,
+       o.id AS offer_id, o.slot_id AS offer_slot_id, o.expires_at AS offer_expires_at,
+       lower(o.period)::timestamptz AS offer_start, upper(o.period)::timestamptz AS offer_end
+FROM waitlist_entry e
+LEFT JOIN waitlist_offer o ON o.entry_id = e.id AND o.state = 'open'
+WHERE e.organization_id = $1
+  AND ($2::uuid IS NULL OR e.practitioner_role_id = $2::uuid
+       OR ($3::text IS NOT NULL AND e.specialty = $3::text))
+  AND ($4::text IS NULL
+       OR ($4::text = 'active' AND e.status = 'active' AND e.ends_at > $5::timestamptz)
+       OR ($4::text = 'expired' AND e.status = 'active' AND e.ends_at <= $5::timestamptz)
+       OR ($4::text IN ('booked', 'withdrawn') AND e.status = $4::text))
+ORDER BY e.priority DESC, e.created_at, e.id
+LIMIT $7 OFFSET $6
+`
+
+type ListClinicWaitlistEntriesParams struct {
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Specialty          pgtype.Text
+	Status             pgtype.Text
+	Now                pgtype.Timestamptz
+	SkipRows           int32
+	MaxRows            int32
+}
+
+type ListClinicWaitlistEntriesRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+	OfferID            pgtype.UUID
+	OfferSlotID        pgtype.UUID
+	OfferExpiresAt     pgtype.Timestamptz
+	OfferStart         pgtype.Timestamptz
+	OfferEnd           pgtype.Timestamptz
+}
+
+// A page of the clinic's entries in offer order, each with its open offer; with a role, those it could be offered: its
+// own and its specialty's; with a status, those in it (active and expired split by ends_at at now).
+func (q *Queries) ListClinicWaitlistEntries(ctx context.Context, arg ListClinicWaitlistEntriesParams) ([]ListClinicWaitlistEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listClinicWaitlistEntries,
+		arg.OrganizationID,
+		arg.PractitionerRoleID,
+		arg.Specialty,
+		arg.Status,
+		arg.Now,
+		arg.SkipRows,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListClinicWaitlistEntriesRow
+	for rows.Next() {
+		var i ListClinicWaitlistEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.EndsAt,
+			&i.ClosedAt,
+			&i.PatientID,
+			&i.OrganizationID,
+			&i.PractitionerRoleID,
+			&i.Earliest,
+			&i.Latest,
+			&i.TimesStartMinute,
+			&i.TimesEndMinute,
+			&i.Priority,
+			&i.Status,
+			&i.Specialty,
+			&i.OfferID,
+			&i.OfferSlotID,
+			&i.OfferExpiresAt,
+			&i.OfferStart,
+			&i.OfferEnd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFulfilledForStats = `-- name: ListFulfilledForStats :many
 SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
 FROM appointment
@@ -796,6 +1258,80 @@ func (q *Queries) ListFulfilledForStats(ctx context.Context, arg ListFulfilledFo
 	return items, nil
 }
 
+const listPatientWaitlistEntries = `-- name: ListPatientWaitlistEntries :many
+SELECT e.id, e.created_at, e.ends_at, e.closed_at, e.patient_id, e.organization_id, e.practitioner_role_id, e.earliest, e.latest,
+       e.times_start_minute, e.times_end_minute, e.priority, e.status, e.specialty,
+       o.id AS offer_id, o.slot_id AS offer_slot_id, o.expires_at AS offer_expires_at,
+       lower(o.period)::timestamptz AS offer_start, upper(o.period)::timestamptz AS offer_end
+FROM waitlist_entry e
+LEFT JOIN waitlist_offer o ON o.entry_id = e.id AND o.state = 'open'
+WHERE e.patient_id = $1
+ORDER BY e.created_at DESC, e.id
+`
+
+type ListPatientWaitlistEntriesRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+	OfferID            pgtype.UUID
+	OfferSlotID        pgtype.UUID
+	OfferExpiresAt     pgtype.Timestamptz
+	OfferStart         pgtype.Timestamptz
+	OfferEnd           pgtype.Timestamptz
+}
+
+// The patient's entries, newest first, each with its open offer.
+func (q *Queries) ListPatientWaitlistEntries(ctx context.Context, patientID pgtype.UUID) ([]ListPatientWaitlistEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listPatientWaitlistEntries, patientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPatientWaitlistEntriesRow
+	for rows.Next() {
+		var i ListPatientWaitlistEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.EndsAt,
+			&i.ClosedAt,
+			&i.PatientID,
+			&i.OrganizationID,
+			&i.PractitionerRoleID,
+			&i.Earliest,
+			&i.Latest,
+			&i.TimesStartMinute,
+			&i.TimesEndMinute,
+			&i.Priority,
+			&i.Status,
+			&i.Specialty,
+			&i.OfferID,
+			&i.OfferSlotID,
+			&i.OfferExpiresAt,
+			&i.OfferStart,
+			&i.OfferEnd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockReminder = `-- name: LockReminder :one
 SELECT id, appointment_id, organization_id, patient_id, offset_minutes, start_at, due_at, state, dispatched_at
 FROM appointment_reminder
@@ -830,6 +1366,85 @@ func (q *Queries) LockReminder(ctx context.Context, id pgtype.UUID) (LockReminde
 		&i.DispatchedAt,
 	)
 	return i, err
+}
+
+const lockWaitlistEntries = `-- name: LockWaitlistEntries :exec
+SELECT pg_advisory_xact_lock(hashtextextended('waitlist:' || $1::text || ':' || $2::text, 0))
+`
+
+type LockWaitlistEntriesParams struct {
+	PatientID      string
+	OrganizationID string
+}
+
+// Joins of one patient with one clinic run one after the other, so the limit of active entries holds (an advisory
+// lock until the transaction ends).
+func (q *Queries) LockWaitlistEntries(ctx context.Context, arg LockWaitlistEntriesParams) error {
+	_, err := q.db.Exec(ctx, lockWaitlistEntries, arg.PatientID, arg.OrganizationID)
+	return err
+}
+
+const openWaitlistOffer = `-- name: OpenWaitlistOffer :many
+SELECT id, created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, appointment_id, state,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM waitlist_offer
+WHERE state = 'open'
+  AND ($1::uuid IS NULL OR slot_id = $1::uuid)
+  AND ($2::uuid IS NULL OR entry_id = $2::uuid)
+`
+
+type OpenWaitlistOfferParams struct {
+	SlotID  pgtype.UUID
+	EntryID pgtype.UUID
+}
+
+type OpenWaitlistOfferRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AppointmentID      pgtype.UUID
+	State              string
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+}
+
+// The open offer of a slot, or of an entry.
+func (q *Queries) OpenWaitlistOffer(ctx context.Context, arg OpenWaitlistOfferParams) ([]OpenWaitlistOfferRow, error) {
+	rows, err := q.db.Query(ctx, openWaitlistOffer, arg.SlotID, arg.EntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenWaitlistOfferRow
+	for rows.Next() {
+		var i OpenWaitlistOfferRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.EntryID,
+			&i.SlotID,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.AppointmentID,
+			&i.State,
+			&i.StartAt,
+			&i.EndAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const overdueReminders = `-- name: OverdueReminders :many
@@ -1165,6 +1780,59 @@ func (q *Queries) SetReminderState(ctx context.Context, arg SetReminderStatePara
 	return result.RowsAffected(), nil
 }
 
+const setWaitlistPriority = `-- name: SetWaitlistPriority :one
+UPDATE waitlist_entry
+SET priority = $1, updated_at = $2
+WHERE id = $3 AND status = 'active'
+RETURNING id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
+          times_start_minute, times_end_minute, priority, status, specialty
+`
+
+type SetWaitlistPriorityParams struct {
+	Priority int16
+	At       pgtype.Timestamptz
+	ID       pgtype.UUID
+}
+
+type SetWaitlistPriorityRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+func (q *Queries) SetWaitlistPriority(ctx context.Context, arg SetWaitlistPriorityParams) (SetWaitlistPriorityRow, error) {
+	row := q.db.QueryRow(ctx, setWaitlistPriority, arg.Priority, arg.At, arg.ID)
+	var i SetWaitlistPriorityRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.EndsAt,
+		&i.ClosedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.PractitionerRoleID,
+		&i.Earliest,
+		&i.Latest,
+		&i.TimesStartMinute,
+		&i.TimesEndMinute,
+		&i.Priority,
+		&i.Status,
+		&i.Specialty,
+	)
+	return i, err
+}
+
 const useActionToken = `-- name: UseActionToken :execrows
 UPDATE appointment_action_token
 SET used_at = $1, used_action = $2
@@ -1184,4 +1852,244 @@ func (q *Queries) UseActionToken(ctx context.Context, arg UseActionTokenParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const waitlistCandidates = `-- name: WaitlistCandidates :many
+SELECT e.id, e.created_at, e.ends_at, e.closed_at, e.patient_id, e.organization_id, e.practitioner_role_id, e.earliest, e.latest,
+       e.times_start_minute, e.times_end_minute, e.priority, e.status, e.specialty
+FROM waitlist_entry e
+WHERE e.organization_id = $1 AND e.status = 'active' AND e.ends_at > $2::timestamptz
+  AND (e.practitioner_role_id = $3
+       OR ($4::text IS NOT NULL AND e.specialty = $4::text))
+  AND e.earliest <= $5::date AND e.latest >= $5::date
+  AND (e.times_start_minute IS NULL
+       OR (e.times_start_minute <= $6::smallint AND e.times_end_minute >= $7::smallint))
+  AND NOT EXISTS (SELECT 1 FROM waitlist_offer o WHERE o.entry_id = e.id AND (o.state = 'open' OR o.slot_id = $8))
+  AND NOT EXISTS (SELECT 1 FROM appointment a
+                  WHERE a.patient_id = e.patient_id
+                    AND (a.slot_id = $8
+                         OR (a.status = 'booked' AND a.period && tstzrange($9::timestamptz, $10::timestamptz))))
+  AND NOT EXISTS (SELECT 1 FROM appointment_change c WHERE c.patient_id = e.patient_id AND c.from_slot_id = $8)
+  AND NOT (e.id = ANY ($11::uuid[]))
+ORDER BY e.priority DESC, e.created_at, e.id
+LIMIT $12
+FOR UPDATE OF e SKIP LOCKED
+`
+
+type WaitlistCandidatesParams struct {
+	OrganizationID     pgtype.UUID
+	Now                pgtype.Timestamptz
+	PractitionerRoleID pgtype.UUID
+	Specialty          pgtype.Text
+	Day                pgtype.Date
+	StartMinute        int16
+	EndMinute          int16
+	SlotID             pgtype.UUID
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+	Skip               []pgtype.UUID
+	MaxRows            int32
+}
+
+type WaitlistCandidatesRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+// The freed slot's next entries in offer order: of its clinic, its role or the role's specialty, its day and times
+// (the clinic's zone, computed by the service), not past their last day; never offered this slot and without an open
+// offer; of a patient who never held the slot (an appointment of it in any status, or a reschedule away from it) and
+// has no booked appointment overlapping it. The service checks the care consent of each again.
+// The entries a concurrent job or withdrawal holds are passed over; the one chosen stays locked until the offer is stored.
+func (q *Queries) WaitlistCandidates(ctx context.Context, arg WaitlistCandidatesParams) ([]WaitlistCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, waitlistCandidates,
+		arg.OrganizationID,
+		arg.Now,
+		arg.PractitionerRoleID,
+		arg.Specialty,
+		arg.Day,
+		arg.StartMinute,
+		arg.EndMinute,
+		arg.SlotID,
+		arg.StartAt,
+		arg.EndAt,
+		arg.Skip,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WaitlistCandidatesRow
+	for rows.Next() {
+		var i WaitlistCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.EndsAt,
+			&i.ClosedAt,
+			&i.PatientID,
+			&i.OrganizationID,
+			&i.PractitionerRoleID,
+			&i.Earliest,
+			&i.Latest,
+			&i.TimesStartMinute,
+			&i.TimesEndMinute,
+			&i.Priority,
+			&i.Status,
+			&i.Specialty,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const waitlistEntryForUpdate = `-- name: WaitlistEntryForUpdate :one
+SELECT id, created_at, ends_at, closed_at, patient_id, organization_id, practitioner_role_id, earliest, latest,
+       times_start_minute, times_end_minute, priority, status, specialty
+FROM waitlist_entry
+WHERE id = $1
+FOR UPDATE
+`
+
+type WaitlistEntryForUpdateRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+func (q *Queries) WaitlistEntryForUpdate(ctx context.Context, id pgtype.UUID) (WaitlistEntryForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, waitlistEntryForUpdate, id)
+	var i WaitlistEntryForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.EndsAt,
+		&i.ClosedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.PractitionerRoleID,
+		&i.Earliest,
+		&i.Latest,
+		&i.TimesStartMinute,
+		&i.TimesEndMinute,
+		&i.Priority,
+		&i.Status,
+		&i.Specialty,
+	)
+	return i, err
+}
+
+const waitlistOfferByID = `-- name: WaitlistOfferByID :one
+SELECT id, created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, appointment_id, state,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM waitlist_offer
+WHERE id = $1
+`
+
+type WaitlistOfferByIDRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AppointmentID      pgtype.UUID
+	State              string
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+}
+
+func (q *Queries) WaitlistOfferByID(ctx context.Context, id pgtype.UUID) (WaitlistOfferByIDRow, error) {
+	row := q.db.QueryRow(ctx, waitlistOfferByID, id)
+	var i WaitlistOfferByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.EntryID,
+		&i.SlotID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.AppointmentID,
+		&i.State,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
+const waitlistOfferForUpdate = `-- name: WaitlistOfferForUpdate :one
+SELECT id, created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, appointment_id, state,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM waitlist_offer
+WHERE id = $1
+FOR UPDATE
+`
+
+type WaitlistOfferForUpdateRow struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AppointmentID      pgtype.UUID
+	State              string
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+}
+
+// Acceptance and expiry serialise on the offer's row.
+func (q *Queries) WaitlistOfferForUpdate(ctx context.Context, id pgtype.UUID) (WaitlistOfferForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, waitlistOfferForUpdate, id)
+	var i WaitlistOfferForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.EntryID,
+		&i.SlotID,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.AppointmentID,
+		&i.State,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
 }

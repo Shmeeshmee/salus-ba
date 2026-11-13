@@ -97,7 +97,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
 	})
 	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
-	appointments := appointment.NewService(appointment.Ports{
+	appointmentPorts := appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
 		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
@@ -106,7 +106,9 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		// under an HMAC of the address.
 		Reminders: appointment.NewPostgresReminderRepository(pool), Rules: appointmentRules(pool, audit, tx),
 		SelfService: appointment.NewPostgresSelfServiceRepository(pool), Limiter: appointment.NewRedisLinkLimiter(rdb), LinkKey: cfg.RateLimitKey,
-	})
+	}
+	waitlistPorts(&appointmentPorts, pool, audit, tx, jobs, clinics, slots) // SAL-35
+	appointments := appointment.NewService(appointmentPorts)
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
@@ -143,6 +145,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			slot.NewHandler(slots, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
+			appointment.NewWaitlistHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewActionsHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewLinkHandler(appointments, cfg.TrustedProxies, log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
