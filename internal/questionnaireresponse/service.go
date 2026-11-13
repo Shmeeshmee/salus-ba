@@ -299,6 +299,11 @@ func level(c appointment.Caller, att appointment.Attendance, r Response) access.
 // record audits interaction by c on QuestionnaireResponse/id ("" when none was disclosed: no id from the
 // request is stored). The purpose is the patient's own request for a patient and treatment for staff.
 func (s *Service) record(ctx context.Context, c appointment.Caller, interaction, id string, outcome auditevent.Outcome) error {
+	return s.Audit.Record(ctx, callerEvent(c, interaction, id, outcome))
+}
+
+// callerEvent is the audit event record writes.
+func callerEvent(c appointment.Caller, interaction, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	purpose := auditevent.CodePATRQT
 	if c.OrganizationID != "" {
 		purpose = auditevent.CodeTREAT
@@ -322,5 +327,5 @@ func (s *Service) record(ctx context.Context, c appointment.Caller, interaction,
 	if id != "" {
 		e.EntityReference = "QuestionnaireResponse/" + id
 	}
-	return s.Audit.Record(ctx, e)
+	return e
 }

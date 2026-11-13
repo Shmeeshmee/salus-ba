@@ -37,6 +37,13 @@ class FakeFiles implements Files {
   @override
   Future<void> shareText(String text) async => sharedText.add(text);
 
+  /// Every other file handed to the share sheet: its name, bytes and content type.
+  final sharedFiles = <(String, Uint8List, String)>[];
+
+  @override
+  Future<void> shareFile(String name, Uint8List bytes, String contentType) async =>
+      sharedFiles.add((name, bytes, contentType));
+
   @override
   Future<Picked?> pick(Source source, {required bool photos, required bool videos}) async {
     picks.add((source, photos, videos));

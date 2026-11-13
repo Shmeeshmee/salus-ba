@@ -126,6 +126,34 @@ func (s *Service) byID(ctx context.Context, organizationID string) (Organization
 	return o, err
 }
 
+// Names returns the name of each clinic ids names, by id, listed or not: the clinics of a patient's own records
+// (their timeline, SAL-39), whose names the patient's scope cannot read. All are read in one transaction, each in its
+// own clinic's scope, as DefaultLanguage reads it, so it is called outside the caller's transaction; unaudited, as
+// nothing in a clinic is personal data. An unknown clinic is left out.
+func (s *Service) Names(ctx context.Context, ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		for _, id := range ids {
+			if _, done := out[id]; done || id == "" {
+				continue
+			}
+			o, err := s.byID(ctx, id)
+			switch {
+			case errors.Is(err, ErrNotFound):
+				continue
+			case err != nil:
+				return err
+			}
+			out[id] = o.Name
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("organization: names: %w", err)
+	}
+	return out, nil
+}
+
 // TranscriptCopy tells whether the clinic organizationID gives its patients a copy of their consultations'
 // stored transcripts (PatientTranscriptCopy), for the transcript's rule (access.TranscriptCopy). Read like
 // DefaultLanguage: in the clinic's scope set on the transaction in ctx, unaudited; ErrNotFound for none.

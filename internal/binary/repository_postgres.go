@@ -77,6 +77,28 @@ func (r *postgresRepository) ByID(ctx context.Context, id string) (Binary, error
 	return toBinary(row), nil
 }
 
+func (r *postgresRepository) Clean(ctx context.Context, ids []string) ([]Binary, error) {
+	us := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			us = append(us, u)
+		}
+	}
+	if len(us) == 0 {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).CleanBinaries(ctx, us)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Binary, len(rows))
+	for i, row := range rows {
+		out[i] = toBinary(row)
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) OfItem(ctx context.Context, responseID, linkID string) ([]Binary, error) {
 	var u pgtype.UUID
 	if u.Scan(responseID) != nil {

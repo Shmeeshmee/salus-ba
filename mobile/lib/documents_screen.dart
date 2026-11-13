@@ -19,19 +19,22 @@ import 'zones.dart';
 
 typedef _Records = ({List<SignedDocument> documents, List<api.TranscriptEvent>? transcript});
 
-/// The signed documents of the appointment [appointmentId], in the app's language first, and its transcript copy.
+/// The signed documents of the appointment [appointmentId], or of the visit [encounterId] (the patient's history,
+/// SAL-39), in the app's language first, and its transcript copy.
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({
     super.key,
     required this.booking,
     required this.files,
-    required this.appointmentId,
+    this.appointmentId,
+    this.encounterId,
     required this.zone,
-  });
+  }) : assert((appointmentId == null) != (encounterId == null), 'an appointment or a visit');
 
   final Booking booking;
   final Files files;
-  final String appointmentId;
+  final String? appointmentId;
+  final String? encounterId;
 
   /// The clinic's time zone, the dates are shown in.
   final Zone zone;
@@ -44,7 +47,7 @@ class _DocumentsScreenState extends LoadingState<DocumentsScreen, _Records> {
   /// The consultation's records: none before it has an encounter.
   @override
   Future<_Records> load() async {
-    final encounter = await widget.booking.fhir.encounterOf(widget.appointmentId);
+    final encounter = widget.encounterId ?? await widget.booking.fhir.encounterOf(widget.appointmentId!);
     if (encounter == null) return (documents: const <SignedDocument>[], transcript: null);
     return (
       documents: await widget.booking.fhir.signedDocuments(encounter),

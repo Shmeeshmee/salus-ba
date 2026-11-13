@@ -1962,7 +1962,7 @@ than k.
 
 **Access.** Staff (admins and practitioners) of a contributing clinic only (O5); a patient gets 403. salus_app only
 reads the figures; salus_stats writes each period once; nobody but the owner changes or deletes them (migration
-00049, tested).
+00051, tested).
 
 **Audit.** Every read of the view, refused ones too, is an AuditEvent (entity `trends_cell` or `trends_rise`,
 purpose HRESCH). Every build is audited before it writes: its agent (`trends_build` or `salusctl`) and the number
@@ -2022,3 +2022,21 @@ practitioner. Every read, grant, change and revocation is audited.
 | The patient shares another patient's visit, or one of the receiving clinic's own, or one still in progress | Refused by the insert check of `history_consent_encounter` as well as the service |
 | A shared visit exposes more than its record | Only the encounter, signed documents, completed answers and their clean files, and the entries recorded in it; never the transcript, suggestions, drafts or appointment (policy tests) |
 | History reaches the language model | Not in this epic: suggestions and drafting read only the consultation's transcript (SAL-42 adds the test) |
+
+### SAL-39: the patient's timeline
+
+**Processing added.** The patient reads their own history across every clinic (`GET /me/history`, the mobile app's
+"My history"): their visits, signed documents, completed questionnaire answers and the clean files of those, newest
+first, one page at a time. Their own record (Art. 15); no new personal data is collected and no table is added.
+
+**Who sees what.** Only the patient, of their own data, in their own row-level security scope; staff are refused.
+Never a draft, a response in progress or withdrawn, or a file not yet found clean. Clinic names are read for the
+clinics of the patient's own items only (no personal data in a clinic). Chats are not listed yet.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A draft or another patient's item in the timeline | Each owning domain reads in the patient's scope, filters by the patient and applies its own rule (`access.HistoryVisit`, `access.SignedDocument`, `access.QuestionnaireResponse`, binary's own check); service and repository tests per domain, the e2e journey checks the open draft is absent |
+| A read that is not audited | Every item a source returns is audited by its owning domain in its transaction (an empty source is one event without an entity). Each source is asked for one item more than the page and the page is cut from their merge, so what a source returned past the cut is audited without being shown (the next page shows it, audited again): the record errs towards more, never less |
+| History details in logs or the cursor | The cursor is an opaque date and reference (no personal data beyond the patient's own resource id); the handler logs nothing of the query or the items |

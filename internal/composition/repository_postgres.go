@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/composition/compositiondb"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
@@ -276,6 +277,32 @@ func (r *postgresRepository) Signed(ctx context.Context, encounterID string) ([]
 	}
 	return out, nil
 }
+
+func (r *postgresRepository) SignedOf(ctx context.Context, encounterIDs []string, p keyset.Page) ([]Draft, error) {
+	arg := compositiondb.SignedOfParams{
+		EncounterIds: make([]pgtype.UUID, len(encounterIDs)), FromAt: optTS(p.From), ToAt: optTS(p.To), AfterAt: optTS(p.At),
+		AfterRef: p.Ref, Lim: int32(min(p.Limit, 1000)), //nolint:gosec // bounded
+	}
+	for i, id := range encounterIDs {
+		if arg.EncounterIds[i].Scan(id) != nil {
+			return nil, errors.New("composition: an encounter id is not a UUID")
+		}
+	}
+	rows, err := r.q(ctx).SignedOf(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Draft, len(rows))
+	for i, row := range rows {
+		if out[i], err = draftOf(compositiondb.DraftRow(row)); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// optTS is t, or null when it is zero.
+func optTS(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()} }
 
 func (r *postgresRepository) Sign(ctx context.Context, d Draft, at time.Time) (Draft, error) {
 	var id, role, ref, prov pgtype.UUID
