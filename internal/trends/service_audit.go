@@ -40,11 +40,11 @@ func (u *universe) audit(passed map[Key]bool) []Key {
 // rounded inward.
 func (u *universe) width(x Key) int { return u.program(x).width() }
 
-// width is the program's interval of r_0. Any failure of the solver, an unbounded program included (every residual
-// is bounded by cap, so only a numerical failure gets there), counts as 0: the audit fails closed.
+// width is the program's interval of r_0. Any failure of the solver, a non-finite answer, or an unbounded program
+// (every residual is bounded by cap, so only a numerical failure gets there), counts as 0: the audit fails closed.
 func (p program) width() int {
 	hi, err := p.solve(-1)
-	if err != nil {
+	if err != nil || !finite(hi) {
 		return 0
 	}
 	hi = -hi
@@ -52,11 +52,14 @@ func (p program) width() int {
 		return math.MaxInt32 // only the program's own bound, far above any count: no need for the lower end
 	}
 	lo, err := p.solve(1)
-	if err != nil {
+	if err != nil || !finite(lo) || !(hi >= lo) {
 		return 0
 	}
 	return int(math.Floor(hi+roundSlack)) - int(math.Ceil(lo-roundSlack))
 }
+
+// finite reports whether v is a number, neither NaN nor infinite.
+func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 // program is the LP of one suppressed cell: minimise or maximise its residual r_0 subject to G·r <= h, r >= 0. A
 // cell's count is a + r: a the known clinics' own patients in it, r the rest. at is the true residuals, a point of
@@ -100,17 +103,18 @@ func (p program) solve(sign float64) (float64, error) {
 	for j := range n {
 		r[j] = p.at[j] + y[j] - y[n+j]
 	}
-	if !p.holds(r) || math.Abs(sign*r[0]-(sign*p.at[0]+opt)) > checkSlack {
+	best := sign*p.at[0] + opt
+	if !finite(best) || !p.holds(r) || !(math.Abs(sign*r[0]-best) <= checkSlack) {
 		return 0, errNoFinish
 	}
-	return sign*p.at[0] + opt, nil
+	return best, nil
 }
 
 // holds reports whether r is a point of the program, up to checkSlack: the solver's answer is checked against the
 // original rows, so a numerical failure fails the audit instead of passing a cell.
 func (p program) holds(r []float64) bool {
 	for j := range p.vars {
-		if r[j] < -checkSlack {
+		if !finite(r[j]) || !(r[j] >= -checkSlack) {
 			return false
 		}
 	}
@@ -119,7 +123,7 @@ func (p program) holds(r []float64) bool {
 		for j, v := range row {
 			sum += v * r[j]
 		}
-		if sum > p.h[i]+checkSlack {
+		if !(sum <= p.h[i]+checkSlack) { // false for a NaN too
 			return false
 		}
 	}
