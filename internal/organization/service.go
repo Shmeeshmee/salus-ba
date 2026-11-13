@@ -103,6 +103,17 @@ func (s *Service) DefaultLanguage(ctx context.Context, organizationID string) (s
 	return o.DefaultLanguage, nil
 }
 
+// Clinic is the clinic organizationID, for the clinic a visit is marked with (a shared visit's name and time zone,
+// SAL-42). Read like DefaultLanguage: in the clinic's scope set on the transaction in ctx, unaudited (a clinic holds
+// no personal data); ErrNotFound for none.
+func (s *Service) Clinic(ctx context.Context, organizationID string) (Organization, error) {
+	o, err := s.byID(ctx, organizationID)
+	if err != nil {
+		return Organization{}, fmt.Errorf("organization: clinic: %w", err)
+	}
+	return o, nil
+}
+
 // byID reads the clinic in its own scope, set on the transaction in ctx (joining one already there), unaudited;
 // ErrNotFound for none.
 func (s *Service) byID(ctx context.Context, organizationID string) (Organization, error) {

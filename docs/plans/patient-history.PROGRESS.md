@@ -222,3 +222,20 @@ active-only read would change SAL-41's services, so it was not added. Not adopte
 00051's lookups from `app.practitioner_role_id` (as 00044 does): only the chat's repository sets that setting, the
 questionnaire's and the condition's scopes set the clinic only, and the caller carries the practitioner, not a role
 (a practitioner has one per clinic). The argument comes from the session's caller in the service, never the request.
+
+## SAL-42: cross-clinic sharing (2026-11-12)
+
+Branch `sal-42-sharing`. `consent`: the history kind in `Kind.Valid` and OpenAPI `ConsentKind` (granted only through
+`PUT /history-sharing/{organizationId}`; `POST /consents` with it is `invalid_request`, since an active history consent
+lists at least one visit), `Candidates`, `SetSharing` (If-Match, 412), `StopSharing`, `MySharing`, the care consent's
+revocation ending the history consent in its transaction, every call audited; `ByID` and `ByPatient` know the third
+kind. `history.Sharing` (consent's `Visits` port) builds the preview from `encounter.Service.Search`,
+`composition.Service.Signed`, `practitionerrole.Service.Lookup` and the new `organization.Service.Name`, each in the
+patient's own scope and audited by its owner. No migration. Tests: service (fakes), repository (pgtest: removal and
+revocation take effect for the clinic's scope at once, row-level security refuses a visit at the receiving clinic, an
+unfinished one and another patient's), handlers, the drafting and the suggestions never receiving another visit's
+content. Mobile: the booking toggle with the preview, Shared history per clinic, My consents' history label; ten
+languages, `legal` where the plan says. E2E: two of three visits shared, read by the clinic's practitioner as the
+history consent; the read through SAL-40's view is added once SAL-40 is on main.
+
+Review (fresh subagent, 2026-11-13): fixed the care consent locked while sharing (`LockCare`, FOR SHARE) and a care consent granted again ending an earlier history consent, the sharing's version naming its consent (`<consent id>.<n>`), the preview carrying that version and each visit's own time zone, `care_consent_required` 409, the booking toggle starting from what is shared, and the legal copy (`sharingIntro`: who sees it, the recorded entries, anything added later, owner 2026-11-13; `revokeBody`: sharing ends and is not restored; Serbian toggle); the e2e's read through SAL-40's view waits for SAL-40.
