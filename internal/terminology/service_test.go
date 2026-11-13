@@ -23,6 +23,9 @@ type fakeRepo struct {
 	tagged       []terminology.CandidateTerm
 	tagQuery     []terminology.Candidate
 	explanations []terminology.Explanation
+	labelled     [2]string         // what DrugLabelled was asked: the id and the label
+	drugs        map[string]string // DrugCodes's answer
+	drugIDs      []string          // what DrugCodes was asked
 }
 
 func (f *fakeRepo) Tag(_ context.Context, candidates []terminology.Candidate) ([]terminology.CandidateTerm, error) {
@@ -47,6 +50,17 @@ func (f *fakeRepo) Explanations(_ context.Context, language string) ([]terminolo
 func (f *fakeRepo) Search(_ context.Context, s terminology.Search) ([]terminology.Term, error) {
 	f.got = &s
 	return f.terms, f.err
+}
+
+func (f *fakeRepo) DrugCodes(_ context.Context, ids []string) (map[string]string, error) {
+	f.drugIDs = ids
+	return f.drugs, f.err
+}
+
+func (f *fakeRepo) DrugLabelled(_ context.Context, id, label string) (string, bool, error) {
+	f.labelled = [2]string{id, label}
+	atc, ok := f.drugs[id]
+	return atc, ok, f.err
 }
 
 func (f *fakeRepo) Glossary(_ context.Context, q terminology.GlossaryQuery) ([]terminology.GlossaryEntry, error) {
@@ -81,6 +95,51 @@ func TestSearch_RefusesACallerWhoIsNotStaff(t *testing.T) {
 
 	if !errors.Is(err, terminology.ErrForbidden) || repo.got != nil {
 		t.Errorf("Search as a patient = %v, searched %v; want ErrForbidden and no search", err, repo.got != nil)
+	}
+}
+
+// A patient searches the drugs only: the substances and medications of their profile (SAL-41).
+func TestSearch_APatientSearchesTheDrugs(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{}
+	svc := newService(repo, &fakeLanguages{})
+	patient := terminology.Caller{AccountID: "a-patient"}
+	if _, err := svc.Search(t.Context(), patient, terminology.Search{Text: "amoxi", Category: "drug", Limit: 10}); err != nil || repo.got == nil {
+		t.Fatalf("a patient's drug search = %v, searched %v", err, repo.got != nil)
+	}
+	repo.got = nil
+	if _, err := svc.Search(t.Context(), patient, terminology.Search{Text: "hepar", Category: "anatomy", Limit: 10}); !errors.Is(err, terminology.ErrForbidden) || repo.got != nil {
+		t.Errorf("a patient's anatomy search = %v, searched %v; want ErrForbidden", err, repo.got != nil)
+	}
+}
+
+// DrugCodes gives the ATC code of each drug term asked; without ids it asks nothing.
+func TestDrugCodes(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{drugs: map[string]string{"t1": "J01CA04"}}
+	svc := newService(repo, &fakeLanguages{})
+	got, err := svc.DrugCodes(t.Context(), []string{"t1", "t2"})
+	if err != nil || got["t1"] != "J01CA04" || len(got) != 1 || !slices.Equal(repo.drugIDs, []string{"t1", "t2"}) {
+		t.Errorf("DrugCodes = %v, %v; asked %v", got, err, repo.drugIDs)
+	}
+	repo.drugIDs = nil
+	if got, err := svc.DrugCodes(t.Context(), nil); err != nil || len(got) != 0 || repo.drugIDs != nil {
+		t.Errorf("no ids: %v, %v, asked %v", got, err, repo.drugIDs)
+	}
+}
+
+// DrugLabelled asks for the drug term by its id and the label trimmed.
+func TestDrugLabelled(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{drugs: map[string]string{"t1": "J01CA04"}}
+	svc := newService(repo, &fakeLanguages{})
+	atc, ok, err := svc.DrugLabelled(t.Context(), "t1", " Placeholder drug ")
+	if err != nil || !ok || atc != "J01CA04" || repo.labelled != [2]string{"t1", "Placeholder drug"} {
+		t.Errorf("DrugLabelled = %q, %v, %v; asked %v", atc, ok, err, repo.labelled)
+	}
+	repo.err = errors.New("placeholder failure")
+	if _, _, err := svc.DrugLabelled(t.Context(), "t1", "Placeholder drug"); err == nil {
+		t.Error("a failed read: no error")
 	}
 }
 

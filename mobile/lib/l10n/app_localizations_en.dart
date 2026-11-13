@@ -1269,6 +1269,389 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRevoked => 'Access revoked.';
 
   @override
+  String get allergies => 'Allergies';
+
+  @override
+  String get currentMedications => 'Current medications';
+
+  @override
+  String get allergiesIntro =>
+      'Clinics you have given your consent to see the allergies in your profile when you have an appointment with them.';
+
+  @override
+  String get medicationsIntro =>
+      'Clinics you have given your consent to see the medications in your profile when you have an appointment with them.';
+
+  @override
+  String get noAllergies => 'You have not added any allergies.';
+
+  @override
+  String get noMedications => 'You have not added any medications.';
+
+  @override
+  String get addAllergy => 'Add an allergy';
+
+  @override
+  String get addMedication => 'Add a medication';
+
+  @override
+  String get changeAllergy => 'Change allergy';
+
+  @override
+  String get changeMedication => 'Change medication';
+
+  @override
+  String get change => 'Change';
+
+  @override
+  String get allergySubstance => 'Substance or food';
+
+  @override
+  String get medicationName => 'Medication';
+
+  @override
+  String get termSearchHint => 'Type to search, or write it in your own words.';
+
+  @override
+  String get allergyCategory => 'Type (optional)';
+
+  @override
+  String get notSpecified => 'Not specified';
+
+  @override
+  String get categoryFood => 'Food';
+
+  @override
+  String get categoryMedication => 'Medication';
+
+  @override
+  String get categoryEnvironment => 'Environment';
+
+  @override
+  String get categoryBiologic => 'Biological product';
+
+  @override
+  String get reactionOptional => 'Reaction (optional)';
+
+  @override
+  String get severity => 'Severity';
+
+  @override
+  String get severityMild => 'Mild';
+
+  @override
+  String get severityModerate => 'Moderate';
+
+  @override
+  String get severitySevere => 'Severe';
+
+  @override
+  String get entryStatus => 'Status';
+
+  @override
+  String get allergyActive => 'Active';
+
+  @override
+  String get allergyInactive => 'Inactive';
+
+  @override
+  String get allergyResolved => 'Resolved';
+
+  @override
+  String reactionLine(String reaction) {
+    return 'Reaction: $reaction';
+  }
+
+  @override
+  String reactionWithSeverity(String reaction, String severity) {
+    return 'Reaction: $reaction ($severity)';
+  }
+
+  @override
+  String get confirmedByClinician => 'Confirmed by a clinician';
+
+  @override
+  String get recordedByClinic =>
+      'Recorded by a clinic during one of your visits';
+
+  @override
+  String get confirmedChangeNote =>
+      'If you change this entry, it is no longer confirmed by a clinician.';
+
+  @override
+  String get nameRequired => 'Enter a name, up to 200 characters.';
+
+  @override
+  String get addToProfile => 'Add to my profile';
+
+  @override
+  String get addToProfileTitle => 'Add to your profile?';
+
+  @override
+  String get addToProfileBody =>
+      'Every clinic you have given your consent to will then see it, without the name of the clinic that recorded it.';
+
+  @override
+  String get addedToProfile => 'It is now in your profile.';
+
+  @override
+  String get removeEntryTitle => 'Remove this entry?';
+
+  @override
+  String get removeEntryBody =>
+      'It will no longer be shown to you or to any clinic. If a clinic recorded or confirmed it, it stays in your medical record, marked as removed.';
+
+  @override
+  String get entryRemoved => 'The entry is removed.';
+
+  @override
+  String get entrySaved => 'Saved to your profile.';
+
+  @override
+  String get entryChanged =>
+      'This entry was changed in the meantime. The latest version is shown.';
+
+  @override
+  String get entryInvalid =>
+      'Some details are not valid. Check them and try again.';
+
+  @override
+  String get entryNotAllowed => 'You cannot change this entry.';
+
+  @override
+  String get entryNotFound => 'This entry is no longer available.';
+
+  @override
+  String get doseHeading => 'Dose (optional)';
+
+  @override
+  String get doseAmount => 'Amount';
+
+  @override
+  String get doseUnit => 'Unit';
+
+  @override
+  String get unitMg => 'milligrams (mg)';
+
+  @override
+  String get unitG => 'grams (g)';
+
+  @override
+  String get unitUg => 'micrograms (µg)';
+
+  @override
+  String get unitMl => 'millilitres (mL)';
+
+  @override
+  String get unitIu => 'international units (IU)';
+
+  @override
+  String get unitTablet => 'tablets';
+
+  @override
+  String get unitCapsule => 'capsules';
+
+  @override
+  String get unitDrop => 'drops';
+
+  @override
+  String get unitPuff => 'puffs (inhaler)';
+
+  @override
+  String get unitPatch => 'patches';
+
+  @override
+  String get doseBoth => 'Enter both the amount and the unit, or neither.';
+
+  @override
+  String get numberAboveZero => 'Enter a number above 0.';
+
+  @override
+  String get howOftenHeading => 'How often (optional)';
+
+  @override
+  String get timesLabel => 'Times';
+
+  @override
+  String get everyLabel => 'Every';
+
+  @override
+  String get periodUnitLabel => 'Unit of time';
+
+  @override
+  String get periodHours => 'hours';
+
+  @override
+  String get periodDays => 'days';
+
+  @override
+  String get periodWeeks => 'weeks';
+
+  @override
+  String get periodMonths => 'months';
+
+  @override
+  String get howOftenAll => 'Fill in all three, or leave them empty.';
+
+  @override
+  String get asNeeded => 'As needed';
+
+  @override
+  String get medicationActive => 'Taking it now';
+
+  @override
+  String get medicationStopped => 'Stopped';
+
+  @override
+  String doseMg(String value) {
+    return '$value mg';
+  }
+
+  @override
+  String doseG(String value) {
+    return '$value g';
+  }
+
+  @override
+  String doseUg(String value) {
+    return '$value µg';
+  }
+
+  @override
+  String doseMl(String value) {
+    return '$value mL';
+  }
+
+  @override
+  String doseIu(String value) {
+    return '$value IU';
+  }
+
+  @override
+  String doseTablet(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value tablets',
+      one: '$value tablet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseCapsule(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value capsules',
+      one: '$value capsule',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseDrop(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value drops',
+      one: '$value drop',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePuff(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value puffs',
+      one: '$value puff',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String dosePatch(num count, String value) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$value patches',
+      one: '$value patch',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String doseLine(String dose) {
+    return 'Dose: $dose';
+  }
+
+  @override
+  String howOftenPerHour(int frequency) {
+    return '$frequency× an hour';
+  }
+
+  @override
+  String howOftenPerDay(int frequency) {
+    return '$frequency× a day';
+  }
+
+  @override
+  String howOftenPerWeek(int frequency) {
+    return '$frequency× a week';
+  }
+
+  @override
+  String howOftenPerMonth(int frequency) {
+    return '$frequency× a month';
+  }
+
+  @override
+  String howOftenEveryHours(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× every $every hours',
+      one: '$frequency× every $every hour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryDays(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× every $every days',
+      one: '$frequency× every $every day',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryWeeks(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× every $every weeks',
+      one: '$frequency× every $every week',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String howOftenEveryMonths(num period, int frequency, String every) {
+    String _temp0 = intl.Intl.pluralLogic(
+      period,
+      locale: localeName,
+      other: '$frequency× every $every months',
+      one: '$frequency× every $every month',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get sharingToggle =>
       'Share my history from other clinics with this clinic';
 
