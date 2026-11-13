@@ -300,8 +300,7 @@ refilled from the waitlist, and for admins the no-show rate per practitioner and
 (`web/src/analytics/NoShowCharts.tsx`). The rate is no-shows over fulfilled plus no-shows (booked ones are still
 ahead, cancelled ones were never due), in whole percent: an agent decision for the owner to review.
 
-Follow-ups: the flag in the calendar's week view after SAL-34's `Calendar.tsx`; the rendering of `status_corrected` rows in SAL-34's
-`AppointmentChanges.tsx` after its merge.
+
 
 Copy waiting for the owner (web, five staff languages, `calendar` area, keys `noshow.*`): the correction buttons
 ("Correct to fulfilled", "Correct to no-show"), its dialog (two questions, the 30-day line, "Correct", "Keep it"), its
@@ -309,3 +308,9 @@ errors, the flag's tag ("{count} no-shows") and tooltip, and the settings sectio
 their hints, the validation message, "Save the flag", "Saved."); the charts' names (`analytics` area: "No-show rate per
 month", "No-show rate (%)", "Slots refilled from the waitlist", "Refilled slots", "No-show rate by practitioner", "No-show
 rate by specialty", the percent unit, "No specialty", "No closed appointments").
+
+After SAL-33, SAL-34 and SAL-35 merged: the no-show port uses main's `Ports.Rules` (the same `organization.Appointments.For`);
+`AppointmentChanges.tsx` describes `status_corrected` ("Corrected to fulfilled", "Corrected to no-show", five languages,
+waiting for the owner); the waitlist e2e journey now checks that the real acceptance's appointment is counted as a slot
+refilled in the clinic's statistics. Still a follow-up: the flag in the calendar's week view (`Calendar.tsx` has no API
+client; it needs one passed from `App.tsx` and one flags request per week).

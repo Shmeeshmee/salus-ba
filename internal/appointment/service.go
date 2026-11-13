@@ -121,16 +121,16 @@ type Ports struct {
 	// books, cancels or dispatches; the reschedule and the patient's actions read the clinic's rules through Rules too.
 	Reminders ReminderRepository
 	Rules     Rules
-	LinkURL   string // the base of Tokens' links
+	// NoShows corrects a no-show or an attendance and counts the repeat no-shows (SAL-36, service_noshow.go): needed
+	// only by the api's Service, which reads the clinic's no-show flag through Rules.
+	NoShows NoShowRepository
 	// SelfService, Limiter and LinkKey are the patient's confirmation, rescheduling and one-time links (SAL-34): needed
 	// only by the api's Service. LinkKey keys the HMAC that names an address's link-lookup counter, so no address is
 	// readable in Redis.
 	SelfService SelfServiceRepository
 	Limiter     LinkLimiter
+	LinkURL     string // the base of Tokens' links
 	LinkKey     []byte
-	// NoShows corrects a no-show or an attendance and counts the repeat no-shows (SAL-36, service_noshow.go): needed
-	// only by the api's Service, which reads the clinic's no-show flag through Rules.
-	NoShows NoShowRepository
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
