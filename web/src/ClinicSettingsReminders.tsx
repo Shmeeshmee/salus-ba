@@ -153,7 +153,7 @@ function SmsUsage({ api, now }: { api: ApiClient; now: () => Date }) {
         <ul className="rows" aria-labelledby="sms-usage">
           {state.value.map((m: Month) => (
             <li key={m.month}>
-              <span>{format.month(m.month)}</span>
+              <span>{format.month(m.month, 'long')}</span>
               <span className="muted">{t('reminders.usageMonth', { messages: m.messages, parts: m.segments })}</span>
             </li>
           ))}

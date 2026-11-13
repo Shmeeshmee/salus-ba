@@ -28,13 +28,24 @@ const styles = {
   long: { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
   short: { weekday: 'short', day: 'numeric', month: 'short' },
   calendar: { day: 'numeric', month: 'long', year: 'numeric' },
-  month: { month: 'long', year: 'numeric' },
   dateTime: { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' },
+  monthShort: { month: 'short', year: 'numeric' },
+  monthLong: { month: 'long', year: 'numeric' },
+  weekday: { weekday: 'short' },
 } satisfies Record<string, Intl.DateTimeFormatOptions>
 
 type Style = keyof typeof styles
 
-const monthsOf: Record<Style, keyof typeof bosnianMonths | null> = { time: null, long: 'long', short: 'short', calendar: 'long', dateTime: 'short', month: 'long' }
+const monthsOf: Record<Style, keyof typeof bosnianMonths | null> = {
+  time: null,
+  long: 'long',
+  short: 'short',
+  calendar: 'long',
+  dateTime: 'short',
+  monthShort: 'short',
+  monthLong: 'long',
+  weekday: null,
+}
 
 const cache = new Map<string, Intl.DateTimeFormat>()
 
@@ -75,16 +86,32 @@ export function formatCalendarDate(date: string, language: Language): string {
   return format(new Date(`${date}T00:00:00Z`), 'UTC', language, 'calendar')
 }
 
-// formatMonth is a calendar month written YYYY-MM, as the usage figures give it: "November 2026".
-export function formatMonth(month: string, language: Language): string {
-  return format(new Date(`${month}-01T00:00:00Z`), 'UTC', language, 'month')
-}
-
 // formatDateTime is instant in zone with its time: "9 Nov 2026, 15:05".
 export function formatDateTime(instant: Date, zone: string, language: Language): string {
   return format(instant, zone, language, 'dateTime')
 }
 
+// formatMonth is a calendar month of the charts ("2026-11", no time zone): short "Nov 2026", long "November 2026".
+export function formatMonth(month: string, language: Language, style: 'short' | 'long'): string {
+  return format(new Date(`${month}-01T00:00:00Z`), 'UTC', language, style === 'short' ? 'monthShort' : 'monthLong')
+}
+
+// formatWeekday is an ISO weekday (1 = Monday, 7 = Sunday), short: "Mon".
+export function formatWeekday(weekday: number, language: Language): string {
+  // 2026-11-02 is a Monday.
+  return format(new Date(Date.UTC(2026, 10, 1 + weekday)), 'UTC', language, 'weekday')
+}
+
+const numberCache = new Map<string, Intl.NumberFormat>()
+
+// formatNumber keeps one Intl.NumberFormat per language and options: building one per call made a chart of 1,224
+// points take 131 ms to render in jsdom instead of 65 (analytics/render.bench.test.tsx, PROGRESS of analytics).
 export function formatNumber(n: number, language: Language, options?: Intl.NumberFormatOptions): string {
-  return new Intl.NumberFormat(dataLocale(language), options).format(n)
+  const id = `${language}|${options ? JSON.stringify(options) : ''}`
+  let format = numberCache.get(id)
+  if (!format) {
+    format = new Intl.NumberFormat(dataLocale(language), options)
+    numberCache.set(id, format)
+  }
+  return format.format(n)
 }

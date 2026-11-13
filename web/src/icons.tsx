@@ -29,6 +29,15 @@ export function PeopleIcon() {
   )
 }
 
+export function ChartIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M3.5 16.5h13" />
+      <path d="M6 13.5v-4M10 13.5V5.5M14 13.5v-6" />
+    </svg>
+  )
+}
+
 export function ClinicIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>

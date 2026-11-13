@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatCalendarDate, formatDate, formatDateTime, formatMonth, formatNumber, formatTime } from './format'
+import { formatCalendarDate, formatDate, formatDateTime, formatMonth, formatNumber, formatTime, formatWeekday } from './format'
 import type { Language } from './languages'
 
 const afternoon = new Date('2026-11-09T14:05:00Z') // 15:05 in Sarajevo
@@ -43,18 +43,6 @@ describe.each(Object.entries(formats) as [Language, (typeof formats)[Language]][
   })
 })
 
-describe('formatMonth', () => {
-  it.each([
-    ['bs', 'novembar 2026.'],
-    ['hr', 'studeni 2026.'],
-    ['sr-Latn', 'novembar 2026.'],
-    ['sr-Cyrl', 'новембар 2026.'],
-    ['en', 'November 2026'],
-  ] as const)('names the month in %s', (language, want) => {
-    expect(formatMonth('2026-11', language)).toBe(want)
-  })
-})
-
 describe('formatDate', () => {
   it('writes the long date in the language', () => {
     expect(formatDate(afternoon, 'Europe/Sarajevo', 'en', 'long')).toBe('Monday, 9 November 2026')
@@ -93,6 +81,26 @@ describe('formatDate', () => {
   it('names every weekday in Bosnian', () => {
     const days = Array.from({ length: 7 }, (_, i) => formatDate(new Date(Date.UTC(2026, 10, 9 + i, 12)), 'UTC', 'bs', 'long').split(',')[0])
     expect(days).toEqual(['ponedjeljak', 'utorak', 'srijeda', 'četvrtak', 'petak', 'subota', 'nedjelja'])
+  })
+})
+
+// A month of the charts ("2026-11", a calendar month with no time zone) and an ISO weekday (1 = Monday).
+const months: Record<Language, { short: string; long: string; weekday: string }> = {
+  bs: { short: 'nov 2026.', long: 'novembar 2026.', weekday: 'pon' },
+  hr: { short: 'stu 2026.', long: 'studeni 2026.', weekday: 'pon' },
+  'sr-Latn': { short: 'nov 2026.', long: 'novembar 2026.', weekday: 'pon' },
+  'sr-Cyrl': { short: 'нов 2026.', long: 'новембар 2026.', weekday: 'пон' },
+  en: { short: 'Nov 2026', long: 'November 2026', weekday: 'Mon' },
+}
+
+describe.each(Object.entries(months) as [Language, (typeof months)[Language]][])('a chart month in %s', (language, want) => {
+  it('writes the month short and long', () => {
+    expect(formatMonth('2026-11', language, 'short')).toBe(want.short)
+    expect(formatMonth('2026-11', language, 'long')).toBe(want.long)
+  })
+
+  it('writes the weekday', () => {
+    expect(formatWeekday(1, language)).toBe(want.weekday)
   })
 })
 
