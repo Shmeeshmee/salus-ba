@@ -34,7 +34,7 @@ const statusGet = `GET /appointments/${id}/consultation`
 const questionnaireSearch = 'GET /fhir/R4/QuestionnaireResponse'
 
 function answer(status: string) {
-  return Response.json({ id, organizationId: org, practitionerRoleId: cy.roleId, slotId: id, start: booked.start, end: booked.end, status, versionId: 2 })
+  return Response.json({ id, organizationId: org, practitionerRoleId: cy.roleId, slotId: id, start: booked.start, end: booked.end, status, bookedVia: 'direct', versionId: 2, rescheduleCount: 0 })
 }
 
 function renderDetail(account: Account, routes: Record<string, Route>, now = after, language: Language = 'en') {
