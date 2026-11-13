@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // retentionHour is the UTC hour of the daily retention_apply job (docs/booking/SPEC.md §2 "Periodic jobs").
@@ -26,12 +27,13 @@ const schedulerQueue = "scheduler"
 
 // NewScheduler returns the River client cmd/scheduler runs on pool (salus_app): it enqueues the periodic jobs
 // and, as River's only leader, runs its maintenance. It works no job. Several replicas elect one leader, so
-// each periodic job is enqueued once.
-func NewScheduler(pool *pgxpool.Pool, log *slog.Logger) (*river.Client[pgx.Tx], error) {
-	return newScheduler(pool, log, dailyAt{hour: retentionHour})
+// each periodic job is enqueued once. platform turns the trends builds on (ANALYTICS_PLATFORM_ENABLED); off, none
+// is scheduled.
+func NewScheduler(pool *pgxpool.Pool, platform bool, log *slog.Logger) (*river.Client[pgx.Tx], error) {
+	return newScheduler(pool, log, dailyAt{hour: retentionHour}, platform)
 }
 
-func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.PeriodicSchedule) (*river.Client[pgx.Tx], error) {
+func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.PeriodicSchedule, platform bool) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{}, nil)
 	addEmailWorkers(workers, nil)
@@ -41,7 +43,7 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Logger: log,
 		Queues: map[string]river.QueueConfig{schedulerQueue: {MaxWorkers: 1}},
-		PeriodicJobs: []*river.PeriodicJob{
+		PeriodicJobs: append([]*river.PeriodicJob{
 			river.NewPeriodicJob(retentionSchedule, func() (river.JobArgs, *river.InsertOpts) {
 				return RetentionApplyArgs{}, nil
 			}, nil),
@@ -57,7 +59,7 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			river.NewPeriodicJob(dailyAt{hour: chatPartitionsHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return communication.PartitionsArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
-		},
+		}, trendsPeriodics(platform, clock.System{})...),
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing
 		Workers:             workers,
 	})

@@ -25,7 +25,7 @@ func TestNew_RefusesAWebhookKeyThatIsNot32Bytes(t *testing.T) {
 	t.Parallel()
 	db := newLogins(t)
 	for _, key := range [][]byte{nil, bytes.Repeat([]byte{9}, 16)} {
-		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), testFiles(t), key, slog.New(slog.DiscardHandler)); err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") {
+		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), testFiles(t), key, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") {
 			t.Errorf("New(a %d-byte key) = %v, want WEBHOOK_KEY refused", len(key), err)
 		}
 	}
@@ -49,7 +49,7 @@ func TestNoop_RunsAsTheAppRole(t *testing.T) {
 
 func runNoop(t *testing.T, pool, retention, stats *pgxpool.Pool) {
 	t.Helper()
-	client, err := worker.New(pool, retention, stats, liveKit(t), testFiles(t), webhookKey, slog.New(slog.DiscardHandler))
+	client, err := worker.New(pool, retention, stats, liveKit(t), testFiles(t), webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

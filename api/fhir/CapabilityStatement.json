@@ -20,7 +20,7 @@
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language and organization-patient-transcript-copy extensions (a left-out extension keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true only.",
+          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true only, without the location and the contribution.",
           "searchParam": [
             {
               "name": "listed",
@@ -205,7 +205,7 @@
         {
           "type": "Provenance",
           "interaction": [{ "code": "read" }],
-          "documentation": "Who signed a Composition and when: its targets are the Composition's signed version and its DocumentReference. Read under the Composition's rule."
+          "documentation": "Who signed a Composition and when: its targets are the Composition's signed version and its DocumentReference, read under the Composition's rule. And who wrote an AllergyIntolerance or a MedicationStatement and when (SAL-41): one per practitioner's write and per patient's write on a clinic's entry, its target the version written, its activity from v3-DataOperation (CREATE to record, which also confirms: the agent its author and verifier; UPDATE to change, to add to the profile or, with the agent a verifier, to confirm; NULLIFY to remove as entered-in-error), its agent the PractitionerRole on behalf of its Organization or the Patient, and for a change the version revised as an entity. A clinic's names the clinic, so it is read only by the patient and by that clinic's staff who see the entry; the patient's are the patient's only; a patient's writes on their own entries have none (the entry names the patient as its source). Every read is audited."
         },
         {
           "type": "Questionnaire",

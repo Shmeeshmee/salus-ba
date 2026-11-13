@@ -104,6 +104,10 @@ func (s *stubReader) Seen(_ context.Context, c Caller, patientID string) ([]Seen
 	return s.out, s.err
 }
 
+func (s *stubReader) Provenance(context.Context, Caller, string) (Provenance, bool, error) {
+	return Provenance{}, false, nil
+}
+
 // assertBody compares a response body with testdata/<name>; -update rewrites the file.
 func assertBody(t *testing.T, name string, got []byte) {
 	t.Helper()

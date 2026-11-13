@@ -64,7 +64,7 @@ func TestSuggestionWindowCost(t *testing.T) {
 	})
 	a := suggestion.NewAssistant(svc, suggestion.AssistPorts{
 		Suggester: &freshSuggester{}, Live: suggestion.NewRedisLive(c.rdb),
-		Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}),
+		Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil),
 		Clock:   clock.System{}, Log: slog.New(slog.DiscardHandler),
 	})
 	const runs = 200

@@ -60,7 +60,7 @@ func newBooking(t *testing.T, app *pgxpool.Pool) booking {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk)
+	clinics := organization.NewService(organization.NewPostgresRepository(app), audit, tx, clk, nil)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(app), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clk, Clinics: clinics, People: practitioners,

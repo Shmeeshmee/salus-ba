@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ClinicSettings } from './ClinicSettings'
-import { defaultLanguageURL, listedURL, newFhirClient, timeZoneURL, transcriptCopyURL, type Organization } from './api/fhir'
+import { newApiClient } from './api/client'
+import { cityURL, contributesURL, defaultLanguageURL, listedURL, newFhirClient, timeZoneURL, transcriptCopyURL, type Organization } from './api/fhir'
 import type { Language } from './i18n/languages'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
@@ -22,9 +23,24 @@ const org: Organization = {
   ],
 }
 
-function renderSettings(routes: Record<string, Route>, language: Language = 'en') {
-  const fake = fakeFetch(routes)
-  renderInLanguage(<ClinicSettings fhir={newFhirClient(fake.fetch)} organizationId={id} />, language)
+// places are a few of GET /places.
+const places = {
+  places: [
+    { id: 'BA-BIH', kind: 'entity', nameLatn: 'Federacija Bosne i Hercegovine', nameCyrl: 'Федерација Босне и Херцеговине' },
+    { id: 'BA-09', kind: 'region', parent: 'BA-BIH', nameLatn: 'Kanton Sarajevo', nameCyrl: 'Кантон Сарајево' },
+    { id: 'BA-SRP', kind: 'region', nameLatn: 'Republika Srpska', nameCyrl: 'Република Српска' },
+    { id: 'Q1270190', kind: 'city', parent: 'BA-09', nameLatn: 'Centar', nameCyrl: 'Центар' },
+    { id: 'Q12756621', kind: 'city', parent: 'BA-09', nameLatn: 'Ilidža', nameCyrl: 'Илиџа' },
+    { id: 'Q1', kind: 'city', parent: 'BA-SRP', nameLatn: 'Banja Luka', nameCyrl: 'Бања Лука' },
+  ],
+}
+
+function renderSettings(routes: Record<string, Route>, language: Language = 'en', platform = true) {
+  const fake = fakeFetch({ 'GET /places': () => Response.json(places), ...routes })
+  renderInLanguage(
+    <ClinicSettings api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} organizationId={id} platform={platform} />,
+    language,
+  )
   return fake
 }
 
@@ -132,6 +148,7 @@ describe('ClinicSettings', () => {
       { url: timeZoneURL, valueCode: 'Europe/Berlin' },
       { url: defaultLanguageURL, valueCode: 'bs' },
       { url: transcriptCopyURL, valueBoolean: false },
+      { url: contributesURL, valueBoolean: true },
     ])
     expectCsrfOnWrites(requests)
     expect((screen.getByLabelText('List the clinic in the patient app') as HTMLInputElement).checked).toBe(true)
@@ -212,5 +229,100 @@ describe("the patients' transcript copy", () => {
     renderSettings({ [`GET ${path}`]: () => fhirJSON({ ...org, extension: [...org.extension!, { url: transcriptCopyURL, valueBoolean: true }] }) }, 'bs')
 
     expect(((await screen.findByLabelText('Omogući pacijentima kopiju transkripta njihovih konsultacija')) as HTMLInputElement).checked).toBe(true)
+  })
+})
+
+describe("the clinic's location and its contribution to the platform figures", () => {
+  const located: Organization = {
+    ...org,
+    extension: [...org.extension!, { url: contributesURL, valueBoolean: true }],
+    address: [{ state: 'BA-09', city: 'Centar', extension: [{ url: cityURL, valueCode: 'Q1270190' }] }],
+  }
+
+  it('shows the region and the city from the address, the cities of the region only', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) })
+
+    await vi.waitFor(() => expect((screen.getByLabelText('Region') as HTMLSelectElement).value).toBe('BA-09'))
+    const city = screen.getByLabelText('City') as HTMLSelectElement
+    expect(city.value).toBe('Q1270190')
+    expect([...city.options].map((o) => o.textContent)).toEqual(['Choose a city', 'Centar', 'Ilidža'])
+  })
+
+  it('saves a new location as the address with the city id, and the opt-out', async () => {
+    const { requests } = renderSettings({
+      [`GET ${path}`]: () => fhirJSON(org),
+      [`PUT ${path}`]: async (r) => fhirJSON({ ...((await r.json()) as Organization), meta: { ...org.meta, versionId: '4' } }),
+    })
+
+    await vi.waitFor(() => expect((screen.getByLabelText('Region') as HTMLSelectElement).options.length).toBeGreaterThan(1))
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'BA-SRP' } })
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Q1' } })
+    const contributes = screen.getByLabelText('Contribute to the All of Salus figures') as HTMLInputElement
+    expect(contributes.checked).toBe(true)
+    fireEvent.click(contributes)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    const body = (await requests.find((r) => r.method === 'PUT')!.json()) as Organization
+    expect(body.address).toEqual([{ state: 'BA-SRP', city: 'Banja Luka', extension: [{ url: cityURL, valueCode: 'Q1' }] }])
+    expect(body.extension).toContainEqual({ url: contributesURL, valueBoolean: false })
+  })
+
+  it('explains what opting out means', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) })
+
+    expect(
+      await screen.findByText(
+        "The clinic's diagnoses and appointments count, anonymized, in the figures across all clinics. If you opt out, the clinic is left out from the next build on, and its staff no longer see these figures.",
+      ),
+    ).toBeTruthy()
+  })
+
+  it('maps a city outside its region to a message', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located), [`PUT ${path}`]: () => outcome(400, 'code-invalid') })
+
+    await rename('Renamed clinic')
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Choose a city of the region.')
+  })
+
+  it('hides the opt-out and the location hint while the All of Salus view is off', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) }, 'en', false)
+
+    expect(await screen.findByLabelText('Region')).toBeTruthy()
+    expect(screen.queryByLabelText('Contribute to the All of Salus figures')).toBeNull()
+    expect(screen.queryByText(/The All of Salus figures group clinics/)).toBeNull()
+  })
+
+  it('refuses to save a region without a city', async () => {
+    const { requests } = renderSettings({ [`GET ${path}`]: () => fhirJSON(located) })
+
+    await vi.waitFor(() => expect((screen.getByLabelText('Region') as HTMLSelectElement).value).toBe('BA-09'))
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'BA-SRP' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Choose a city of the region.')
+    expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
+  })
+
+  it('does not offer to clear a location once set', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) })
+
+    await vi.waitFor(() => expect((screen.getByLabelText('Region') as HTMLSelectElement).value).toBe('BA-09'))
+    const none = [...(screen.getByLabelText('Region') as HTMLSelectElement).options].find((o) => o.value === '')!
+    expect(none.disabled).toBe(true)
+  })
+
+  it('says when the regions and cities cannot be loaded', async () => {
+    renderSettings({ 'GET /places': () => new Response(null, { status: 500 }), [`GET ${path}`]: () => fhirJSON(located) })
+
+    expect((await screen.findByRole('alert')).textContent).toBe('The regions and cities could not be loaded. Reload the page to try again.')
+  })
+
+  it('is in Serbian Cyrillic', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(located) }, 'sr-Cyrl')
+
+    expect(await screen.findByLabelText('Регија')).toBeTruthy()
+    expect(screen.getByLabelText('Град')).toBeTruthy()
   })
 })

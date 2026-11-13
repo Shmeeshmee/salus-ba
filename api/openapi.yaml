@@ -2521,6 +2521,116 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /analytics/platform/months:
+    get:
+      operationId: getPlatformMonths
+      summary: The published months and quarters of the All of Salus figures
+      description: >-
+        The calendar months and quarters built and published (docs/plans/analytics.md §5), oldest first, and k, the
+        minimum count. Only while ANALYTICS_PLATFORM_ENABLED is on (otherwise every /analytics/platform path is a
+        404, §2a), for staff of a clinic that contributes (O5, O6). Audited.
+      tags: [analytics]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The periods.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlatformMonths"}
+        "401": {$ref: "#/components/responses/PlatformUnauthenticated"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /analytics/platform/cells:
+    get:
+      operationId: getPlatformCells
+      summary: A breakdown of one All of Salus table
+      description: >-
+        One table of the published months (gd: geography × diagnosis, gs: geography × specialty, sd: specialty ×
+        diagnosis), some of its dimensions fixed, broken down by one of them or by month (§5, §8). Every key of the
+        dimension is returned; a count is the sum of its published month cells, rounded to 5, and null when none
+        is, for 0 and for suppressed alike (A8). `partial` is true when a count leaves out a month that is null for
+        its key (A9: patient-months). A code is a key only in the months it is published at geography = all. Any
+        other parameter, or a combination outside the table, is a 400. Audited.
+      tags: [analytics]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: table, in: query, required: true, schema: {type: string, enum: [gd, gs, sd]}}
+        - {name: from, in: query, required: true, description: "The first month, 2026-01.", schema: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}}
+        - {name: to, in: query, required: true, description: "The last month; at most 60 months from the first.", schema: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}}
+        - {name: by, in: query, required: true, schema: {type: string, enum: [entity, region, city, group, subgroup, code, specialty, month]}}
+        - {name: entity, in: query, schema: {type: string}}
+        - {name: region, in: query, schema: {type: string}}
+        - {name: city, in: query, description: "A city's Wikidata id.", schema: {type: string}}
+        - {name: group, in: query, schema: {type: string}}
+        - {name: subgroup, in: query, schema: {type: string}}
+        - {name: code, in: query, description: "An ICD-10 code.", schema: {type: string}}
+        - {name: specialty, in: query, description: "A SNOMED CT code.", schema: {type: string}}
+      responses:
+        "200":
+          description: The breakdown.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlatformBreakdown"}
+        "400": {$ref: "#/components/responses/PlatformInvalid"}
+        "401": {$ref: "#/components/responses/PlatformUnauthenticated"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /analytics/platform/heatmap:
+    get:
+      operationId: getPlatformHeatmap
+      summary: A published quarter's fulfilled appointments by weekday and hour
+      description: >-
+        The 7 × 24 cells (ISO weekday, 1 = Monday; the clinics' local hour) of a published quarter, of a region, an
+        entity or all of Salus (§5): distinct patients rounded to 5, null for 0 and for suppressed alike. Audited.
+      tags: [analytics]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: quarter, in: query, required: true, schema: {type: string, pattern: "^[0-9]{4}-Q[1-4]$"}}
+        - {name: region, in: query, description: "A leaf region or an entity; all of Salus when left out.", schema: {type: string}}
+      responses:
+        "200":
+          description: The cells.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlatformHeatmap"}
+        "400": {$ref: "#/components/responses/PlatformInvalid"}
+        "401": {$ref: "#/components/responses/PlatformUnauthenticated"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /analytics/platform/rises:
+    get:
+      operationId: getPlatformRises
+      summary: Unusual rises of a diagnosis group in a region
+      description: >-
+        The rise flags of the last built ISO weeks (§6): week, leaf region and diagnosis group, no count. A flag
+        compares the week with the weeks before; it is not a public-health alert. Audited.
+      tags: [analytics]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: region, in: query, description: "A leaf region; all when left out.", schema: {type: string}}
+        - {name: weeks, in: query, schema: {type: integer, minimum: 1, maximum: 52, default: 8}}
+      responses:
+        "200":
+          description: The flags.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PlatformRises"}
+        "400": {$ref: "#/components/responses/PlatformInvalid"}
+        "401": {$ref: "#/components/responses/PlatformUnauthenticated"}
+        "403": {$ref: "#/components/responses/PlatformForbidden"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /terminology/review/diagnosis-groups:
     get:
       operationId: listDiagnosisGroupReview
@@ -3499,7 +3609,12 @@ paths:
         "400":
           description: >-
             `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at
-            another clinic; `care_consent_required`: no active care consent with the clinic.
+            another clinic.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`care_consent_required`: no active care consent with the clinic."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5148,6 +5263,23 @@ components:
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
+    PlatformUnauthenticated:
+      description: "`unauthenticated`: no valid session."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    PlatformForbidden:
+      description: >-
+        `forbidden`: the caller is not staff of a clinic; `analytics_not_contributing`: the caller's clinic has
+        opted out of the platform figures, so its staff do not see them (O6).
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    PlatformInvalid:
+      description: "`invalid_request`: a parameter that is not one of the query's, or a combination outside the tables."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
     StatsInvalid:
       description: "`invalid_request`: no range, a malformed date, a reversed or over ten-year range, or an unknown breakdown."
       content:
@@ -5375,6 +5507,12 @@ components:
           description: >-
             True for a reviewer of the medical term list, a permission only the operator grants (salusctl
             term-reviewer); absent otherwise.
+        features:
+          type: array
+          items: {type: string, enum: [analytics_platform]}
+          description: >-
+            The codes of the features turned on for the deployment; absent when none is. analytics_platform: the
+            All of Salus view (ANALYTICS_PLATFORM_ENABLED, docs/plans/analytics.md §2a).
     UpdateMeRequest:
       type: object
       required: [language]
@@ -5423,6 +5561,59 @@ components:
         parent: {type: string, description: "The group of a subgroup; absent for a group."}
         name: {type: string}
         reviewStatus: {$ref: "#/components/schemas/ReviewStatus"}
+    PlatformMonths:
+      type: object
+      required: [months, quarters, minCount]
+      properties:
+        months: {type: array, items: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}}
+        quarters: {type: array, items: {type: string, pattern: "^[0-9]{4}-Q[1-4]$"}}
+        minCount: {type: integer, description: "k: no published cell holds fewer patients (A4)."}
+    PlatformBreakdown:
+      type: object
+      required: [rows, partial]
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            required: [key, count]
+            properties:
+              key: {type: string, description: "A place id, a group or subgroup code, an ICD-10 code, a SNOMED CT code or a month."}
+              count:
+                description: "Distinct patients (summed over months: patient-months), rounded to 5; null for 0 and for suppressed alike."
+                oneOf:
+                  - type: integer
+                  - type: "null"
+        partial: {type: boolean}
+    PlatformHeatmap:
+      type: object
+      required: [cells]
+      properties:
+        cells:
+          type: array
+          items:
+            type: object
+            required: [weekday, hour, count]
+            properties:
+              weekday: {type: integer, minimum: 1, maximum: 7}
+              hour: {type: integer, minimum: 0, maximum: 23}
+              count:
+                oneOf:
+                  - type: integer
+                  - type: "null"
+    PlatformRises:
+      type: object
+      required: [rises]
+      properties:
+        rises:
+          type: array
+          items:
+            type: object
+            required: [week, region, group]
+            properties:
+              week: {type: string, pattern: "^[0-9]{4}-W[0-9]{2}$"}
+              region: {type: string}
+              group: {type: string}
     PlaceList:
       type: object
       required: [places]
@@ -5701,12 +5892,15 @@ components:
           $ref: "#/components/schemas/ConsentKind"
     ConsentKind:
       type: string
-      enum: [care, transcription]
+      enum: [care, transcription, history]
       default: care
       description: >-
         What the consent is for: `care`, sharing the profile and appointments with the clinic; `transcription`,
         transcription and translation of the consultations with the clinic, with AI assistance for the
-        practitioner (suggestions, document drafts), used only with an active care consent (SAL-12).
+        practitioner (suggestions, document drafts), used only with an active care consent (SAL-12); `history`,
+        sharing chosen visits at other clinics with the clinic (SAL-42), granted and changed only through
+        `PUT /history-sharing/{organizationId}` (a grant of it here is `invalid_request`), listed and revoked here
+        like the others.
     Consent:
       type: object
       required: [id, organizationId, kind, status, dateTime]
@@ -6979,7 +7173,7 @@ components:
         versionId: {type: string}
     SharingCandidate:
       type: object
-      required: [date, encounterId, organizationId, organizationName, selected]
+      required: [date, encounterId, organizationId, organizationName, timeZone, selected]
       description: >-
         A finished visit of the patient's at another clinic, exactly as the receiving clinic will see it marked.
         Health data.
@@ -6988,6 +7182,7 @@ components:
         encounterId: {type: string, format: uuid}
         organizationId: {type: string, format: uuid}
         organizationName: {type: string}
+        timeZone: {type: string, description: "The visit's clinic's time zone (IANA), to show its date in."}
         specialty: {type: string, description: SNOMED CT code (`/specialties`).}
         title: {type: string, description: The title of the visit's first signed document.}
         selected: {type: boolean, description: Shared with the clinic now.}
@@ -6995,6 +7190,11 @@ components:
       type: object
       required: [candidates]
       properties:
+        versionId:
+          type: string
+          description: >-
+            The version of what the patient shares with the clinic now, read with the candidates (HistorySharing
+            `versionId`); absent when nothing is shared. Send it as If-Match to change the selection.
         candidates:
           type: array
           items: {$ref: "#/components/schemas/SharingCandidate"}
@@ -7018,7 +7218,11 @@ components:
           type: string
           format: uuid
           description: The history consent (FHIR Consent); absent when nothing is shared.
-        versionId: {type: string}
+        versionId:
+          type: string
+          description: >-
+            Opaque: names the history consent and its version, so a version read of one consent never matches another
+            granted after it. Send it as If-Match, `W/"<versionId>"`.
         shared:
           type: array
           items: {type: string, format: uuid}

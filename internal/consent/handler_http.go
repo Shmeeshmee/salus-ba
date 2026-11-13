@@ -20,6 +20,10 @@ type Consents interface {
 	Grant(ctx context.Context, c Caller, organizationID string, kind Kind) (Consent, error)
 	Revoke(ctx context.Context, c Caller, id string) (Consent, error)
 	Mine(ctx context.Context, c Caller) ([]Consent, error)
+	Candidates(ctx context.Context, c Caller, organizationID string) (Preview, error)
+	SetSharing(ctx context.Context, c Caller, organizationID string, in SetSharing, version string) (Sharing, error)
+	StopSharing(ctx context.Context, c Caller, organizationID string) error
+	MySharing(ctx context.Context, c Caller) ([]Sharing, error)
 }
 
 // Handler serves the patient's consents in the JSON API (api/openapi.yaml). Errors are {"error": "<code>"}
@@ -42,6 +46,10 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /consents", h.grant)
 	mux.HandleFunc("POST /consents/{id}/revoke", h.revoke)
 	mux.HandleFunc("GET /me/consents", h.mine)
+	mux.HandleFunc("GET /me/history-sharing", h.mySharing)
+	mux.HandleFunc("GET /history-sharing/{organizationId}", h.candidates)
+	mux.HandleFunc("PUT /history-sharing/{organizationId}", h.setSharing)
+	mux.HandleFunc("DELETE /history-sharing/{organizationId}", h.stopSharing)
 }
 
 // consentJSON is the Consent schema of api/openapi.yaml.
@@ -150,7 +158,12 @@ func write(w http.ResponseWriter, status int, v any) {
 
 // decodeJSON reads one JSON object with known fields only, or answers 400 invalid_request.
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody))
+	return decodeJSONUpTo(w, r, v, maxBody)
+}
+
+// decodeJSONUpTo is decodeJSON for a body of up to limit bytes.
+func decodeJSONUpTo(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if dec.Decode(v) != nil || dec.Decode(&struct{}{}) != io.EOF {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
@@ -172,6 +185,9 @@ var errorCodes = []struct {
 	{ErrKind, "invalid_request", http.StatusBadRequest},
 	{ErrInactive, "consent_inactive", http.StatusConflict},
 	{ErrProfileRequired, "profile_required", http.StatusConflict},
+	{ErrCareConsentRequired, "care_consent_required", http.StatusConflict},
+	{ErrInvalidVisit, "invalid_visit", http.StatusBadRequest},
+	{ErrVersionConflict, "version_conflict", http.StatusPreconditionFailed},
 }
 
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) {

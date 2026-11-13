@@ -3,7 +3,8 @@
 // and the live suggestions worker (worker.Suggestions), on the language model LLM_ENGINE chooses
 // (config.LoadLLM: the fake by default, Anthropic's API off until its DPA). It
 // logs in as salus_app (DATABASE_URL), as salus_retention (RETENTION_DATABASE_URL) for the retention_apply job
-// alone, and as salus_stats (STATS_DATABASE_URL) for the clinic statistics' builds alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
+// alone, and as salus_stats (STATS_DATABASE_URL) for the clinic statistics' builds and, while ANALYTICS_PLATFORM_ENABLED is on, the
+// platform builds alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
 package main
 
 import (
@@ -97,7 +98,8 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer statsPool.Close()
-	client, err := worker.New(pool, retentionPool, statsPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, cfg.WebhookKey, log)
+	platform := worker.Trends{Enabled: cfg.Analytics.PlatformEnabled, MinCount: cfg.Analytics.MinCount}
+	client, err := worker.New(pool, retentionPool, statsPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, cfg.WebhookKey, platform, log)
 	if err != nil {
 		return err
 	}

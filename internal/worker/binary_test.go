@@ -312,7 +312,7 @@ func TestNew_RefusesToStartWithoutTheFilesDependencies(t *testing.T) {
 		"no key":     {Store: full.Store, Scanner: full.Scanner},
 		"no scanner": {Store: full.Store, KEK: full.KEK},
 	} {
-		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), files, webhookKey, slog.New(slog.DiscardHandler)); err == nil {
+		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), files, webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
 			t.Errorf("New() with %s: error = nil", name)
 		}
 	}

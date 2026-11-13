@@ -365,7 +365,7 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String revokeBody(String clinic) {
-    return '$clinic artık profilinizi göremeyecek. Klinik, sağlık kayıtlarının bir parçası olarak adınızı ve gerçekleşmiş randevularınızın bilgilerini saklar. $clinic ile olan gelecek randevularınız iptal edilecek.';
+    return '$clinic artık profilinizi göremeyecek. Klinik, sağlık kayıtlarının bir parçası olarak adınızı ve gerçekleşmiş randevularınızın bilgilerini saklar. $clinic ile olan gelecek randevularınız iptal edilecek. Diğer kliniklerdeki geçmişinizin $clinic ile paylaşımı da sona erer; yeniden onay vermeniz bu paylaşımı geri getirmez.';
   }
 
   @override
@@ -1704,4 +1704,81 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get historyOpenFailed => 'Bu öğe açılamadı. Tekrar deneyin.';
+
+  @override
+  String get sharingToggle =>
+      'Diğer kliniklerdeki geçmişimi bu klinikle paylaş';
+
+  @override
+  String sharingIntro(String clinic) {
+    return '$clinic kliniğinin görebileceği önceki ziyaretleri işaretleyin. İşaretlediğiniz her ziyaret için $clinic kliniğinde randevunuz olan doktorlar, burada gösterileni ziyaretin belgeleri, anket yanıtları ve dosyaları, ziyarette kaydedilen alerjiler ve ilaçlar ve ziyarete sonradan eklenen her şeyle birlikte görür. İşaretlemediğiniz ziyaretler $clinic kliniğinden gizli kalır.';
+  }
+
+  @override
+  String get sharingChangeLater =>
+      'Ziyaret eklemeyi veya çıkarmayı ya da paylaşımı durdurmayı istediğiniz zaman Paylaşılan geçmiş bölümünden yapabilirsiniz. Her değişiklik hemen geçerli olur.';
+
+  @override
+  String get sharingNoVisits =>
+      'Paylaşabileceğiniz, diğer kliniklerde önceki bir ziyaretiniz yok.';
+
+  @override
+  String get sharingSelectAll => 'Tümünü seç';
+
+  @override
+  String get sharingSelectNone => 'Hiçbirini seçme';
+
+  @override
+  String get sharedHistory => 'Paylaşılan geçmiş';
+
+  @override
+  String get sharedHistoryIntro =>
+      'Onay verdiğiniz klinikler ve her birinin diğer kliniklerdeki ziyaretlerinizden kaçını gördüğü.';
+
+  @override
+  String get sharedHistoryNone => 'Henüz hiçbir kliniğe onay vermediniz.';
+
+  @override
+  String sharedVisits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ziyaret paylaşıldı',
+      one: '$count ziyaret paylaşıldı',
+      zero: 'Hiçbir şey paylaşılmadı',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sharingSaved => 'Seçiminiz kaydedildi ve hemen geçerli.';
+
+  @override
+  String get sharingStop => 'Paylaşımı durdur';
+
+  @override
+  String get sharingStopTitle => 'Geçmişinizin paylaşımı durdurulsun mu?';
+
+  @override
+  String sharingStopBody(String clinic) {
+    return '$clinic, diğer kliniklerden onunla paylaştığınız ziyaretlerin hiçbirini artık göremez. Bu hemen geçerli olur.';
+  }
+
+  @override
+  String get sharingKeep => 'Paylaşmaya devam et';
+
+  @override
+  String get sharingStopped =>
+      'Geçmişinizi artık bu klinikle paylaşmıyorsunuz.';
+
+  @override
+  String get sharingChanged =>
+      'Paylaşılan ziyaretleriniz bu arada değişti. Kontrol edip yeniden kaydedin.';
+
+  @override
+  String get bookedNotShared =>
+      'Randevunuz alındı, ancak geçmişiniz paylaşılamadı. Paylaşılan geçmiş bölümünden paylaşabilirsiniz.';
+
+  @override
+  String get consentForHistory => 'Diğer kliniklerden paylaşılan ziyaretler';
 }

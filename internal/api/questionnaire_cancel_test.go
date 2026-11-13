@@ -96,7 +96,7 @@ func newResponses(app *pgxpool.Pool, appointments *appointment.Service, question
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, clock.System{})
 	questionnaires.Service = questionnaire.NewService(questionnaire.Ports{
 		Repo: questionnaire.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clock.System{},
-		Clinics: organization.NewService(organization.NewPostgresRepository(app), audit, tx, clock.System{}),
+		Clinics: organization.NewService(organization.NewPostgresRepository(app), audit, tx, clock.System{}, nil),
 	})
 	return questionnaireresponse.NewService(questionnaireresponse.Ports{
 		Repo: questionnaireresponse.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: clock.System{},

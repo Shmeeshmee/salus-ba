@@ -33,15 +33,17 @@ type Auditor interface {
 // it is listed, its time zone, its default language), only the operator command creates one, and anyone may list the listed clinics.
 // Reads are not audited (nothing in a clinic is personal data); every write is, also when it is refused.
 type Service struct {
-	repo  Repository
-	audit Auditor
-	tx    Transactor
-	clock clock.Clock
+	repo   Repository
+	audit  Auditor
+	tx     Transactor
+	clock  clock.Clock
+	places Places
 }
 
-// NewService returns a Service on its ports.
-func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock) *Service {
-	return &Service{repo: repo, audit: audit, tx: tx, clock: clk}
+// NewService returns a Service on its ports. places checks and names a clinic's location; nil in the binaries
+// that never read or change one (their Read names no city, their Update refuses a location).
+func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock, places Places) *Service {
+	return &Service{repo: repo, audit: audit, tx: tx, clock: clk, places: places}
 }
 
 // Read returns the clinic id to a member of it, or ErrNotFound to anyone else.
@@ -62,6 +64,9 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Organization, 
 	case errors.Is(err, ErrNotFound):
 		return Organization{}, ErrNotFound
 	case err != nil:
+		return Organization{}, fmt.Errorf("organization: read: %w", err)
+	}
+	if o.CityName, err = s.cityName(ctx, o.City); err != nil {
 		return Organization{}, fmt.Errorf("organization: read: %w", err)
 	}
 	return o, nil
@@ -101,6 +106,17 @@ func (s *Service) DefaultLanguage(ctx context.Context, organizationID string) (s
 		return "", fmt.Errorf("organization: default language: %w", err)
 	}
 	return o.DefaultLanguage, nil
+}
+
+// Clinic is the clinic organizationID, for the clinic a visit is marked with (a shared visit's name and time zone,
+// SAL-42). Read like DefaultLanguage: in the clinic's scope set on the transaction in ctx, unaudited (a clinic holds
+// no personal data); ErrNotFound for none.
+func (s *Service) Clinic(ctx context.Context, organizationID string) (Organization, error) {
+	o, err := s.byID(ctx, organizationID)
+	if err != nil {
+		return Organization{}, fmt.Errorf("organization: clinic: %w", err)
+	}
+	return o, nil
 }
 
 // byID reads the clinic in its own scope, set on the transaction in ctx (joining one already there), unaudited;
@@ -197,6 +213,10 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, v
 	if ch.DefaultLanguage != nil && !slices.Contains(staffLanguages, *ch.DefaultLanguage) {
 		return Organization{}, ErrInvalidDefaultLanguage
 	}
+	cityName, err := s.checkLocation(ctx, ch)
+	if err != nil {
+		return Organization{}, err
+	}
 	if refused := refusal(c, id); refused != nil {
 		// Nothing was accessed: the event names no entity.
 		if err := s.record(ctx, c, "", auditevent.OutcomeMinorFailure); err != nil {
@@ -206,7 +226,7 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, v
 	}
 	var o Organization
 	var failed error // a refusal that is audited, and so commits
-	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.repo.SetOrganization(ctx, c.OrganizationID); err != nil {
 			return err
 		}
@@ -229,6 +249,12 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, v
 		return Organization{}, fmt.Errorf("organization: update: %w", err)
 	case failed != nil:
 		return Organization{}, failed
+	}
+	o.CityName = cityName
+	if ch.City == nil {
+		if o.CityName, err = s.cityName(ctx, o.City); err != nil {
+			return Organization{}, fmt.Errorf("organization: update: %w", err)
+		}
 	}
 	return o, nil
 }
@@ -260,6 +286,7 @@ func (s *Service) update(ctx context.Context, id string, ch Changes, version int
 	if ch.PatientTranscriptCopy != nil {
 		next.PatientTranscriptCopy = *ch.PatientTranscriptCopy
 	}
+	next = withLocation(next, ch, s.clock.Now())
 	o, err = s.repo.Update(ctx, next, s.clock.Now())
 	if errors.Is(err, ErrConflict) { // changed since the read
 		return cur, ErrConflict, nil

@@ -35,7 +35,7 @@ func NewSuggestions(pool *pgxpool.Pool, rdb *goredis.Client, model llm.Suggester
 	// Only Lookup is asked of the encounters, only State of the consents, only DefaultLanguage of the clinics.
 	encounters := encounter.NewService(encounter.Ports{Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}})
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, nil)
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{})
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil)
 	// No Records: the worker sets no practitioner's status.
 	svc := suggestion.NewService(suggestion.Ports{
 		Repo: suggestion.NewPostgresRepository(pool), Encounters: encounters, Consents: consents, Publisher: suggestion.NewRedisPublisher(rdb), Audit: audit, Tx: tx,

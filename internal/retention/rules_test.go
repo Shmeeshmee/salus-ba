@@ -322,3 +322,21 @@ func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {
 		t.Errorf("no rule for %s", table)
 	}
 }
+
+// The platform figures are kept five years after their build, then deleted (docs/plans/analytics.md §7).
+func TestRules_DeleteThePlatformFiguresFiveYearsAfterTheirBuild(t *testing.T) {
+	fiveYears := time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	found := map[string]bool{}
+	for _, r := range retention.Rules() {
+		if r.Table != "trends_cell" && r.Table != "trends_rise" {
+			continue
+		}
+		found[r.Table] = true
+		if r.Then != retention.ThenDelete || r.Keep < fiveYears || r.Keep > fiveYears+2*24*time.Hour {
+			t.Errorf("%s: %q after %v, want deleted after five calendar years", r.Table, r.Then, r.Keep)
+		}
+	}
+	if !found["trends_cell"] || !found["trends_rise"] {
+		t.Errorf("rules for %v, want trends_cell and trends_rise", found)
+	}
+}

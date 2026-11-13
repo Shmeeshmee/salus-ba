@@ -50,12 +50,18 @@ func NewFHIRHandler(svc Reader, caller func(ctx context.Context) (appointment.Ca
 	return &FHIRHandler{svc: svc, caller: caller, api: strings.TrimSuffix(base, "/fhir/R4"), log: log}
 }
 
-// Routes declares the routes on mux.
+// Routes declares the routes on mux. GET /fhir/R4/Provenance/{id} has several sources: the router asks Provenance.
 func (h *FHIRHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/Composition/{id}", h.read(h.svc.Composition, compositionOf))
 	mux.HandleFunc("GET /fhir/R4/DocumentReference/{id}", h.read(h.svc.DocumentReference, h.documentReferenceOf))
-	mux.HandleFunc("GET /fhir/R4/Provenance/{id}", h.read(h.svc.Provenance, provenanceOf))
 	mux.HandleFunc("GET /fhir/R4/DocumentReference", h.search)
+}
+
+// Provenance answers GET /fhir/R4/Provenance/{id} as a signature's Provenance, whatever the id: it audits the read
+// (a refusal too) and so is the router's last source, after those that answer only their own ids.
+func (h *FHIRHandler) Provenance(w http.ResponseWriter, r *http.Request) bool {
+	h.read(h.svc.Provenance, provenanceOf)(w, r)
+	return true
 }
 
 // search answers DocumentReference?encounter=…, the encounter given as its id or Encounter/<id>, once: its signed

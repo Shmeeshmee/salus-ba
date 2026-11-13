@@ -106,6 +106,8 @@ func (r *postgresRepository) Delete(ctx context.Context, id string, version int3
 	}
 	n, err := r.q(ctx).DeleteAllergy(ctx, allergyintolerancedb.DeleteAllergyParams{ID: u, VersionID: version})
 	switch {
+	case foreignKey(err):
+		return ErrVersionConflict // it gained a Provenance since it was read: a clinic wrote it (00053)
 	case err != nil:
 		return refusal(err)
 	case n == 0:
@@ -193,3 +195,47 @@ func instant(t time.Time) pgtype.Timestamptz {
 }
 
 func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+
+func (r *postgresRepository) InsertProvenance(ctx context.Context, p Provenance) error {
+	ids, err := uuids(p.ID, p.EntryID, p.RoleID, p.OrganizationID, p.PatientID)
+	if err != nil {
+		return err
+	}
+	return refusal(r.q(ctx).InsertAllergyProvenance(ctx, allergyintolerancedb.InsertAllergyProvenanceParams{
+		ID: ids[0], Recorded: instant(p.Recorded), AllergyIntoleranceID: ids[1], PractitionerRoleID: ids[2], OrganizationID: ids[3],
+		PatientID: ids[4], TargetVersion: p.Version, Activity: p.Activity, AgentType: p.AgentType,
+	}))
+}
+
+func (r *postgresRepository) Provenance(ctx context.Context, id string) (Provenance, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Provenance{}, ErrNotFound
+	}
+	row, err := r.q(ctx).AllergyProvenanceByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Provenance{}, ErrNotFound
+	case err != nil:
+		return Provenance{}, err
+	}
+	return Provenance{
+		Recorded: row.Recorded.Time.UTC(), ID: row.ID.String(), EntryID: row.AllergyIntoleranceID.String(),
+		RoleID: idOf(row.PractitionerRoleID), OrganizationID: idOf(row.OrganizationID), PatientID: idOf(row.PatientID),
+		Activity: row.Activity, AgentType: row.AgentType, Version: row.TargetVersion,
+	}, nil
+}
+
+func (r *postgresRepository) HasProvenance(ctx context.Context, id string) (bool, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return false, nil
+	}
+	return r.q(ctx).AllergyHasProvenance(ctx, u)
+}
+
+// foreignKey reports whether err is a foreign key violation.
+func foreignKey(err error) bool {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	return ok && pgErr.Code == "23503"
+}
