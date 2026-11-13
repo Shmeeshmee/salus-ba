@@ -207,25 +207,48 @@ func (r *postgresRepository) AppointmentSettings(ctx context.Context, org string
 		ReminderOffsetsMinutes: offsets, SMSReminders: row.SmsReminders, RescheduleNoticeHours: int(row.RescheduleNoticeHours),
 		RescheduleMax: int(row.RescheduleMax), WaitlistEnabled: row.WaitlistEnabled, WaitlistHoldMinutes: int(row.WaitlistHoldMinutes),
 		NoShowFlagThreshold: int(row.NoshowFlagThreshold), NoShowFlagWindowDays: int(row.NoshowFlagWindowDays),
+		Version: int(row.Version),
 	}, true, nil
 }
 
-func (r *postgresRepository) PutAppointmentSettings(ctx context.Context, org string, s AppointmentSettings, at time.Time) error {
+// PutAppointmentSettings inserts the clinic's first settings when s was read at version 0, and otherwise replaces
+// the row still at s.Version. No row back is a save that came first: the insert's conflict, or the update finding
+// the row one version on (a concurrent update waits for the first one's commit, then re-reads the version).
+func (r *postgresRepository) PutAppointmentSettings(ctx context.Context, org string, s AppointmentSettings, at time.Time) (int, error) {
 	var u pgtype.UUID
 	if u.Scan(org) != nil {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	offsets := make([]int32, len(s.ReminderOffsetsMinutes))
 	for i, m := range s.ReminderOffsetsMinutes {
 		offsets[i] = int32(m)
 	}
-	return r.q(ctx).PutAppointmentSettings(ctx, organizationdb.PutAppointmentSettingsParams{
-		OrganizationID: u, ReminderOffsetsMinutes: offsets, SmsReminders: s.SMSReminders,
-		RescheduleNoticeHours: int32(s.RescheduleNoticeHours), RescheduleMax: int32(s.RescheduleMax),
-		WaitlistEnabled: s.WaitlistEnabled, WaitlistHoldMinutes: int32(s.WaitlistHoldMinutes),
-		NoshowFlagThreshold: int32(s.NoShowFlagThreshold), NoshowFlagWindowDays: int32(s.NoShowFlagWindowDays),
-		UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
-	})
+	var version int32
+	var err error
+	if s.Version == 0 {
+		version, err = r.q(ctx).InsertAppointmentSettings(ctx, organizationdb.InsertAppointmentSettingsParams{
+			OrganizationID: u, ReminderOffsetsMinutes: offsets, SmsReminders: s.SMSReminders,
+			RescheduleNoticeHours: int32(s.RescheduleNoticeHours), RescheduleMax: int32(s.RescheduleMax),
+			WaitlistEnabled: s.WaitlistEnabled, WaitlistHoldMinutes: int32(s.WaitlistHoldMinutes),
+			NoshowFlagThreshold: int32(s.NoShowFlagThreshold), NoshowFlagWindowDays: int32(s.NoShowFlagWindowDays),
+			UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+		})
+	} else {
+		version, err = r.q(ctx).UpdateAppointmentSettings(ctx, organizationdb.UpdateAppointmentSettingsParams{
+			OrganizationID: u, ReminderOffsetsMinutes: offsets, SmsReminders: s.SMSReminders,
+			RescheduleNoticeHours: int32(s.RescheduleNoticeHours), RescheduleMax: int32(s.RescheduleMax),
+			WaitlistEnabled: s.WaitlistEnabled, WaitlistHoldMinutes: int32(s.WaitlistHoldMinutes),
+			NoshowFlagThreshold: int32(s.NoShowFlagThreshold), NoshowFlagWindowDays: int32(s.NoShowFlagWindowDays),
+			UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, Version: int32(s.Version),
+		})
+	}
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return 0, ErrSettingsChanged
+	case err != nil:
+		return 0, err
+	}
+	return int(version), nil
 }
 
 // foreignKeyViolation reports whether err is Postgres refusing a location that is not a city of a leaf region

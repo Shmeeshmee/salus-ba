@@ -7,7 +7,7 @@ set -euo pipefail
 floor=80
 module=$(go list -m)
 
-go test -coverprofile=coverage.raw ./...
+go test -p "${TEST_PACKAGES:-8}" -coverprofile=coverage.raw ./... # the cap of the Makefile's GO_TEST
 
 excluded=$(for f in cmd/*/main.go; do echo "${module}/${f}"; done)
 generated=$(for d in internal/*/; do n=$(basename "$d"); [ -d "${d}${n}db" ] && echo "${module}/${d}${n}db"; done || true)

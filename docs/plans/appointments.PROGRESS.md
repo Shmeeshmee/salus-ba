@@ -314,3 +314,52 @@ After SAL-33, SAL-34 and SAL-35 merged: the no-show port uses main's `Ports.Rule
 waiting for the owner); the waitlist e2e journey now checks that the real acceptance's appointment is counted as a slot
 refilled in the clinic's statistics. Still a follow-up: the flag in the calendar's week view (`Calendar.tsx` has no API
 client; it needs one passed from `App.tsx` and one flags request per week).
+
+## Post-appointments gaps (branch `fix/post-appointments-gaps`, migration 00058 as a placeholder)
+
+**Versioned settings saves.** `organization_appointment_settings.version` (00058): 1 on the first save, one up with
+each. `GET /clinic/appointment-settings` sends it as `ETag: W/"<version>"` (`W/"0"` while none is stored); `PUT`
+needs `If-Match` (400 `invalid_request` without it, as the other versioned JSON endpoints) and answers 412
+`version_conflict` when another save came first: an insert `ON CONFLICT DO NOTHING` for version 0, an
+`UPDATE … WHERE version = $n` otherwise, both `RETURNING version`, no row meaning stale. Two concurrent saves at one
+version leave exactly one stored, the other 412 (`TestNew_ConcurrentAppointmentSettingsSavesLeaveOneWinner`, through
+`api.New`; `TestAppointmentSettings_ConcurrentSavesLeaveOneWinner`, eight at once through the service on the real
+database). The web sections (`appointmentSettings.ts`) read the settings again with their version, refuse when a
+field of their own changed since they showed it, and PUT with If-Match: another section's save is kept, someone
+else's save of the same fields shows "Settings were changed by someone else — reload the page." (five staff
+languages, `appointments.settingsConflict`) and the form keeps what was entered.
+
+**The no-show flag in the week view.** `Calendar.tsx` gets the API client from `App.tsx` and asks
+`GET /clinic/noshow-flags` once per week shown (`useNoShowFlags`); a flagged card carries the day view's tag, its
+detail in the title (a link holds nothing focusable). A failed read shows the week without flags.
+
+**Flaky tests, by cause.**
+
+| Test | Cause | Fix |
+| --- | --- | --- |
+| `TestAttachments_ThePatientAttachesFilesAndThePractitionerOpensThem` (`GET /binaries/{id} = 404` in several local e2e runs on 2026-11-13) | The status read checks the row, then the response's files, in two statements under READ COMMITTED; the EICAR file's scan rejects and detaches it in one commit, which could land between them: quarantined row, no longer listed, 404 | `binary.listed` reads a file no longer listed again and answers it when it was rejected meanwhile (`TestStatus_AnswersAFileRejectedWhileItIsRead`) |
+| `TestLockCare_MakesARevocationWaitForTheGrantAndEndIt` | Its own lock-wait loop gave up after 2 s; under the whole suite the revoking goroutine needs longer to get a connection and reach the lock | `pgtest.WaitForLockWait` (30 s, the shared helper); 30 runs with `-race` pass |
+| The `cmd/*` start-up tests (`run did not log started within 15 s`, `postgres: ping`), and `make arch-gate` failing on its first run only | `go test ./...` runs one package per CPU: on this 28-CPU host the uncached suite needed more than Postgres's 400 connections, so whichever test connected at the peak failed (53300, or a ping that waited past the deadline). The second run passed because the passing packages were cached | `make test`, `make arch-gate` and `make cover` run at most `TEST_PACKAGES` (8) packages at once |
+| `TestAppointmentsContract_SchemasMatchTheGoTypes` (found on the way) | `jsonFields` counted a `json:"-"` field | skipped, as `encoding/json` does |
+
+Measured on the 28-CPU host, the uncached suite of both modules, the compose Postgres sampled every 0.5 s (another
+session's stack shared the host, so the times are noisy):
+
+| `-p` | Peak connections | Failed tests | Wall time |
+| --- | --- | --- | --- |
+| 28 (default) | 394 of 400 | 3 (53300) | 190 s |
+| 12 | 167 | 0 | 244 s |
+| 8 | 212 | 0 | 234 s |
+
+No test was quarantined.
+
+**Config defaults.** `config.LoadWebhookKey` (the api and the worker): `WEBHOOK_KEY` or its file, base64 of 32 bytes;
+missing, the start-up fails unless `SALUS_ENV=dev`, which generates one for the process (the compose stack sets one
+key for both, and `SALUS_ENV: dev`). `config.LoadRetentionPolicy` (the worker), pending lawyer L1–L3:
+`RETENTION_CLINICAL_DATA` takes only `keep` (no automatic deletion of clinical data; `retention.NewService` refuses any
+other policy), `RETENTION_OPERATIONAL_LOG_DAYS` 90 by default for `appointment_reminder` and `notification_delivery`.
+L1–L3 are not numbered in `docs/legal/BRIEF.md` (its retention questions are Q1 to Q7): the owner to confirm which
+questions they are.
+
+**SMS.** The port existed (`pkg/sms.Sender`, the fake in `smstest`). `config.LoadSMS` names `infobip` and refuses it
+until Infobip's DPA is in `docs/privacy/processors.md` and its adapter is written; no request is made.

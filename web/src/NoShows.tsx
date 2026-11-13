@@ -3,6 +3,7 @@ import type { ApiClient } from './api/client'
 import type { AppointmentStatus } from './api/fhir'
 import { attempt } from './api/result'
 import { useT } from './i18n/useT'
+import type { Flag } from './noShowFlags'
 import { Alert, Confirm, TipTag } from './ui'
 
 type T = ReturnType<typeof useT>
@@ -72,7 +73,19 @@ function correctionMessage(t: T, code?: string): string {
   return t('common.somethingWrong')
 }
 
-type Flag = { noshows: number; window_days: number }
+
+
+// NoShowTag is a flag of useNoShowFlags as a tag inside a calendar card, which is a link: the detail in its title,
+// not a focusable tooltip, as nothing focusable may sit inside a link.
+export function NoShowTag({ flag }: { flag?: Flag }) {
+  const t = useT()
+  if (!flag) return null
+  return (
+    <span className="tag noshow-flag" title={t('calendar.noshow.flagTip', { count: flag.noshows, days: flag.window_days })}>
+      {t('calendar.noshow.flag', { count: flag.noshows })}
+    </span>
+  )
+}
 
 // NoShowFlag shows staff how often the appointment's patient missed appointments at the clinic lately, when the
 // clinic's rule is on and they reached its threshold (GET /clinic/noshow-flags, SAL-36, Q7): a tag, with the detail

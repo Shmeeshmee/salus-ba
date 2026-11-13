@@ -717,6 +717,7 @@ type OrganizationAppointmentSetting struct {
 	WaitlistHoldMinutes    int32
 	NoshowFlagThreshold    int32
 	NoshowFlagWindowDays   int32
+	Version                int32
 }
 
 type OrganizationChatSetting struct {

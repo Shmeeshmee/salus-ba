@@ -10,6 +10,10 @@ import (
 // rule or apply one to the wrong table.
 var ErrNoApplier = errors.New("retention: a rule that removes rows has no applier, or an applier has no such rule")
 
+// ErrClinicalDeletion is returned by NewService for a policy that does not keep clinical data: no automatic deletion
+// of it, pending lawyer L1–L3.
+var ErrClinicalDeletion = errors.New("retention: the policy does not keep clinical data")
+
 // OverdueError reports rows past their period that nothing can remove yet (audit_event before its range
 // removal exists). It carries the table and the count, never the rows.
 type OverdueError struct {

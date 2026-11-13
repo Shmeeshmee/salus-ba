@@ -9,7 +9,7 @@ import (
 
 func TestRules_AreCompleteAndNameEachTableOnce(t *testing.T) {
 	seen := map[string]bool{}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "" || r.Basis == "" || r.Then == "" {
 			t.Errorf("rule %+v: want a table, a basis and what happens then", r)
 		}
@@ -40,7 +40,7 @@ func TestRules_AreCompleteAndNameEachTableOnce(t *testing.T) {
 }
 
 func TestRules_KeepAuditEventsTenYearsThenRemoveThemByRange(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table != "audit_event" {
 			continue
 		}
@@ -56,7 +56,7 @@ func TestRules_KeepAuditEventsTenYearsThenRemoveThemByRange(t *testing.T) {
 }
 
 func TestRules_KeepAccountsWhileTheyExist(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "account" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("account then %q, want %q", r.Then, retention.ThenKeep)
@@ -68,7 +68,7 @@ func TestRules_KeepAccountsWhileTheyExist(t *testing.T) {
 }
 
 func TestRules_DeleteSessionsThirtyDaysAfterTheyEnd(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "session" {
 			if r.Then != retention.ThenDelete || r.Keep != 30*24*time.Hour {
 				t.Errorf("session kept %v then %q, want 30 days then %q", r.Keep, r.Then, retention.ThenDelete)
@@ -81,7 +81,7 @@ func TestRules_DeleteSessionsThirtyDaysAfterTheyEnd(t *testing.T) {
 
 func TestRules_RestrictPractitionersAndTheirRolesAfterTheyLeave(t *testing.T) {
 	want := map[string]bool{"practitioner": true, "practitioner_role": true}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if !want[r.Table] {
 			continue
 		}
@@ -96,7 +96,7 @@ func TestRules_RestrictPractitionersAndTheirRolesAfterTheyLeave(t *testing.T) {
 }
 
 func TestRules_DeleteInvitesThirtyDaysAfterTheyEnd(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "invite" {
 			if r.Then != retention.ThenDelete || r.Keep != 30*24*time.Hour {
 				t.Errorf("invite kept %v then %q, want 30 days then %q", r.Keep, r.Then, retention.ThenDelete)
@@ -108,7 +108,7 @@ func TestRules_DeleteInvitesThirtyDaysAfterTheyEnd(t *testing.T) {
 }
 
 func TestRules_KeepPatientsWhileTheAccountExists(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "patient" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("patient then %q, want %q", r.Then, retention.ThenKeep)
@@ -120,7 +120,7 @@ func TestRules_KeepPatientsWhileTheAccountExists(t *testing.T) {
 }
 
 func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "consent" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("consent then %q, want %q", r.Then, retention.ThenKeep)
@@ -132,7 +132,7 @@ func TestRules_KeepConsentsWithTheClinicalRecord(t *testing.T) {
 }
 
 func TestRules_KeepTranscriptionConsentsWithTheClinicalRecord(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "transcription_consent" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("transcription_consent then %q, want %q", r.Then, retention.ThenKeep)
@@ -144,7 +144,7 @@ func TestRules_KeepTranscriptionConsentsWithTheClinicalRecord(t *testing.T) {
 }
 
 func TestRules_KeepAppointmentsWithTheClinicalRecord(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "appointment" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("appointment then %q, want %q", r.Then, retention.ThenKeep)
@@ -160,7 +160,7 @@ func TestRules_RestrictSchedulesAndDeleteFreeSlotsThirtyDaysAfterTheyEnd(t *test
 		"schedule": {Table: "schedule", Then: retention.ThenRestrict},
 		"slot":     {Table: "slot", Then: retention.ThenDelete, Keep: 30 * 24 * time.Hour},
 	}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if w, ok := want[r.Table]; ok {
 			if r.Then != w.Then || r.Keep != w.Keep {
 				t.Errorf("%s then %q after %v, want %q after %v", r.Table, r.Then, r.Keep, w.Then, w.Keep)
@@ -176,7 +176,7 @@ func TestRules_RestrictSchedulesAndDeleteFreeSlotsThirtyDaysAfterTheyEnd(t *test
 // An unsubmitted questionnaire response is deleted once its due time (the appointment's start) has passed; a
 // completed one is the purger's to keep (docs/questionnaire/SPEC.md §5).
 func TestRules_DeleteQuestionnaireResponsesOnceDue(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "questionnaire_response" {
 			if r.Then != retention.ThenDelete || r.Keep != 0 {
 				t.Errorf("questionnaire_response then %q after %v, want %q at once", r.Then, r.Keep, retention.ThenDelete)
@@ -191,7 +191,7 @@ func TestRules_DeleteQuestionnaireResponsesOnceDue(t *testing.T) {
 // rejected row, and an object without a row, are deleted 24 h on by binary's purger (docs/attachments/SPEC.md
 // §5 "Retention").
 func TestRules_DeleteRejectedBinariesAfterTwentyFourHours(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "binary" {
 			if r.Then != retention.ThenDelete || r.Keep != 24*time.Hour {
 				t.Errorf("binary then %q after %v, want %q after 24 h", r.Then, r.Keep, retention.ThenDelete)
@@ -206,7 +206,7 @@ func TestRules_DeleteRejectedBinariesAfterTwentyFourHours(t *testing.T) {
 // (docs/plans/consult-intelligence.md, "Personal data").
 func TestRules_KeepTheConsultationsTranscriptSuggestionsAndDrafts(t *testing.T) {
 	want := map[string]bool{"transcript_segment": true, "suggestion": true, "document_draft": true}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if !want[r.Table] {
 			continue
 		}
@@ -223,7 +223,7 @@ func TestRules_KeepTheConsultationsTranscriptSuggestionsAndDrafts(t *testing.T) 
 // The term list's reviews name the reviewer's account (00037): kept with the term, as the account is.
 func TestRules_KeepTheTermListsReviewsWithTheirReviewer(t *testing.T) {
 	want := map[string]bool{"term": true, "term_translation": true, "term_explanation": true}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if !want[r.Table] {
 			continue
 		}
@@ -240,7 +240,7 @@ func TestRules_KeepTheTermListsReviewsWithTheirReviewer(t *testing.T) {
 // The reviewer permission (00039) is kept while the operator grants it: revoking it, or deleting the account,
 // deletes the row.
 func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "term_reviewer" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("term_reviewer then %q, want %q", r.Then, retention.ThenKeep)
@@ -255,7 +255,7 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 // they are kept as long (docs/plans/analytics.md §7).
 func TestRules_KeepTheClinicStatisticsWithTheirSources(t *testing.T) {
 	found := 0
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "clinic_appointment_stat" || r.Table == "clinic_diagnosis_stat" {
 			found++
 			if r.Then != retention.ThenKeep {
@@ -277,7 +277,7 @@ func TestRules_KeepDevicesAndWebhooksWhileRegisteredAndDeadLettersThirtyDays(t *
 		"webhook_endpoint":    {Then: retention.ThenKeep},
 		"webhook_dead_letter": {Then: retention.ThenDelete, Keep: 30 * 24 * time.Hour},
 	}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		w, ok := want[r.Table]
 		if !ok {
 			continue
@@ -293,7 +293,7 @@ func TestRules_KeepDevicesAndWebhooksWhileRegisteredAndDeadLettersThirtyDays(t *
 }
 
 func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table == "chat_consent" {
 			if r.Then != retention.ThenKeep {
 				t.Errorf("chat_consent then %q, want %q", r.Then, retention.ThenKeep)
@@ -309,7 +309,7 @@ func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
 // the history consent and its selections as proof of what was shared when (Art. 7(1)).
 func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {
 	want := map[string]bool{"allergy_intolerance": true, "medication_statement": true, "history_consent": true, "history_consent_encounter": true}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if !want[r.Table] {
 			continue
 		}
@@ -327,7 +327,7 @@ func TestRules_KeepThePatientHistoryWithTheClinicalRecord(t *testing.T) {
 func TestRules_DeleteThePlatformFiguresFiveYearsAfterTheirBuild(t *testing.T) {
 	fiveYears := time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC).Sub(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	found := map[string]bool{}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Table != "trends_cell" && r.Table != "trends_rise" {
 			continue
 		}
@@ -349,7 +349,7 @@ func TestRules_DeleteRemindersAndDeliveriesAfterNinetyDaysAndKeepThePreferences(
 		"notification_delivery":   {Then: retention.ThenDelete, Keep: 90 * 24 * time.Hour},
 		"notification_preference": {Then: retention.ThenKeep},
 	}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		w, ok := want[r.Table]
 		if !ok {
 			continue
@@ -361,5 +361,32 @@ func TestRules_DeleteRemindersAndDeliveriesAfterNinetyDaysAndKeepThePreferences(
 	}
 	for table := range want {
 		t.Errorf("no rule for %s", table)
+	}
+}
+
+// The policy decides, pending lawyer L1–L3: the clinical tables are kept (no automatic deletion), and the operational
+// logs are deleted after its period.
+func TestRules_FollowThePolicy(t *testing.T) {
+	clinical := []string{"encounter", "condition", "allergy_intolerance", "medication_statement", "allergy_intolerance_provenance",
+		"medication_statement_provenance", "document_draft", "transcript_segment", "appointment", "appointment_change"}
+	logs := []string{"appointment_reminder", "notification_delivery"}
+	policy := retention.DefaultPolicy()
+	if policy.ClinicalData != retention.ThenKeep || policy.OperationalLogs != 90*24*time.Hour {
+		t.Fatalf("DefaultPolicy() = %+v, want keep and 90 days", policy)
+	}
+	policy.OperationalLogs = 120 * 24 * time.Hour
+	rules := map[string]retention.Rule{}
+	for _, r := range retention.Rules(policy) {
+		rules[r.Table] = r
+	}
+	for _, table := range clinical {
+		if r, ok := rules[table]; !ok || r.Then != retention.ThenKeep || r.Keep != 0 {
+			t.Errorf("%s: %+v, want kept with no period", table, r)
+		}
+	}
+	for _, table := range logs {
+		if r, ok := rules[table]; !ok || r.Then != retention.ThenDelete || r.Keep != policy.OperationalLogs {
+			t.Errorf("%s: %+v, want deleted after the policy's %v", table, r, policy.OperationalLogs)
+		}
 	}
 }

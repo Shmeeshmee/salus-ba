@@ -26,6 +26,17 @@ const (
 	ThenRestrict Then = "restrict"
 )
 
+// Policy is what the environment decides of the rules (config.LoadRetentionPolicy). Pending lawyer L1–L3: clinical
+// data is kept, never deleted automatically (NewService refuses anything else), and the operational logs are kept
+// 90 days by default.
+type Policy struct {
+	ClinicalData    Then          // the clinical tables' (clinicalTables): ThenKeep only
+	OperationalLogs time.Duration // the operational logs' period (operationalLogTables)
+}
+
+// DefaultPolicy keeps clinical data and the operational logs 90 days.
+func DefaultPolicy() Policy { return Policy{ClinicalData: ThenKeep, OperationalLogs: 90 * day} }
+
 // Rule is the retention of one table.
 type Rule struct {
 	Table string        // the table, as in ownership.yaml

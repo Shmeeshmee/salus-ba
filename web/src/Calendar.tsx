@@ -1,21 +1,23 @@
 import { useState, type ReactNode } from 'react'
-import type { Account } from './api/client'
+import type { ApiClient, Account } from './api/client'
 import { participant, type Appointment, type Bundle, type FhirClient } from './api/fhir'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
 import { PractitionerPicker } from './PractitionerPicker'
+import { NoShowTag } from './NoShows'
+import { useNoShowFlags, type Flag } from './noShowFlags'
 import { navigate } from './route'
 import { loadStaff, loadTimeZone } from './staff'
 import { addDays, dayIn, sameDay, startOfDay, weekOf, type Day } from './time'
 import { Alert, Link } from './ui'
 
-type Props = { fhir: FhirClient; account: Account; now?: () => Date }
+type Props = { api: ApiClient; fhir: FhirClient; account: Account; now?: () => Date }
 
 // Calendar is a practitioner's week, Monday to Sunday in the clinic's time zone: their own, or, for an admin,
-// the practitioner they pick.
-export function Calendar({ fhir, account, now = () => new Date() }: Props) {
+// the practitioner they pick. Staff see the repeat no-show flag on an appointment, as in the day view (SAL-36).
+export function Calendar({ api, fhir, account, now = () => new Date() }: Props) {
   const t = useT()
   const organizationId = account.organizationId ?? ''
   const admin = account.role === 'admin'
@@ -61,7 +63,7 @@ export function Calendar({ fhir, account, now = () => new Date() }: Props) {
         <p className="muted small">{t('calendar.timesIn', { zone })}</p>
       </div>
       {practitionerId ? (
-        <Week fhir={fhir} practitionerId={practitionerId} start={start} zone={zone} now={now} joins={account.role === 'practitioner'} />
+        <Week api={api} fhir={fhir} practitionerId={practitionerId} start={start} zone={zone} now={now} joins={account.role === 'practitioner'} />
       ) : (
         <p className="muted">{t('common.noPractitioners')}</p>
       )}
@@ -80,9 +82,9 @@ function Panel({ children }: { children: ReactNode }) {
 }
 
 // joins: the signed-in practitioner sees the join button on their own appointments; an admin cannot join.
-type WeekProps = { fhir: FhirClient; practitionerId: string; start: Day; zone: string; now: () => Date; joins: boolean }
+type WeekProps = { api: ApiClient; fhir: FhirClient; practitionerId: string; start: Day; zone: string; now: () => Date; joins: boolean }
 
-function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
+function Week({ api, fhir, practitionerId, start, zone, now, joins }: WeekProps) {
   const t = useT()
   const f = useFormat()
   const from = startOfDay(start, zone)
@@ -95,6 +97,7 @@ function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
     return (bundle.entry ?? []).map((e) => e.resource).sort((a, b) => a.start.localeCompare(b.start))
   }, [fhir, practitionerId, from.getTime(), to.getTime()])
   const at = useNow(now)
+  const flags = useNoShowFlags(api, from, to)
 
   if (state.name === 'loading') return <p className="muted">{t('common.loading')}</p>
   if (state.name === 'failed') return <Alert message={t('calendar.loadFailed')} />
@@ -113,7 +116,7 @@ function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
             <section key={`${day.year}-${day.month}-${day.day}`} className={classes} aria-label={label}>
               <h2>{label}</h2>
               {appts.map((a) => (
-                <Card key={a.id} appt={a} zone={zone} now={at} joins={joins} />
+                <Card key={a.id} appt={a} zone={zone} now={at} joins={joins} flag={flags.get(a.id)} />
               ))}
             </section>
           )
@@ -123,7 +126,9 @@ function Week({ fhir, practitionerId, start, zone, now, joins }: WeekProps) {
   )
 }
 
-function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now: Date; joins: boolean }) {
+type CardProps = { appt: Appointment; zone: string; now: Date; joins: boolean; flag?: Flag }
+
+function Card({ appt, zone, now, joins, flag }: CardProps) {
   const t = useT()
   const f = useFormat()
   const start = new Date(appt.start)
@@ -138,6 +143,7 @@ function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now
       {name && <span className="appt-name">{name}</span>}
       {appt.status !== 'booked' && <span className="tag">{t(`calendar.status.${appt.status}`)}</span>}
       <ConfirmationTag appt={appt} />
+      <NoShowTag flag={flag} />
       {current && <span className="now">{t('calendar.now')}</span>}
     </Link>
   )

@@ -45,8 +45,10 @@ x-objectstore-env: &objectstore-env
 
 # The clinics' webhook secrets are sealed with WEBHOOK_KEY (SAL-29): only the api (which seals a new one) and the
 # worker (which delivers) load it. Synthetic, local only; production's is the root-only key file on the encrypted
-# volume (WEBHOOK_KEY_FILE, ADR 0011).
+# volume (WEBHOOK_KEY_FILE, ADR 0011). SALUS_ENV=dev: without the key they would generate one each (config.LoadWebhookKey),
+# which the other could not open, so the stack sets this one for both; outside dev a missing key stops them.
 x-webhook-env: &webhook-env
+  SALUS_ENV: dev
   WEBHOOK_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk= # base64 of 32 synthetic bytes
 
 x-host-user: &host-user

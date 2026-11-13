@@ -103,22 +103,23 @@ func TestLoadPush_RefusesAHalfConfiguration(t *testing.T) {
 	}
 }
 
-// WEBHOOK_KEY seals the clinics' webhook secrets: base64, from the variable or from the file WEBHOOK_KEY_FILE names.
-func TestLoad_ReadsTheWebhookKeyFromTheVariableOrItsFile(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://synthetic")
+// WEBHOOK_KEY seals the clinics' webhook secrets: base64, from the variable or from the file WEBHOOK_KEY_FILE names
+// (LoadWebhookKey, which the api and the worker call; Load leaves the key to it).
+func TestLoadWebhookKey_ReadsTheKeyFromTheVariableOrItsFile(t *testing.T) {
+	t.Setenv("SALUS_ENV", "production")
 	t.Setenv("WEBHOOK_KEY", "c3ludGhldGljIDMyLWJ5dGUgd2ViaG9vayBrZXkhISE=")
-	cfg, err := config.Load()
-	if err != nil || string(cfg.WebhookKey) != "synthetic 32-byte webhook key!!!" {
-		t.Fatalf("Load() = %q, %v", cfg.WebhookKey, err)
+	key, err := config.LoadWebhookKey()
+	if err != nil || string(key) != "synthetic 32-byte webhook key!!!" {
+		t.Fatalf("LoadWebhookKey() = %q, %v", key, err)
 	}
 	t.Setenv("WEBHOOK_KEY", "")
 	t.Setenv("WEBHOOK_KEY_FILE", keyFile(t, "c3ludGhldGljIDMyLWJ5dGUgd2ViaG9vayBrZXkhISE=\n"))
-	if cfg, err = config.Load(); err != nil || string(cfg.WebhookKey) != "synthetic 32-byte webhook key!!!" {
-		t.Errorf("Load() from the file = %q, %v", cfg.WebhookKey, err)
+	if key, err = config.LoadWebhookKey(); err != nil || string(key) != "synthetic 32-byte webhook key!!!" {
+		t.Errorf("LoadWebhookKey() from the file = %q, %v", key, err)
 	}
 	t.Setenv("WEBHOOK_KEY_FILE", "")
 	t.Setenv("WEBHOOK_KEY", "not base64!")
-	if _, err := config.Load(); err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") || strings.Contains(err.Error(), "not base64!") {
-		t.Errorf("Load(bad key) = %v", err)
+	if _, err := config.LoadWebhookKey(); err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") || strings.Contains(err.Error(), "not base64!") {
+		t.Errorf("LoadWebhookKey(bad key) = %v", err)
 	}
 }

@@ -46,13 +46,14 @@ func (w *retentionWorker) Work(ctx context.Context, _ *river.Job[RetentionApplyA
 
 // newRetention builds the retention service: the purgers of the delete rules on retentionPool (salus_retention
 // may delete those tables' rows, past row-level security), binary's also on the object store, and the audit
-// check on pool (salus_app may read audit_event; salus_retention may not). It fails when a rule has no applier.
-func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store) (*retention.Service, error) {
+// check on pool (salus_app may read audit_event; salus_retention may not), on the policy's rules
+// (config.LoadRetentionPolicy). It fails when a rule has no applier or the policy deletes clinical data.
+func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store, policy retention.Policy) (*retention.Service, error) {
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), postgres.NewTransactor(pool), clock.System{})
 	accounts := auth.NewPostgresRepository(retentionPool)
 	figures := trends.NewPostgresRepository(retentionPool)
 	waitlist := appointment.NewPostgresWaitlistRepository(retentionPool)
-	return retention.NewService(map[string]retention.Purger{
+	return retention.NewService(policy, map[string]retention.Purger{
 		"session":                  auth.NewSessionPurger(accounts),
 		"invite":                   auth.NewInvitePurger(accounts),
 		"slot":                     slot.NewPurger(slot.NewPostgresRepository(retentionPool)),

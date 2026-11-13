@@ -119,7 +119,7 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 			g, err = s.Holder.Readable(ctx, c, b.ResponseID)
 		}
 		if err == nil {
-			err = s.listed(ctx, b)
+			b, err = s.listed(ctx, b)
 		}
 		switch {
 		case errors.Is(err, ErrNotFound):
@@ -146,22 +146,33 @@ func (s *Service) read(ctx context.Context, c Caller, id string, check func(Bina
 	return out, g, nil
 }
 
-// listed is ErrNotFound when b's response no longer lists it (its answer dropped on submit, or the response
-// withdrawn): such a file waits for binary_discard and is read by nobody. A rejected file is detached by its scan
-// and has no key or object left: its status stays readable, so the patient's app can show M7, and Download refuses
-// it anyway because it is not clean.
-func (s *Service) listed(ctx context.Context, b Binary) error {
+// listed returns b when its response still lists it, and ErrNotFound when it does not (its answer dropped on
+// submit, or the response withdrawn): such a file waits for binary_discard and is read by nobody. A rejected file is
+// detached by its scan and has no key or object left: its status stays readable, so the patient's app can show M7,
+// and Download refuses it anyway because it is not clean. The scan rejects and detaches in one commit, but each
+// statement here reads its own snapshot (READ COMMITTED): a file b showed quarantined may be detached by the time
+// its response is read, so one no longer listed is read again, and returned when it was rejected meanwhile.
+func (s *Service) listed(ctx context.Context, b Binary) (Binary, error) {
 	if b.Status == StatusRejected {
-		return nil
+		return b, nil
 	}
 	ids, err := s.Holder.Attached(ctx, b.ResponseID)
 	switch {
 	case err != nil:
-		return err
-	case !slices.Contains(ids, b.ID):
-		return ErrNotFound
+		return Binary{}, err
+	case slices.Contains(ids, b.ID):
+		return b, nil
 	}
-	return nil
+	again, err := s.Repo.ByID(ctx, b.ID)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Binary{}, ErrNotFound
+	case err != nil:
+		return Binary{}, err
+	case again.Status == StatusRejected:
+		return again, nil
+	}
+	return Binary{}, ErrNotFound
 }
 
 // Delete deletes the file id, as the patient while they may still change the response's answers
