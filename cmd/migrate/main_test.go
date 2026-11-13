@@ -101,9 +101,6 @@ func roleSecret(t *testing.T, dbURL, role string) string {
 
 func TestRun_UpSetsTheAppRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
-	// up sets the password on this test's database, out of reach of the lock every other package's Main takes
-	// on the server's: hold that lock too, so they wait instead of failing.
-	pgtest.HoldRoleLock(t)
 	// The role is cluster-wide: set the value every other test package uses, or their logins would break.
 	password := os.Getenv("TEST_APP_DATABASE_PASSWORD")
 	if password == "" {
@@ -137,9 +134,6 @@ func TestRun_UpSetsTheAppRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 
 func TestRun_UpSetsTheRetentionRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
-	// up sets the password on this test's database, out of reach of the lock every other package's Main takes
-	// on the server's: hold that lock too, so they wait instead of failing.
-	pgtest.HoldRoleLock(t)
 	// Cluster-wide, like salus_app: the value every other test package logs in with.
 	password := os.Getenv("TEST_RETENTION_DATABASE_PASSWORD")
 	if password == "" {
@@ -172,9 +166,6 @@ func TestRun_UpSetsTheRetentionRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 
 func TestRun_UpSetsTheStatsRolePasswordAndTheRoleCanLogIn(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
-	// up sets the password on this test's database, out of reach of the lock every other package's Main takes
-	// on the server's: hold that lock too, so they wait instead of failing.
-	pgtest.HoldRoleLock(t)
 	// Cluster-wide, like salus_app: the value every other test package logs in with.
 	password := os.Getenv("TEST_STATS_DATABASE_PASSWORD")
 	if password == "" {

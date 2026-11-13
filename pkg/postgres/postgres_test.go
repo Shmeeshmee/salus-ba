@@ -318,6 +318,35 @@ func TestSetPassword_ManyCallersOnTheirOwnConnectionsAllSucceed(t *testing.T) {
 	}
 }
 
+// An advisory lock belongs to one database and a role to the cluster, so callers on different databases (each
+// test package's, cmd/migrate's own) are not ordered by the lock and meet on the role's row; none may fail (seen:
+// "tuple concurrently updated", SQLSTATE XX000, in cmd/migrate, cmd/notifier and internal/schedule).
+func TestSetPassword_CallersOnDifferentDatabasesAllSucceed(t *testing.T) {
+	t.Parallel()
+	const databases = 8
+	pools := make([]*pgxpool.Pool, databases)
+	for i := range pools {
+		pools[i] = pgtest.NewDatabase(t)
+	}
+	role := newRole(t, pools[0])
+	for round := range 20 {
+		start := make(chan struct{})
+		errs := make(chan error, databases)
+		for _, pool := range pools {
+			go func() {
+				<-start
+				errs <- postgres.SetPassword(t.Context(), pool, role, "synthetic")
+			}()
+		}
+		close(start)
+		for range databases {
+			if err := <-errs; err != nil {
+				t.Fatalf("round %d: SetPassword() error = %v", round, err)
+			}
+		}
+	}
+}
+
 func TestSetPassword_ErrorDoesNotEchoThePassword(t *testing.T) {
 	t.Parallel()
 	pool := pgtest.NewDatabase(t)
