@@ -26,6 +26,7 @@
   "inviteForbidden": "Only a clinic admin can send invites.",
   "clinicSettings": "Clinic settings",
   "clinicLoadFailed": "The clinic could not be loaded. Reload the page to try again.",
+  "placesLoadFailed": "The regions and cities could not be loaded. Reload the page to try again.",
   "clinicName": "Clinic name",
   "timeZone": "Time zone",
   "timeZoneHint": "Appointments and working hours are shown in this time zone.",
@@ -39,5 +40,19 @@
   "clinicConflict": "Someone else changed the clinic settings. Reload to see their changes.",
   "invalidClinicName": "Enter a name of 1 to 200 characters.",
   "invalidTimeZone": "Choose a time zone from the list.",
-  "clinicForbidden": "Only a clinic admin can change these settings."
+  "clinicForbidden": "Only a clinic admin can change these settings.",
+  "region": "Region",
+  "city": "City",
+  "chooseRegion": "Choose a region",
+  "chooseCity": "Choose a city",
+  "locationHint": "Where the clinic is. The All of Salus figures group clinics by region and city; a move counts from the next full month.",
+  "contributes": {
+    "defaultMessage": "Contribute to the All of Salus figures",
+    "description": "legal"
+  },
+  "contributesHint": {
+    "defaultMessage": "The clinic's diagnoses and appointments count, anonymized, in the figures across all clinics. If you opt out, the clinic is left out from the next build on, and its staff no longer see these figures.",
+    "description": "legal"
+  },
+  "invalidLocation": "Choose a city of the region."
 }

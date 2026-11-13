@@ -101,6 +101,7 @@ app.{$SALUS_DOMAIN} {
 		path /compositions*
 		path /conversations*
 		path /places*
+		path /analytics/platform*
 		path /patients*
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.

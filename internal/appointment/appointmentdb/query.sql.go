@@ -284,6 +284,53 @@ func (q *Queries) ListBookedForStats(ctx context.Context, arg ListBookedForStats
 	return items, nil
 }
 
+const listFulfilledForStats = `-- name: ListFulfilledForStats :many
+SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
+FROM appointment
+WHERE organization_id = $1 AND status = 'fulfilled'
+  AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+ORDER BY lower(period)
+`
+
+type ListFulfilledForStatsParams struct {
+	OrganizationID pgtype.UUID
+	FromAt         pgtype.Timestamptz
+	ToAt           pgtype.Timestamptz
+}
+
+type ListFulfilledForStatsRow struct {
+	StartAt            pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Status             string
+}
+
+// A clinic's fulfilled appointments starting in [from, to), oldest first: the platform heatmap reads no other.
+func (q *Queries) ListFulfilledForStats(ctx context.Context, arg ListFulfilledForStatsParams) ([]ListFulfilledForStatsRow, error) {
+	rows, err := q.db.Query(ctx, listFulfilledForStats, arg.OrganizationID, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFulfilledForStatsRow
+	for rows.Next() {
+		var i ListFulfilledForStatsRow
+		if err := rows.Scan(
+			&i.StartAt,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchAppointments = `-- name: SearchAppointments :many
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
        cancelled_by_account_id, version_id, status, cancellation_reason,

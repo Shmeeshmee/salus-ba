@@ -612,6 +612,12 @@ type Organization struct {
 	TimeZone              string
 	DefaultLanguage       Language
 	PatientTranscriptCopy bool
+	LocationSince         pgtype.Timestamptz
+	ContributesSince      pgtype.Timestamptz
+	AnalyticsContributes  bool
+	RegionID              pgtype.Text
+	CityID                pgtype.Text
+	RegionKind            pgtype.Text
 }
 
 type OrganizationChatSetting struct {
@@ -894,6 +900,41 @@ type TranscriptionConsent struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+}
+
+type TrendsCell struct {
+	ID         pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	Count      pgtype.Int4
+	Suppressed bool
+	Period     string
+	Tbl        string
+	Entity     string
+	Region     string
+	City       string
+	Grp        string
+	Subgroup   string
+	Code       string
+	Specialty  string
+	Weekday    string
+	Hour       string
+}
+
+type TrendsPeriod struct {
+	CreatedAt pgtype.Timestamptz
+	MinCount  int32
+	CodeLevel bool
+	Period    string
+	Kind      string
+	Status    string
+}
+
+type TrendsRise struct {
+	ID        pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	Period    string
+	Region    string
+	Grp       string
 }
 
 type VideoSession struct {

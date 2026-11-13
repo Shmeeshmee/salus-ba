@@ -62,6 +62,12 @@ func (c *Catalog) Places(ctx context.Context, caller Caller) ([]Place, error) {
 	if !caller.Staff {
 		return nil, ErrForbidden
 	}
+	return c.AllPlaces(ctx)
+}
+
+// AllPlaces returns the places for the clinic's location check (organization) and the platform builds (trends),
+// which ask for no caller: reference data.
+func (c *Catalog) AllPlaces(ctx context.Context) ([]Place, error) {
 	places, err := c.repo.Places(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("terminology: places: %w", err)

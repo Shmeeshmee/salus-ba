@@ -9,27 +9,45 @@ import "time"
 // Organization is a clinic. Nothing in it is personal data.
 type Organization struct {
 	LastUpdated time.Time // meta.lastUpdated
-	ID          string
-	Name        string
-	TimeZone    string // IANA, e.g. Europe/Sarajevo: appointment times are shown in it
+	// LocationSince is when Region and City were last set (zero without a location), ContributesSince when
+	// AnalyticsContributes last changed: a clinic counts in a period of the platform figures only when neither
+	// changed during it (docs/plans/analytics.md §5 "Which clinics count").
+	LocationSince    time.Time
+	ContributesSince time.Time
+	ID               string
+	Name             string
+	TimeZone         string // IANA, e.g. Europe/Sarajevo: appointment times are shown in it
 	// DefaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), bs unless
 	// an admin changes it: for e-mails to staff with no language of their own, and new questionnaires.
 	DefaultLanguage string
-	VersionID       int32 // meta.versionId; an update names the version it changes
-	Active          bool
-	Listed          bool // anyone may find the clinic and its practitioners
+	// Region and City are the clinic's location (docs/plans/analytics.md O1): a leaf region (an ISO 3166-2:BA
+	// code) and a city under it (a Wikidata id), both of terminology's places, or both empty. CityName is the
+	// city's name in Latin script, filled by Read for Organization.address.city.
+	Region    string
+	City      string
+	CityName  string
+	VersionID int32 // meta.versionId; an update names the version it changes
+	Active    bool
+	Listed    bool // anyone may find the clinic and its practitioners
 	// PatientTranscriptCopy: the clinic gives its patients a copy of their consultations' stored transcripts in
 	// the app (docs/consultation/SPEC.md "Patient documents"); off unless its admin turns it on.
 	PatientTranscriptCopy bool
+	// AnalyticsContributes: the clinic's figures count in the platform figures and its staff see them (O6); on
+	// unless its admin opts the clinic out.
+	AnalyticsContributes bool
 }
 
-// Changes are what an update sets: the name, and the listing, the time zone, the default language and the
-// patients' transcript copy when given (nil keeps them).
+// Changes are what an update sets: the name, and the listing, the time zone, the default language, the
+// patients' transcript copy, the location (Region and City together, both empty to clear it) and the
+// contribution to the platform figures when given (nil keeps them).
 type Changes struct {
 	Listed                *bool
 	TimeZone              *string
 	DefaultLanguage       *string
 	PatientTranscriptCopy *bool
+	Region                *string
+	City                  *string
+	AnalyticsContributes  *bool
 	Name                  string
 }
 
@@ -70,8 +88,14 @@ type ChatHours struct {
 }
 
 // Location is a clinic as the aggregate builds need it (docs/plans/analytics.md §3): its id and time zone (the
-// local day and hour of its figures). No name.
+// local day and hour of its figures), its region and city (empty without a location) and whether it contributes
+// to the platform figures, each with the time it last changed (§5). No name.
 type Location struct {
-	ID       string
-	TimeZone string
+	LocationSince    time.Time
+	ContributesSince time.Time
+	ID               string
+	TimeZone         string
+	Region           string
+	City             string
+	Contributes      bool
 }

@@ -72,7 +72,7 @@ func TestScheduler_EnqueuesThePeriodicJobOnceWithTwoClientsRunning(t *testing.T)
 	owner, app := pgtest.NewAppDatabase(t)
 	schedules := []*atFirstCall{{}, {}}
 	for _, schedule := range schedules {
-		client, err := newScheduler(app, slog.New(slog.DiscardHandler), schedule)
+		client, err := newScheduler(app, slog.New(slog.DiscardHandler), schedule, false)
 		if err != nil {
 			t.Fatalf("newScheduler() error = %v", err)
 		}
@@ -118,7 +118,7 @@ func TestScheduler_EnqueuesThePeriodicJobOnceWithTwoClientsRunning(t *testing.T)
 func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.T) {
 	t.Parallel()
 	_, app := pgtest.NewAppDatabase(t)
-	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	client, err := NewScheduler(app, false, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}
@@ -129,6 +129,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
 		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{}, communication.PartitionsArgs{},
 		clinicstats.RefreshArgs{}, clinicstats.NightlyArgs{},
+		TrendsBuildArgs{Period: "2026-10"},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {
@@ -141,7 +142,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 func TestScheduler_EnqueuesTheHourlySlotGenerationWhenItStartsLeading(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
-	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	client, err := NewScheduler(app, false, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}
@@ -176,7 +177,7 @@ func TestScheduler_EnqueuesTheHourlySlotGenerationWhenItStartsLeading(t *testing
 func TestScheduler_EnqueuesTheChatPartitionsWhenItStartsLeading(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
-	client, err := NewScheduler(app, slog.New(slog.DiscardHandler))
+	client, err := NewScheduler(app, false, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("NewScheduler() error = %v", err)
 	}

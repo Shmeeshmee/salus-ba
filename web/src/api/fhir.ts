@@ -29,6 +29,14 @@ export interface Extension {
   valueCode?: string
 }
 
+// Address is the clinic's location (docs/plans/analytics.md O1): the leaf region's ISO 3166-2:BA code as the state,
+// the city's Latin name, and the city's Wikidata id in the organization-city extension.
+export interface Address {
+  state: string
+  city?: string
+  extension: Extension[]
+}
+
 export interface Organization {
   resourceType: 'Organization'
   id: string
@@ -36,6 +44,7 @@ export interface Organization {
   name: string
   active: boolean
   extension?: Extension[]
+  address?: Address[]
 }
 
 export interface HumanName {
@@ -169,11 +178,25 @@ export const listedURL = 'https://salus.invalid/fhir/StructureDefinition/organiz
 export const timeZoneURL = 'https://salus.invalid/fhir/StructureDefinition/organization-timezone'
 export const defaultLanguageURL = 'https://salus.invalid/fhir/StructureDefinition/organization-default-language'
 export const transcriptCopyURL = 'https://salus.invalid/fhir/StructureDefinition/organization-patient-transcript-copy'
+export const contributesURL = 'https://salus.invalid/fhir/StructureDefinition/organization-analytics-contributes'
+export const cityURL = 'https://salus.invalid/fhir/StructureDefinition/organization-city'
 export const defaultTimeZone = 'Europe/Sarajevo'
 
 // defaultLanguage is a staff language (docs/i18n/SPEC.md §3 "The clinic's default language"), Bosnian unless set;
-// transcriptCopy whether the patients get a copy of their consultations' transcripts (SAL-17), off unless set.
-export type ClinicSettings = { name: string; listed: boolean; timeZone: string; defaultLanguage: Language; transcriptCopy: boolean }
+// transcriptCopy whether the patients get a copy of their consultations' transcripts (SAL-17), off unless set;
+// region and city the clinic's location ('' for none), cityName the city's Latin name; contributes whether the
+// clinic counts in the platform figures (SAL-21, O6), on unless the admin opts out.
+export type ClinicSettings = {
+  name: string
+  listed: boolean
+  timeZone: string
+  defaultLanguage: Language
+  transcriptCopy: boolean
+  region: string
+  city: string
+  cityName: string
+  contributes: boolean
+}
 
 export function settingsOf(org: Organization): ClinicSettings {
   const ext = (url: string) => org.extension?.find((e) => e.url === url)
@@ -184,11 +207,15 @@ export function settingsOf(org: Organization): ClinicSettings {
     timeZone: ext(timeZoneURL)?.valueCode ?? defaultTimeZone,
     defaultLanguage: isStaffLanguage(language) ? language : 'bs',
     transcriptCopy: ext(transcriptCopyURL)?.valueBoolean ?? false,
+    region: org.address?.[0]?.state ?? '',
+    city: org.address?.[0]?.extension.find((e) => e.url === cityURL)?.valueCode ?? '',
+    cityName: org.address?.[0]?.city ?? '',
+    contributes: ext(contributesURL)?.valueBoolean ?? true,
   }
 }
 
 export function withSettings(org: Organization, s: ClinicSettings): Organization {
-  const own = [listedURL, timeZoneURL, defaultLanguageURL, transcriptCopyURL]
+  const own = [listedURL, timeZoneURL, defaultLanguageURL, transcriptCopyURL, contributesURL]
   const others = (org.extension ?? []).filter((e) => !own.includes(e.url))
   return {
     ...org,
@@ -199,7 +226,9 @@ export function withSettings(org: Organization, s: ClinicSettings): Organization
       { url: timeZoneURL, valueCode: s.timeZone },
       { url: defaultLanguageURL, valueCode: s.defaultLanguage },
       { url: transcriptCopyURL, valueBoolean: s.transcriptCopy },
+      { url: contributesURL, valueBoolean: s.contributes },
     ],
+    address: s.city ? [{ state: s.region, city: s.cityName, extension: [{ url: cityURL, valueCode: s.city }] }] : org.address,
   }
 }
 

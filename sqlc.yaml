@@ -210,3 +210,11 @@ sql:
         package: notificationdb
         out: internal/notification/notificationdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/trends/query.sql
+    gen:
+      go:
+        package: trendsdb
+        out: internal/trends/trendsdb
+        sql_package: pgx/v5
