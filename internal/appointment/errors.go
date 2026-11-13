@@ -37,6 +37,10 @@ var (
 	ErrPaymentDeclined = errors.New("appointment: payment declined")
 	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
 	ErrLinkInvalid = errors.New("appointment: link invalid")
+	// ErrLinkRateLimited is returned when an address looked up too many links in a short time (SAL-34).
+	ErrLinkRateLimited = errors.New("appointment: too many link lookups")
+	// ErrConfirmCancelRequired is returned for a link's cancel without its ticked box (ADR 0015 "Scanners that click").
+	ErrConfirmCancelRequired = errors.New("appointment: cancel not confirmed")
 	// ErrReminderGone is returned for a reminder that is no longer to be sent: already dispatched, cancelled or skipped,
 	// or its appointment no longer booked at the start it was scheduled for, or started (SAL-33).
 	ErrReminderGone = errors.New("appointment: reminder no longer applies")

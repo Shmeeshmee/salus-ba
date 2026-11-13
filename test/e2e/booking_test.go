@@ -272,7 +272,8 @@ type appointmentResource struct {
 	ResourceType, ID, Status, Start string
 	CancelationReason               *struct{ Coding []struct{ Code string } }
 	Participant                     []struct {
-		Actor struct{ Reference, Display string }
+		Actor  struct{ Reference, Display string }
+		Status string // the patient's: tentative until confirmed, accepted after (ADR 0015)
 	}
 }
 

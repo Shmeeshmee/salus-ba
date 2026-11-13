@@ -76,6 +76,8 @@ type Jobs interface {
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
 	// EnqueueSlotFreed hands a freed slot still ahead to the waitlist (waitlist_slot_freed, SAL-35).
 	EnqueueSlotFreed(ctx context.Context, slotID, org string) error
+	// EnqueueRescheduled tells the patient the new time of their rescheduled appointment (SAL-34).
+	EnqueueRescheduled(ctx context.Context, id, org string) error
 }
 
 // StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
@@ -106,10 +108,16 @@ type Ports struct {
 	// by a Service that issues links (IssueLink, the notifier's reminders).
 	Tokens TokenRepository
 	// Reminders stores the reminders and Rules gives the clinic's reminder offsets (SAL-33): needed by a Service that
-	// books, cancels or dispatches.
+	// books, cancels or dispatches; the reschedule and the patient's actions read the clinic's rules through Rules too.
 	Reminders ReminderRepository
 	Rules     Rules
 	LinkURL   string // the base of Tokens' links
+	// SelfService, Limiter and LinkKey are the patient's confirmation, rescheduling and one-time links (SAL-34): needed
+	// only by the api's Service. LinkKey keys the HMAC that names an address's link-lookup counter, so no address is
+	// readable in Redis.
+	SelfService SelfServiceRepository
+	Limiter     LinkLimiter
+	LinkKey     []byte
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -257,6 +265,9 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, resource, i
 	}
 	e := entry(interaction, resource, id, outcome, purpose)
 	e.AgentAccountID, e.OrganizationID = c.AccountID, c.OrganizationID
+	if c.Via == ViaLink { // the patient's account, through a reminder's one-time link (ADR 0015 "Binding")
+		e.AgentName = agentActionLink
+	}
 	return s.Audit.Record(ctx, e)
 }
 

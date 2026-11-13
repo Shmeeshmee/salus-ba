@@ -82,6 +82,11 @@ func (j *riverJobs) EnqueueSlotFreed(ctx context.Context, slotID, org string) er
 	return j.insertOn(ctx, river.QueueDefault, SlotFreedArgs{SlotID: slotID, OrganizationID: org}, time.Time{})
 }
 
+// EnqueueRescheduled enqueues appointment_rescheduled_email on the email queue (SAL-34).
+func (j *riverJobs) EnqueueRescheduled(ctx context.Context, id, org string) error {
+	return j.insert(ctx, RescheduledEmailArgs{AppointmentID: id, OrganizationID: org}, time.Time{})
+}
+
 // insert enqueues args on the email queue in the transaction in ctx, to run at at (zero for now).
 func (j *riverJobs) insert(ctx context.Context, args river.JobArgs, at time.Time) error {
 	return j.insertOn(ctx, emailQueue, args, at)

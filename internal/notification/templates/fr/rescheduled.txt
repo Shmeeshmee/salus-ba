@@ -1,0 +1,9 @@
+Votre rendez-vous a un nouvel horaire
+
+Votre rendez-vous chez {{.Clinic}} a été déplacé.
+Nouvelle date et heure : {{.When}}
+
+Pour consulter ou annuler votre rendez-vous, ouvrez l'application Salus :
+{{.Link}}
+
+Vous pouvez l'annuler jusqu'à 24 heures avant son début.

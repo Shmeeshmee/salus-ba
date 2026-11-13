@@ -58,6 +58,37 @@ type StatsRepository interface {
 	Fulfilled(ctx context.Context, orgID string, from, to time.Time) ([]Booked, error)
 }
 
+// SelfServiceRepository confirms and moves a patient's appointments and uses the one-time links of their reminders
+// (SAL-34), in the patient's scope set by Repository's SetPatient on the same transaction; only FindToken needs none.
+type SelfServiceRepository interface {
+	// ByIDForUpdate is ByID, locking the appointment until the transaction ends (FOR UPDATE: a concurrent reschedule
+	// or cancellation waits, and one that committed first is seen).
+	ByIDForUpdate(ctx context.Context, id string) (Appointment, error)
+	// Confirm records the patient's confirmation of the booked, unconfirmed appointment id at at, made via, and
+	// returns it at its next version; ErrClosed when it is not booked or is confirmed already.
+	Confirm(ctx context.Context, id string, via Via, at time.Time) (Appointment, error)
+	// Reschedule moves the booked appointment id to m's slot and period at at, counting the reschedule and confirming
+	// it in the app when it was not (choosing the time confirms it), and returns it at its next version; ErrClosed
+	// when it is no longer booked or no longer at m.From reschedules; ErrSlotUnavailable when the role has an
+	// appointment at an overlapping time (which aborts the transaction).
+	Reschedule(ctx context.Context, id string, m Move, at time.Time) (Appointment, error)
+	// FindToken returns the ids of the link whose token hashes to hash (ID, AppointmentID, OrganizationID, PatientID,
+	// AccountID), whatever the scope; ErrLinkInvalid for none.
+	FindToken(ctx context.Context, hash [32]byte) (Token, error)
+	// TokenByID returns the link id as the patient's scope shows it; ErrLinkInvalid when it does not.
+	TokenByID(ctx context.Context, id string) (Token, error)
+	// UseToken marks the unused link id used for action at at; ErrLinkInvalid when it was used already (by a
+	// concurrent use that committed first too).
+	UseToken(ctx context.Context, id string, action LinkAction, at time.Time) error
+}
+
+// LinkLimiter counts the link lookups of an address (Redis, every key with a TTL).
+type LinkLimiter interface {
+	// Allow counts one lookup under key and reports whether it is within limit lookups in the window that the first
+	// one started.
+	Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, error)
+}
+
 // ReminderRepository stores the reminders of appointments (appointment_reminder, SAL-33), in the scope Repository's
 // SetPatient or SetClinic set on the same transaction: the patient's own, or their clinic's.
 type ReminderRepository interface {

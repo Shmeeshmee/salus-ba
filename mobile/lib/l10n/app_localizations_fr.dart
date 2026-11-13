@@ -1848,4 +1848,61 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get remindersInvalid =>
       'Ces paramètres n\'ont pas pu être enregistrés. Vérifiez-les et réessayez.';
+
+  @override
+  String get confirmAttendance => 'Confirmer ma venue';
+
+  @override
+  String get appointmentConfirmedStatus => 'Confirmé';
+
+  @override
+  String get appointmentConfirmedNotice => 'Votre rendez-vous est confirmé.';
+
+  @override
+  String get changeTime => 'Changer l\'heure';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'L\'heure peut être changée jusqu\'au $date à $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Changements d\'heure restants : $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Choisissez une nouvelle heure';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Réservé actuellement : $date à $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Déplacer le rendez-vous ?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Votre rendez-vous sera déplacé au $date à $time. L\'heure actuelle sera libérée.';
+  }
+
+  @override
+  String get moveAppointment => 'Déplacer le rendez-vous';
+
+  @override
+  String get appointmentMoved =>
+      'Votre rendez-vous a été déplacé à la nouvelle heure.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'L\'heure de ce rendez-vous ne peut plus être changée dans l\'application. Veuillez contacter la clinique.';
+
+  @override
+  String get rescheduleLimit =>
+      'L\'heure de ce rendez-vous a été changée autant de fois que la clinique le permet.';
+
+  @override
+  String get notReschedulable =>
+      'L\'heure de ce rendez-vous ne peut pas être changée dans l\'application.';
 }

@@ -203,6 +203,8 @@ button.danger, .actions button.danger { padding: 10px 16px; border: 1px solid va
 .back { display: inline-flex; align-items: center; gap: 2px; margin: -4px 0 16px -6px; color: var(--color-text-muted); text-decoration: none; font-size: 15px; }
 .back:hover { color: var(--color-ink); }
 .when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.tag.confirmed { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.tag.unconfirmed { color: var(--color-text-muted); border-style: dashed; }
 .tag.fulfilled { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
 .more { margin: 0 0 20px; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); padding: 10px 0; }
 .more summary { cursor: pointer; font-size: 15px; font-weight: 600; }
@@ -561,6 +563,10 @@ p.hint.join { margin-bottom: 20px; }
 .term-options li[aria-selected='true'], .term-options li:hover { background: var(--color-mint-faint); }
 .allergy-warning .strong, .entry-list .strong { font-weight: 600; }
 
+/* An appointment's changes (SAL-34): one line each, what and then when and how. */
+.changes ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.changes li { display: grid; gap: 2px; }
+.reschedule-settings { margin-top: 32px; border-top: 1px solid var(--color-border); padding-top: 24px; }
 /* Reminders in the clinic settings */
 .reminders form { margin-bottom: 24px; }
 .reminders h3 { font-size: 15px; margin: 0; }

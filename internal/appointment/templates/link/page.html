@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="{{.Lang}}" dir="{{.Dir}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="strict-origin">
+<title>{{.T.title}}</title>
+<style>{{.Style}}</style>
+</head>
+<body>
+<main>
+<h1>{{.T.title}}</h1>
+{{- if .Notice}}
+<p class="notice" role="alert">{{.Notice}}</p>
+{{- end}}
+{{- if .Used}}
+<p class="outcome">{{.Used}}</p>
+<p>{{.When}}</p>
+{{- else if .Open}}
+<p class="when">{{.When}}</p>
+<p class="state{{if .Page.Confirmed}} confirmed{{end}}">{{if .Page.Confirmed}}{{.T.state_confirmed}}{{else}}{{.T.state_unconfirmed}}{{end}}</p>
+{{- if .Page.CanConfirm}}
+<form method="post">
+<input type="hidden" name="action" value="confirm">
+<button type="submit">{{.T.confirm}}</button>
+</form>
+{{- end}}
+{{- if .Page.CanCancel}}
+<section>
+<h2>{{.T.cancel_heading}}</h2>
+<p>{{.T.cancel_effect}}</p>
+<form method="post">
+<input type="hidden" name="action" value="cancel">
+<label><input type="checkbox" name="confirm_cancel" value="yes" required> {{.T.cancel_tick}}</label>
+<button type="submit" class="secondary">{{.T.cancel_button}}</button>
+</form>
+</section>
+{{- end}}
+{{- if .Page.CancelClosed}}
+<p>{{.T.cancel_closed}}</p>
+{{- end}}
+<p class="hint">{{.T.reschedule}}</p>
+{{- else if .Invalid}}
+<p>{{.T.invalid}}</p>
+{{- end}}
+</main>
+</body>
+</html>

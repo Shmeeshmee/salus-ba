@@ -1848,4 +1848,60 @@ class AppLocalizationsBs extends AppLocalizations {
   @override
   String get remindersInvalid =>
       'Ove postavke nije bilo moguće sačuvati. Provjerite ih i pokušajte ponovo.';
+
+  @override
+  String get confirmAttendance => 'Potvrdi dolazak';
+
+  @override
+  String get appointmentConfirmedStatus => 'Potvrđen';
+
+  @override
+  String get appointmentConfirmedNotice => 'Vaš termin je potvrđen.';
+
+  @override
+  String get changeTime => 'Promijeni vrijeme';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Vrijeme možete promijeniti do $date u $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Preostalo promjena vremena: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Odaberite novo vrijeme';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Sada zakazano: $date u $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Premjestiti termin?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Vaš termin bit će premješten na $date u $time. Dosadašnje vrijeme bit će oslobođeno.';
+  }
+
+  @override
+  String get moveAppointment => 'Premjesti termin';
+
+  @override
+  String get appointmentMoved => 'Vaš termin je premješten na novo vrijeme.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Vrijeme ovog termina više se ne može promijeniti u aplikaciji. Obratite se klinici.';
+
+  @override
+  String get rescheduleLimit =>
+      'Vrijeme ovog termina promijenjeno je onoliko puta koliko klinika dozvoljava.';
+
+  @override
+  String get notReschedulable =>
+      'Vrijeme ovog termina ne može se promijeniti u aplikaciji.';
 }

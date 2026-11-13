@@ -139,6 +139,10 @@ func TestAppointmentEmails_HoldTheClinicTheLocalTimeAndTheLinkAndNothingElse(t *
 			return s.SendAppointmentReminder(ctx, apptID, clinicID)
 		},
 			appointment.StatusBooked, "appointment_reminder_email", "Reminder of your appointment", "reminder.txt"},
+		{func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentRescheduled(ctx, apptID, clinicID)
+		},
+			appointment.StatusBooked, "appointment_rescheduled_email", "Your appointment has a new time", "rescheduled.txt"},
 	}
 	for _, tt := range tests {
 		appts, accounts, sender := &fakeAppointments{status: tt.status}, &fakeAccounts{language: "en"}, &fakeSender{}
@@ -186,6 +190,9 @@ func TestAppointmentEmails_SendNothingThatNoLongerApplies(t *testing.T) {
 		"a cancellation of a booked one": {func(s *notification.Service, ctx context.Context) error {
 			return s.SendAppointmentCancelled(ctx, apptID, clinicID)
 		}, appointment.StatusBooked},
+		"a new time of a cancelled one": {func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentRescheduled(ctx, apptID, clinicID)
+		}, appointment.StatusCancelled},
 	} {
 		accounts, sender := &fakeAccounts{language: "en"}, &fakeSender{}
 		if err := tt.send(newMail(&fakeAppointments{status: tt.status}, accounts, zonedClinics{}, sender), t.Context()); err != nil {

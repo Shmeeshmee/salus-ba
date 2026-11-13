@@ -6,7 +6,8 @@
 //           {"defaultMessage": "<ICU>", "description": "legal"}; the legal tag matches en's;
 //   mobile: mobile/lib/l10n/app_<language>.arb against app_en.arb ("@" keys are metadata); app_sr.arb (the
 //           base gen-l10n needs for the script variants) is the same text as app_sr_Cyrl.arb;
-//   e-mail: internal/notification/templates/<language>/ against en/: the same files, the same {{…}} fields.
+//   e-mail: internal/notification/templates/<language>/ against en/: the same files, the same {{…}} fields;
+//   link:   internal/appointment/templates/link/<language>.json against en.json, in the ten patient languages, as web's.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
@@ -30,6 +31,7 @@ export function check(root, parse) {
   checkWeb(root, parse, report);
   checkMobile(root, parse, report);
   checkEmail(root, report);
+  checkLink(root, parse, report);
   return out;
 }
 
@@ -53,24 +55,39 @@ function checkWeb(root, parse, report) {
     for (const f of files) {
       if (!STAFF.includes(f.slice(0, -'.json'.length))) report(join(dir, f), 'not a language of this app');
     }
-    const read = (lang) => {
-      const file = join(dir, `${lang}.json`);
-      if (!existsSync(file)) {
-        report(file, 'missing');
-        return undefined;
-      }
-      const json = readJSON(file, report);
-      if (json === null) return undefined;
-      const messages = {};
-      for (const [key, value] of Object.entries(json)) {
-        if (typeof value === 'string') messages[key] = { text: value, legal: false };
-        else if (value && typeof value.defaultMessage === 'string') messages[key] = { text: value.defaultMessage, legal: value.description === 'legal' };
-        else report(file, `${key}: neither a string nor {defaultMessage, description}`);
-      }
-      return { file, messages };
-    };
+    const read = (lang) => readCatalog(join(dir, `${lang}.json`), report);
     compare(read('en'), STAFF.filter((l) => l !== 'en').map((l) => [l, read(l)]), parse, report, false);
   }
+}
+
+// readCatalog reads a web-style catalog (a value is an ICU string or {defaultMessage, description}), or reports it
+// missing or broken and returns undefined.
+function readCatalog(file, report) {
+  if (!existsSync(file)) {
+    report(file, 'missing');
+    return undefined;
+  }
+  const json = readJSON(file, report);
+  if (json === null) return undefined;
+  const messages = {};
+  for (const [key, value] of Object.entries(json)) {
+    if (typeof value === 'string') messages[key] = { text: value, legal: false };
+    else if (value && typeof value.defaultMessage === 'string') messages[key] = { text: value.defaultMessage, legal: value.description === 'legal' };
+    else report(file, `${key}: neither a string nor {defaultMessage, description}`);
+  }
+  return { file, messages };
+}
+
+// checkLink checks the one-time link's page (internal/appointment/templates/link/<language>.json, SAL-34) in the ten
+// patient languages against en.json, as the web's catalogs.
+function checkLink(root, parse, report) {
+  const dir = join(root, 'internal', 'appointment', 'templates', 'link');
+  if (!existsSync(join(dir, 'en.json'))) return;
+  for (const f of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
+    if (!ALL.includes(f.slice(0, -'.json'.length))) report(join(dir, f), 'not a language of this app');
+  }
+  const read = (lang) => readCatalog(join(dir, `${lang}.json`), report);
+  compare(read('en'), ALL.filter((l) => l !== 'en').map((l) => [l, read(l)]), parse, report, false);
 }
 
 function checkMobile(root, parse, report) {

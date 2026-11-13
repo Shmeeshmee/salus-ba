@@ -67,6 +67,18 @@ String bookingMessage(AppLocalizations t, ApiFailure failure) {
   };
 }
 
+/// The fixed sentence for a refused confirmation or reschedule of an appointment (SAL-34); the booking's codes as
+/// [bookingMessage].
+String changeMessage(AppLocalizations t, ApiFailure failure) {
+  if (failure.unreachable) return t.unreachable;
+  return switch (failure.code) {
+    'reschedule_window_closed' => t.rescheduleWindowClosed,
+    'reschedule_limit' => t.rescheduleLimit,
+    'not_reschedulable' => t.notReschedulable,
+    _ => bookingMessage(t, failure),
+  };
+}
+
 /// The fixed sentence for a refused write of an allergy or a medication (SAL-41), by its status: the API's codes
 /// for these say no more.
 String entryMessage(AppLocalizations t, ApiFailure failure) {

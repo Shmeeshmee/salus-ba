@@ -2395,5 +2395,94 @@
   "remindersInvalid": "These settings could not be saved. Check them and try again.",
   "@remindersInvalid": {
     "description": "SAL-33: notification settings refused, 400. Draft, waiting for the owner."
+  },
+  "confirmAttendance": "Confirm I will come",
+  "@confirmAttendance": {
+    "description": "SAL-34: button on an unconfirmed upcoming appointment; the patient confirms they will come. Draft, waiting for the owner."
+  },
+  "appointmentConfirmedStatus": "Confirmed",
+  "@appointmentConfirmedStatus": {
+    "description": "SAL-34: under an upcoming appointment the patient confirmed. Draft, waiting for the owner."
+  },
+  "appointmentConfirmedNotice": "Your appointment is confirmed.",
+  "@appointmentConfirmedNotice": {
+    "description": "SAL-34: notice after confirming. Draft, waiting for the owner."
+  },
+  "changeTime": "Change the time",
+  "@changeTime": {
+    "description": "SAL-34: button opening the reschedule picker. Draft, waiting for the owner."
+  },
+  "rescheduleUntil": "The time can be changed until {date} at {time}.",
+  "@rescheduleUntil": {
+    "description": "SAL-34: until when the patient may change the time, in the clinic's zone. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "reschedulesLeft": "Time changes left: {count}",
+  "@reschedulesLeft": {
+    "description": "SAL-34: how many more times the time may be changed (the clinic's limit). Draft, waiting for the owner.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rescheduleTitle": "Choose a new time",
+  "@rescheduleTitle": {
+    "description": "SAL-34: title of the reschedule picker. Draft, waiting for the owner."
+  },
+  "rescheduleCurrent": "Booked now: {date} at {time}",
+  "@rescheduleCurrent": {
+    "description": "SAL-34: the appointment's current time on the picker. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "rescheduleConfirmTitle": "Move your appointment?",
+  "@rescheduleConfirmTitle": {
+    "description": "SAL-34: dialog title before moving the appointment. Draft, waiting for the owner."
+  },
+  "rescheduleConfirmBody": "Your appointment will move to {date} at {time}. Your current time will be released.",
+  "@rescheduleConfirmBody": {
+    "description": "[legal] SAL-34: dialog text, the effect of a reschedule. Draft, waiting for the owner.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "moveAppointment": "Move appointment",
+  "@moveAppointment": {
+    "description": "SAL-34: dialog button that moves the appointment. Draft, waiting for the owner."
+  },
+  "appointmentMoved": "Your appointment is moved to the new time.",
+  "@appointmentMoved": {
+    "description": "SAL-34: notice after a reschedule. Draft, waiting for the owner."
+  },
+  "rescheduleWindowClosed": "The time of this appointment can no longer be changed in the app. Please contact the clinic.",
+  "@rescheduleWindowClosed": {
+    "description": "SAL-34: reschedule refused, inside the clinic's notice. Draft, waiting for the owner."
+  },
+  "rescheduleLimit": "This appointment's time has been changed as often as the clinic allows.",
+  "@rescheduleLimit": {
+    "description": "SAL-34: reschedule refused, the clinic's limit reached. Draft, waiting for the owner."
+  },
+  "notReschedulable": "The time of this appointment cannot be changed in the app.",
+  "@notReschedulable": {
+    "description": "SAL-34: reschedule refused, the clinic's rules never allow it (another role, the join window open, self-service off). Draft, waiting for the owner."
   }
 }

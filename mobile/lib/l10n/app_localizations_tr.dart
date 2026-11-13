@@ -1825,4 +1825,60 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get remindersInvalid =>
       'Bu ayarlar kaydedilemedi. Kontrol edip tekrar deneyin.';
+
+  @override
+  String get confirmAttendance => 'Geleceğimi onayla';
+
+  @override
+  String get appointmentConfirmedStatus => 'Onaylandı';
+
+  @override
+  String get appointmentConfirmedNotice => 'Randevunuz onaylandı.';
+
+  @override
+  String get changeTime => 'Saati değiştir';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Saati değiştirmek için son tarih: $date, saat $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Kalan saat değişikliği hakkı: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Yeni bir saat seçin';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Şu anki randevu: $date, saat $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Randevu taşınsın mı?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Randevunuz $date günü saat $time için taşınacak. Mevcut saatiniz serbest bırakılacak.';
+  }
+
+  @override
+  String get moveAppointment => 'Randevuyu taşı';
+
+  @override
+  String get appointmentMoved => 'Randevunuz yeni saate taşındı.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Bu randevunun saati artık uygulamadan değiştirilemez. Lütfen klinikle iletişime geçin.';
+
+  @override
+  String get rescheduleLimit =>
+      'Bu randevunun saati, kliniğin izin verdiği sayıda değiştirildi.';
+
+  @override
+  String get notReschedulable =>
+      'Bu randevunun saati uygulamadan değiştirilemez.';
 }

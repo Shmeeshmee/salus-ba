@@ -1,0 +1,8 @@
+Your appointment has a new time
+
+Your appointment at {{.Clinic}} has been moved to {{.When}}.
+
+To see or cancel it, open the Salus app:
+{{.Link}}
+
+You can cancel it up to 24 hours before it starts.

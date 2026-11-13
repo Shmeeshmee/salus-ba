@@ -1,0 +1,9 @@
+Subject: لموعدك وقت جديد
+
+تم نقل موعدك في Synthetic clinic.
+التاريخ والوقت الجديدان: الاثنين 7 يناير 2030، الساعة 10:00 (Europe/Sarajevo)
+
+لعرض الموعد أو إلغائه، افتح تطبيق Salus:
+https://patient.example.test/appointments
+
+يمكنك إلغاء الموعد حتى 24 ساعة قبل بدايته.

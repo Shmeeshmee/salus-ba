@@ -319,6 +319,112 @@ func (r *postgresStatsRepository) Fulfilled(ctx context.Context, orgID string, f
 	return out, nil
 }
 
+// SAL-34: the patient's confirmation and reschedule, and the use of a one-time link.
+
+// NewPostgresSelfServiceRepository returns the SelfServiceRepository on db, using the transaction in the context when
+// there is one.
+func NewPostgresSelfServiceRepository(db postgres.Querier) SelfServiceRepository {
+	return &postgresRepository{db: db}
+}
+
+func (r *postgresRepository) ByIDForUpdate(ctx context.Context, id string) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrNotFound
+	}
+	row, err := r.q(ctx).AppointmentByIDForUpdate(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Appointment{}, ErrNotFound
+	case err != nil:
+		return Appointment{}, err
+	}
+	return toAppointment(appointmentdb.AppointmentByIDRow(row)), nil
+}
+
+func (r *postgresRepository) Confirm(ctx context.Context, id string, via Via, at time.Time) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	row, err := r.q(ctx).ConfirmAppointment(ctx, appointmentdb.ConfirmAppointmentParams{ID: u, Via: text(string(via)), At: ts(at)})
+	return changed(appointmentdb.AppointmentByIDRow(row), err)
+}
+
+func (r *postgresRepository) Reschedule(ctx context.Context, id string, m Move, at time.Time) (Appointment, error) {
+	var u, sl pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	if sl.Scan(m.SlotID) != nil {
+		return Appointment{}, ErrSlotUnavailable
+	}
+	row, err := r.q(ctx).RescheduleAppointment(ctx, appointmentdb.RescheduleAppointmentParams{
+		ID: u, SlotID: sl, StartAt: ts(m.Start), EndAt: ts(m.End), At: ts(at), FromCount: int16(m.From),
+	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == exclusionViolation || pgErr.Code == deadlockDetected) {
+		return Appointment{}, ErrSlotUnavailable
+	}
+	return changed(appointmentdb.AppointmentByIDRow(row), err)
+}
+
+func (r *postgresRepository) FindToken(ctx context.Context, hash [32]byte) (Token, error) {
+	row, err := r.q(ctx).FindActionToken(ctx, hash[:])
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Token{}, ErrLinkInvalid
+	case err != nil:
+		return Token{}, err
+	}
+	return Token{
+		ID: row.ID.String(), AppointmentID: row.AppointmentID.String(), OrganizationID: row.OrganizationID.String(),
+		PatientID: row.PatientID.String(), AccountID: row.AccountID.String(),
+	}, nil
+}
+
+func (r *postgresRepository) TokenByID(ctx context.Context, id string) (Token, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Token{}, ErrLinkInvalid
+	}
+	row, err := r.q(ctx).ActionTokenByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Token{}, ErrLinkInvalid
+	case err != nil:
+		return Token{}, err
+	}
+	t := Token{
+		CreatedAt: row.CreatedAt.Time, StartAt: row.StartAt.Time, ID: row.ID.String(), AppointmentID: row.AppointmentID.String(),
+		OrganizationID: row.OrganizationID.String(), PatientID: row.PatientID.String(), AccountID: row.AccountID.String(),
+		Language: string(row.Language), Channel: Channel(row.Channel), UsedAction: LinkAction(row.UsedAction.String),
+	}
+	copy(t.Hash[:], row.TokenHash)
+	if row.ReminderID.Valid {
+		t.ReminderID = row.ReminderID.String()
+	}
+	if row.UsedAt.Valid {
+		t.UsedAt = row.UsedAt.Time
+	}
+	return t, nil
+}
+
+func (r *postgresRepository) UseToken(ctx context.Context, id string, action LinkAction, at time.Time) error {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return ErrLinkInvalid
+	}
+	n, err := r.q(ctx).UseActionToken(ctx, appointmentdb.UseActionTokenParams{ID: u, Action: text(string(action)), At: ts(at)})
+	switch {
+	case err != nil:
+		return err
+	case n == 0:
+		return ErrLinkInvalid
+	}
+	return nil
+}
+
 // SAL-33: the reminders.
 
 // NewPostgresReminderRepository returns the ReminderRepository on db, using the transaction in the context when there
