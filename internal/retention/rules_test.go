@@ -251,6 +251,47 @@ func TestRules_KeepTheReviewerPermissionWhileGranted(t *testing.T) {
 	t.Error("no rule for term_reviewer")
 }
 
+// The clinic's statistics are counts recomputed from appointment and condition, both kept with the clinical record:
+// they are kept as long (docs/plans/analytics.md §7).
+func TestRules_KeepTheClinicStatisticsWithTheirSources(t *testing.T) {
+	found := 0
+	for _, r := range retention.Rules() {
+		if r.Table == "clinic_appointment_stat" || r.Table == "clinic_diagnosis_stat" {
+			found++
+			if r.Then != retention.ThenKeep {
+				t.Errorf("%s then %q, want %q like its sources", r.Table, r.Then, retention.ThenKeep)
+			}
+		}
+	}
+	if found != 2 {
+		t.Errorf("%d rules for the clinic statistics, want 2", found)
+	}
+}
+
+// The chat's notifications (SAL-29): a device token is kept while the app is registered (deleted on unregister,
+// when the platform says it is gone, and with the account), a webhook endpoint while the clinic keeps it, and a
+// dead letter 30 days.
+func TestRules_KeepDevicesAndWebhooksWhileRegisteredAndDeadLettersThirtyDays(t *testing.T) {
+	want := map[string]retention.Rule{
+		"push_device":         {Then: retention.ThenKeep},
+		"webhook_endpoint":    {Then: retention.ThenKeep},
+		"webhook_dead_letter": {Then: retention.ThenDelete, Keep: 30 * 24 * time.Hour},
+	}
+	for _, r := range retention.Rules() {
+		w, ok := want[r.Table]
+		if !ok {
+			continue
+		}
+		if r.Then != w.Then || r.Keep != w.Keep {
+			t.Errorf("%s: then %q after %v, want %q after %v", r.Table, r.Then, r.Keep, w.Then, w.Keep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}
+
 func TestRules_KeepChatConsentsWithTheClinicalRecord(t *testing.T) {
 	for _, r := range retention.Rules() {
 		if r.Table == "chat_consent" {

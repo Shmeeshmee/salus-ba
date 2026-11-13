@@ -54,6 +54,78 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
 - **JSON field names** of the new endpoints are camelCase, as the rest of `terminology`'s; section 8's shapes are
   indicative and the generated client is the contract.
 
+## ANA-2 SAL-20 clinic statistics (branch `analytics-clinic`)
+
+Built: migration 00048 (00043 to 00047 were taken by patient history and chat) (`clinic_appointment_stat`, `clinic_diagnosis_stat`: RLS by clinic for `salus_app`'s reads,
+written only by `salus_stats` with SELECT, INSERT and DELETE), the domain `internal/clinicstats` (context
+`analytics`): the `Builder` (the refresh of a clinic-day and the nightly pass, on the stats pool), the `Service`
+(rules C1 to C3), the River `Queue`, the JSON handlers, `GET /analytics/clinic/appointments` and
+`GET /analytics/clinic/diagnoses` in `api/openapi.yaml` (clients regenerated); `StatsQueue` declared in `appointment`
+(booking, cancellation, the practitioner's status, the consultation's outcome, the revocation's cancellations) and in
+`composition` (a signature with at least one diagnosis), implemented by `clinicstats.NewRiverQueue` in
+`internal/api/app.go` and in the worker's revocation and session services; `cmd/worker` opens the `salus_stats` pool
+(`STATS_DATABASE_URL`, required; compose and production compose set it on the worker only, tested) and registers
+`clinicstats_refresh` and `clinicstats_nightly`; the scheduler enqueues the nightly pass at 02:30 UTC
+(`dailyAt` takes a minute now). Retention rule (kept with their sources), DPIA section, the e2e check (the browser
+journey's signed J06.9 is counted in the admin's diagnosis figures).
+
+As built, where it differs from the plan or settles what it left open (agent decisions, for the owner to review):
+
+- **The job's `day` is an instant**, the appointment's start or the signing time, not a date: the producers do not
+  know the clinic's time zone, so the worker takes the local date in it (`organization.Stats.Locations`).
+- **Query parameters and breakdown values are camelCase** like the JSON (`practitionerRole`, `by=practitionerRole`),
+  not §8's `practitioner_role`. `from` and `to` are required local dates, inclusive, at most ten years apart.
+- **`booked` counts every appointment** of the month, whatever its status now (§8's example adds up so); `fulfilled`,
+  `noshow` and `cancelled` are those with that status. The heatmap counts the appointments that were not cancelled,
+  busy cells only. `practitioners` gives the fulfilled appointments per role and is absent for non-admins.
+- **C2 for appointments:** a practitioner who is not an admin may narrow the clinic's figures to their own role only,
+  never to another role or to a specialty (403, audited; review finding 1: a specialty with one practitioner is
+  that colleague's figures, and a specialty minus one's own role the others'). For diagnoses they always get their own role's, and a practitioner without
+  a role is refused. An admin who is also a practitioner gets the clinic's.
+- **C3's purpose is `HOPERAT`** (v3-ActReason has no analytics code), subtype `search-type`, action `E`, entity
+  `Organization/<clinic>`; refusals are audited with outcome 4. An invalid query is refused before any read and is not
+  audited (like appointment's `ErrInvalidStatus`).
+- **Empty keys:** a diagnosis without a subgroup counts under the subgroup key `""`, a role without a specialty under
+  the specialty key `""`, so a breakdown sums to the total.
+- **Concurrency:** a refresh takes a transaction-level advisory lock per clinic, so two refreshes of one clinic never
+  interleave their delete and insert. Both jobs run on their own River queue `clinicstats`, two at a time (review
+  finding 6), so the builds hold at most two `salus_stats` connections and never take the default queue's workers.
+  No `UniqueOpts`: River's unique states always include `running`, so a write during a running refresh would lose
+  its own refresh, and the job's instant differs per appointment anyway.
+- **The refresh does not enqueue for future appointments beyond their day**, and the nightly pass covers the last 35
+  days only, as the plan says: a lost refresh of a day further ahead is repaired by the next write on that day.
+
+Measured (`make bench-clinicstats`, `internal/worker`, the compose Postgres on the development machine, 2026-11-12:
+3 years × 20 practitioners, each with 8 Conditions and up to 8 appointments a day (none starting at 02:xx), 175,360
+Conditions and about 160,000 appointments, nearly every one in its own hour cell, so some 55,000 rows of each
+aggregate per year; 50 iterations, 3 runs):
+
+| What | Per operation |
+| --- | --- |
+| Refresh of one clinic-day (about 150 appointments and 160 Conditions read, counted, replaced in one transaction) | 15.1 to 19.4 ms |
+| Yearly overview as the admin opens it (series, heatmap, per practitioner, diagnoses by group; each audited) | 121 to 135 ms |
+
+No index beyond the primary keys (clinic, day, hour, role, status or code), which serve the range scans; not tuned
+further without a slower measurement in use.
+
+Re-measured after merging main (chat 00044 to 00047, the shared history lookup 00046; the migration is now 00048),
+2026-11-12, same benchmark and machine but under a load average of about 60 on 28 threads from other sessions:
+refresh 11.2 to 23.2 ms, yearly overview 215 to 249 ms. The merge changed none of what the benchmark reads or
+writes (the two aggregates and their policies, the stats login's sources, `audit_event`): salus_stats bypasses the
+new organization and practitioner_role policies, and the aggregates' policies read only settings, so no policy
+recursion. The slower overview is attributed to the load, not the merge; re-measure on an idle machine before
+tuning.
+
+Re-measured with the real auditevent service in the overview (review finding 5; the first measurement used an
+auditor that wrote nothing), 2026-11-13, load average 6.5 to 7.6 on 28 threads (not idle; other sessions on the
+machine): refresh 11.4 to 15.0 ms, yearly overview with its two AuditEvents 130 to 144 ms. Close to the first
+numbers, so the earlier 215 to 249 ms was the load; an idle re-run is still owed before any tuning decision.
+
+Review (fresh subagent, 2026-11-13): 8 findings; fixed 1 (no specialty filter for non-admins), 3 to 8 (DPIA wording
+on the shared source queries, the build-audit comments, the audited benchmark, the `clinicstats` queue at two
+workers, §8's as-built names, the stats pool's one-place test and the autumn fall-back test); 2 (one patient's
+diagnosis visible to an admin on a one-day, one-role code breakdown) is a DPIA risk open for the owner.
+
 ## ANA-3 SAL-21 platform trends (branch `analytics-platform`)
 
 Built: migration 00049 (the clinic's location and opt-out on `organization` with the times they changed, a city
@@ -117,8 +189,8 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
 - **`features` is omitted while empty** rather than an empty list, so the existing `/auth/me` shapes are unchanged.
 - **Shared files touched** (merge by hand): `api/openapi.yaml` (four paths, five schemas, `Account.features`),
   `internal/api/app.go`, `internal/worker/{worker,scheduler,retention}.go` (`worker.New` takes `worker.Trends`,
-  `NewScheduler` takes the flag), `cmd/worker` opens the salus_stats pool only while the flag is on (ANA-2 opens it
-  too: keep one pool), `internal/config` (`Config.Analytics`), `ownership.yaml`, `config.yaml` (`analytics:
+  `NewScheduler` takes the flag), `cmd/worker` (after the merge with ANA-2 the trends builds run on its one salus_stats pool,
+  `worker.Trends{Enabled, MinCount}`), `internal/config` (`Config.Analytics`), `ownership.yaml`, `config.yaml` (`analytics:
   [trends]`, ANA-2 adds `clinicstats`), `internal/retention/rules.go`, `sqlc.yaml`, the Caddyfile and the Vite proxy
   (`/analytics/platform`), the compose files (`STATS_DATABASE_URL` for the worker; the e2e overlay turns the flag on
   for api, worker and scheduler). Every `*db/models.go` is regenerated by sqlc for the new tables.

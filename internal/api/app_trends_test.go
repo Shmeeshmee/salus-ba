@@ -16,7 +16,7 @@ func TestNew_ThePlatformViewFollowsItsFlag(t *testing.T) {
 	for _, on := range []bool{false, true} {
 		cfg := testConfig(t)
 		cfg.Analytics.PlatformEnabled, cfg.Analytics.MinCount = on, 10
-		app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
+		app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}

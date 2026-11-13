@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/llm"
 	"github.com/Shmeeshmee/salus/pkg/wire"
 )
 
@@ -75,8 +76,11 @@ type Ports struct {
 	Directory    Directory
 	Audit        Auditor
 	Tx           Transactor
+	Jobs         Jobs // a send enqueues its notifications (SAL-29)
 	Clock        clock.Clock
-	Log          *slog.Logger
+	// Summarizer writes the AI summary of a long conversation (SAL-31): the fake, config.LoadChatSummary.
+	Summarizer llm.Summarizer
+	Log        *slog.Logger
 	// SAL-30: the messages' files (nil: a send with files fails), the terms' tagging (nil: no terms) in the caller's
 	// language (nil: English), and the receipts' and typing's Redis (nil: none).
 	Files     Files

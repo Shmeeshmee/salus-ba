@@ -22,7 +22,8 @@ import (
 // sources, an edited or typed one has none, an empty one is missing), the draft becomes the final Composition
 // signed now by the appointment's PractitionerRole, its PDF is rendered and stored encrypted in the object
 // store as a DocumentReference, and a Provenance records the signature. The three writes are audited, the
-// patient's e-mail that a document is ready is enqueued with them, and the final draft is pushed on the
+// patient's e-mail that a document is ready is enqueued with them (and, with a diagnosis, the refresh of the clinic's
+// statistics for the day), and the final draft is pushed on the
 // encounter's stream. The access, status and version are checked again once the
 // PDF is stored, so a revocation meanwhile signs nothing (and the object is deleted).
 //
@@ -62,6 +63,11 @@ func (s *Service) Sign(ctx context.Context, c appointment.Caller, id string, val
 		conditions := diagnoses(d, enc, at)
 		if err := s.Conditions.Record(ctx, conditions); err != nil {
 			return err
+		}
+		if len(conditions) > 0 {
+			if err := s.Stats.EnqueueStatsRefresh(ctx, enc.OrganizationID, at); err != nil {
+				return err
+			}
 		}
 		entries := []entry{
 			{interaction: auditevent.CodeUpdate, reference: "Composition/" + d.ID},

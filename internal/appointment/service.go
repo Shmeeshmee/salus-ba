@@ -76,6 +76,12 @@ type Jobs interface {
 	EnqueueQuestionnaireDiscard(ctx context.Context, id, org string) error
 }
 
+// StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
+// ctx (clinicstats' River queue, docs/plans/analytics.md §4): every appointment write enqueues its start's day.
+type StatsQueue interface {
+	EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error
+}
+
 // Ports are the Service's dependencies. The notifier builds it for Notice only (Repo, Audit, Tx, Clock,
 // Patients).
 type Ports struct {
@@ -89,6 +95,7 @@ type Ports struct {
 	Clinics  Clinics
 	Roles    Roles
 	Jobs     Jobs
+	Stats    StatsQueue // every write; not needed by a Service that only reads
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -183,6 +190,9 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 		return Appointment{}, nil, err
 	}
 	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
+		return Appointment{}, nil, err
+	}
+	if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
 		return Appointment{}, nil, err
 	}
 	if at := out.Start.Add(-reminderBefore); at.After(now) {

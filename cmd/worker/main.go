@@ -2,8 +2,9 @@
 // stream consumer (worker.ConsultStream, on REDIS_URL), which stores what the encounters' Redis Streams carry,
 // and the live suggestions worker (worker.Suggestions), on the language model LLM_ENGINE chooses
 // (config.LoadLLM: the fake by default, Anthropic's API off until its DPA). It
-// logs in as salus_app (DATABASE_URL), and as salus_retention (RETENTION_DATABASE_URL) for the retention_apply
-// job alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
+// logs in as salus_app (DATABASE_URL), as salus_retention (RETENTION_DATABASE_URL) for the retention_apply job
+// alone, and as salus_stats (STATS_DATABASE_URL) for the clinic statistics' builds and, while ANALYTICS_PLATFORM_ENABLED is on, the
+// platform builds alone; the binary jobs reach the object store and clamd (config.LoadObjectStore, config.LoadClamd).
 package main
 
 import (
@@ -61,6 +62,10 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if ret.DatabaseURL == "" {
 		return errors.New("config: RETENTION_DATABASE_URL is required")
 	}
+	stats := config.LoadStats()
+	if stats.DatabaseURL == "" {
+		return errors.New("config: STATS_DATABASE_URL is required")
+	}
 	model, err := config.LoadLLM()
 	if err != nil {
 		return err
@@ -88,14 +93,13 @@ func run(ctx context.Context, logOut io.Writer) error {
 		return err
 	}
 	defer retentionPool.Close()
-	platform, err := openTrends(ctx, cfg.Analytics)
+	statsPool, err := postgres.Open(ctx, stats.DatabaseURL)
 	if err != nil {
 		return err
 	}
-	if platform.Stats != nil {
-		defer platform.Stats.Close()
-	}
-	client, err := worker.New(pool, retentionPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, platform, log)
+	defer statsPool.Close()
+	platform := worker.Trends{Enabled: cfg.Analytics.PlatformEnabled, MinCount: cfg.Analytics.MinCount}
+	client, err := worker.New(pool, retentionPool, statsPool, videosession.NewLiveKitProvider(lk.URL, lk.APIKey, lk.APISecret), files, cfg.WebhookKey, platform, log)
 	if err != nil {
 		return err
 	}
@@ -125,23 +129,6 @@ func run(ctx context.Context, logOut io.Writer) error {
 	}
 	log.Info("stopped")
 	return nil
-}
-
-// openTrends opens the salus_stats pool of the trends builds (STATS_DATABASE_URL, required) while
-// ANALYTICS_PLATFORM_ENABLED is on; off, none (docs/plans/analytics.md §2a).
-func openTrends(ctx context.Context, a config.Analytics) (worker.Trends, error) {
-	if !a.PlatformEnabled {
-		return worker.Trends{}, nil
-	}
-	stats := config.LoadStats()
-	if stats.DatabaseURL == "" {
-		return worker.Trends{}, errors.New("config: STATS_DATABASE_URL is required while ANALYTICS_PLATFORM_ENABLED is on")
-	}
-	pool, err := postgres.Open(ctx, stats.DatabaseURL)
-	if err != nil {
-		return worker.Trends{}, err
-	}
-	return worker.Trends{Stats: pool, MinCount: a.MinCount}, nil
 }
 
 // llmTimeout bounds one call to the language model's HTTP API; a suggestion run is bounded tighter by its own

@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/migrations"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
+	"github.com/Shmeeshmee/salus/pkg/push"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
@@ -23,7 +25,7 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
 	}
-	for _, msg := range []string{`"msg":"started"`, `"msg":"stopped"`} {
+	for _, msg := range []string{`"msg":"started"`, `"push_android":"fake"`, `"push_ios":"fake"`, `"msg":"stopped"`} {
 		if !strings.Contains(logs, msg) {
 			t.Errorf("logs lack %s:\n%s", msg, logs)
 		}
@@ -107,4 +109,19 @@ func runUntilStarted(t *testing.T) (string, error) {
 	cancel()
 	err := <-done
 	return logs.String(), err
+}
+
+// Without credentials both platforms run on the fake; credentials that are not a key refuse the start, naming the
+// platform's adapter and never the key (docs/deploy/push.md).
+func TestNewPusher_IsTheFakeUntilCredentialsAndRefusesBadOnes(t *testing.T) {
+	if _, engines, err := newPusher(config.Push{}); err != nil || engines[push.Android] != "fake" || engines[push.IOS] != "fake" {
+		t.Errorf("newPusher(none) = %v, %v", engines, err)
+	}
+	if _, _, err := newPusher(config.Push{FCMCredentials: []byte(`{"project_id":"p","client_email":"e","private_key":"synthetic-secret"}`)}); err == nil || strings.Contains(err.Error(), "synthetic-secret") {
+		t.Errorf("newPusher(bad FCM) = %v", err)
+	}
+	apns := &config.APNs{Key: []byte("synthetic-secret"), KeyID: "K", TeamID: "T", BundleID: "B"}
+	if _, _, err := newPusher(config.Push{APNs: apns}); err == nil || strings.Contains(err.Error(), "synthetic-secret") {
+		t.Errorf("newPusher(bad APNs) = %v", err)
+	}
 }

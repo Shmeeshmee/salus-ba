@@ -1763,6 +1763,75 @@ read, typing after one second.
 attachments is deferred until it is chosen); the retention of chat files with the clinical record (legal decision,
 with the messages').
 
+### SAL-29: notifications, chat hours and webhooks
+
+**Processing added.** Three tables with personal data: `push_device` (the push token of a patient's app, by account
+and platform), `webhook_endpoint` (a clinic's webhook: its URL, the events, whether it includes clinical content, the
+sealed secret, and the admin's account that created it) and `webhook_dead_letter` (the ids of a delivery that failed
+its last attempt). `organization_chat_settings` holds the clinic's chat hours, stated response time and e-mail delay:
+no personal data. A new message enqueues a job with opaque ids only; the notifier fans it out to a push per device of
+the patient's account, an e-mail check per other participant after the clinic's delay, and a delivery per clinic
+webhook. The e-mail check reads the participant's stored read position.
+
+**Purpose and lawful basis.** Telling a participant that a message waits for them: for the patient the contract
+with them (Art. 6(1)(b)), for staff their employment and the contract with the clinic; the content stays in the app.
+The webhooks are the clinic's own integration: the endpoint is the clinic's system and the clinic is the controller
+of what it receives (the platform processes on its behalf); with clinical content turned on, the message's text goes
+to the clinic's system under the same care basis and consent that let the clinic read the chat, and only while that
+consent is active.
+
+**Necessity and minimisation.** A push says "New message from your clinic" and nothing else: no text, sender, name,
+clinic or id (no data payload). The unread e-mail says the same with the link to the app (a patient) or the web app
+(a practitioner). A webhook carries the event's type, its stable id, the clinic's and the conversation's and the
+message's ids; the message (text, time, sender role, patient id) only when the clinic's admin turns clinical content
+on. Job arguments, error texts and log lines hold ids, codes and statuses only, proven by a test that sends a
+recognisable synthetic text through the chat, the notifier and the worker and finds it nowhere outside the record.
+
+**Retention.** `push_device`: kept while the app is registered; deleted on unregister (sign-out), when FCM or APNs
+says the token is gone, and with the account. `webhook_endpoint`: kept while the clinic keeps it; deleted by its
+admin, with its dead letters. `webhook_dead_letter`: 30 days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A notification discloses the conversation to whoever sees the phone's lock screen or the inbox | Fixed text with no content, sender or clinic, in the recipient's language; no id in the push |
+| Google or Apple (outside the EU/EEA) learn about the patient | They receive the device token and the fixed text only. They are processors pending their DPA and transfer basis (docs/privacy/processors.md); the adapters are off and the fake is the default until then |
+| A device signed into another account receives the first account's notifications | A token is one row: registering it moves it to the account signed in last; sign-out deletes it |
+| A webhook URL reaches the platform's own network (SSRF) | https only, a host name with a dot or a public address at creation; the delivery's dialer refuses loopback, private, link-local, unique-local, multicast, unspecified and carrier-grade NAT addresses at connect time, on the resolved address, so a name rebound later is refused too; no redirect is followed; no proxy (tests) |
+| A forged or replayed delivery is believed by the clinic's system | HMAC-SHA256 over the timestamp and the exact body with the endpoint's own secret; the timestamp is in the signature; the event id is stable for deduplication |
+| The webhook secret leaks | Shown once at creation; stored sealed with `WEBHOOK_KEY` (AES-256-GCM bound to the endpoint), a key of its own in the root-only key file (ADR 0011); never listed, logged or audited |
+| Clinical content leaves the platform after a revocation | A delivery with clinical content reads the message in the clinic's scope, which shows nothing after the revocation: the delivery is cancelled |
+| The admin's changes go unrecorded | Every change of the chat settings and every list, creation and deletion of a webhook is audited, refusals too |
+
+**Open before production.** The DPAs and transfer basis of Google (FCM) and Apple (APNs) before either is switched
+on (docs/deploy/push.md).
+
+### SAL-31: the chat's screens and the AI summary
+
+**Processing added.** No new table or stored field. The web app (doctors) and the patient app show the conversations
+of SAL-27 to SAL-30; nothing of a message is kept on the device beyond the screen's memory (no local database, no
+browser storage of message text). `POST /conversations/{id}/summary` gives a practitioner who may read a long
+conversation (at least 50 messages they read) a summary of its latest 500 messages, generated on demand, never stored,
+labelled AI generated, shown above the messages, which stay as written; its read of the rows is audited as a read
+(`AuditEvent`, the patient, the number of rows).
+
+**Lawful basis.** The summary runs on the fake engine only (`llmtest.Summarizer`: a placeholder naming how many
+messages it covers; no text leaves the api process). `config.LoadChatSummary` refuses any other engine
+(`CHAT_SUMMARY_ENGINE`), whatever `LLM_ENGINE` says, because the patient's messages may reach a third-party model only
+under a basis the owner has not decided yet: SAL-12's transcription consent covers the consultation, not the chat.
+Waiting for the owner: the basis (a granular AI consent, or another), then the processor's DPA and an entry in
+`processors.md`, before a real engine is wired.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A patient's messages sent to a hosted model without a basis | The summary's engine is the fake and the config refuses another; the Summarizer port is the only path |
+| The summary taken for the record, or for a diagnosis | Not stored; always labelled AI generated; the messages stay below it unchanged; the copy states what was written, never a diagnosis |
+| The patient sees the doctors' summary or side threads | The summary is refused to the patient (403); the patient app has no summary or thread screen; side threads stay hidden by row-level security (SAL-28) |
+| A cross-clinic doctor joins without the patient knowing, or keeps access the patient cannot find to withdraw | The patient app's consent prompt (strings tagged `legal`) names the doctor and their clinic (grant stays disabled until they are shown), why, and what they would read; grant or decline; the chat view lists every granted doctor of the conversation from the API (`status=active`), so each can be revoked at any time, also after a restart (SAL-28's consent) |
+
 ## Analytics (`docs/plans/analytics.md`, ADR 0013)
 
 ### SAL-19: coded diagnoses and diagnosis groups
@@ -1811,6 +1880,49 @@ as the other clinical tables).
 | Another clinic's diagnoses | Row-level security by clinic (tested) |
 | The aggregate builds reading identities | `salus_stats` has column grants on the source columns only (tested); patients are pseudonymised per build |
 | WHO or national-edition text used without a licence | Codes only, as identifiers; group names are our own (ADR 0013) |
+
+### SAL-20: the clinic's own statistics
+
+**Processing added.** `clinic_appointment_stat` and `clinic_diagnosis_stat`: counts per clinic, local day and hour,
+practitioner role and its specialty, and appointment status or diagnosis group, subgroup and ICD-10 code. No patient
+identifier is stored or pseudonymised: the builds ask the sources without a key. The source queries
+(`ListBookedForStats`, condition's `ListDiagnoses`) are shared with SAL-21, which pseudonymises the patient with its
+key, so they do select `patient_id` as `salus_stats`; without a key the source services drop it in Go before the
+build sees a row, and it is never written, logged or counted. The counts are personal data
+of the practitioners (their workload and the diagnoses they recorded). Computed by the `clinicstats_refresh` job (a
+clinic-day, enqueued in the transaction of every appointment write and every signature with a diagnosis, with the
+clinic's id and an instant only) and the nightly `clinicstats_nightly` job, as `salus_stats`, which `cmd/worker` now
+logs in as (`STATS_DATABASE_URL`).
+
+**Purpose and lawful basis.** The management of the clinic's health-care services, on the clinic's behalf as
+controller, Salus as processor (Art. 9(2)(h)). Not used for the platform figures (those are built from the sources,
+SAL-21), for marketing, profiling or model training.
+
+**Necessity and minimisation.** Only counts; no age, sex, residence or free text. Only confirmed diagnoses count.
+
+**Access.** Only the clinic's staff, in the service (rules C1 to C3, plan §4): the admin sees everything of their
+clinic, the breakdown per practitioner included; a practitioner who is not an admin sees the clinic's appointment
+figures (or their own role's, never a specialty's, which can be one colleague's) and only their own role's diagnoses; anyone else is refused. Row-level security by
+clinic on both tables (one clinic's scope reads none of another's rows, tested); only `salus_stats` writes them
+(insert and delete; tested in migration 00048).
+
+**Audit.** Every read and every refusal writes an AuditEvent on `Organization/<clinic>`, purpose `HOPERAT`
+(v3-ActReason has no code for statistics), in the read's transaction. The builds are not audited: they read and write
+counts only, on behalf of no one.
+
+**Retention.** Kept as long as their sources (appointment and condition, with the clinical record) and recomputed
+from them; a refresh replaces its days. When erasure and restriction are built (`datarequest`), they enqueue the
+refresh of the affected days.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A practitioner learning about patients outside their care through the clinic's diagnosis totals | C2: their own role's diagnoses only, another role's refused (tested per role) |
+| Small counts singling out a patient within the clinic | The figures stay inside the clinic that holds the records; no count leaves it (the platform view is SAL-21's, with its own suppression) |
+| Per-practitioner workload as employee monitoring | Admins only; open question L5 for the owner's lawyer before production |
+| An admin learning one patient's diagnosis: a one-day range, one practitioner role and `by=code` (J45: 1) next to the calendar showing that practitioner saw one patient that day | **Open, for the owner** (review finding 2): the figures stay inside the clinic that already holds the record, and every read is audited on the clinic; options are a minimum range, or month granularity, when an admin combines a role with a code breakdown |
+| Stale or lost counts | The nightly pass recomputes the last 35 days of every clinic; the refresh is idempotent (tested) |
 
 ### SAL-21: platform-wide anonymized trends
 

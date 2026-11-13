@@ -40,10 +40,11 @@ Nothing is deployed until step 8 sets `DEPLOY_ENABLED`. Until then every Deploy 
 | The stack's secrets | Fill in a copy of `.env.production.example` (each line says how to generate its value) | One Bitwarden secure note; GitHub secret `SALUS_ENV_FILE` (step 6) |
 | The e-mail relay's SMTP login | Created at Brevo or Mailjet ("E-mail relay" under step 3), not generated: `SMTP_USERNAME` and `SMTP_PASSWORD` | The same Bitwarden note and `SALUS_ENV_FILE` |
 | The volume's LUKS passphrase | A long random passphrase from Bitwarden's generator (e.g. 6 words or more) | Bitwarden only. Typed into `cryptsetup` on the server at setup and after every reboot; never stored on the server or in GitHub |
-| `BINARY_KEK`, `TOTP_KEY` | `openssl rand -base64 32`, once each | Two Bitwarden items of their own (not in the env file's note). Pasted into `salus-volume setup` (step 4), which writes them to the key files on the encrypted volume. Never in `SALUS_ENV_FILE`: the deploy refuses an env file that sets them |
+| `BINARY_KEK`, `TOTP_KEY`, `WEBHOOK_KEY` | `openssl rand -base64 32`, once each | Three Bitwarden items of their own (not in the env file's note). Pasted into `salus-volume setup` (step 4), which writes them to the key files on the encrypted volume. Never in `SALUS_ENV_FILE`: the deploy refuses an env file that sets them |
 
-`BINARY_KEK` and `TOTP_KEY` cannot be regenerated: losing them loses every attachment and every enrolled MFA, and a
-restore needs the same values (docs/deploy/backup-restore.md). The LUKS passphrase cannot be recovered either:
+`BINARY_KEK`, `TOTP_KEY` and `WEBHOOK_KEY` cannot be regenerated: losing them loses every attachment, every enrolled
+MFA and every clinic's webhook secret (the clinics would have to create their webhooks again), and a restore needs
+the same values (docs/deploy/backup-restore.md). The LUKS passphrase cannot be recovered either:
 without it the volume, and every record on it, is unreadable; a restore from the backups onto a new volume is the
 only way back.
 
@@ -172,7 +173,7 @@ salus-volume setup /dev/disk/by-id/scsi-0HC_Volume_<id>
 1. `cryptsetup` asks you to type `YES`, then for the LUKS passphrase twice (from Bitwarden, step 1), then once more
    to open it.
 2. The script creates the filesystem, mounts it at `/mnt/salus-data`, lays out `postgres/`, `garage/` and `keys/`,
-   and asks for `BINARY_KEK` and `TOTP_KEY` (paste each from Bitwarden; nothing is shown). It writes them to
+   and asks for `BINARY_KEK`, `TOTP_KEY` and `WEBHOOK_KEY` (paste each from Bitwarden; nothing is shown). It writes them to
    `/mnt/salus-data/keys/`, readable by the containers' uid only, and checks the result.
 3. If it refuses because the device already holds a filesystem (the console formatted it): check in the console that
    the id is the new, empty volume's, then `wipefs -a /dev/disk/by-id/scsi-0HC_Volume_<id>` and run setup again.
@@ -206,7 +207,7 @@ In the repository's settings:
 
      | Secret | Value |
      | --- | --- |
-     | `SALUS_ENV_FILE` | The whole filled-in env file (step 1), pasted as is: without `BINARY_KEK` and `TOTP_KEY`, which the deploy refuses |
+     | `SALUS_ENV_FILE` | The whole filled-in env file (step 1), pasted as is: without `BINARY_KEK`, `TOTP_KEY` and `WEBHOOK_KEY`, which the deploy refuses |
      | `DEPLOY_SSH_KEY` | The deploy workflow's private SSH key (`salus-deploy`, step 1), with its BEGIN and END lines |
      | `DEPLOY_KNOWN_HOSTS` | The host key line of step 5 |
 

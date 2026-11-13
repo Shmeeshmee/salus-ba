@@ -159,6 +159,32 @@
           "documentation": "An encounter diagnosis (ICD-10) of a signed Composition, its evidence (SAL-19): one per filled coded field, confirmed by the signing practitioner, written with the signature and never changed. Read by whoever may read the signed document: the encounter's practitioner while the patient's consent is active, and its patient whatever the consent (their own record). No search, create or update."
         },
         {
+          "type": "AllergyIntolerance",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "documentation": "A patient's allergy (SAL-41, ADR 0014): the patient's own, entered in the app (unconfirmed until a practitioner confirms it), or recorded by a clinic in one of its visits (confirmed). Seen by the patient; by a practitioner with the patient's active care consent and an appointment with them for an entry in the profile; and an entry a clinic recorded in a visit and the patient did not add to the profile only where that visit is seen (its own practitioner, or another clinic's practitioner while the patient shares the visit with that clinic). The encounter and the recorder are given only to the patient and the recording clinic; elsewhere a confirmation shows as verificationStatus confirmed alone. A removed (entered-in-error) entry is shown to no one. The code is the ATC code (http://www.whocc.no/atc) when the substance was picked from the terminology, always with its text. Every entry returned is audited. Written through the JSON API (api/openapi.yaml, tag history).",
+          "searchParam": [
+            {
+              "name": "patient",
+              "definition": "http://hl7.org/fhir/SearchParameter/clinical-patient",
+              "type": "reference",
+              "documentation": "Required, one patient: the entries of theirs the caller may see."
+            }
+          ]
+        },
+        {
+          "type": "MedicationStatement",
+          "interaction": [{ "code": "read" }, { "code": "search-type" }],
+          "documentation": "A patient's current medication (SAL-41, ADR 0014), with the sources, visibility and audit of AllergyIntolerance. A confirmed statement carries the medicationstatement-confirmed extension (never who confirmed it). The dose is a UCUM quantity and the timing frequency per period. Written through the JSON API (api/openapi.yaml, tag history).",
+          "searchParam": [
+            {
+              "name": "patient",
+              "definition": "http://hl7.org/fhir/SearchParameter/clinical-patient",
+              "type": "reference",
+              "documentation": "Required, one patient: the entries of theirs the caller may see."
+            }
+          ]
+        },
+        {
           "type": "Composition",
           "interaction": [{ "code": "read" }],
           "documentation": "A document drafted during a consultation from one of the clinic's templates: preliminary while it is drafted and edited, final once the encounter's practitioner signed it (attester, mode legal). Each field of the template is a section, its value the narrative; a field with no value has an emptyReason. Read by the encounter's practitioner while the patient's consent is active, and a final one by its patient whatever the consent (their own record; a preliminary one is not found for them); anyone else gets 403 or 404. No create or update: drafts are written and signed through the JSON API."

@@ -1,7 +1,9 @@
 package worker_test
 
 import (
+	"bytes"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,12 +17,26 @@ import (
 
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
+// webhookKey is a synthetic WEBHOOK_KEY.
+var webhookKey = bytes.Repeat([]byte{9}, 32)
+
+// The worker opens the clinics' webhook secrets with WEBHOOK_KEY, which must be an AES-256 key.
+func TestNew_RefusesAWebhookKeyThatIsNot32Bytes(t *testing.T) {
+	t.Parallel()
+	db := newLogins(t)
+	for _, key := range [][]byte{nil, bytes.Repeat([]byte{9}, 16)} {
+		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), testFiles(t), key, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil || !strings.Contains(err.Error(), "WEBHOOK_KEY") {
+			t.Errorf("New(a %d-byte key) = %v, want WEBHOOK_KEY refused", len(key), err)
+		}
+	}
+}
+
 // TestNoop_RunsAJobEnqueuedInATransaction enqueues the job the way every write will: inside the write's
 // transaction (InsertTx). The worker runs it once the transaction commits.
 func TestNoop_RunsAJobEnqueuedInATransaction(t *testing.T) {
 	t.Parallel()
 	owner, retention := pgtest.NewRetentionDatabase(t)
-	runNoop(t, owner, retention)
+	runNoop(t, owner, retention, owner)
 }
 
 // The worker and notifier log in as the application role; its grants must cover what River does. The
@@ -28,12 +44,12 @@ func TestNoop_RunsAJobEnqueuedInATransaction(t *testing.T) {
 func TestNoop_RunsAsTheAppRole(t *testing.T) {
 	t.Parallel()
 	db := newLogins(t)
-	runNoop(t, db.app, db.retention)
+	runNoop(t, db.app, db.retention, db.stats)
 }
 
-func runNoop(t *testing.T, pool, retention *pgxpool.Pool) {
+func runNoop(t *testing.T, pool, retention, stats *pgxpool.Pool) {
 	t.Helper()
-	client, err := worker.New(pool, retention, liveKit(t), testFiles(t), worker.Trends{}, slog.New(slog.DiscardHandler))
+	client, err := worker.New(pool, retention, stats, liveKit(t), testFiles(t), webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

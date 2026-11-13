@@ -21,4 +21,7 @@ var (
 	// ErrInvalidLocation is returned for a location that is not a city of terminology's places under the leaf
 	// region given with it.
 	ErrInvalidLocation = errors.New("organization: invalid location")
+	// ErrInvalidChatSettings is returned for chat settings out of their ranges, or hours that are not valid
+	// stretches of a weekday.
+	ErrInvalidChatSettings = errors.New("organization: invalid chat settings")
 )

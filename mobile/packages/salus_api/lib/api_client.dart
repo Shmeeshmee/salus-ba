@@ -244,6 +244,10 @@ class ApiClient {
           return ChatCommandErrorFrame.fromJson(value);
         case 'ChatFrame':
           return ChatFrame.fromJson(value);
+        case 'ChatHour':
+          return ChatHour.fromJson(value);
+        case 'ChatHours':
+          return ChatHours.fromJson(value);
         case 'ChatInvitation':
           return ChatInvitation.fromJson(value);
         case 'ChatInvitationDecision':
@@ -264,12 +268,26 @@ class ApiClient {
           return ChatSearchResult.fromJson(value);
         case 'ChatSearchResults':
           return ChatSearchResults.fromJson(value);
+        case 'ChatSettings':
+          return ChatSettings.fromJson(value);
         case 'ChatTyping':
           return ChatTyping.fromJson(value);
         case 'ChatTypingCommand':
           return ChatTypingCommand.fromJson(value);
         case 'ChatTypingFrame':
           return ChatTypingFrame.fromJson(value);
+        case 'ClinicAppointments':
+          return ClinicAppointments.fromJson(value);
+        case 'ClinicAppointmentsHeatmapInner':
+          return ClinicAppointmentsHeatmapInner.fromJson(value);
+        case 'ClinicAppointmentsPractitionersInner':
+          return ClinicAppointmentsPractitionersInner.fromJson(value);
+        case 'ClinicAppointmentsSeriesInner':
+          return ClinicAppointmentsSeriesInner.fromJson(value);
+        case 'ClinicDiagnoses':
+          return ClinicDiagnoses.fromJson(value);
+        case 'ClinicDiagnosesRowsInner':
+          return ClinicDiagnosesRowsInner.fromJson(value);
         case 'CommandError':
           return CommandError.fromJson(value);
         case 'CommandErrorMessage':
@@ -298,6 +316,8 @@ class ApiClient {
           return ConversationList.fromJson(value);
         case 'ConversationParticipant':
           return ConversationParticipant.fromJson(value);
+        case 'CreatedWebhook':
+          return CreatedWebhook.fromJson(value);
         case 'Cursor':
           return Cursor.fromJson(value);
         case 'CursorMessage':
@@ -398,6 +418,8 @@ class ApiClient {
           return MessageRevision.fromJson(value);
         case 'MessageRevisions':
           return MessageRevisions.fromJson(value);
+        case 'NewWebhook':
+          return NewWebhook.fromJson(value);
         case 'OpenConversationRequest':
           return OpenConversationRequest.fromJson(value);
         case 'OpenItem':
@@ -424,6 +446,8 @@ class ApiClient {
           return PlatformRises.fromJson(value);
         case 'PlatformRisesRisesInner':
           return PlatformRisesRisesInner.fromJson(value);
+        case 'PushDevice':
+          return PushDevice.fromJson(value);
         case 'Questionnaire':
           return Questionnaire.fromJson(value);
         case 'QuestionnaireDefault':
@@ -504,6 +528,10 @@ class ApiClient {
           return SummaryAllergy.fromJson(value);
         case 'SummaryMedication':
           return SummaryMedication.fromJson(value);
+        case 'SummaryRequest':
+          return SummaryRequest.fromJson(value);
+        case 'SummaryResponse':
+          return SummaryResponse.fromJson(value);
         case 'SystemMessage':
           return SystemMessage.fromJson(value);
         case 'Term':
@@ -550,6 +578,18 @@ class ApiClient {
           return UpdateMeRequest.fromJson(value);
         case 'VerifyRequest':
           return VerifyRequest.fromJson(value);
+        case 'Webhook':
+          return Webhook.fromJson(value);
+        case 'WebhookEvent':
+          return WebhookEvent.fromJson(value);
+        case 'WebhookEventData':
+          return WebhookEventData.fromJson(value);
+        case 'WebhookEventDataMessage':
+          return WebhookEventDataMessage.fromJson(value);
+        case 'WebhookEventType':
+          return WebhookEventTypeTypeTransformer().decode(value);
+        case 'WebhookList':
+          return WebhookList.fromJson(value);
         default:
           dynamic match;
           if (value is List &&

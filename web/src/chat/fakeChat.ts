@@ -1,16 +1,33 @@
-import { ChatError, type ChatApi, type ChatEnd, type ChatMessage, type ChatMessageFrame, type Conversation } from './chatApi'
+import {
+  ChatError,
+  fileTypes,
+  reasons,
+  unsentMaximum,
+  type ChatApi,
+  type ChatAttachment,
+  type ChatEnd,
+  type ChatHours,
+  type ChatMessage,
+  type ChatMessageFrame,
+  type Conversation,
+  type ConversationParticipant,
+} from './chatApi'
 
 // fakeChat is the ChatApi in memory, for tests and for building the screens on synthetic data (CLAUDE.md "Test
 // data is synthetic"). It keeps the API's rules that the screens see: pages newest first by cursor, idempotent
-// sends, edits by the sender with the current version, the read position never going back, each frame once.
+// sends, edits by the sender with the current version, the read position never going back, each frame once, the
+// summary only for a practitioner who reads 50 messages, system messages for added and removed doctors, threads
+// never the patient's, attachments scanning until the test scans them.
 
-type Followers = Map<string, Set<(frame: ChatMessageFrame) => void>>
+type Who = { role: 'patient' | 'practitioner'; participantId: string }
 
 export type FakeChat = ChatApi & {
   // deliver writes a message as someone else (the other participant), as if it came over the socket.
   deliver(id: string, body: string, role?: 'patient' | 'practitioner'): ChatMessage
   // end ends every socket of the conversation with the reason.
   end(id: string, reason: ChatEnd): void
+  // scan gives an uploaded attachment the scan's outcome; the messages carrying it go out as message_edited.
+  scan(attachmentId: string, status: 'clean' | 'rejected'): void
   conversations: Conversation[]
 }
 
@@ -20,23 +37,37 @@ const uuid = (n: number, prefix = '0') => `${prefix.padEnd(8, '0')}-0000-4000-80
 const cursorOf = (seq: number) => `fake-${seq}`
 const seqOf = (cursor: string) => Number(cursor.slice('fake-'.length))
 
+// summaryMinimum is the API's "long conversation": the summary needs 50 messages the practitioner reads.
+const summaryMinimum = 50
+
+
 export type FakeChatOptions = {
   // me is the caller's role and participant id: their messages are the ones they may edit.
-  me?: { role: 'patient' | 'practitioner'; participantId: string }
+  me?: Who
   // history is how many synthetic messages the first conversation starts with (a long one for the virtualized list).
   history?: number
   start?: Date
+  // hours is the clinic's chat hours (SAL-29): by default it states none and is open.
+  hours?: ChatHours
 }
 
-export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, 'd') }, history = 0, start = new Date('2026-11-12T08:00:00Z') }: FakeChatOptions = {}): FakeChat {
-  const other = me.role === 'patient' ? { role: 'practitioner' as const, participantId: uuid(2, 'd') } : { role: 'patient' as const, participantId: uuid(1, 'd') }
+export function fakeChat({
+  me = { role: 'practitioner', participantId: uuid(2, 'd') },
+  history = 0,
+  start = new Date('2026-11-12T08:00:00Z'),
+  hours = { time_zone: 'Europe/Sarajevo', hours: [], response_time_hours: 24, open_now: true },
+}: FakeChatOptions = {}): FakeChat {
+  const other: Who = me.role === 'patient' ? { role: 'practitioner', participantId: uuid(2, 'd') } : { role: 'patient', participantId: uuid(1, 'd') }
   const messages = new Map<string, ChatMessage[]>()
   const revisions = new Map<string, { edited_at: string; body: string; version_id: number }[]>()
-  const followers: Followers = new Map()
+  const followers = new Map<string, Set<(frame: ChatMessageFrame) => void>>()
   const enders = new Map<string, Set<(end: ChatEnd) => void>>()
   const clientIds = new Map<string, ChatMessage>()
+  const uploads = new Map<string, ChatAttachment>()
+  const unsent = new Set<string>()
   let clock = start.getTime()
   let ids = 0
+  const now = () => new Date(clock).toISOString()
 
   const conversation: Conversation = {
     id: uuid(1, 'c'), organization_id: uuid(1, 'a'), patient_id: uuid(1, 'b'), practitioner_role_id: uuid(1, 'e'),
@@ -58,43 +89,66 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
     return c
   }
 
+  function practitionerOnly() {
+    if (me.role !== 'practitioner') throw new ChatError('forbidden')
+  }
+
   // readSeq is the caller's read position per conversation: the API never shows it, only the unread count.
   const readSeq = new Map<string, number>()
 
-  function write(c: Conversation, from: { role: 'patient' | 'practitioner'; participantId: string }, body: string, clientId: string): ChatMessage {
+  function emit(id: string, frame: ChatMessageFrame) {
+    for (const f of followers.get(id) ?? []) f(frame)
+  }
+
+  function write(c: Conversation, from: Who | undefined, fields: Pick<ChatMessage, 'kind' | 'body' | 'system' | 'attachments'>, clientId: string): ChatMessage {
     const list = messages.get(c.id) ?? []
     clock += 1000
     const seq = list.length + 1
     const m: ChatMessage = {
-      id: uuid(++ids, 'f'), conversation_id: c.id, seq, cursor: cursorOf(seq), sender_participant_id: from.participantId,
-      sender_role: from.role, kind: 'text', body, client_message_id: clientId, sent_at: new Date(clock).toISOString(), version_id: 1,
+      id: uuid(++ids, 'f'), conversation_id: c.id, seq, cursor: cursorOf(seq), sender_participant_id: from?.participantId,
+      sender_role: from?.role ?? 'system', client_message_id: clientId, sent_at: now(), version_id: 1, ...fields,
     }
+    if (!from) delete m.sender_participant_id
     list.push(m)
     messages.set(c.id, list)
     c.last_seq = seq
     c.last_sent_at = m.sent_at
     c.cursor = m.cursor
-    if (from.participantId === me.participantId) readSeq.set(c.id, seq)
+    if (from?.participantId === me.participantId) readSeq.set(c.id, seq)
     c.unread = c.last_seq - (readSeq.get(c.id) ?? 0)
-    for (const f of followers.get(c.id) ?? []) f({ type: 'message', version: 1, payload: m })
+    emit(c.id, { type: 'message', version: 1, payload: m })
     return m
   }
 
-  function body(text: string): string {
+  function system(c: Conversation, code: string, args: Record<string, string>) {
+    write(c, undefined, { kind: 'system', system: { code, args } }, uuid(++ids, 'ee'))
+  }
+
+  function body(text: string, attachments: ChatAttachment[] = []): string | undefined {
     const t = text.trim()
+    if (t.length === 0 && attachments.length > 0) return undefined
     if (t.length < 1 || t.length > 4000) throw new ChatError('invalid_request')
     return t
   }
 
+  function attachmentsOf(ids: string[] = []): ChatAttachment[] {
+    if (ids.length > unsentMaximum) throw new ChatError('invalid_request')
+    return ids.map((id) => {
+      const a = uploads.get(id)
+      if (!a || !unsent.has(id)) throw new ChatError('invalid_request')
+      return a
+    })
+  }
+
   for (let i = 0; i < history; i++) {
-    write(conversation, i % 2 ? other : me, `Synthetic placeholder message ${i + 1}`, uuid(i + 1, 'cc'))
+    write(conversation, i % 2 ? other : me, { kind: 'text', body: `Synthetic placeholder message ${i + 1}` }, uuid(i + 1, 'cc'))
   }
 
   return {
     conversations,
     async list() {
       const sorted = [...conversations].sort((a, b) => (b.last_sent_at ?? b.created_at).localeCompare(a.last_sent_at ?? a.created_at))
-      return { conversations: sorted.map((c) => ({ ...c, participants: undefined })) }
+      return { conversations: sorted.filter((c) => me.role === 'practitioner' || !c.staff_only).map((c) => ({ ...c, participants: undefined })) }
     },
     async open() {
       return conversation
@@ -110,11 +164,15 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
       const oldest = page.at(-1)
       return oldest && oldest.seq > 1 ? { messages: page, next: oldest.cursor } : { messages: page }
     },
-    async send(id, clientMessageId, text) {
+    async send(id, clientMessageId, text, attachmentIds) {
       const c = find(id)
       const repeat = clientIds.get(`${id}/${clientMessageId}`)
       if (repeat) return repeat
-      const m = write(c, me, body(text), clientMessageId)
+      const attachments = attachmentsOf(attachmentIds)
+      const fields = attachments.length > 0 ? { attachments: attachments.map((a) => ({ ...a })) } : {}
+      const m = write(c, me, { kind: 'text', body: body(text, attachments), ...fields }, clientMessageId)
+      if (m.body === undefined) delete m.body
+      for (const a of attachments) unsent.delete(a.id)
       clientIds.set(`${id}/${clientMessageId}`, m)
       return m
     },
@@ -127,13 +185,17 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
       earlier.push({ edited_at: m.edited_at ?? m.sent_at, body: m.body ?? '', version_id: m.version_id })
       revisions.set(m.id, earlier)
       clock += 1000
-      Object.assign(m, { body: body(text), version_id: m.version_id + 1, edited_at: new Date(clock).toISOString() })
-      for (const f of followers.get(id) ?? []) f({ type: 'message_edited', version: 1, payload: { ...m } })
+      Object.assign(m, { body: body(text), version_id: m.version_id + 1, edited_at: now() })
+      emit(id, { type: 'message_edited', version: 1, payload: { ...m } })
       return { ...m }
     },
     async revisions(id, messageId) {
       find(id)
       return [...(revisions.get(messageId) ?? [])]
+    },
+    async chatHours(organizationId) {
+      if (!conversations.some((c) => c.organization_id === organizationId)) throw new ChatError('not_found')
+      return { ...hours, hours: hours.hours.map((h) => ({ ...h })) }
     },
     async markRead(id, seq) {
       const c = find(id)
@@ -161,9 +223,82 @@ export function fakeChat({ me = { role: 'practitioner', participantId: uuid(2, '
         es.delete(onEnd)
       }
     },
+    async summarize(id, lang) {
+      practitionerOnly()
+      const c = find(id)
+      const mine = c.participants?.find((p) => p.id === me.participantId)
+      const read = c.last_seq - (mine?.history_from_seq ?? 0)
+      if (read < summaryMinimum) throw new ChatError('invalid_request')
+      return { summary: `[${lang}] Placeholder summary of ${Math.min(read, 500)} messages`, generated_at: now(), up_to_seq: c.last_seq, ai_generated: true }
+    },
+    async addParticipant(id, req) {
+      practitionerOnly()
+      const c = find(id)
+      const known = c.participants?.some((p) => p.practitioner_role_id === req.practitioner_role_id)
+      // from_seq is the last message the added doctor does not read: they read those after it.
+      const from = req.history === 'from' ? req.from_seq : 0
+      if (known || !reasons.includes(req.reason) || from === undefined || from < 0 || from > c.last_seq) throw new ChatError('invalid_request')
+      const status = req.organization_id === c.organization_id ? 'active' : 'pending_consent'
+      const p: ConversationParticipant = {
+        id: uuid(++ids, 'da'), role: 'practitioner', practitioner_role_id: req.practitioner_role_id, organization_id: req.organization_id,
+        status, added_at: now(), history_from_seq: from,
+      }
+      c.participants = [...(c.participants ?? []), p]
+      const args = { practitioner_role_id: req.practitioner_role_id, organization_id: req.organization_id, reason: req.reason }
+      system(c, status === 'active' ? 'participant_added' : 'participant_invited', args)
+      return p
+    },
+    async removeParticipant(id, participantId) {
+      practitionerOnly()
+      const c = find(id)
+      const p = c.participants?.find((p) => p.id === participantId)
+      if (!p) throw new ChatError('not_found')
+      if (p.role === 'patient' || p.id === me.participantId) throw new ChatError('forbidden')
+      c.participants = c.participants?.filter((x) => x.id !== participantId)
+      system(c, 'participant_removed', { practitioner_role_id: p.practitioner_role_id ?? '' })
+    },
+    async threads(id) {
+      practitionerOnly()
+      find(id)
+      return conversations.filter((c) => c.parent_id === id).map((c) => ({ ...c, participants: undefined }))
+    },
+    async openThread(id) {
+      practitionerOnly()
+      const parent = find(id)
+      const thread: Conversation = {
+        ...parent, id: uuid(++ids, 'ca'), parent_id: parent.id, staff_only: true, created_at: now(), last_seq: 0, cursor: cursorOf(0), unread: 0,
+        last_sent_at: undefined, participants: parent.participants?.filter((p) => p.role === 'practitioner' && p.status !== 'pending_consent'),
+      }
+      conversations.push(thread)
+      messages.set(thread.id, [])
+      return thread
+    },
+    async upload(id, file) {
+      find(id)
+      const type = fileTypes.find((t) => t === file.type)
+      if (!type) throw new ChatError('unsupported_type')
+      if (unsent.size >= unsentMaximum) throw new ChatError('too_many_files')
+      const a: ChatAttachment = { id: uuid(++ids, 'ab'), content_type: type, size: file.size, filename: file.name, status: 'scanning', thumbnail: false }
+      uploads.set(a.id, a)
+      unsent.add(a.id)
+      return { ...a }
+    },
+    scan(attachmentId, status) {
+      const a = uploads.get(attachmentId)
+      if (!a) return
+      Object.assign(a, { status, thumbnail: status === 'clean' && a.content_type.startsWith('image/') })
+      for (const [cid, list] of messages) {
+        for (const m of list) {
+          const at = m.attachments?.findIndex((x) => x.id === attachmentId) ?? -1
+          if (at < 0 || !m.attachments) continue
+          m.attachments = m.attachments.map((x, i) => (i === at ? { ...a } : x))
+          emit(cid, { type: 'message_edited', version: 1, payload: { ...m } })
+        }
+      }
+    },
     deliver(id, text, role = other.role) {
       const from = role === me.role ? me : other
-      return write(find(id), from, body(text), uuid(++ids, 'dd'))
+      return write(find(id), from, { kind: 'text', body: body(text) }, uuid(++ids, 'dd'))
     },
     end(id, reason) {
       followers.delete(id)

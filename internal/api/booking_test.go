@@ -15,6 +15,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -71,7 +72,7 @@ func newBooking(t *testing.T, app *pgxpool.Pool) booking {
 	b.appointments = appointment.NewService(appointment.Ports{
 		Repo: b.repo, Audit: audit, Tx: tx, Clock: clk, Consents: b.consents,
 		Slots: slot.NewService(slot.NewPostgresRepository(app), tx, clk, schedules, clinics), Patients: b.patients,
-		Clinics: clinics, Roles: roles, Jobs: appointment.NewRiverJobs(jobs),
+		Clinics: clinics, Roles: roles, Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs),
 	})
 	return b
 }

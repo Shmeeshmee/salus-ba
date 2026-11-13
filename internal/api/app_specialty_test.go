@@ -12,7 +12,7 @@ import (
 func TestNew_TheClinicsAdminSetsARolesSpecialtyAuditedAndNobodyElseCan(t *testing.T) {
 	cfg := testConfig(t)
 	var log syncBuffer
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.NewTextHandler(&log, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -71,7 +71,7 @@ func TestNew_TheClinicsAdminSetsARolesSpecialtyAuditedAndNobodyElseCan(t *testin
 
 func TestNew_AnyoneListsTheSpecialties(t *testing.T) {
 	cfg := testConfig(t)
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.NewTextHandler(&syncBuffer{}, nil)))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&syncBuffer{}, nil)))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

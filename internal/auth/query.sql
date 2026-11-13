@@ -18,6 +18,12 @@ SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, passw
 FROM account
 WHERE id = @id;
 
+-- name: AccountByPractitioner :one
+SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+FROM account
+WHERE practitioner_id = @practitioner_id;
+
 -- name: SetPasswordHash :execrows
 UPDATE account SET password_hash = @password_hash WHERE id = @id;
 

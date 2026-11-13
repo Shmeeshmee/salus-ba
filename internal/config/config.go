@@ -32,6 +32,9 @@ type Config struct {
 	TOTPKey []byte
 	// RateLimitKey keys the HMAC that names the login rate-limit counters (RATE_LIMIT_KEY, base64).
 	RateLimitKey []byte
+	// WebhookKey seals the clinics' webhook secrets (WEBHOOK_KEY, base64, 32 bytes; or the file WEBHOOK_KEY_FILE
+	// names, as production mounts it from the encrypted volume: keySetting). The api and the worker require it.
+	WebhookKey []byte
 	// TrustedProxies may set X-Forwarded-For (TRUSTED_PROXY_CIDRS, comma-separated CIDRs).
 	TrustedProxies []netip.Prefix
 	// Analytics are the analytics settings (loadAnalytics).
@@ -65,6 +68,13 @@ func Load() (Config, error) {
 	}
 	if cfg.TOTPKey, err = base64.StdEncoding.DecodeString(totpKey); err != nil {
 		return Config{}, errors.New("config: TOTP_KEY is not base64")
+	}
+	webhookKey, err := keySetting("WEBHOOK_KEY")
+	if err != nil {
+		return Config{}, err
+	}
+	if cfg.WebhookKey, err = base64.StdEncoding.DecodeString(webhookKey); err != nil {
+		return Config{}, errors.New("config: WEBHOOK_KEY is not base64")
 	}
 	if cfg.RateLimitKey, err = base64.StdEncoding.DecodeString(os.Getenv("RATE_LIMIT_KEY")); err != nil {
 		return Config{}, errors.New("config: RATE_LIMIT_KEY is not base64")
@@ -116,9 +126,9 @@ func LoadRetention() Retention {
 
 // Stats holds the aggregate builds' credentials: the salus_stats role, which bypasses row-level security and
 // reads only the source columns of the analytics (docs/plans/analytics.md, ADR 0013). Load never reads them;
-// cmd/migrate (which sets the role's password) and, with the builds, cmd/worker call LoadStats.
+// cmd/migrate (which sets the role's password) and cmd/worker (the builds' pool) call LoadStats.
 type Stats struct {
-	// DatabaseURL is the role's login (STATS_DATABASE_URL).
+	// DatabaseURL is the role's login (STATS_DATABASE_URL); cmd/worker requires it.
 	DatabaseURL string
 	// Password is set on the role by `migrate up` when not empty (STATS_DATABASE_PASSWORD).
 	Password string
@@ -211,7 +221,7 @@ func LoadObjectStore() (ObjectStore, error) {
 }
 
 // keySetting reads a key from the variable name, or from the file the variable name_FILE names: production
-// mounts TOTP_KEY and BINARY_KEK as compose secrets from a root-only directory on the encrypted volume, so they
+// mounts TOTP_KEY, BINARY_KEK and WEBHOOK_KEY as compose secrets from a root-only directory on the encrypted volume, so they
 // never sit in the env file (deployments/production/README.md "Keys"). Locally and in CI the variable is set.
 // Setting both is an error, and so is a file that cannot be read or holds nothing but whitespace; the
 // whitespace around the value (the file's newline) is dropped. Errors name the variable, never a value or path.
@@ -325,6 +335,24 @@ type LLM struct {
 	AnthropicKey string    // ANTHROPIC_API_KEY, required for anthropic
 	Model        string    // LLM_MODEL, for anthropic: claude-opus-5-5 when unset
 	Script       string    // FAKE_ENGINE_SCRIPT, for the fake only (fakeScript)
+}
+
+// ChatSummary holds the engine of the chat's AI summary (SAL-31). It is always the fake: a patient's messages may
+// reach a third-party model only under a basis the owner has not decided yet (the transcription consent of SAL-12
+// covers the consultation, not the chat; docs/plans/chat.md "Notes for the wave-1 packages"), so LoadChatSummary
+// refuses any other engine, whatever LLM_ENGINE names for the consultation's tasks.
+type ChatSummary struct {
+	Engine LLMEngine // CHAT_SUMMARY_ENGINE: fake (the default and the only one)
+}
+
+// LoadChatSummary reads the summary's engine from the environment: unset or fake. Errors name the variable, never
+// a value.
+func LoadChatSummary() (ChatSummary, error) {
+	switch LLMEngine(os.Getenv("CHAT_SUMMARY_ENGINE")) {
+	case "", LLMFake:
+		return ChatSummary{Engine: LLMFake}, nil
+	}
+	return ChatSummary{}, errors.New("config: CHAT_SUMMARY_ENGINE may only be fake until the owner decides the basis for a real model")
 }
 
 // LoadLLM reads the language model's settings from the environment; for the fake, none but the engine. Errors

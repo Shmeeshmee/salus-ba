@@ -1,0 +1,6 @@
+New message from your clinic
+
+You have a new message from your clinic.
+
+To read it, open the Salus app:
+{{.Link}}

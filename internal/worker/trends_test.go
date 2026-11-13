@@ -21,7 +21,7 @@ func TestTrendsBuild_BuildsAMonthOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(stats.Close)
-	client, err := worker.New(db.app, db.retention, liveKit(t), testFiles(t), worker.Trends{Stats: stats, MinCount: 10}, slog.New(slog.DiscardHandler))
+	client, err := worker.New(db.app, db.retention, stats, liveKit(t), testFiles(t), webhookKey, worker.Trends{Enabled: true, MinCount: 10}, slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}

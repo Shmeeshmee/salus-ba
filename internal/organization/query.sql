@@ -25,6 +25,19 @@ RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_l
 INSERT INTO organization (name) VALUES (@name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since;
 
+-- name: ChatSettings :one
+-- The clinic's chat settings (00047); row-level security shows only the clinic set.
+SELECT hours, response_time_hours, email_after_minutes
+FROM organization_chat_settings
+WHERE organization_id = @organization_id;
+
+-- name: PutChatSettings :exec
+INSERT INTO organization_chat_settings (organization_id, hours, response_time_hours, email_after_minutes, updated_at)
+VALUES (@organization_id, @hours, @response_time_hours, @email_after_minutes, @updated_at)
+ON CONFLICT (organization_id) DO UPDATE
+SET hours = EXCLUDED.hours, response_time_hours = EXCLUDED.response_time_hours,
+    email_after_minutes = EXCLUDED.email_after_minutes, updated_at = EXCLUDED.updated_at;
+
 -- name: ListLocationsForStats :many
 -- Every clinic with its time zone, location and contribution: the columns salus_stats may read.
 SELECT id, time_zone, region_id, city_id, location_since, analytics_contributes, contributes_since

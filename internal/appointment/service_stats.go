@@ -9,7 +9,8 @@ import (
 )
 
 // Stats serves the appointments to the aggregate builds (docs/plans/analytics.md §3, ADR 0013), on the
-// salus_stats role. No access decision: only the builds in cmd/worker hold that role, and they audit their build.
+// salus_stats role. No access decision and no audit: only the builds in cmd/worker hold that role, and they read
+// and write counts only, on behalf of no one (docs/privacy/dpia.md, Analytics).
 type Stats struct {
 	repo StatsRepository
 }

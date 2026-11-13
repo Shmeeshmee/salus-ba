@@ -23,6 +23,7 @@ func testConfig(t *testing.T) config.Config {
 		DatabaseURL: pgtest.NewDatabaseURL(t), RedisURL: redistest.URL(t),
 		TOTPKey:      []byte("synthetic 32-byte TOTP key, test"),
 		RateLimitKey: []byte("synthetic 32-byte rate-limit key"),
+		WebhookKey:   []byte("synthetic 32-byte webhook key!!!"),
 		FHIRBaseURL:  "https://api.example.test/fhir/R4",
 	}
 }
@@ -43,7 +44,7 @@ func testObjectStore(t *testing.T) config.ObjectStore {
 }
 
 func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
-	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -69,27 +70,29 @@ func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
 	shortRateKey.RateLimitKey = []byte("short")
 	noFHIRBase := testConfig(t)
 	noFHIRBase.FHIRBaseURL = ""
+	noWebhookKey := testConfig(t)
+	noWebhookKey.WebhookKey = nil
 	relativeFHIRBase := testConfig(t)
 	relativeFHIRBase.FHIRBaseURL = "/fhir/R4"
 
 	shortKEK := testObjectStore(t)
 	shortKEK.KEK = []byte("16 bytes, no more")
-	if _, err := api.New(t.Context(), testConfig(t), testLiveKit(), shortKEK, testDrafter(), slog.New(slog.DiscardHandler)); err == nil || strings.Contains(err.Error(), "16 bytes") {
+	if _, err := api.New(t.Context(), testConfig(t), testLiveKit(), shortKEK, testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler)); err == nil || strings.Contains(err.Error(), "16 bytes") {
 		t.Errorf("New() with a KEK that is not 32 bytes: error = %v, want one that names no value", err)
 	}
 	for name, cfg := range map[string]config.Config{
 		"postgres unreachable": noDB, "redis unreachable": noRedis,
 		"a TOTP key that is not 32 bytes": shortTOTPKey, "a rate-limit key under 32 bytes": shortRateKey,
-		"no FHIR base URL": noFHIRBase, "a relative FHIR base URL": relativeFHIRBase,
+		"no FHIR base URL": noFHIRBase, "a relative FHIR base URL": relativeFHIRBase, "no webhook key": noWebhookKey,
 	} {
-		if _, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler)); err == nil {
+		if _, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler)); err == nil {
 			t.Errorf("New() with %s: error = nil", name)
 		}
 	}
 }
 
 func TestNew_ServesTheAccountRoutes(t *testing.T) {
-	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -111,7 +114,7 @@ func TestNew_ServesTheAccountRoutes(t *testing.T) {
 
 func TestNew_AuditsEveryRegistrationInTheDatabase(t *testing.T) {
 	cfg := testConfig(t)
-	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), slog.New(slog.DiscardHandler))
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

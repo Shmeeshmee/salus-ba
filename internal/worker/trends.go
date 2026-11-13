@@ -20,11 +20,11 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-// Trends are the platform builds' settings (docs/plans/analytics.md §2a): Stats is the salus_stats pool
-// (STATS_DATABASE_URL), nil while ANALYTICS_PLATFORM_ENABLED is off, and MinCount is k.
+// Trends are the platform builds' settings (docs/plans/analytics.md §2a): Enabled is ANALYTICS_PLATFORM_ENABLED,
+// off by default, and MinCount is k. The builds run on the worker's one salus_stats pool.
 type Trends struct {
-	Stats    *pgxpool.Pool
 	MinCount int
+	Enabled  bool
 }
 
 // TrendsBuildArgs builds one closed period of the platform figures (a month, a quarter or an ISO week) and freezes

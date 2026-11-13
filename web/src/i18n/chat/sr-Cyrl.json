@@ -1,0 +1,129 @@
+{
+  "title": "Поруке",
+  "empty": "Још нема разговора.",
+  "loadFailed": "Разговори нису могли да се учитају.",
+  "more": "Прикажи више",
+  "patient": "Пацијент",
+  "aDoctor": "Љекар",
+  "you": "Ви",
+  "unread": "{n, plural, one {# непрочитана порука} few {# непрочитане поруке} other {# непрочитаних порука}}",
+  "noMessages": "Још нема порука.",
+  "staffOnly": "Само љекари",
+  "staffOnlyNote": {
+    "defaultMessage": "Ову тему виде само љекари. Пацијент је не види.",
+    "description": "legal"
+  },
+  "back": "Све поруке",
+  "toParent": "Назад на разговор",
+  "conversationFailed": "Разговор није могао да се учита.",
+  "olderLoading": "Учитавање ранијих порука",
+  "olderFailed": "Раније поруке нису могле да се учитају.",
+  "start": "Ово је почетак разговора.",
+  "edited": "Измијењено",
+  "history": "Разговор",
+  "doctors": "{n, plural, one {# љекар} few {# љекара} other {# љекара}}",
+  "pending": {
+    "defaultMessage": "Чека се сагласност пацијента",
+    "description": "legal"
+  },
+  "remove": "Уклони из разговора: {name}",
+  "removeFailed": "Љекар није могао да се уклони.",
+  "composer.label": "Порука",
+  "composer.send": "Пошаљи",
+  "composer.sending": "Слање",
+  "composer.attach": "Приложи датотеку",
+  "composer.failed": "Порука није послата.",
+  "composer.retry": "Покушај поново",
+  "composer.removeFile": "Уклони {name}",
+  "composer.uploadFailed": "Датотека {name} није могла да се отпреми.",
+  "ended.consent_required": {
+    "defaultMessage": "Сагласност пацијента за лијечење је престала, па је овај разговор затворен.",
+    "description": "legal"
+  },
+  "ended.forbidden": "Више немате приступ овом разговору.",
+  "ended.not_found": "Овај разговор више није доступан.",
+  "ended.unauthenticated": "Ваша сесија је завршена. Пријавите се поново да бисте наставили.",
+  "system.participant_added": "У разговор је додат љекар: {name}.",
+  "system.participant_added.anonymous": "У разговор је додат љекар.",
+  "system.participant_invited": {
+    "defaultMessage": "Позван је љекар: {name}. Придружује се када пацијент да сагласност.",
+    "description": "legal"
+  },
+  "system.participant_invited.anonymous": {
+    "defaultMessage": "Позван је љекар. Придружује се када пацијент да сагласност.",
+    "description": "legal"
+  },
+  "system.participant_removed": "Из разговора је уклоњен љекар: {name}.",
+  "system.participant_removed.anonymous": "Из разговора је уклоњен љекар.",
+  "system.consent_granted": {
+    "defaultMessage": "Пацијент је дао сагласност да се разговору придружи љекар: {name}.",
+    "description": "legal"
+  },
+  "system.consent_granted.anonymous": {
+    "defaultMessage": "Пацијент је дао сагласност да се разговору придружи љекар.",
+    "description": "legal"
+  },
+  "system.consent_declined": {
+    "defaultMessage": "Пацијент није дао сагласност да се разговору придружи љекар: {name}.",
+    "description": "legal"
+  },
+  "system.consent_declined.anonymous": {
+    "defaultMessage": "Пацијент није дао сагласност да се разговору придружи љекар.",
+    "description": "legal"
+  },
+  "system.other": "Разговор је промијењен.",
+  "system.reason": "Разлог: {reason}",
+  "reason.second_opinion": "Друго мишљење",
+  "reason.specialist_review": "Мишљење специјалисте",
+  "reason.handover": "Предаја пацијента",
+  "add.open": "Додај љекара",
+  "add.title": "Додај љекара",
+  "add.doctor": "Љекар",
+  "add.ownClinic": "Љекари ваше клинике.",
+  "add.noDoctors": "Сви љекари клинике већ учествују.",
+  "add.reason": "Разлог",
+  "add.history": "Шта може да чита",
+  "add.full": "Цијели разговор",
+  "add.from": "Од одређене поруке надаље",
+  "add.fromMessage": "Прва порука коју чита",
+  "add.messageOption": "{time}: {text}",
+  "add.attachmentOnly": "Датотека",
+  "add.submit": "Додај",
+  "add.adding": "Додавање",
+  "add.cancel": "Откажи",
+  "add.failed": "Љекар није могао да се дода.",
+  "threads.open": "Теме само за љекаре",
+  "threads.title": "Теме само за љекаре",
+  "threads.note": {
+    "defaultMessage": "Пацијент их не види.",
+    "description": "legal"
+  },
+  "threads.none": "Још нема тема.",
+  "threads.start": "Започни тему",
+  "threads.failed": "Теме нису могле да се учитају.",
+  "threads.startFailed": "Тема није могла да се започне.",
+  "threads.item": "Тема од {time}",
+  "threads.close": "Затвори",
+  "attachment.scanning": "{name}: провјера датотеке",
+  "attachment.rejected": "{name}: блокирано провјером на злонамјерни софтвер",
+  "attachment.open": "Отвори {name}",
+  "attachment.close": "Затвори",
+  "summary.button": "Сажми",
+  "summary.loading": "Прављење сажетка",
+  "summary.hint": "AI сажетак написаног. Није дијагноза.",
+  "summary.label": "Генерисано помоћу AI",
+  "summary.heading": "Сажетак разговора",
+  "summary.meta": "Генерисано у {time}, до поруке {n}. Поруке испод су непромијењене.",
+  "summary.dismiss": "Затвори сажетак",
+  "summary.failed": "Сажетак није могао да се направи.",
+  "error.forbidden": "Ово не можете да урадите у овом разговору.",
+  "error.consent_required": {
+    "defaultMessage": "Сагласност пацијента за лијечење није активна.",
+    "description": "legal"
+  },
+  "error.not_found": "Овај разговор више није доступан.",
+  "error.rate_limited": "Превише порука одједном. Сачекајте тренутак и покушајте поново.",
+  "error.too_large": "Датотека је превелика.",
+  "error.unsupported_type": "Ова врста датотеке не може да се пошаље.",
+  "error.too_many_files": "{n, plural, one {Већ имате # датотеку која чека слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.} few {Већ имате # датотеке које чекају слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.} other {Већ имате # датотека које чекају слање. Непослате датотеке се уклањају након 24 сата; покушајте поново касније.}}"
+}

@@ -58,6 +58,7 @@ func TestChat_SchemasMatchTheGoTypes(t *testing.T) {
 		{"SendAck", communication.SendAck{}, communication.SendAck{}, nil},
 		{"SendMessageRequest", communication.SendCommand{AttachmentIDs: []string{id}}, communication.SendCommand{}, nil},
 		{"ChatCommandError", communication.CommandError{ID: "x"}, communication.CommandError{}, nil},
+		{"SummaryResponse", communication.Summary{}, communication.Summary{}, nil},
 		{"ChatAttachment", attachment, communication.Attachment{}, nil},
 		{"ChatReceipt", communication.Receipt{ParticipantID: id, Seq: 1}, communication.Receipt{}, nil},
 		{"ChatTyping", communication.Typing{ParticipantID: id}, communication.Typing{}, nil},

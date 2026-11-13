@@ -12,6 +12,14 @@ overrides:
 sql:
   - engine: postgresql
     schema: migrations
+    queries: internal/allergyintolerance/query.sql
+    gen:
+      go:
+        package: allergyintolerancedb
+        out: internal/allergyintolerance/allergyintolerancedb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/auditevent/query.sql
     gen:
       go:
@@ -65,6 +73,14 @@ sql:
       go:
         package: binarydb
         out: internal/binary/binarydb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/clinicstats/query.sql
+    gen:
+      go:
+        package: clinicstatsdb
+        out: internal/clinicstats/clinicstatsdb
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
@@ -177,6 +193,22 @@ sql:
       go:
         package: communicationdb
         out: internal/communication/communicationdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/medicationstatement/query.sql
+    gen:
+      go:
+        package: medicationstatementdb
+        out: internal/medicationstatement/medicationstatementdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/notification/query.sql
+    gen:
+      go:
+        package: notificationdb
+        out: internal/notification/notificationdb
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
