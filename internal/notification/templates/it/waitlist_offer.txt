@@ -1,0 +1,9 @@
+Si è liberato un orario che attendeva
+
+Presso {{.Clinic}} si è liberato un orario che attendeva.
+Data e ora: {{.When}}
+
+È riservato a lei fino alle {{.Until}}. Dopo viene offerto al paziente successivo. Accettandolo nell'app, l'appuntamento viene prenotato.
+
+Per accettarlo o rifiutarlo, apra l'app Salus:
+{{.Link}}

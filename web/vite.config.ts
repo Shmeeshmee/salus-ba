@@ -36,6 +36,9 @@ export default defineConfig({
       '/places': apiUrl, // the places of a clinic's location (SAL-19); no screen is under it
       '/analytics/platform': apiUrl, // the All of Salus figures (SAL-21); no screen is under it
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
+      // The waitlist's staff routes (SAL-35): removing an entry, the clinic's list and its order, and the clinic's
+      // appointment settings; /waitlist itself is a screen of the app.
+      '^/(waitlist/.+|clinic/(waitlist(/.*)?|appointment-settings))$': apiUrl,
     },
   },
   test: {

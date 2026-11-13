@@ -26,6 +26,8 @@ type Schedules interface {
 	// Read returns the schedule id as the directory shows it (of an active role of a listed clinic), or
 	// schedule.ErrNotFound.
 	Read(ctx context.Context, id string) (schedule.Schedule, error)
+	// Lookup returns the schedule id of the clinic org, unlocked, or schedule.ErrNotFound.
+	Lookup(ctx context.Context, org, id string) (schedule.Schedule, error)
 }
 
 // Clinics reads a clinic, for its time zone (organization.Service).

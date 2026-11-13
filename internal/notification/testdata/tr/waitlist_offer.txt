@@ -1,0 +1,10 @@
+Subject: Beklediğiniz bir randevu saati boşaldı
+
+Beklediğiniz bir randevu saati boşaldı.
+Klinik: Synthetic clinic
+Tarih ve saat: 7 Ocak 2030 Pazartesi, saat 10:00 (Europe/Sarajevo)
+
+Bu saat 09:10 saatine kadar sizin için ayrılmıştır. Ardından sıradaki hastaya sunulur. Uygulamada kabul ettiğinizde randevunuz alınır.
+
+Kabul etmek veya reddetmek için Salus uygulamasını açın:
+https://patient.example.test/waitlist

@@ -104,6 +104,15 @@ type Ports struct {
 	// by a Service that issues links (IssueLink, the notifier's reminders).
 	Tokens  TokenRepository
 	LinkURL string
+	// SAL-35, the waitlist: Waitlist stores it, Settings gives the clinic's rules (organization.Appointments), Offered
+	// moves its slots (slot.Service), OfferJobs enqueues an offer's expiry and Notices tells the patient of it (both
+	// River jobs); Quiet tells whether a patient is inside their quiet hours (nil until SAL-33: nobody is).
+	Waitlist  WaitlistRepository
+	Settings  Settings
+	Offered   OfferedSlots
+	OfferJobs OfferJobs
+	Notices   OfferNotices
+	Quiet     QuietHours
 }
 
 // Service holds the appointment rules (SPEC.md "Booking rules", "Who may do what with an appointment"). A
@@ -216,19 +225,23 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	if err := s.Jobs.EnqueueBooked(ctx, out.ID, out.OrganizationID); err != nil {
-		return Appointment{}, nil, err
+	return out, nil, s.booked(ctx, out, now)
+}
+
+// booked enqueues what follows the booking of a at now, in its transaction (a direct booking's, a waitlist
+// acceptance's): its confirmation, the request of its role's default questionnaire, the refresh of the clinic's
+// statistics and its reminders.
+func (s *Service) booked(ctx context.Context, a Appointment, now time.Time) error {
+	if err := s.Jobs.EnqueueBooked(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
 	}
-	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
-		return Appointment{}, nil, err
+	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
 	}
-	if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
-		return Appointment{}, nil, err
+	if err := s.Stats.EnqueueStatsRefresh(ctx, a.OrganizationID, a.Start); err != nil {
+		return err
 	}
-	if err := s.scheduleReminders(ctx, out, now); err != nil {
-		return Appointment{}, nil, err
-	}
-	return out, nil, nil
+	return s.scheduleReminders(ctx, a, now)
 }
 
 // refuse audits a refused interaction by c in a transaction of its own and returns refusal.

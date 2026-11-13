@@ -282,3 +282,138 @@ type SlotFreedArgs struct {
 
 // Kind names the job in river_job.
 func (SlotFreedArgs) Kind() string { return "waitlist_slot_freed" }
+
+// SAL-35: the waitlist (docs/plans/appointments.md, ADR 0015 "The waitlist hold lives in Postgres").
+
+// WaitlistStatus is a waitlist entry's: active until booked through an offer, withdrawn (by the patient, staff or
+// the revocation of the care consent), or expired once its latest day is over.
+type WaitlistStatus string
+
+// The statuses of an entry.
+const (
+	WaitlistActive    WaitlistStatus = "active"
+	WaitlistBooked    WaitlistStatus = "booked"
+	WaitlistWithdrawn WaitlistStatus = "withdrawn"
+	WaitlistExpired   WaitlistStatus = "expired" // an active entry past EndsAt; never stored
+)
+
+// OfferState is a waitlist offer's.
+type OfferState string
+
+// The states of an offer.
+const (
+	OfferOpen      OfferState = "open"
+	OfferAccepted  OfferState = "accepted"
+	OfferDeclined  OfferState = "declined"
+	OfferExpired   OfferState = "expired"
+	OfferWithdrawn OfferState = "withdrawn" // its entry was withdrawn, or the care consent revoked
+)
+
+// Times is a time of day in the clinic's zone, [Start, End) in minutes after midnight (End up to 1440); zero for any.
+type Times struct {
+	Start int
+	End   int
+}
+
+// Any reports whether t is no time of day: every time matches.
+func (t Times) Any() bool { return t.End == 0 }
+
+// Offer is a freed slot held for one waitlist entry until ExpiresAt; Start and End are the slot's.
+type Offer struct {
+	Start              time.Time
+	End                time.Time
+	ExpiresAt          time.Time
+	Created            time.Time
+	ID                 string
+	EntryID            string
+	SlotID             string
+	OrganizationID     string
+	PatientID          string
+	PractitionerRoleID string // the slot's
+	AppointmentID      string // the appointment its acceptance booked
+	State              OfferState
+}
+
+// WaitlistEntry is a patient's wish for a practitioner role or a specialty of a clinic (one of the two), between two
+// dates of the clinic's zone (Earliest and Latest at midnight UTC: dates, not instants) and, optionally, a time of day.
+// EndsAt is the end of Latest in the clinic's zone. Offer is its open offer, if any (ID empty for none).
+type WaitlistEntry struct {
+	Earliest           time.Time
+	Latest             time.Time
+	Created            time.Time
+	EndsAt             time.Time
+	ClosedAt           time.Time // zero while active
+	Offer              Offer
+	ID                 string
+	PatientID          string
+	OrganizationID     string
+	PractitionerRoleID string
+	Specialty          string // a code of practitionerrole.Specialties
+	Status             WaitlistStatus
+	Times              Times
+	Priority           int // 0 to 100: staff move an entry up
+}
+
+// NewEntry is a patient's request to join a clinic's waitlist.
+type NewEntry struct {
+	Earliest           time.Time
+	Latest             time.Time
+	OrganizationID     string
+	PractitionerRoleID string
+	Specialty          string
+	Times              Times
+}
+
+// ClinicEntry is an entry as the clinic's staff see it: with the patient's name where access.Profile gives it.
+type ClinicEntry struct {
+	Patient Name // zero where the care consent does not give it
+	Entry   WaitlistEntry
+	Named   bool
+}
+
+// WaitlistFilter narrows the clinic's waitlist: the entries a role could be offered (its own and its specialty's),
+// and a status; empty for all.
+type WaitlistFilter struct {
+	PractitionerRoleID string
+	Status             WaitlistStatus
+}
+
+// Match is what a freed slot asks of an entry: its clinic, role and specialty, its day and times in the clinic's zone,
+// its period, and the instant (an entry past its EndsAt matches nothing).
+type Match struct {
+	Start              time.Time
+	End                time.Time
+	Day                time.Time // the slot's date in the clinic's zone, at midnight UTC
+	Now                time.Time
+	OrganizationID     string
+	SlotID             string
+	PractitionerRoleID string
+	Specialty          string // the role's; empty for none
+	Times              Times  // the slot's, in the clinic's zone
+}
+
+// OfferNotice is what the notifier tells a patient of an offer: the offer and the patient's account.
+type OfferNotice struct {
+	AccountID string
+	Offer     Offer
+}
+
+// OfferExpireArgs is the waitlist_offer_expire job on the default queue, at the offer's expires_at: the slot goes to
+// the next entry. Opaque ids only.
+type OfferExpireArgs struct {
+	OfferID        string `json:"offer_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (OfferExpireArgs) Kind() string { return "waitlist_offer_expire" }
+
+// OfferNotifyArgs is the waitlist_offer_notify job on the notifier's email queue: the patient is told of the offer.
+// Opaque ids only.
+type OfferNotifyArgs struct {
+	OfferID        string `json:"offer_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (OfferNotifyArgs) Kind() string { return "waitlist_offer_notify" }

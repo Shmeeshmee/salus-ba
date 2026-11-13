@@ -66,9 +66,19 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, sender notification.Sende
 		webBaseURL: webBaseURL, patientAppURL: patientAppURL,
 	}, clk)
 
+	offers := notification.NewWaitlist(notification.WaitlistPorts{
+		Offers: appointment.NewService(appointment.Ports{
+			Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk, Patients: patients,
+			Waitlist: appointment.NewPostgresWaitlistRepository(pool),
+		}),
+		Accounts: accounts, Clinics: clinics, Repo: notification.NewPostgresRepository(pool), Pusher: pusher, Sender: sender,
+		Audit: audit, Tx: tx, PatientAppURL: patientAppURL,
+	})
+
 	workers := river.NewWorkers()
 	addEmailWorkers(workers, mail)
 	addChatWorkers(workers, chat)
+	addOfferWorkers(workers, offers)
 	cfg := workConfig(log, emailQueue, workers)
 	cfg.Queues[pushQueue] = river.QueueConfig{MaxWorkers: maxWorkers}
 	return river.NewClient(riverpgxv5.New(pool), cfg)
@@ -89,6 +99,13 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
 	}})
 	river.AddWorker(workers, &appointmentEmailWorker[composition.SignedEmailArgs]{send: func(ctx context.Context, a composition.SignedEmailArgs) error {
 		return mail.SendDocumentSigned(ctx, a.AppointmentID, a.OrganizationID)
+	}})
+}
+
+// addOfferWorkers registers the notifier's waitlist offers (SAL-35); the scheduler registers them with a nil offers.
+func addOfferWorkers(workers *river.Workers, offers *notification.Waitlist) {
+	river.AddWorker(workers, &offerNotifyWorker{notify: func(ctx context.Context, a appointment.OfferNotifyArgs) error {
+		return offers.NotifyOffer(ctx, a.OfferID, a.OrganizationID)
 	}})
 }
 

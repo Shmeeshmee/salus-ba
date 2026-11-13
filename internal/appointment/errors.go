@@ -37,6 +37,19 @@ var (
 	ErrPaymentDeclined = errors.New("appointment: payment declined")
 	// ErrLinkInvalid is returned for a one-time link that is unknown, used or expired, alike (SAL-34).
 	ErrLinkInvalid = errors.New("appointment: link invalid")
+	// ErrInvalidEntry is returned for a waitlist request with neither or both of a role and a specialty, an unknown one,
+	// dates out of order or more than 90 days ahead, or times out of order (SAL-35).
+	ErrInvalidEntry = errors.New("appointment: invalid waitlist entry")
+	// ErrWaitlistOff is returned when the clinic offers no waitlist (SAL-35).
+	ErrWaitlistOff = errors.New("appointment: waitlist off")
+	// ErrTooManyEntries is returned when the patient has as many active entries with the clinic as allowed (SAL-35).
+	ErrTooManyEntries = errors.New("appointment: too many waitlist entries")
+	// ErrOfferExpired is returned when an offer is accepted after its hold, or once it closed (SAL-35).
+	ErrOfferExpired = errors.New("appointment: offer expired")
+	// ErrOfferNotDue is returned when an offer's expiry runs before the offer's end (SAL-35).
+	ErrOfferNotDue = errors.New("appointment: offer not due to expire")
+	// ErrInvalidPriority is returned for a waitlist priority outside 0 to 100 (SAL-35).
+	ErrInvalidPriority = errors.New("appointment: invalid priority")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

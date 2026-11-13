@@ -57,6 +57,27 @@ func (j *riverJobs) EnqueueSlotFreed(ctx context.Context, slotID, org string) er
 	return j.insertOn(ctx, river.QueueDefault, SlotFreedArgs{SlotID: slotID, OrganizationID: org}, time.Time{})
 }
 
+// NewRiverOfferJobs returns the OfferJobs port on a River client (SAL-35).
+func NewRiverOfferJobs(client *river.Client[pgx.Tx]) OfferJobs {
+	return &riverJobs{client: client}
+}
+
+// NewRiverOfferNotices returns the OfferNotices port on a River client: the waitlist_offer_notify job, until SAL-33's
+// deliveries take its place (SAL-35).
+func NewRiverOfferNotices(client *river.Client[pgx.Tx]) OfferNotices {
+	return &riverJobs{client: client}
+}
+
+// EnqueueOfferExpire enqueues waitlist_offer_expire on the default queue, which the worker works, at the offer's end.
+func (j *riverJobs) EnqueueOfferExpire(ctx context.Context, offerID, org string, at time.Time) error {
+	return j.insertOn(ctx, river.QueueDefault, OfferExpireArgs{OfferID: offerID, OrganizationID: org}, at)
+}
+
+// NotifyOffer enqueues waitlist_offer_notify on the email queue, which the notifier works.
+func (j *riverJobs) NotifyOffer(ctx context.Context, offerID, org string) error {
+	return j.insert(ctx, OfferNotifyArgs{OfferID: offerID, OrganizationID: org}, time.Time{})
+}
+
 // insert enqueues args on the email queue in the transaction in ctx, to run at at (zero for now).
 func (j *riverJobs) insert(ctx context.Context, args river.JobArgs, at time.Time) error {
 	return j.insertOn(ctx, emailQueue, args, at)

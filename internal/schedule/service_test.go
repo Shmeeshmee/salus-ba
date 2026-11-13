@@ -456,3 +456,21 @@ func TestListed_GivesTheDirectorysSchedules(t *testing.T) {
 		t.Error("Listed() error = nil, want the repository's")
 	}
 }
+
+// The waitlist reads a slot's schedule, for its role, in the clinic's scope, without locking it (SAL-35).
+func TestLookup_ReadsTheScheduleInItsClinicUnlocked(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	got, err := f.svc.Lookup(t.Context(), clinicA, scheduleA2)
+	if err != nil || got.ID != scheduleA2 || !slices.Equal(f.calls, []string{"SetOrganization", "ByID"}) {
+		t.Errorf("Lookup() = %+v, %v after %v; want schedule A2 read in clinic A", got, err, f.calls)
+	}
+	f.repo.leak = true
+	if _, err := f.svc.Lookup(t.Context(), clinicA, scheduleB); !errors.Is(err, schedule.ErrNotFound) {
+		t.Errorf("Lookup(another clinic's) = %v, want ErrNotFound", err)
+	}
+	f.repo.leak, f.repo.err = false, errors.New("synthetic failure")
+	if _, err := f.svc.Lookup(t.Context(), clinicA, scheduleA2); err == nil || errors.Is(err, schedule.ErrNotFound) {
+		t.Errorf("Lookup() = %v, want the repository's error", err)
+	}
+}

@@ -132,3 +132,32 @@ func toSlot(row slotdb.HoldSlotRow) Slot {
 		Status: Status(row.Status), VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
 	}
 }
+
+func (r *postgresRepository) Lock(ctx context.Context, id string) (Slot, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Slot{}, ErrUnavailable
+	}
+	row, err := r.q(ctx).LockSlot(ctx, u)
+	return one(slotdb.HoldSlotRow(row), err)
+}
+
+func (r *postgresRepository) Transition(ctx context.Context, id string, from, to Status, at time.Time) (Slot, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Slot{}, ErrUnavailable
+	}
+	row, err := r.q(ctx).TransitionSlot(ctx, slotdb.TransitionSlotParams{ID: u, FromStatus: string(from), ToStatus: string(to), UpdatedAt: ts(at)})
+	return one(slotdb.HoldSlotRow(row), err)
+}
+
+// one maps the row of a query of one slot: none is ErrUnavailable.
+func one(row slotdb.HoldSlotRow, err error) (Slot, error) {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Slot{}, ErrUnavailable
+	case err != nil:
+		return Slot{}, err
+	}
+	return toSlot(row), nil
+}

@@ -1,0 +1,9 @@
+Subject: Ein Termin, auf den Sie gewartet haben, ist frei
+
+Bei Synthetic clinic ist ein Termin frei geworden, auf den Sie gewartet haben.
+Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
+
+Er ist bis 09:10 für Sie reserviert. Danach wird er dem nächsten Patienten angeboten. Wenn Sie ihn in der App annehmen, wird der Termin gebucht.
+
+Um ihn anzunehmen oder abzulehnen, öffnen Sie die Salus-App:
+https://patient.example.test/waitlist

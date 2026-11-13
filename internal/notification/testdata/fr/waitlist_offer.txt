@@ -1,0 +1,9 @@
+Subject: Un créneau que vous attendiez est libre
+
+Un créneau que vous attendiez s'est libéré chez Synthetic clinic.
+Date et heure : lundi 7 janvier 2030 à 10:00 (Europe/Sarajevo)
+
+Il vous est réservé jusqu'à 09:10. Ensuite, il est proposé au patient suivant. L'accepter dans l'application réserve le rendez-vous.
+
+Pour l'accepter ou le refuser, ouvrez l'application Salus :
+https://patient.example.test/waitlist

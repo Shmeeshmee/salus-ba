@@ -30,4 +30,9 @@ type Repository interface {
 	// DeleteFreeEndedBefore deletes the free slots that ended before before, in every clinic the login may
 	// see, and returns how many.
 	DeleteFreeEndedBefore(ctx context.Context, before time.Time) (int64, error)
+	// Lock returns the slot as the scope shows it, locked until the transaction ends, or ErrUnavailable.
+	Lock(ctx context.Context, id string) (Slot, error)
+	// Transition moves the slot id from status from to status to, last updated at at, and returns it; or
+	// ErrUnavailable when it is not in from.
+	Transition(ctx context.Context, id string, from, to Status, at time.Time) (Slot, error)
 }

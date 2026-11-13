@@ -126,6 +126,44 @@ func (q *Queries) InsertSlots(ctx context.Context, arg InsertSlotsParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const lockSlot = `-- name: LockSlot :one
+
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+       upper(period)::timestamptz AS end_at
+FROM slot
+WHERE id = $1
+FOR UPDATE
+`
+
+type LockSlotRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	ScheduleID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+	StartAt        pgtype.Timestamptz
+	EndAt          pgtype.Timestamptz
+}
+
+// SAL-35: the waitlist.
+// The waitlist: the slot to hand on, locked until the transaction ends (two jobs of one slot run one after the other).
+func (q *Queries) LockSlot(ctx context.Context, id pgtype.UUID) (LockSlotRow, error) {
+	row := q.db.QueryRow(ctx, lockSlot, id)
+	var i LockSlotRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.ScheduleID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const releaseSlot = `-- name: ReleaseSlot :execrows
 UPDATE slot
 SET status = 'free', version_id = version_id + 1, updated_at = $1
@@ -227,6 +265,55 @@ type SlotByIDRow struct {
 func (q *Queries) SlotByID(ctx context.Context, id pgtype.UUID) (SlotByIDRow, error) {
 	row := q.db.QueryRow(ctx, slotByID, id)
 	var i SlotByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.ScheduleID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
+const transitionSlot = `-- name: TransitionSlot :one
+UPDATE slot
+SET status = $1, version_id = version_id + 1, updated_at = $2
+WHERE id = $3 AND status = $4::text
+RETURNING id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+          upper(period)::timestamptz AS end_at
+`
+
+type TransitionSlotParams struct {
+	ToStatus   string
+	UpdatedAt  pgtype.Timestamptz
+	ID         pgtype.UUID
+	FromStatus string
+}
+
+type TransitionSlotRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	ScheduleID     pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+	StartAt        pgtype.Timestamptz
+	EndAt          pgtype.Timestamptz
+}
+
+// The waitlist: free to busy-tentative (an offer), busy-tentative to busy (its acceptance) or to free (none left); no
+// row when the slot is not in the status it moves from.
+func (q *Queries) TransitionSlot(ctx context.Context, arg TransitionSlotParams) (TransitionSlotRow, error) {
+	row := q.db.QueryRow(ctx, transitionSlot,
+		arg.ToStatus,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.FromStatus,
+	)
+	var i TransitionSlotRow
 	err := row.Scan(
 		&i.ID,
 		&i.UpdatedAt,

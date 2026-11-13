@@ -1,0 +1,9 @@
+Subject: Termin koji ste čekali je slobodan
+
+Oslobodio se termin koji ste čekali u ustanovi Synthetic clinic.
+Datum i vrijeme: ponedjeljak, 7. januar 2030. u 10:00 (Europe/Sarajevo)
+
+Termin je rezervisan za vas do 09:10. Nakon toga nudi se sljedećem pacijentu. Prihvatanjem u aplikaciji termin se zakazuje.
+
+Da biste ga prihvatili ili odbili, otvorite aplikaciju Salus:
+https://patient.example.test/waitlist

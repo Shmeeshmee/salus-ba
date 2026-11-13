@@ -101,6 +101,12 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
 		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
+		// The waitlist (SAL-35): the clinic's rules, its offered slots, the offers' expiries and notices.
+		Waitlist: appointment.NewPostgresWaitlistRepository(pool), Offered: slots,
+		Settings: organization.NewAppointments(organization.AppointmentsPorts{
+			Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
+		}),
+		OfferJobs: appointment.NewRiverOfferJobs(jobs), Notices: appointment.NewRiverOfferNotices(jobs),
 	})
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
@@ -138,6 +144,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			slot.NewHandler(slots, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
+			appointment.NewWaitlistHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),

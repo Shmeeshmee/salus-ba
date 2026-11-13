@@ -1007,6 +1007,39 @@ type VideoSession struct {
 	RemovalReason        pgtype.Text
 }
 
+type WaitlistEntry struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	EndsAt             pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	PatientID          pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	Earliest           pgtype.Date
+	Latest             pgtype.Date
+	TimesStartMinute   pgtype.Int2
+	TimesEndMinute     pgtype.Int2
+	Priority           int16
+	Status             string
+	Specialty          pgtype.Text
+}
+
+type WaitlistOffer struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	ClosedAt           pgtype.Timestamptz
+	EntryID            pgtype.UUID
+	SlotID             pgtype.UUID
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	AppointmentID      pgtype.UUID
+	State              string
+	Period             pgtype.Range[pgtype.Timestamptz]
+}
+
 type WebhookDeadLetter struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz

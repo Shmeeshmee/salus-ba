@@ -36,6 +36,8 @@ type letter struct {
 	// When is the appointment's start in the clinic's zone, written by the language's date.txt.
 	When string
 	Link string
+	// Until is when a waitlist offer's hold ends, HH:MM in the clinic's zone (SAL-35).
+	Until string
 	// Questionnaire adds COPY E1 (docs/questionnaire/COPY.md), never which questionnaire.
 	Questionnaire bool
 }

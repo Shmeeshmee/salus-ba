@@ -65,6 +65,8 @@ tables:
   trends_period: {owner: trends, personal_data: false}
   trends_rise: {owner: trends, personal_data: true}
   video_session: {owner: videosession, personal_data: true}
+  waitlist_entry: {owner: appointment, personal_data: true} # a patient's wish for a freed slot (00056, SAL-35)
+  waitlist_offer: {owner: appointment, personal_data: true} # a freed slot held for one entry (00056, SAL-35)
   webhook_dead_letter: {owner: notification, personal_data: true} # ids of a patient's message (00047)
   webhook_endpoint: {owner: notification, personal_data: true} # created_by (00047)
   river_job: {owner: river}
