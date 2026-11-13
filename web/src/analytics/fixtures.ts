@@ -3,6 +3,7 @@ import {
   dimensionsOf,
   monthsBetween,
   type AnalyticsData,
+  type ClinicAppointments,
   type DiagnosisGroup,
   type Dimension,
   type HeatCell,
@@ -16,10 +17,11 @@ import {
   type Stats,
 } from './data'
 
-// fixtures.ts: PLACEHOLDER statistics for building the analytics screens before the API has them (SAL-22, plan §8).
-// Every number is synthetic, made up from a hash of its keys: no clinic, practitioner or patient is behind any of
-// them. The platform's numbers follow the API's visible rules only (counts rounded to 5, a small or dominated cell
-// hidden as null, partial sums), not its suppression (plan §5). Replaced by the generated client after the merge.
+// fixtures.ts: PLACEHOLDER statistics for the analytics screens' tests and render benchmark (SAL-22, plan §8), in the
+// shapes of api/openapi.yaml. Every number is synthetic, made up from a hash of its keys: no clinic, practitioner or
+// patient is behind any of them. They follow the API's visible rules (a practitioner who is not an admin refused a
+// specialty or another role; the platform's counts rounded to 5, a small or dominated cell hidden as null, partial
+// sums, the quarters whose three months are published), not its suppression (plan §5).
 
 // The diagnosis groups of plan appendix A (key and parent), with synthetic ICD-10 codes inside their ranges.
 const groupTable: [code: string, parent: string | undefined, codes: string[]][] = [
@@ -97,7 +99,8 @@ export function fixtureReference(): Reference {
   return { groups: async () => groups, places: async () => places, specialties: async () => specialties, staff: async () => staff }
 }
 
-export type FixtureOptions = { admin?: boolean; contributes?: boolean; first?: Month; last?: Month }
+// role is the caller's own practitioner role, the only one a practitioner who is not an admin may narrow to.
+export type FixtureOptions = { admin?: boolean; role?: string; contributes?: boolean; first?: Month; last?: Month }
 
 // fixtureData is the whole interface on fixtures, for tests and the render benchmark.
 export function fixtureData(options: FixtureOptions = {}): AnalyticsData {
@@ -121,7 +124,23 @@ function season(group: string, month: Month): number {
 
 const round5 = (n: number) => Math.round(n / 5) * 5
 
-export function fixtureStats(reference: Reference, { admin = true, contributes = true, first = '2024-01', last = '2026-10' }: FixtureOptions = {}): Stats {
+// quartersOf is the quarters ("2026-Q3") whose three months are all in months, oldest first, as the API publishes them.
+function quartersOf(months: Month[]): string[] {
+  const have = new Set(months)
+  const quarters = new Set<string>()
+  for (const month of months) {
+    const [y, m] = month.split('-').map(Number)
+    const q = Math.ceil(m / 3)
+    if ([1, 2, 3].every((i) => have.has(`${y}-${String((q - 1) * 3 + i).padStart(2, '0')}`))) quarters.add(`${y}-Q${q}`)
+  }
+  return [...quarters].sort()
+}
+
+export function fixtureStats(reference: Reference, { admin = true, role, contributes = true, first = '2024-01', last = '2026-10' }: FixtureOptions = {}): Stats {
+  // allowed is the API's rule C2: a practitioner who is not an admin narrows to their own role only, never a specialty.
+  function allowed(q: { specialty?: string; practitionerRole?: string }) {
+    if (!admin && (q.specialty || (q.practitionerRole && q.practitionerRole !== role))) throw new AnalyticsError('forbidden')
+  }
   // groupCount is the synthetic count of a group (or subgroup or code) in a month, scaled by the filters' share.
   const groupCount = (key: string, month: Month, scale: number) => Math.round((2 + 30 * unit(key)) * season(key, month) * scale * (0.8 + 0.4 * unit(key, month)))
   const leaves = (q: { group?: string; subgroup?: string }) => codesOf.get(q.subgroup ?? q.group ?? '') ?? []
@@ -158,6 +177,7 @@ export function fixtureStats(reference: Reference, { admin = true, contributes =
 
   return {
     async clinicAppointments(q) {
+      allowed(q)
       const scale = (q.specialty ? 0.4 : 1) * (q.practitionerRole ? 0.5 : 1)
       const series = monthsBetween(q.from, q.to).map((period) => {
         const booked = Math.round((90 + 40 * unit('booked', period)) * scale)
@@ -165,7 +185,7 @@ export function fixtureStats(reference: Reference, { admin = true, contributes =
         const cancelled = Math.round(booked * (0.08 + 0.06 * unit('cancelled', period)))
         return { period, booked, fulfilled: booked - noshow - cancelled, noshow, cancelled }
       })
-      const heatmap: HeatCell[] = []
+      const heatmap: ClinicAppointments['heatmap'] = []
       for (let weekday = 1; weekday <= 6; weekday++) {
         const [open, close] = weekday === 6 ? [9, 13] : [8, 19]
         for (let hour = open; hour < close; hour++) heatmap.push({ weekday, hour, count: Math.round((4 + 20 * unit('h', weekday, hour)) * scale * series.length) })
@@ -176,6 +196,7 @@ export function fixtureStats(reference: Reference, { admin = true, contributes =
     },
 
     async clinicDiagnoses(q) {
+      allowed(q)
       const scale = (q.specialty ? 0.4 : 1) * (q.practitionerRole || !admin ? 0.5 : 1)
       const months = monthsBetween(q.from, q.to)
       const own = q.subgroup ?? q.group ?? 'all'
@@ -186,7 +207,8 @@ export function fixtureStats(reference: Reference, { admin = true, contributes =
 
     async platformMonths() {
       if (!contributes) throw new AnalyticsError('analytics_not_contributing')
-      return { months: monthsBetween(first, last), minCount: 10 }
+      const months = monthsBetween(first, last)
+      return { months, quarters: quartersOf(months), minCount: 10 }
     },
 
     async platformCells(q) {

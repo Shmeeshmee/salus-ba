@@ -34,6 +34,7 @@ export default defineConfig({
       // The chat's JSON API and its socket (SAL-27, SAL-31); the chat's screens are under /chats.
       '/conversations': { target: apiUrl, ws: true },
       '/places': apiUrl, // the places of a clinic's location (SAL-19); no screen is under it
+      '/analytics/clinic': apiUrl, // the clinic's figures (SAL-20); the screen is /analytics itself
       '/analytics/platform': apiUrl, // the All of Salus figures (SAL-21); no screen is under it
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
     },

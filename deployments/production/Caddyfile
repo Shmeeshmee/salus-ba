@@ -101,6 +101,7 @@ app.{$SALUS_DOMAIN} {
 		path /compositions*
 		path /conversations*
 		path /places*
+		path /analytics/clinic*
 		path /analytics/platform*
 		path /patients*
 	}

@@ -22,7 +22,8 @@ function monthsUpTo(now: Date): Month[] {
 
 // ClinicView is My clinic (SAL-20, plan §4): the clinic's appointments over time and by weekday and hour, its
 // diagnoses by group with the drill-down, and for an admin the breakdown by practitioner. A practitioner who is not
-// an admin gets their own role's diagnoses from the API (rule C2); the view says so and offers no practitioner.
+// an admin gets their own role's diagnoses from the API (rule C2); the view says so and offers neither a practitioner
+// nor a specialty, which the API refuses them.
 export function ClinicView({ data, reference, admin, now }: { data: AnalyticsData; reference: ClinicReference; admin: boolean; now?: Date }) {
   const t = useT()
   const [months] = useState(() => monthsUpTo(now ?? new Date())) // now: a test's fixed clock
@@ -48,7 +49,7 @@ export function ClinicView({ data, reference, admin, now }: { data: AnalyticsDat
     <div className="analytics-view">
       <div className="analytics-filters" role="group" aria-label={t('analytics.filters')}>
         <MonthRange months={months} from={range.from} to={range.to} onChange={setRange} />
-        <SpecialtyFilter specialties={reference.specialties} value={specialty} onChange={setSpecialty} />
+        {admin && <SpecialtyFilter specialties={reference.specialties} value={specialty} onChange={setSpecialty} />}
         {admin && <PractitionerFilter staff={reference.staff} value={role} onChange={setRole} />}
         <DiagnosisFilter groups={reference.groups} value={diagnosis} onChange={setDiagnosis} />
       </div>

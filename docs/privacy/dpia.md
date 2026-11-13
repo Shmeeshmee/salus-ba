@@ -1995,12 +1995,13 @@ location hint are not shown.
 
 **Processing added.** None on the server. The staff web app gets an Analytics page that shows what the clinic and
 platform endpoints of SAL-20 and SAL-21 return: counts per month, weekday and hour, diagnosis group, region, city,
-specialty and, for a clinic admin, practitioner. Until those endpoints are merged the page shows synthetic
-placeholder figures (`web/src/analytics/fixtures.ts`); no patient data is behind them.
+specialty and, for a clinic admin, practitioner, through the generated client (`web/src/analytics/data.ts`); every
+read is audited by those endpoints. The tests use synthetic placeholder figures (`web/src/analytics/fixtures.ts`).
 
 **Minimisation.** The page asks only for counts and keys (codes, place ids, role ids); names come from the reference
 endpoints. Nothing is stored in the browser and nothing is logged. A practitioner who is not an admin is offered no
-practitioner filter and no practitioner breakdown, and is told the diagnoses are their own patients' (rule C2).
+practitioner or specialty filter (the API refuses both) and no practitioner breakdown, and is told the diagnoses are
+their own patients' (rule C2).
 
 **Risks and measures.**
 

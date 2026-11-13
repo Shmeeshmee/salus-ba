@@ -4,23 +4,18 @@ import { attempt } from '../api/result'
 import type { components } from '../api/schema'
 import type { Language } from '../i18n/languages'
 import { loadStaff, type Member } from '../staff'
-import { fixtureStats } from './fixtures'
 
-// data.ts is the analytics screens' one way to their data (docs/plans/analytics.md §8, SAL-22): the shapes of the
-// plan's API contract, in camelCase, behind one interface. Until ANA-2 (SAL-20) and ANA-3 (SAL-21) are merged,
-// the statistics come from fixtures.ts (synthetic, placeholder); the reference data (groups, places, specialties,
-// the clinic's practitioners) is already the API's. The switch to the generated client touches only this file.
+// data.ts is the analytics screens' one way to their data (docs/plans/analytics.md §8, SAL-22): the generated client
+// of api/openapi.yaml (SAL-20's /analytics/clinic, SAL-21's /analytics/platform) behind one interface, which
+// fixtures.ts implements for the tests. The screens speak in months; the clinic's endpoints take days.
 
 export type Month = string // "2026-11"
 export type Count = number | null // null: hidden (suppressed), on the platform only
 
-export type AppointmentMonth = { period: Month; booked: number; fulfilled: number; noshow: number; cancelled: number }
+type Schemas = components['schemas']
+export type ClinicAppointments = Schemas['ClinicAppointments']
+export type AppointmentMonth = ClinicAppointments['series'][number]
 export type HeatCell = { weekday: number; hour: number; count: Count } // ISO weekday, 1 = Monday; local hour 0-23
-export type ClinicAppointments = {
-  series: AppointmentMonth[]
-  heatmap: HeatCell[]
-  practitioners?: { practitionerRole: string; fulfilled: number }[] // admins only
-}
 export type Row = { key: string; count: Count }
 
 export type ClinicQuery = { from: Month; to: Month; specialty?: string; practitionerRole?: string }
@@ -36,16 +31,16 @@ export const dimensionsOf: Record<PlatformTable, Dimension[]> = {
 }
 export type PlatformCellsQuery = { table: PlatformTable; from: Month; to: Month; filter: Partial<Record<Dimension, string>>; by: Dimension | 'month' }
 // partial: a count of the answer is hidden, so a sum over it is a lower bound.
-export type PlatformCells = { rows: Row[]; partial: boolean }
-export type PlatformMonths = { months: Month[]; minCount: number }
-export type Rise = { week: string; region: string; group: string } // week "2026-W44"
+export type PlatformCells = Schemas['PlatformBreakdown']
+export type PlatformMonths = Schemas['PlatformMonths'] // months and quarters oldest first
+export type Rise = Schemas['PlatformRises']['rises'][number] // week "2026-W44"
 
-export type DiagnosisGroup = components['schemas']['DiagnosisGroup']
-export type Place = components['schemas']['Place']
-export type Specialty = components['schemas']['Specialty']
+export type DiagnosisGroup = Schemas['DiagnosisGroup']
+export type Place = Schemas['Place']
+export type Specialty = Schemas['Specialty']
 export type { Member }
 
-// AnalyticsError is a refused call, with the API's code (analytics_not_contributing, invalid_request, ...).
+// AnalyticsError is a refused call, with the API's code (analytics_not_contributing, forbidden, invalid_request, ...).
 export class AnalyticsError extends Error {
   readonly code: string
   constructor(code: string) {
@@ -72,30 +67,55 @@ export interface Stats {
 
 export type AnalyticsData = Reference & Stats
 
-// AnalyticsAccount is the account with the features of GET /auth/me (plan §2a), typed here until the client has it.
-export type AnalyticsAccount = Account & { features?: string[] }
-
-export function platformEnabled(account: AnalyticsAccount): boolean {
+// platformEnabled is the analytics_platform feature of GET /auth/me (plan §2a).
+export function platformEnabled(account: Account): boolean {
   return account.features?.includes('analytics_platform') === true
 }
 
-// analyticsData is the app's data: the API's reference data and, for now, the fixtures' statistics over it.
+// analyticsData is the app's data, all of it from the API.
 export function analyticsData(api: ApiClient, fhir: FhirClient, account: Account): AnalyticsData {
-  const reference = apiReference(api, fhir, account.organizationId ?? '')
-  return { ...reference, ...fixtureStats(reference, { admin: account.role === 'admin' }) }
+  return { ...apiReference(api, fhir, account.organizationId ?? ''), ...apiStats(api) }
+}
+
+async function read<T>(call: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
+  const res = await attempt(call)
+  if (!res.ok) throw new AnalyticsError(res.code ?? 'unavailable')
+  return res.data
 }
 
 function apiReference(api: ApiClient, fhir: FhirClient, organizationId: string): Reference {
-  async function read<T>(call: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
-    const res = await attempt(call)
-    if (!res.ok) throw new AnalyticsError(res.code ?? 'unavailable')
-    return res.data
-  }
   return {
     groups: async (language) => (await read(api.GET('/terminology/diagnosis-groups', { params: { query: { language } } }))).groups,
     places: async () => (await read(api.GET('/places'))).places,
     specialties: async () => (await read(api.GET('/specialties'))).specialties,
     staff: () => loadStaff(fhir, organizationId),
+  }
+}
+
+// days is a range of months as the clinic's endpoints take it: the first day of from to the last day of to.
+function days(q: ClinicQuery) {
+  const [y, m] = q.to.split('-').map(Number)
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return { from: `${q.from}-01`, to: `${q.to}-${String(last).padStart(2, '0')}` }
+}
+
+// filters is a clinic query's narrowing, only the ones set.
+function filters(q: ClinicQuery) {
+  return { ...(q.specialty ? { specialty: q.specialty } : {}), ...(q.practitionerRole ? { practitionerRole: q.practitionerRole } : {}) }
+}
+
+// apiStats is the statistics of the generated client.
+export function apiStats(api: ApiClient): Stats {
+  return {
+    clinicAppointments: (q) => read(api.GET('/analytics/clinic/appointments', { params: { query: { ...days(q), ...filters(q) } } })),
+    clinicDiagnoses: (q) => {
+      const diagnosis = { ...(q.group ? { group: q.group } : {}), ...(q.subgroup ? { subgroup: q.subgroup } : {}) }
+      return read(api.GET('/analytics/clinic/diagnoses', { params: { query: { ...days(q), by: q.by, ...diagnosis, ...filters(q) } } }))
+    },
+    platformMonths: () => read(api.GET('/analytics/platform/months')),
+    platformCells: (q) => read(api.GET('/analytics/platform/cells', { params: { query: { table: q.table, from: q.from, to: q.to, by: q.by, ...q.filter } } })),
+    platformHeatmap: (q) => read(api.GET('/analytics/platform/heatmap', { params: { query: q } })),
+    platformRises: (q) => read(api.GET('/analytics/platform/rises', { params: { query: q } })),
   }
 }
 
@@ -111,18 +131,4 @@ export function monthsBetween(from: Month, to: Month): Month[] {
     m += 1
     if (m > 12) [y, m] = [y + 1, 1]
   }
-}
-
-// quartersOf is the quarters ("2026-Q3") whose three months are all in months, newest first: the published
-// heatmaps (plan §5: built after the quarter).
-export function quartersOf(months: Month[]): string[] {
-  const have = new Set(months)
-  const quarters = new Set<string>()
-  for (const month of months) {
-    const [y, m] = month.split('-').map(Number)
-    const q = Math.ceil(m / 3)
-    const all = [0, 1, 2].every((i) => have.has(`${y}-${String((q - 1) * 3 + 1 + i).padStart(2, '0')}`))
-    if (all) quarters.add(`${y}-Q${q}`)
-  }
-  return [...quarters].sort().reverse()
 }

@@ -3,15 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderInLanguage } from '../i18n/renderInLanguage'
 import { admin, practitioner } from '../test/fixtures'
 import { Analytics } from './Analytics'
-import type { AnalyticsAccount, AnalyticsData } from './data'
+import type { Account } from '../api/client'
+import type { AnalyticsData } from './data'
 import { fixtureData } from './fixtures'
 
 afterEach(cleanup)
 
 const now = new Date('2026-11-12T09:00:00Z')
-const withPlatform: AnalyticsAccount = { ...admin, features: ['analytics_platform'] }
+const withPlatform: Account = { ...admin, features: ['analytics_platform'] }
 
-function show(data: AnalyticsData, account: AnalyticsAccount = admin) {
+function show(data: AnalyticsData, account: Account = admin) {
   return renderInLanguage(<Analytics data={data} account={account} now={now} />, 'en')
 }
 
@@ -60,10 +61,11 @@ describe('My clinic', () => {
     expect(screen.getByLabelText('Practitioner')).toBeTruthy()
   })
 
-  it('gives a practitioner neither, and says the diagnoses are their own', async () => {
+  it('gives a practitioner neither, nor the specialty the API refuses them, and says the diagnoses are their own', async () => {
     show(fixtureData({ admin: false }), practitioner)
     await screen.findByRole('figure', { name: 'Appointments per month' })
     expect(screen.queryByLabelText('Practitioner')).toBeNull()
+    expect(screen.queryByLabelText('Specialty')).toBeNull()
     expect(screen.queryByRole('figure', { name: 'Attended appointments by practitioner' })).toBeNull()
     expect(screen.getByText('Only the diagnoses of your own patients are shown.')).toBeTruthy()
   })

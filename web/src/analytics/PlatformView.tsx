@@ -5,7 +5,7 @@ import { TipTag } from '../ui'
 import { BarChart } from './BarChart'
 import { Loaded } from './chart'
 import { DrillPath, type ClinicReference } from './ClinicView'
-import { dimensionsOf, monthsBetween, quartersOf, type AnalyticsData, type Dimension, type Month, type Place, type PlatformCells, type PlatformTable } from './data'
+import { dimensionsOf, monthsBetween, type AnalyticsData, type Dimension, type Month, type Place, type PlatformCells, type PlatformTable } from './data'
 import { drillInto, drillOf, geoFilter, type Diagnosis, type Geo } from './drill'
 import { Choice, DiagnosisFilter, MonthRange, PlaceFilter, SpecialtyFilter } from './Filters'
 import { Heatmap } from './Heatmap'
@@ -19,7 +19,7 @@ const tables: PlatformTable[] = ['gd', 'gs', 'sd']
 // PlatformView is All of Salus (SAL-21, plan §5 and §6): one table at a time, its two dimensions as the only
 // filters, so the view never asks for a combination the API refuses. Counts are distinct patients of closed months;
 // a sum over months is patient-months, partial when a cell is hidden. Rises are flagged without a count.
-export function PlatformView({ data, reference, months }: { data: AnalyticsData; reference: PlatformReference; months: Month[] }) {
+export function PlatformView({ data, reference, months, quarters }: { data: AnalyticsData; reference: PlatformReference; months: Month[]; quarters: string[] }) {
   const t = useT()
   const placeName = usePlaceName(reference.places)
   const specialtyName = useSpecialtyName(reference.specialties)
@@ -102,16 +102,17 @@ export function PlatformView({ data, reference, months }: { data: AnalyticsData;
             )}
           </div>
         )}
-        <PlatformHeatmap data={data} months={months} region={region} />
+        <PlatformHeatmap data={data} quarters={quarters} region={region} />
         <Rises data={data} region={region} groupName={groupName} placeName={placeName} />
       </div>
     </div>
   )
 }
 
-function PlatformHeatmap({ data, months, region }: { data: AnalyticsData; months: Month[]; region?: string }) {
+// PlatformHeatmap offers the published quarters (plan §5: built after the quarter), newest first.
+function PlatformHeatmap({ data, quarters: published, region }: { data: AnalyticsData; quarters: string[]; region?: string }) {
   const t = useT()
-  const quarters = quartersOf(months)
+  const quarters = [...published].reverse()
   const [quarter, setQuarter] = useState(quarters[0] ?? '')
   const cells = useLoad(() => (quarter ? data.platformHeatmap({ quarter, ...(region ? { region } : {}) }) : Promise.resolve({ cells: [] })), [data, quarter, region])
   if (quarters.length === 0) return null

@@ -220,7 +220,7 @@ As built, where it differs from the plan (agent decisions, for the owner to revi
   the first attack case asserts its repair; §5 A7 describes the attacker's A4 knowledge. Re-measured: the month
   benchmark 37.2 s and 38.0 s, the exact check over 60 months 12.3 s.
 
-## ANA-4 SAL-22 charts (branch `analytics-charts`), mocked data
+## ANA-4 SAL-22 charts (branch `analytics-charts`)
 
 Built: `web/src/analytics/`, an Analytics page (nav entry, `/analytics`) with My clinic and All of Salus tabs.
 Hand-written SVG: `LineChart` (months, one line per series, hidden months break the line), `BarChart` (largest first,
@@ -233,11 +233,16 @@ city). Hidden cells read "Hidden" with the §5 tooltip; sums over months are "Pa
 rises read "Unusual rise" with the §6 tooltip. Strings in the new `analytics` catalog area, five staff languages;
 months and weekdays through `Intl` (`formatMonth`, `formatWeekday` in `i18n/format.ts`).
 
-Data: `data.ts` holds the §8 shapes in camelCase and one interface (`Reference` + `Stats`). `analyticsData(api, fhir,
-account)` already reads the groups, places, specialties and staff from the API; the statistics come from
-`fixtures.ts` (synthetic, labelled placeholder). The switch to the generated client replaces `fixtureStats` in
-`analyticsData` only; the Vite proxy (and Caddy) will need `^/analytics/(clinic|platform)/` then, since `/analytics`
-itself is a screen.
+Data: `data.ts` is the one way to the figures: `analyticsData(api, fhir, account)` reads the groups, places,
+specialties and staff and, through `apiStats`, the generated client of `/analytics/clinic/*` (SAL-20) and
+`/analytics/platform/*` (SAL-21), its types the schemas of `api/openapi.yaml`. The screens speak in months; the
+clinic's endpoints take days, so a range is sent as the first day of the first month to the last day of the last.
+The platform's quarters are the API's (`PlatformMonths.quarters`), newest first in the picker. A practitioner who is
+not an admin is offered no specialty filter (the API answers 403 to it, as to another role). `fixtures.ts` stays,
+for the tests and the benchmark, in the API's shapes and with its refusals. The Vite proxy and Caddy route
+`/analytics/clinic` and `/analytics/platform` (`/analytics` itself is the screen). The e2e journey
+(`test/e2e/analytics_web_test.go`, `test/e2e/web/analytics.spec.ts`): a booking, found on the practitioner's appointments chart
+in the browser, no specialty or practitioner filter, and the All of Salus tab without an error.
 
 Measured (`render.bench.test.tsx`, jsdom in the node service, 30 renders after 3 warm-ups, 3 years of monthly data,
 every group: 27 groups + 7 subgroups):
@@ -257,11 +262,10 @@ file alone.
 Agent decisions, for the owner to review:
 
 - **"The clinic contributes"** is learnt from `GET /analytics/platform/months`: `analytics_not_contributing` hides the
-  tab; with the feature off the call is never made. `features` is typed locally (`AnalyticsAccount`) until the client
-  has it.
+  tab; with the feature off the call is never made.
 - **Vitest 5 has no bench mode**, so the benchmark is a test with a generous budget that logs its numbers.
 - **The clinic's range** is the 36 months up to the current month (UTC), default the last 12; the platform's is the
-  published months, default the last 12. The platform heatmap offers the quarters whose three months are published.
+  published months, default the last 12. The platform heatmap offers the API's published quarters.
 - **Heatmap and rises** on All of Salus take the region (or the city's region); an entity or "All of BiH" asks for all.
 - **Labels of a bar** are cut to the label column; the full name is in the mark's accessible name, tooltip and table.
 - `vite.config.ts` reads `analytics.css` as text in tests too (the reduced-motion test).

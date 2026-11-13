@@ -3,7 +3,8 @@ import { useLanguage, useT } from '../i18n/useT'
 import { useLoad, type Load } from '../load'
 import { Alert } from '../ui'
 import { ClinicView } from './ClinicView'
-import { AnalyticsError, platformEnabled, type AnalyticsAccount, type AnalyticsData, type PlatformMonths } from './data'
+import type { Account } from '../api/client'
+import { AnalyticsError, platformEnabled, type AnalyticsData, type PlatformMonths } from './data'
 import { PlatformView, type PlatformReference } from './PlatformView'
 import './analytics.css'
 
@@ -12,7 +13,7 @@ type Tab = 'clinic' | 'platform'
 // Analytics is the staff's analytics page (SAL-22, plan §9 ANA-4): My clinic for every staff account, and All of
 // Salus only when GET /auth/me has the analytics_platform feature (plan §2a) and the clinic contributes (O6: the API
 // refuses the months with analytics_not_contributing, which hides the tab).
-export function Analytics({ data, account, now }: { data: AnalyticsData; account: AnalyticsAccount; now?: Date }) {
+export function Analytics({ data, account, now }: { data: AnalyticsData; account: Account; now?: Date }) {
   const t = useT()
   const { language } = useLanguage()
   const id = useId()
@@ -82,5 +83,5 @@ function Platform({ data, state, reference }: { data: AnalyticsData; state: Load
   if (state.name === 'failed') return <Alert message={t('analytics.loadFailed')} />
   if (state.name !== 'loaded' || state.value === null) return null
   if (state.value.months.length === 0) return <p className="muted">{t('analytics.noMonths')}</p>
-  return <PlatformView data={data} reference={reference} months={state.value.months} />
+  return <PlatformView data={data} reference={reference} months={state.value.months} quarters={state.value.quarters} />
 }
