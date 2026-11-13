@@ -53,8 +53,7 @@ func BenchmarkRemindersSweep(b *testing.B) {
 		b.Fatal(err)
 	}
 	s.clock.set(now)
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() { // the 100 000 rows are seeded once
 		n, err := s.appointments.SweepReminders(b.Context(), 1000)
 		if err != nil || n != 1000 {
 			b.Fatalf("SweepReminders() = %d, %v; want the 1000 overdue", n, err)

@@ -124,7 +124,7 @@ bench-clinicstats: tools-image
 
 ## bench-reminders: the reminders' hourly sweep over 100,000 scheduled and 1,000 due in one minute dispatched and sent (docs/plans/appointments.PROGRESS.md, SAL-33)
 bench-reminders: tools-image
-	$(GO) go test -run '^$$' -bench 'BenchmarkReminders' -benchtime=3x -count=1 -timeout 30m ./internal/worker
+	$(GO) go test -run '^$$' -bench 'BenchmarkReminders' -benchtime=3x -count=1 -timeout 60m ./internal/worker
 
 bench-consult-stream: tools-image
 	$(GO) sh -c "go test -tags loadtest -count=1 -v -run TestTranscriptStreamLatency ./internal/api/ && \

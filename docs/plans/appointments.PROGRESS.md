@@ -71,6 +71,24 @@ clinic in Europe/Sarajevo across the 25 October 2026 change, quiet hours in eith
 every job run twice, a cancellation and a reschedule between scheduling and dispatch; against Postgres with the
 real repositories and River's inserts, fake senders.
 
+### Measured (`make bench-reminders`, 2026-11-13)
+
+The host was shared with the other wave-1 stacks (load average 10 to 25 during the runs), so the numbers are upper
+bounds; the queries are those of the code, on salus_app with its row-level security.
+
+| Measure | Result |
+| --- | --- |
+| The hourly sweep over 100 000 scheduled reminders, 1 000 of them overdue: find them (two pages of the partial index on `(due_at, id)` where scheduled) and enqueue their dispatch again (unique by the reminder, `InsertManyTx`) | 30.0 ms and 33.8 ms per sweep (two counts of five) |
+| 1 000 reminders dispatched at once by 10 workers (the notifier's), each storing an e-mail and a push delivery with their jobs | 1.37 s for the 1 000 (mean of three runs) |
+| Their 2 000 sends by 10 workers on the fake senders (lock, re-read the reminder and the appointment, issue the e-mail's one-time link, send, mark sent) | 4.6 s for the 2 000 (mean of three runs) |
+
+- The 1 000 dispatches share one practitioner role, so their appointments cannot share a start: the benchmark runs
+  them all at one instant, the work a minute with 1 000 due reminders asks. About 1.4 ms of database work per
+  dispatch and 2.3 ms per send at ten at a time: a burst of 1 000 is sent within seconds, far inside the reminders'
+  lead of an hour or a day.
+- The cost is in the sends' audited reads (the appointment, the patient's account and settings, each audited in the
+  same transaction). Not tuned: nothing here is near a limit.
+
 As built (agent decisions, for the owner to review):
 
 | Topic | Decision |
