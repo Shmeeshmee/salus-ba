@@ -45,13 +45,13 @@ func TestSender_MapsTheAnswersWithoutTheirContent(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name     string
-		status   int
 		body     string
+		status   int
 		rejected bool
 	}{
-		{"a refused number", http.StatusBadRequest, `{"error":"` + number + `"}`, true},
-		{"a provider failure", http.StatusBadGateway, `down`, false},
-		{"no id", http.StatusOK, `{}`, false},
+		{"a refused number", `{"error":"` + number + `"}`, http.StatusBadRequest, true},
+		{"a provider failure", `down`, http.StatusBadGateway, false},
+		{"no id", `{}`, http.StatusOK, false},
 	} {
 		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(tt.status)

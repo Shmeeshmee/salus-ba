@@ -75,6 +75,12 @@ type Jobs interface {
 	EnqueueSlotFreed(ctx context.Context, slotID, org string) error
 }
 
+// StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
+// ctx (clinicstats' River queue, docs/plans/analytics.md §4): every appointment write enqueues its start's day.
+type StatsQueue interface {
+	EnqueueStatsRefresh(ctx context.Context, orgID string, day time.Time) error
+}
+
 // Ports are the Service's dependencies. The notifier builds it for Notice only (Repo, Audit, Tx, Clock,
 // Patients).
 type Ports struct {
@@ -88,6 +94,7 @@ type Ports struct {
 	Clinics  Clinics
 	Roles    Roles
 	Jobs     Jobs
+	Stats    StatsQueue // every write; not needed by a Service that only reads
 	// Tokens stores the one-time links of reminders and LinkURL is their base (the api's public origin): needed only
 	// by a Service that issues links (IssueLink, the notifier's reminders).
 	Tokens  TokenRepository
@@ -189,6 +196,9 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 		return Appointment{}, nil, err
 	}
 	if err := s.Jobs.EnqueueQuestionnaireRequest(ctx, out.ID, out.OrganizationID); err != nil {
+		return Appointment{}, nil, err
+	}
+	if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
 		return Appointment{}, nil, err
 	}
 	if err := s.scheduleReminders(ctx, out, now); err != nil {

@@ -160,7 +160,10 @@ String answersMessage(AppLocalizations t, ApiFailure failure) {
 
 /// A role's specialty in the app's language, from the catalog by its SNOMED CT code (docs/i18n/SPEC.md §3 "Server
 /// text"); the API's own text only for a code the catalog does not have yet.
-String? specialtyName(AppLocalizations t, PractitionerRole role) => switch (role.specialtyCode) {
+String? specialtyName(AppLocalizations t, PractitionerRole role) => specialtyOf(t, role.specialtyCode) ?? role.specialty;
+
+/// The specialty of the SNOMED CT [code] in the app's language, or null for a code the catalog does not have.
+String? specialtyOf(AppLocalizations t, String? code) => switch (code) {
   '394814009' => t.specialty394814009,
   '419192003' => t.specialty419192003,
   '394579002' => t.specialty394579002,
@@ -173,7 +176,7 @@ String? specialtyName(AppLocalizations t, PractitionerRole role) => switch (role
   '394594003' => t.specialty394594003,
   '394801008' => t.specialty394801008,
   '394583002' => t.specialty394583002,
-  _ => role.specialty,
+  _ => null,
 };
 
 /// A practitioner's specialty and clinic as one line (docs/i18n/SPEC.md §3: no string built by joining pieces); the

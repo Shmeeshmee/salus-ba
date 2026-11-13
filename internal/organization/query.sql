@@ -36,7 +36,7 @@ SET hours = EXCLUDED.hours, response_time_hours = EXCLUDED.response_time_hours,
     email_after_minutes = EXCLUDED.email_after_minutes, updated_at = EXCLUDED.updated_at;
 
 -- name: AppointmentSettings :one
--- The clinic's appointment settings (00053); row-level security shows only the clinic set.
+-- The clinic's appointment settings (00054); row-level security shows only the clinic set.
 SELECT reminder_offsets_minutes, sms_reminders, reschedule_notice_hours, reschedule_max, waitlist_enabled, waitlist_hold_minutes,
        noshow_flag_threshold, noshow_flag_window_days
 FROM organization_appointment_settings

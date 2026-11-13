@@ -4605,6 +4605,96 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+  /analytics/clinic/appointments:
+    get:
+      operationId: getClinicAppointmentStats
+      summary: The clinic's appointments over time
+      description: >-
+        The caller's clinic's appointments (docs/plans/analytics.md §4, §8), from the pre-computed counts (refreshed
+        within seconds of a change, and nightly): per month of the clinic's local days from `from` to `to`,
+        `booked` counting every appointment and the others those with that status now; the heatmap of the ones
+        not cancelled by ISO weekday (1 is Monday) and local hour, busy cells only; and, for the clinic's admin
+        only, the fulfilled ones per practitioner role (absent for anyone else). A practitioner who is not an admin
+        may narrow to their own role only, never to a specialty. Every read is audited on the clinic.
+      tags: [analytics]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StatsFrom"
+        - $ref: "#/components/parameters/StatsTo"
+        - $ref: "#/components/parameters/StatsPractitionerRole"
+        - $ref: "#/components/parameters/StatsSpecialty"
+      responses:
+        "200":
+          description: The figures.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicAppointments"}
+        "400":
+          $ref: "#/components/responses/StatsInvalid"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is
+            not an admin asked for another role or for a specialty.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /analytics/clinic/diagnoses:
+    get:
+      operationId: getClinicDiagnosisStats
+      summary: The clinic's diagnoses, counted by a breakdown
+      description: >-
+        The caller's clinic's confirmed diagnoses (the coded fields of signed documents, docs/plans/analytics.md
+        §4, §8) recorded on the clinic's local days from `from` to `to`, counted by `by`, most first (months in
+        their order); a key is a diagnosis group or subgroup code, an ICD-10 code, a practitioner role's id, a
+        SNOMED CT specialty code or a month (YYYY-MM), empty for no subgroup or no specialty. Exact counts. An
+        admin gets the clinic's; a practitioner who is not an admin their own role's only, whatever they ask for.
+        Every read is audited on the clinic.
+      tags: [analytics]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StatsFrom"
+        - $ref: "#/components/parameters/StatsTo"
+        - name: by
+          in: query
+          required: true
+          schema: {type: string, enum: [group, subgroup, code, practitionerRole, specialty, month]}
+        - name: group
+          in: query
+          description: Only this diagnosis group.
+          schema: {type: string}
+        - name: subgroup
+          in: query
+          description: Only this diagnosis subgroup.
+          schema: {type: string}
+        - $ref: "#/components/parameters/StatsPractitionerRole"
+        - $ref: "#/components/parameters/StatsSpecialty"
+      responses:
+        "200":
+          description: The counts.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicDiagnoses"}
+        "400":
+          $ref: "#/components/responses/StatsInvalid"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            `forbidden`: the caller is neither the admin nor a practitioner of a clinic, or a practitioner who is
+            not an admin has no role or asked for another role.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/appointment-settings:
     get:
       operationId: getAppointmentSettings
@@ -5265,6 +5355,28 @@ paths:
           $ref: "#/components/responses/InternalError"
 components:
   parameters:
+    StatsFrom:
+      name: from
+      in: query
+      required: true
+      description: The first local day of the clinic (YYYY-MM-DD).
+      schema: {type: string, format: date}
+    StatsTo:
+      name: to
+      in: query
+      required: true
+      description: The last local day, included; at most ten years after `from`.
+      schema: {type: string, format: date}
+    StatsPractitionerRole:
+      name: practitionerRole
+      in: query
+      description: Only this practitioner role's figures.
+      schema: {type: string, format: uuid}
+    StatsSpecialty:
+      name: specialty
+      in: query
+      description: Only the roles of this SNOMED CT specialty code.
+      schema: {type: string}
     ChatAttachmentID:
       name: attachment_id
       in: path
@@ -5693,6 +5805,11 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
     InternalError:
       description: "`internal error`."
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    StatsInvalid:
+      description: "`invalid_request`: no range, a malformed date, a reversed or over ten-year range, or an unknown breakdown."
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -7973,6 +8090,51 @@ components:
                 sender_role: {type: string, enum: [patient, practitioner]}
                 body: {type: string}
                 seq: {type: integer, format: int64}
+    ClinicAppointments:
+      type: object
+      required: [series, heatmap]
+      properties:
+        series:
+          type: array
+          items:
+            type: object
+            required: [period, booked, fulfilled, noshow, cancelled]
+            properties:
+              period: {type: string, description: "The month, YYYY-MM."}
+              booked: {type: integer, format: int64, description: Every appointment starting in the month.}
+              fulfilled: {type: integer, format: int64}
+              noshow: {type: integer, format: int64}
+              cancelled: {type: integer, format: int64}
+        heatmap:
+          type: array
+          items:
+            type: object
+            required: [weekday, hour, count]
+            properties:
+              weekday: {type: integer, minimum: 1, maximum: 7, description: "ISO weekday, 1 is Monday."}
+              hour: {type: integer, minimum: 0, maximum: 23, description: The clinic's local hour.}
+              count: {type: integer, format: int64}
+        practitioners:
+          type: array
+          description: For the clinic's admin only.
+          items:
+            type: object
+            required: [practitionerRole, fulfilled]
+            properties:
+              practitionerRole: {type: string, format: uuid}
+              fulfilled: {type: integer, format: int64}
+    ClinicDiagnoses:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            required: [key, count]
+            properties:
+              key: {type: string}
+              count: {type: integer, format: int64}
     AppointmentSettings:
       type: object
       additionalProperties: false

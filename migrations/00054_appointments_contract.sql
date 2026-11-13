@@ -1,6 +1,6 @@
 -- +goose Up
 -- The appointments epic's shared contract (SAL-32, docs/plans/appointments.md "Contract (step 0)", ADR 0015). The
--- number is a placeholder: 00048 to 00052 are reserved by other branches, and this file takes the next free number when
+-- number is a placeholder: 00051 to 00053 are taken by branches merging first, and this file takes the next free number when
 -- it is merged.
 --   - appointment: whether the patient confirmed it and how, how often it was rescheduled, and how it was booked. A
 --     reschedule moves the same appointment to another slot of its role, so period and slot_id may now change (00019's

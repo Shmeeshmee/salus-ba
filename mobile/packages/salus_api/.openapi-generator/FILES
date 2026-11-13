@@ -2,6 +2,7 @@
 README.md
 analysis_options.yaml
 lib/api.dart
+lib/api/analytics_api.dart
 lib/api/appointment_links_api.dart
 lib/api/appointments_api.dart
 lib/api/attachments_api.dart
@@ -70,6 +71,12 @@ lib/model/chat_settings.dart
 lib/model/chat_typing.dart
 lib/model/chat_typing_command.dart
 lib/model/chat_typing_frame.dart
+lib/model/clinic_appointments.dart
+lib/model/clinic_appointments_heatmap_inner.dart
+lib/model/clinic_appointments_practitioners_inner.dart
+lib/model/clinic_appointments_series_inner.dart
+lib/model/clinic_diagnoses.dart
+lib/model/clinic_diagnoses_rows_inner.dart
 lib/model/clinic_waitlist.dart
 lib/model/clinic_waitlist_entry.dart
 lib/model/command_error.dart

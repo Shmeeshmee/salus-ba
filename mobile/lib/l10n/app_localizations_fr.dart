@@ -1671,4 +1671,58 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get myHistory => 'Mon historique';
+
+  @override
+  String get historyEmpty =>
+      'Votre historique est encore vide. Vos consultations, documents et réponses apparaissent ici.';
+
+  @override
+  String get historyNoMatch =>
+      'Rien dans votre historique ne correspond à ces filtres.';
+
+  @override
+  String get historyClinic => 'Clinique';
+
+  @override
+  String get historyAllClinics => 'Toutes les cliniques';
+
+  @override
+  String get historyVisits => 'Consultations';
+
+  @override
+  String get historyVisit => 'Consultation';
+
+  @override
+  String get historyAnswers => 'Réponses au questionnaire';
+
+  @override
+  String get historyFiles => 'Fichiers';
+
+  @override
+  String get historyFile => 'Fichier';
+
+  @override
+  String get historyAnyDate => 'Toutes les dates';
+
+  @override
+  String historyDateRange(String from, String to) {
+    return 'du $from au $to';
+  }
+
+  @override
+  String get historyClearDates => 'Effacer les dates';
+
+  @override
+  String get historyShowMore => 'Afficher plus';
+
+  @override
+  String get historyMoreFailed =>
+      'La suite de votre historique n’a pas pu être chargée.';
+
+  @override
+  String get historyOpenFailed =>
+      'Cet élément n’a pas pu être ouvert. Réessayez.';
 }

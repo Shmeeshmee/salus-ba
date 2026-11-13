@@ -181,12 +181,12 @@ func TestHTTPChanges_SendsTheHistoryWithoutWhoMadeIt(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		err  error
-		code int
 		body string
+		code int
 	}{
-		{appointment.ErrNotFound, http.StatusNotFound, "not_found"},
-		{appointment.ErrForbidden, http.StatusForbidden, "forbidden"},
-		{appointment.ErrRescheduleLimit, http.StatusConflict, "reschedule_limit"},
+		{appointment.ErrNotFound, "not_found", http.StatusNotFound},
+		{appointment.ErrForbidden, "forbidden", http.StatusForbidden},
+		{appointment.ErrRescheduleLimit, "reschedule_limit", http.StatusConflict},
 	} {
 		rec := serveAppt(t, &stubAppointments{err: tt.err}, as(pract), &log, http.MethodGet, "/appointments/"+apptA+"/changes", "")
 		if rec.Code != tt.code || !strings.Contains(rec.Body.String(), tt.body) {

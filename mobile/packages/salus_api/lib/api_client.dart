@@ -288,6 +288,18 @@ class ApiClient {
           return ChatTypingCommand.fromJson(value);
         case 'ChatTypingFrame':
           return ChatTypingFrame.fromJson(value);
+        case 'ClinicAppointments':
+          return ClinicAppointments.fromJson(value);
+        case 'ClinicAppointmentsHeatmapInner':
+          return ClinicAppointmentsHeatmapInner.fromJson(value);
+        case 'ClinicAppointmentsPractitionersInner':
+          return ClinicAppointmentsPractitionersInner.fromJson(value);
+        case 'ClinicAppointmentsSeriesInner':
+          return ClinicAppointmentsSeriesInner.fromJson(value);
+        case 'ClinicDiagnoses':
+          return ClinicDiagnoses.fromJson(value);
+        case 'ClinicDiagnosesRowsInner':
+          return ClinicDiagnosesRowsInner.fromJson(value);
         case 'ClinicWaitlist':
           return ClinicWaitlist.fromJson(value);
         case 'ClinicWaitlistEntry':

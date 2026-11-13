@@ -34,7 +34,7 @@ type ChatRepository interface {
 	PutChatSettings(ctx context.Context, org string, s ChatSettings, at time.Time) error
 }
 
-// AppointmentsRepository stores the clinics' appointment settings (migration 00053), row-level secured like the
+// AppointmentsRepository stores the clinics' appointment settings (migration 00054), row-level secured like the
 // clinics: every method sees only the clinic set by SetOrganization.
 type AppointmentsRepository interface {
 	SetOrganization(ctx context.Context, id string) error

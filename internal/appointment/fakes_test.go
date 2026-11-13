@@ -68,13 +68,13 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	if ctx.Value(txKey{}) != nil {
 		return fn(ctx)
 	}
-	events, jobs := len(t.f.audit.events), len(t.f.jobs.enqueued)
+	events, jobs, refreshes := len(t.f.audit.events), len(t.f.jobs.enqueued), len(t.f.stats.refreshes)
 	appts, held, released := slices.Clone(t.f.repo.appts), slices.Clone(t.f.slots.held), slices.Clone(t.f.slots.released)
 	changes, tokens := slices.Clone(t.f.repo.changes), slices.Clone(t.f.tokens.stored)
 	t.f.repo.patient, t.f.repo.clinic, t.f.repo.notice = "", "", ""
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
-		t.f.audit.events, t.f.jobs.enqueued = t.f.audit.events[:events], t.f.jobs.enqueued[:jobs]
+		t.f.audit.events, t.f.jobs.enqueued, t.f.stats.refreshes = t.f.audit.events[:events], t.f.jobs.enqueued[:jobs], t.f.stats.refreshes[:refreshes]
 		t.f.repo.appts, t.f.slots.held, t.f.slots.released = appts, held, released
 		t.f.repo.changes, t.f.tokens.stored = changes, tokens
 	}
@@ -456,6 +456,17 @@ func (j *fakeJobs) EnqueueReminder(ctx context.Context, id, org string, at time.
 	return j.add(ctx, fmt.Sprintf("reminder %s %s at %s", id, org, at.Format(time.RFC3339)))
 }
 
+// fakeStatsQueue keeps the clinic-day refreshes enqueued, in a transaction only.
+type fakeStatsQueue struct{ refreshes []string }
+
+func (q *fakeStatsQueue) EnqueueStatsRefresh(ctx context.Context, org string, day time.Time) error {
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("enqueued outside a transaction")
+	}
+	q.refreshes = append(q.refreshes, org+" "+day.UTC().Format(time.RFC3339))
+	return nil
+}
+
 type fakeAuditor struct {
 	err    error
 	events []auditevent.AuditEvent
@@ -481,6 +492,7 @@ type fixture struct {
 	roles    *fakeRoles
 	jobs     *fakeJobs
 	tokens   *fakeTokens
+	stats    *fakeStatsQueue
 	audit    *fakeAuditor
 	svc      *appointment.Service
 }
@@ -504,14 +516,15 @@ func newFixture(appts ...appointment.Appointment) *fixture {
 			slotU:    slotAt(slotU, roleU, clinicU, start),
 			slotB:    slotAt(slotB, roleB, clinicB, start),
 		}},
-		clinics: &fakeClinics{}, roles: &fakeRoles{}, jobs: &fakeJobs{}, tokens: &fakeTokens{}, audit: &fakeAuditor{},
+		clinics: &fakeClinics{}, roles: &fakeRoles{}, jobs: &fakeJobs{}, tokens: &fakeTokens{}, stats: &fakeStatsQueue{},
+		audit: &fakeAuditor{},
 	}
 	f.repo = &fakeRepository{consents: f.consents, appts: appts}
 	f.patients = &fakePatients{repo: f.repo}
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,
-		Tokens: f.tokens, LinkURL: linkURL,
+		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats,
 	})
 	return f
 }

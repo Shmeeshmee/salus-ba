@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -40,6 +41,17 @@ func TestDailyAt_IsTheNextTimeOfDayInUTC(t *testing.T) {
 		if got := (dailyAt{hour: retentionHour}).Next(tt.at); !got.Equal(tt.want) {
 			t.Errorf("Next(%v) = %v, want %v", tt.at, got, tt.want)
 		}
+	}
+}
+
+// The clinic statistics' nightly pass runs at 02:30 UTC (docs/plans/analytics.md §4).
+func TestDailyAt_TakesTheMinute(t *testing.T) {
+	at := time.Date(2026, 11, 5, 2, 29, 0, 0, time.UTC)
+	if got, want := clinicStatsAt.Next(at), time.Date(2026, 11, 5, 2, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("Next(02:29) = %v, want %v", got, want)
+	}
+	if got, want := clinicStatsAt.Next(at.Add(time.Minute)), time.Date(2026, 11, 6, 2, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("Next(02:30) = %v, want %v", got, want)
 	}
 }
 
@@ -117,6 +129,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
 		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{}, communication.PartitionsArgs{},
 		appointment.SlotFreedArgs{},
+		clinicstats.RefreshArgs{}, clinicstats.NightlyArgs{},
 	} {
 		var unknown *river.UnknownJobKindError
 		if _, err := client.Insert(t.Context(), args, nil); errors.As(err, &unknown) || err != nil {

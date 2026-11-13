@@ -176,8 +176,8 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 
 // cancelled frees the slot of the cancelled appointment a, hands it to the waitlist while it is ahead
 // (waitlist_slot_freed), cancels its reminders, and enqueues its e-mail, the end of its consultation's access
-// (consultation_access_end) and the discard of its questionnaire responses (questionnaire_responses_discard), in
-// its transaction. Every cancellation goes through it.
+// (consultation_access_end), the discard of its questionnaire responses (questionnaire_responses_discard) and the
+// refresh of the clinic's statistics, in its transaction. Every cancellation goes through it.
 func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 	freed, err := s.Slots.Release(ctx, a.OrganizationID, a.SlotID)
 	if err != nil {
@@ -193,6 +193,9 @@ func (s *Service) cancelled(ctx context.Context, a Appointment) error {
 		return err
 	}
 	if err := s.Jobs.EnqueueAccessEnd(ctx, a.ID, a.OrganizationID); err != nil {
+		return err
+	}
+	if err := s.Stats.EnqueueStatsRefresh(ctx, a.OrganizationID, a.Start); err != nil {
 		return err
 	}
 	return s.Jobs.EnqueueQuestionnaireDiscard(ctx, a.ID, a.OrganizationID)
@@ -254,10 +257,13 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 	case err != nil:
 		return Appointment{}, nil, err
 	}
-	return out, nil, s.recordChange(ctx, Change{
+	if err := s.recordChange(ctx, Change{
 		At: now, AppointmentID: id, Kind: ChangeStatusSet, Via: ViaStaff, ByAccountID: c.AccountID,
 		FromStatus: StatusBooked, ToStatus: status,
-	})
+	}); err != nil {
+		return Appointment{}, nil, err
+	}
+	return out, nil, s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start)
 }
 
 // CancelForRevokedConsent cancels, after the patient revoked their consent with the clinic org (the

@@ -249,8 +249,9 @@ func TestAppointment_TheAppRoleWritesOnlyWhatTheApplicationNeeds(t *testing.T) {
 	for _, stmt := range []string{
 		"DELETE FROM appointment", "TRUNCATE appointment",
 		"UPDATE appointment SET patient_id = patient_id", "UPDATE appointment SET organization_id = organization_id",
-		"UPDATE appointment SET practitioner_role_id = practitioner_role_id", "UPDATE appointment SET period = period",
-		"UPDATE appointment SET slot_id = slot_id", "UPDATE appointment SET created_at = now()",
+		// period and slot_id change with a reschedule (00054, docs/plans/appointments.md); who and with whom never do.
+		"UPDATE appointment SET practitioner_role_id = practitioner_role_id", "UPDATE appointment SET created_at = now()",
+		"UPDATE appointment SET booked_via = booked_via",
 	} {
 		err := asApp(t, app, scope, func(ctx context.Context, db postgres.Querier) error {
 			_, err := db.Exec(ctx, stmt)

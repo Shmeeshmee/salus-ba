@@ -95,7 +95,20 @@ func Rules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), appointmentRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), appointmentRules())...)
+}
+
+// clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
+// patient identifier, but the practitioners' workload and diagnoses, recomputed from appointment and condition.
+func clinicStatsRules() []Rule {
+	basis := "The management of the clinic's health-care services, on its behalf (GDPR Art. 9(2)(h)): counts per day, hour, " +
+		"practitioner role and code with no patient identifier, recomputed from appointment and condition and kept as long " +
+		"as they are (with the clinical record); a refresh of a day replaces its rows; needs a legal decision before " +
+		"production (docs/plans/analytics.md §7, L5)"
+	return []Rule{
+		{Table: "clinic_appointment_stat", Basis: basis, Then: ThenKeep},
+		{Table: "clinic_diagnosis_stat", Basis: basis, Then: ThenKeep},
+	}
 }
 
 // chatRules are the rules of the chat between the patient and their clinic's doctors (docs/plans/chat.md, SAL-27):

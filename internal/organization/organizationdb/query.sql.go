@@ -29,7 +29,7 @@ type AppointmentSettingsRow struct {
 	NoshowFlagWindowDays   int32
 }
 
-// The clinic's appointment settings (00053); row-level security shows only the clinic set.
+// The clinic's appointment settings (00054); row-level security shows only the clinic set.
 func (q *Queries) AppointmentSettings(ctx context.Context, organizationID pgtype.UUID) (AppointmentSettingsRow, error) {
 	row := q.db.QueryRow(ctx, appointmentSettings, organizationID)
 	var i AppointmentSettingsRow

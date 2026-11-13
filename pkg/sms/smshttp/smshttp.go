@@ -67,7 +67,7 @@ func (s *Sender) Send(ctx context.Context, m sms.Message) (string, error) {
 	if err != nil {
 		return "", errors.New("smshttp: the provider could not be reached")
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	answer, err := io.ReadAll(io.LimitReader(res.Body, maxAnswer))
 	switch {
 	case err != nil:

@@ -43,6 +43,30 @@ func (s *Service) Record(ctx context.Context, e AuditEvent) error {
 	})
 }
 
+// RecordAll stores the events in one insert, each stamped as Record stamps it, in the caller's transaction: for a
+// read that discloses many resources at once (a page of a patient's history, SAL-39). One invalid event stores none
+// (ErrInvalid); none is nothing to store.
+func (s *Service) RecordAll(ctx context.Context, es []AuditEvent) error {
+	if len(es) == 0 {
+		return nil
+	}
+	stamped := make([]AuditEvent, len(es))
+	now, request := s.clock.Now(), middleware.RequestIDFrom(ctx)
+	for i, e := range es {
+		if !valid(e) {
+			return ErrInvalid
+		}
+		e.Recorded, e.RequestID = now, request
+		stamped[i] = e
+	}
+	return s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.InsertAll(ctx, stamped); err != nil {
+			return fmt.Errorf("auditevent: record all: %w", err)
+		}
+		return nil
+	})
+}
+
 // CountRecordedBefore counts the events recorded before before: the retention job's check that no event is
 // past its period while nothing can remove one yet (docs/booking/SPEC.md §2 "Applying the rules"). A count,
 // never the events.

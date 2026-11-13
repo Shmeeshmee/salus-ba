@@ -40,15 +40,28 @@ Please follow the [installation procedure](#installation--usage) and then run th
 ```dart
 import 'package:salus_api/api.dart';
 
+// TODO Configure API key authorization: sessionCookie
+//defaultApiClient.getAuthentication<ApiKeyAuth>('sessionCookie').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('sessionCookie').apiKeyPrefix = 'Bearer';
+// TODO Configure HTTP Bearer authorization: bearerAuth
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('bearerAuth').setAccessToken(yourTokenGeneratorFunction);
 
-final api_instance = AppointmentLinksApi();
-final token = token_example; // String | The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored.
-final action = action_example; // String | 
+final api_instance = AnalyticsApi();
+final from = 2013-10-20; // DateTime | The first local day of the clinic (YYYY-MM-DD).
+final to = 2013-10-20; // DateTime | The last local day, included; at most ten years after `from`.
+final practitionerRole = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Only this practitioner role's figures.
+final specialty = specialty_example; // String | Only the roles of this SNOMED CT specialty code.
 
 try {
-    api_instance.actOnAppointmentLink(token, action);
+    final result = api_instance.getClinicAppointmentStats(from, to, practitionerRole, specialty);
+    print(result);
 } catch (e) {
-    print('Exception when calling AppointmentLinksApi->actOnAppointmentLink: $e\n');
+    print('Exception when calling AnalyticsApi->getClinicAppointmentStats: $e\n');
 }
 
 ```
@@ -59,6 +72,8 @@ All URIs are relative to *http://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AnalyticsApi* | [**getClinicAppointmentStats**](doc//AnalyticsApi.md#getclinicappointmentstats) | **GET** /analytics/clinic/appointments | The clinic's appointments over time
+*AnalyticsApi* | [**getClinicDiagnosisStats**](doc//AnalyticsApi.md#getclinicdiagnosisstats) | **GET** /analytics/clinic/diagnoses | The clinic's diagnoses, counted by a breakdown
 *AppointmentLinksApi* | [**actOnAppointmentLink**](doc//AppointmentLinksApi.md#actonappointmentlink) | **POST** /a/{token} | Confirm or cancel through a reminder's one-time link
 *AppointmentLinksApi* | [**getAppointmentLinkPage**](doc//AppointmentLinksApi.md#getappointmentlinkpage) | **GET** /a/{token} | The page of a reminder's one-time link
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
@@ -243,6 +258,12 @@ Class | Method | HTTP request | Description
  - [ChatTyping](doc//ChatTyping.md)
  - [ChatTypingCommand](doc//ChatTypingCommand.md)
  - [ChatTypingFrame](doc//ChatTypingFrame.md)
+ - [ClinicAppointments](doc//ClinicAppointments.md)
+ - [ClinicAppointmentsHeatmapInner](doc//ClinicAppointmentsHeatmapInner.md)
+ - [ClinicAppointmentsPractitionersInner](doc//ClinicAppointmentsPractitionersInner.md)
+ - [ClinicAppointmentsSeriesInner](doc//ClinicAppointmentsSeriesInner.md)
+ - [ClinicDiagnoses](doc//ClinicDiagnoses.md)
+ - [ClinicDiagnosesRowsInner](doc//ClinicDiagnosesRowsInner.md)
  - [ClinicWaitlist](doc//ClinicWaitlist.md)
  - [ClinicWaitlistEntry](doc//ClinicWaitlistEntry.md)
  - [CommandError](doc//CommandError.md)
