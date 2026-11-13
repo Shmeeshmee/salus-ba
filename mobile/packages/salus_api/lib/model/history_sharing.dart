@@ -30,6 +30,7 @@ class HistorySharing {
   ///
   String? consentId;
 
+  /// Opaque: names the history consent and its version, so a version read of one consent never matches another granted after it. Send it as If-Match, `W/\"<versionId>\"`.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated

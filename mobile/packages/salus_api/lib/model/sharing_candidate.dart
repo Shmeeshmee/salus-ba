@@ -17,6 +17,7 @@ class SharingCandidate {
     required this.encounterId,
     required this.organizationId,
     required this.organizationName,
+    required this.timeZone,
     this.specialty,
     this.title,
     required this.selected,
@@ -29,6 +30,9 @@ class SharingCandidate {
   String organizationId;
 
   String organizationName;
+
+  /// The visit's clinic's time zone (IANA), to show its date in.
+  String timeZone;
 
   /// SNOMED CT code (`/specialties`).
   ///
@@ -59,6 +63,7 @@ class SharingCandidate {
           other.encounterId == encounterId &&
           other.organizationId == organizationId &&
           other.organizationName == organizationName &&
+          other.timeZone == timeZone &&
           other.specialty == specialty &&
           other.title == title &&
           other.selected == selected;
@@ -70,13 +75,14 @@ class SharingCandidate {
       (encounterId.hashCode) +
       (organizationId.hashCode) +
       (organizationName.hashCode) +
+      (timeZone.hashCode) +
       (specialty == null ? 0 : specialty!.hashCode) +
       (title == null ? 0 : title!.hashCode) +
       (selected.hashCode);
 
   @override
   String toString() =>
-      'SharingCandidate[date=$date, encounterId=$encounterId, organizationId=$organizationId, organizationName=$organizationName, specialty=$specialty, title=$title, selected=$selected]';
+      'SharingCandidate[date=$date, encounterId=$encounterId, organizationId=$organizationId, organizationName=$organizationName, timeZone=$timeZone, specialty=$specialty, title=$title, selected=$selected]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -84,6 +90,7 @@ class SharingCandidate {
     json[r'encounterId'] = this.encounterId;
     json[r'organizationId'] = this.organizationId;
     json[r'organizationName'] = this.organizationName;
+    json[r'timeZone'] = this.timeZone;
     if (this.specialty != null) {
       json[r'specialty'] = this.specialty;
     } else {
@@ -125,6 +132,10 @@ class SharingCandidate {
             'Required key "SharingCandidate[organizationName]" is missing from JSON.');
         assert(json[r'organizationName'] != null,
             'Required key "SharingCandidate[organizationName]" has a null value in JSON.');
+        assert(json.containsKey(r'timeZone'),
+            'Required key "SharingCandidate[timeZone]" is missing from JSON.');
+        assert(json[r'timeZone'] != null,
+            'Required key "SharingCandidate[timeZone]" has a null value in JSON.');
         assert(json.containsKey(r'selected'),
             'Required key "SharingCandidate[selected]" is missing from JSON.');
         assert(json[r'selected'] != null,
@@ -137,6 +148,7 @@ class SharingCandidate {
         encounterId: mapValueOfType<String>(json, r'encounterId')!,
         organizationId: mapValueOfType<String>(json, r'organizationId')!,
         organizationName: mapValueOfType<String>(json, r'organizationName')!,
+        timeZone: mapValueOfType<String>(json, r'timeZone')!,
         specialty: mapValueOfType<String>(json, r'specialty'),
         title: mapValueOfType<String>(json, r'title'),
         selected: mapValueOfType<bool>(json, r'selected')!,
@@ -200,6 +212,7 @@ class SharingCandidate {
     'encounterId',
     'organizationId',
     'organizationName',
+    'timeZone',
     'selected',
   };
 }

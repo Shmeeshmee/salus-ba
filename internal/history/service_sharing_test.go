@@ -75,18 +75,18 @@ func (f *fakeSharingRoles) Lookup(_ context.Context, org, id string) (practition
 }
 
 type fakeSharingClinics struct {
-	err   error
-	names map[string]string
-	asked []string
+	err     error
+	clinics map[string]organization.Organization
+	asked   []string
 }
 
-func (f *fakeSharingClinics) Name(_ context.Context, id string) (string, error) {
+func (f *fakeSharingClinics) Clinic(_ context.Context, id string) (organization.Organization, error) {
 	f.asked = append(f.asked, id)
-	n, ok := f.names[id]
+	o, ok := f.clinics[id]
 	if !ok {
-		return "", organization.ErrNotFound
+		return organization.Organization{}, organization.ErrNotFound
 	}
-	return n, f.err
+	return o, f.err
 }
 
 type sharingFixture struct {
@@ -118,8 +118,10 @@ func newSharingFixture() sharingFixture {
 			roleThird:     {ID: roleThird, OrganizationID: thirdClinic},
 			roleReceiving: {ID: roleReceiving, OrganizationID: receiving, SpecialtyCode: "419192003"},
 		}},
-		clinics: &fakeSharingClinics{names: map[string]string{
-			receiving: "Synthetic clinic A", elsewhere: "Synthetic clinic B", thirdClinic: "Synthetic clinic C",
+		clinics: &fakeSharingClinics{clinics: map[string]organization.Organization{
+			receiving:   {ID: receiving, Name: "Synthetic clinic A", TimeZone: "Europe/Sarajevo"},
+			elsewhere:   {ID: elsewhere, Name: "Synthetic clinic B", TimeZone: "Europe/Sarajevo"},
+			thirdClinic: {ID: thirdClinic, Name: "Synthetic clinic C", TimeZone: "Europe/Berlin"},
 		}},
 	}
 	f.svc = history.NewSharing(history.SharingPorts{Encounters: f.encounters, Documents: f.documents, Roles: f.roles, Clinics: f.clinics})
@@ -132,9 +134,9 @@ func TestShareable_GivesTheFinishedVisitsAtOtherClinicsAsTheClinicWillSeeThem(t 
 	f := newSharingFixture()
 	got, err := f.svc.Shareable(t.Context(), sharingCaller, receiving)
 	want := []consent.Candidate{
-		{Date: day(14), EncounterID: "e3000000-0000-4000-8000-0000000000e3", OrganizationID: thirdClinic, OrganizationName: "Synthetic clinic C"},
-		{Date: day(11), EncounterID: "e5000000-0000-4000-8000-0000000000e5", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", Specialty: "394579002"},
-		{Date: day(10), EncounterID: "e1000000-0000-4000-8000-0000000000e1", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", Specialty: "394579002", Title: "Placeholder findings"},
+		{Date: day(14), EncounterID: "e3000000-0000-4000-8000-0000000000e3", OrganizationID: thirdClinic, OrganizationName: "Synthetic clinic C", TimeZone: "Europe/Berlin"},
+		{Date: day(11), EncounterID: "e5000000-0000-4000-8000-0000000000e5", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002"},
+		{Date: day(10), EncounterID: "e1000000-0000-4000-8000-0000000000e1", OrganizationID: elsewhere, OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002", Title: "Placeholder findings"},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Shareable() = %+v, %v;\nwant %+v", got, err, want)

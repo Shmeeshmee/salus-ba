@@ -3,6 +3,7 @@ package consent
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
@@ -23,12 +24,10 @@ func (h *Handler) candidates(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	if out == nil {
-		out = []Candidate{}
+	if out.Candidates == nil {
+		out.Candidates = []Candidate{}
 	}
-	write(w, http.StatusOK, struct {
-		Candidates []Candidate `json:"candidates"`
-	}{out})
+	write(w, http.StatusOK, out)
 }
 
 func (h *Handler) setSharing(w http.ResponseWriter, r *http.Request) {
@@ -36,15 +35,14 @@ func (h *Handler) setSharing(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var version int32
+	var version string
 	if header := r.Header.Get("If-Match"); header != "" {
 		v, ok := fhir.IfMatch(header)
-		n, err := strconv.ParseInt(v, 10, 32)
-		if !ok || err != nil || n < 1 {
+		if !ok || !validVersion(v) {
 			writeCode(w, http.StatusBadRequest, "invalid_request")
 			return
 		}
-		version = int32(n)
+		version = v
 	}
 	var in SetSharing
 	if !decodeJSONUpTo(w, r, &in, maxSharingBody) {
@@ -93,4 +91,12 @@ func (h *Handler) mySharing(w http.ResponseWriter, r *http.Request) {
 	write(w, http.StatusOK, struct {
 		Sharing []Sharing `json:"sharing"`
 	}{out})
+}
+
+// validVersion reports whether v has the shape of a sharing's version (Sharing.VersionID): a consent id and a
+// version number from 1.
+func validVersion(v string) bool {
+	id, n, ok := strings.Cut(v, ".")
+	version, err := strconv.ParseInt(n, 10, 32)
+	return ok && err == nil && version >= 1 && fhir.IsUUID(id)
 }

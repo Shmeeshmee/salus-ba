@@ -513,6 +513,26 @@ func (q *Queries) HistoryVisits(ctx context.Context, consentIds []pgtype.UUID) (
 	return items, nil
 }
 
+const lockActiveCareConsent = `-- name: LockActiveCareConsent :one
+SELECT id FROM consent
+WHERE patient_id = $1 AND organization_id = $2 AND status = 'active'
+FOR SHARE
+`
+
+type LockActiveCareConsentParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+// The patient's active care consent with the clinic, locked until the transaction ends (SetSharing): a revocation's
+// UPDATE waits for it and then ends the history consent granted meanwhile.
+func (q *Queries) LockActiveCareConsent(ctx context.Context, arg LockActiveCareConsentParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockActiveCareConsent, arg.PatientID, arg.OrganizationID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const removeHistoryVisits = `-- name: RemoveHistoryVisits :exec
 UPDATE history_consent_encounter
 SET removed_at = $1

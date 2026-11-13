@@ -18,6 +18,8 @@ const (
 	visit2    = "e2000000-0000-4000-8000-0000000000e2"
 	visit3    = "e3000000-0000-4000-8000-0000000000e3"
 	historyAA = "f4000000-0000-4000-8000-0000000000f4" // patient A's history consent with clinic A, when a test adds it
+	// versionAA2 is that sharing's version at version 2: the consent and its meta.versionId.
+	versionAA2 = historyAA + ".2"
 )
 
 // fakeVisits gives the visits patient A may share, as history.Sharing does after its rules; it records the clinics
@@ -48,7 +50,7 @@ func (v *fakeVisits) Shareable(ctx context.Context, c consent.Caller, organizati
 func candidate(id string, day int) consent.Candidate {
 	return consent.Candidate{
 		Date: time.Date(2026, 10, day, 9, 0, 0, 0, time.UTC), EncounterID: id, OrganizationID: clinicB,
-		OrganizationName: "Synthetic clinic B", Specialty: "394579002", Title: "Placeholder findings",
+		OrganizationName: "Synthetic clinic B", TimeZone: "Europe/Sarajevo", Specialty: "394579002", Title: "Placeholder findings",
 	}
 }
 
@@ -88,9 +90,10 @@ func shared(c consent.Consent) []string {
 
 func TestCandidates_GivesThePatientsVisitsAtOtherClinicsMarkedWhenSharedAndAuditsIt(t *testing.T) {
 	f := withHistory()
-	got, err := f.svc.Candidates(t.Context(), me, clinicA)
-	if err != nil || len(got) != 3 {
-		t.Fatalf("Candidates() = %+v, %v; want the three visits", got, err)
+	preview, err := f.svc.Candidates(t.Context(), me, clinicA)
+	got := preview.Candidates
+	if err != nil || len(got) != 3 || preview.VersionID != versionAA2 {
+		t.Fatalf("Candidates() = %+v, %v; want the three visits at the sharing's version", preview, err)
 	}
 	for _, c := range got {
 		if c.Selected != (c.EncounterID == visit1) {
@@ -105,12 +108,13 @@ func TestCandidates_GivesThePatientsVisitsAtOtherClinicsMarkedWhenSharedAndAudit
 
 func TestCandidates_WithNothingSharedSelectsNoneAndAuditsWithoutAConsent(t *testing.T) {
 	f := sharingFixture()
-	got, err := f.svc.Candidates(t.Context(), me, clinicA)
-	if err != nil || len(got) != 3 || slices.ContainsFunc(got, func(c consent.Candidate) bool { return c.Selected }) {
-		t.Fatalf("Candidates() = %+v, %v; want three, none selected", got, err)
+	preview, err := f.svc.Candidates(t.Context(), me, clinicA)
+	got := preview.Candidates
+	if err != nil || len(got) != 3 || slices.ContainsFunc(got, func(c consent.Candidate) bool { return c.Selected }) || preview.VersionID != "" {
+		t.Fatalf("Candidates() = %+v, %v; want three, none selected, no version", preview, err)
 	}
 	checkEvents(t, "Candidates", f.audit, event(me, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess))
-	if got, err := f.svc.Candidates(t.Context(), noProf, clinicA); err != nil || got == nil || len(got) != 0 {
+	if got, err := f.svc.Candidates(t.Context(), noProf, clinicA); err != nil || got.Candidates == nil || len(got.Candidates) != 0 {
 		t.Errorf("Candidates() without a profile = %#v, %v; want an empty list", got, err)
 	}
 }
@@ -135,8 +139,8 @@ func TestCandidates_RefusesStaffAndAnUnknownClinicAndAuditsIt(t *testing.T) {
 
 func TestSetSharing_AFirstGrantListsExactlyTheVisitsSentAndAuditsIt(t *testing.T) {
 	f := sharingFixture()
-	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit3, visit1, visit3}}, 0)
-	want := consent.Sharing{OrganizationID: clinicA, ConsentID: newID, VersionID: "1", Shared: []string{visit3, visit1}}
+	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit3, visit1, visit3}}, "")
+	want := consent.Sharing{OrganizationID: clinicA, ConsentID: newID, VersionID: newID + ".1", Shared: []string{visit3, visit1}}
 	if err != nil || !sameSharing(got, want) {
 		t.Fatalf("SetSharing() = %+v, %v; want %+v", got, err, want)
 	}
@@ -149,8 +153,8 @@ func TestSetSharing_AFirstGrantListsExactlyTheVisitsSentAndAuditsIt(t *testing.T
 
 func TestSetSharing_AChangeAddsAndRemovesAtTheVersionReadAndAuditsIt(t *testing.T) {
 	f := withHistory()
-	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit2}}, 2)
-	want := consent.Sharing{OrganizationID: clinicA, ConsentID: historyAA, VersionID: "3", Shared: []string{visit2}}
+	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit2}}, versionAA2)
+	want := consent.Sharing{OrganizationID: clinicA, ConsentID: historyAA, VersionID: historyAA + ".3", Shared: []string{visit2}}
 	if err != nil || !sameSharing(got, want) {
 		t.Fatalf("SetSharing() = %+v, %v; want %+v", got, err, want)
 	}
@@ -162,8 +166,8 @@ func TestSetSharing_AChangeAddsAndRemovesAtTheVersionReadAndAuditsIt(t *testing.
 
 func TestSetSharing_TheSameSelectionChangesNothing(t *testing.T) {
 	f := withHistory()
-	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit1}}, 2)
-	if want := (consent.Sharing{OrganizationID: clinicA, ConsentID: historyAA, VersionID: "2", Shared: []string{visit1}}); err != nil || !sameSharing(got, want) {
+	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit1}}, versionAA2)
+	if want := (consent.Sharing{OrganizationID: clinicA, ConsentID: historyAA, VersionID: versionAA2, Shared: []string{visit1}}); err != nil || !sameSharing(got, want) {
 		t.Fatalf("SetSharing() = %+v, %v; want %+v", got, err, want)
 	}
 	if len(f.repo.changes) != 0 {
@@ -176,7 +180,7 @@ func TestSetSharing_TheSameSelectionChangesNothing(t *testing.T) {
 // sees none of the visits.
 func TestSetSharing_NoVisitsRevokesTheSharing(t *testing.T) {
 	f := withHistory()
-	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{}}, 2)
+	got, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{}}, versionAA2)
 	if want := (consent.Sharing{OrganizationID: clinicA, Shared: []string{}}); err != nil || !sameSharing(got, want) {
 		t.Fatalf("SetSharing([]) = %+v, %v; want %+v", got, err, want)
 	}
@@ -188,7 +192,7 @@ func TestSetSharing_NoVisitsRevokesTheSharing(t *testing.T) {
 	}
 	checkEvents(t, "revoke", f.audit, event(me, auditevent.CodeUpdate, historyAA, auditevent.OutcomeSuccess))
 	g := sharingFixture()
-	if got, err := g.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{}, 0); err != nil || len(got.Shared) != 0 || got.ConsentID != "" {
+	if got, err := g.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{}, ""); err != nil || len(got.Shared) != 0 || got.ConsentID != "" {
 		t.Errorf("SetSharing([]) with nothing shared = %+v, %v; want nothing", got, err)
 	}
 }
@@ -200,17 +204,19 @@ func TestSetSharing_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 		caller  consent.Caller
 		name    string
 		clinic  string
+		version string
 		visits  []string
-		version int32
 	}{
 		{name: "staff", fixture: sharingFixture, caller: staff, clinic: clinicA, visits: []string{visit1}, want: consent.ErrForbidden},
 		{name: "without a profile", fixture: sharingFixture, caller: noProf, clinic: clinicA, visits: []string{visit1}, want: consent.ErrCareConsentRequired},
 		{name: "without the care consent", fixture: sharingFixture, caller: me, clinic: clinicB, visits: []string{visit1}, want: consent.ErrCareConsentRequired},
 		{name: "a visit that is not a candidate", fixture: sharingFixture, caller: me, clinic: clinicA, visits: []string{visit1, newID}, want: consent.ErrInvalidVisit},
-		{name: "a version with nothing shared", fixture: sharingFixture, caller: me, clinic: clinicA, visits: []string{visit1}, version: 1, want: consent.ErrVersionConflict},
+		{name: "a version with nothing shared", fixture: sharingFixture, caller: me, clinic: clinicA, visits: []string{visit1}, version: newID + ".1", want: consent.ErrVersionConflict},
 		{name: "no version with a sharing", fixture: withHistory, caller: me, clinic: clinicA, visits: []string{visit2}, want: consent.ErrVersionConflict},
-		{name: "a stale version", fixture: withHistory, caller: me, clinic: clinicA, visits: []string{visit2}, version: 1, want: consent.ErrVersionConflict},
-		{name: "a stale revocation", fixture: withHistory, caller: me, clinic: clinicA, visits: []string{}, version: 1, want: consent.ErrVersionConflict},
+		{name: "a stale version", fixture: withHistory, caller: me, clinic: clinicA, visits: []string{visit2}, version: historyAA + ".1", want: consent.ErrVersionConflict},
+		// Another consent at the same version: device A read consent X at version 2, device B stopped and granted Y.
+		{name: "another consent's version", fixture: withHistory, caller: me, clinic: clinicA, visits: []string{visit2}, version: newID + ".2", want: consent.ErrVersionConflict},
+		{name: "a stale revocation", fixture: withHistory, caller: me, clinic: clinicA, visits: []string{}, version: historyAA + ".1", want: consent.ErrVersionConflict},
 	}
 	for _, tt := range tests {
 		f := tt.fixture()
@@ -225,15 +231,48 @@ func TestSetSharing_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 	}
 }
 
+// SetSharing reads the care consent locked (SELECT … FOR SHARE): a revocation of it waits for the grant to commit,
+// then ends the history consent with it; without the lock a grant racing the revocation left an active history
+// consent under an inactive care consent.
+func TestSetSharing_LocksTheCareConsent(t *testing.T) {
+	f := sharingFixture()
+	if _, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit2}}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(f.repo.calls, "LockCare") || slices.Contains(f.repo.calls, "State") {
+		t.Errorf("calls %v, want the care consent locked (LockCare), not read unlocked (State)", f.repo.calls)
+	}
+}
+
+// A care consent granted again never brings back a history consent left active with the clinic: Grant ends it in
+// the same transaction, audited (consenting again does not restore sharing).
+func TestGrant_TheCareConsentEndsAnEarlierHistoryConsent(t *testing.T) {
+	f := sharingFixture()
+	f.repo.consents = append(f.repo.consents, consent.Consent{
+		ID: historyAA, PatientID: patientA, OrganizationID: clinicB, Kind: consent.KindHistory, Status: consent.StatusActive,
+		DateTime: granted, LastUpdated: granted, VersionID: 1, Shared: []consent.SharedVisit{{EncounterID: visit1, AddedAt: granted}},
+	})
+	got, err := f.svc.Grant(t.Context(), me, clinicB, consent.KindCare)
+	if err != nil || got.Status != consent.StatusActive {
+		t.Fatalf("Grant(care) = %+v, %v; want it active", got, err)
+	}
+	if h := f.history(); h.ID != "" {
+		t.Errorf("an active history consent is left: %+v", h)
+	}
+	checkEvents(t, "Grant", f.audit,
+		event(me, auditevent.CodeUpdate, historyAA, auditevent.OutcomeSuccess),
+		event(me, auditevent.CodeCreate, got.ID, auditevent.OutcomeSuccess))
+}
+
 // A concurrent change commits between the read and the write: the version no longer matches.
 func TestSetSharing_LosingARaceIsAConflict(t *testing.T) {
 	for _, tt := range []struct {
 		fixture func() fixture
 		name    string
-		version int32
+		version string
 	}{
 		{name: "a first grant", fixture: sharingFixture},
-		{name: "a change", fixture: withHistory, version: 2},
+		{name: "a change", fixture: withHistory, version: versionAA2},
 	} {
 		f := tt.fixture()
 		f.repo.race = true
@@ -249,7 +288,7 @@ func TestSetSharing_LosingARaceIsAConflict(t *testing.T) {
 func TestSetSharing_AVisitRowLevelSecurityRefusesIsInvalid(t *testing.T) {
 	f := sharingFixture()
 	f.repo.refuseVisits = true
-	if _, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit2}}, 0); !errors.Is(err, consent.ErrInvalidVisit) {
+	if _, err := f.svc.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit2}}, ""); !errors.Is(err, consent.ErrInvalidVisit) {
 		t.Errorf("SetSharing() = %v, want ErrInvalidVisit", err)
 	}
 	checkEvents(t, "refused visit", f.audit, event(me, auditevent.CodeUpdate, "", auditevent.OutcomeMinorFailure))
@@ -279,7 +318,7 @@ func TestStopSharing_RevokesTheHistoryConsentAndAuditsIt(t *testing.T) {
 func TestMySharing_ListsTheActiveHistoryConsentsAndAuditsEach(t *testing.T) {
 	f := withHistory()
 	got, err := f.svc.MySharing(t.Context(), me)
-	want := []consent.Sharing{{OrganizationID: clinicA, ConsentID: historyAA, VersionID: "2", Shared: []string{visit1}}}
+	want := []consent.Sharing{{OrganizationID: clinicA, ConsentID: historyAA, VersionID: versionAA2, Shared: []string{visit1}}}
 	if err != nil || len(got) != 1 || !sameSharing(got[0], want[0]) {
 		t.Fatalf("MySharing() = %+v, %v; want %+v", got, err, want)
 	}
@@ -335,6 +374,20 @@ func TestGrant_RefusesTheHistoryKind(t *testing.T) {
 func sameSharing(a, b consent.Sharing) bool {
 	return a.OrganizationID == b.OrganizationID && a.ConsentID == b.ConsentID && a.VersionID == b.VersionID &&
 		slices.Equal(a.Shared, b.Shared) && a.Shared != nil
+}
+
+// LockCare reports whether the patient's care consent with the clinic is active, as State does.
+func (r *fakeRepository) LockCare(ctx context.Context, patientID, organizationID string) (bool, error) {
+	r.seen(ctx, "LockCare")
+	if r.err != nil {
+		return false, r.err
+	}
+	for _, c := range r.consents {
+		if c.Kind == consent.KindCare && c.Status == consent.StatusActive && c.PatientID == patientID && c.OrganizationID == organizationID && r.visible(c) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *fakeRepository) ActiveHistory(ctx context.Context, patientID, organizationID string) (consent.Consent, error) {

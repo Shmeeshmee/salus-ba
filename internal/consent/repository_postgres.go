@@ -159,6 +159,21 @@ func (r *postgresRepository) State(ctx context.Context, patientID, organizationI
 	return st, nil
 }
 
+func (r *postgresRepository) LockCare(ctx context.Context, patientID, organizationID string) (bool, error) {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {
+		return false, nil
+	}
+	_, err := consentdb.New(postgres.Conn(ctx, r.db)).LockActiveCareConsent(ctx, consentdb.LockActiveCareConsentParams{PatientID: p, OrganizationID: o})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *postgresRepository) RevokeHistory(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error) {
 	var p, o pgtype.UUID
 	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {

@@ -3,6 +3,7 @@ package consent_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -398,4 +399,70 @@ func TestHistory_TheSharedVisitsClinicAndRoleFollowTheSelectionAtOnce(t *testing
 			}
 		})
 	}
+}
+
+// LockCare holds the care consent (FOR SHARE) until the transaction ends: a revocation of it waits for a history
+// grant in that transaction to commit and then ends the history consent with it, so no history consent is left
+// active under an inactive care consent. Without an active care consent it reports none.
+func TestLockCare_MakesARevocationWaitForTheGrantAndEndIt(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo := consent.NewPostgresRepository(app)
+	visits := seedEncounters(t, owner, clinicB, "finished")
+	asA := func(fn func(ctx context.Context) error) error {
+		return in(t, app, func(ctx context.Context) error { return repo.SetPatient(ctx, patientA) }, fn)
+	}
+	revoked := make(chan error, 1)
+	if err := asA(func(ctx context.Context) error {
+		ok, err := repo.LockCare(ctx, patientA, clinicA)
+		if err != nil || !ok {
+			return fmt.Errorf("LockCare() = %v, %v; want the active care consent", ok, err)
+		}
+		go func() {
+			revoked <- asA(func(ctx context.Context) error {
+				if _, err := repo.Revoke(ctx, consent.KindCare, consentAA, granted.Add(time.Hour)); err != nil {
+					return err
+				}
+				_, err := repo.RevokeHistory(ctx, patientA, clinicA, granted.Add(time.Hour))
+				return err
+			})
+		}()
+		waitForALockWait(t, owner)
+		_, err = repo.GrantHistory(ctx, patientA, clinicA, visits, granted)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-revoked; err != nil {
+		t.Fatalf("the care consent's revocation = %v, want it to end the history consent granted meanwhile", err)
+	}
+	if err := asA(func(ctx context.Context) error {
+		if _, err := repo.ActiveHistory(ctx, patientA, clinicA); !errors.Is(err, consent.ErrNotFound) {
+			return fmt.Errorf("ActiveHistory() after the revocation = %v, want ErrNotFound", err)
+		}
+		if ok, err := repo.LockCare(ctx, patientA, clinicA); err != nil || ok {
+			return fmt.Errorf("LockCare() after the revocation = %v, %v; want none", ok, err)
+		}
+		return nil
+	}); err != nil {
+		t.Error(err)
+	}
+}
+
+// waitForALockWait waits until a backend of the test's database waits for a row lock.
+func waitForALockWait(t *testing.T, owner *pgxpool.Pool) {
+	t.Helper()
+	for range 200 {
+		var waiting bool
+		if err := owner.QueryRow(t.Context(), `SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock')`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no backend waited for the care consent's lock within 2 s")
 }

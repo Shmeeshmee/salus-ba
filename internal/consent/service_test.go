@@ -279,7 +279,8 @@ func TestGrant_StoresAnActiveConsentOfTheCallingPatientAndAuditsIt(t *testing.T)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Grant() = %+v, %v;\nwant %+v", got, err, want)
 	}
-	if want := []string{"SetPatient", "Grant"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientB {
+	// A care consent ends a history consent left active with the clinic (none here).
+	if want := []string{"SetPatient", "Grant", "RevokeHistory"}; !slices.Equal(f.repo.calls, want) || f.repo.patient != patientB {
 		t.Errorf("calls %v with patient %q, want %v inside the transaction with patient B", f.repo.calls, f.repo.patient, want)
 	}
 	checkEvents(t, "Grant", f.audit, event(other, auditevent.CodeCreate, newID, auditevent.OutcomeSuccess))
@@ -530,7 +531,7 @@ func TestService_FailsOnARepositoryOrAuditError(t *testing.T) {
 		},
 		"Candidates": func(s *consent.Service) error { _, err := s.Candidates(t.Context(), me, clinicA); return err },
 		"SetSharing": func(s *consent.Service) error {
-			_, err := s.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit1}}, 0)
+			_, err := s.SetSharing(t.Context(), me, clinicA, consent.SetSharing{EncounterIDs: []string{visit1}}, "")
 			return err
 		},
 		"StopSharing": func(s *consent.Service) error { return s.StopSharing(t.Context(), me, clinicA) },

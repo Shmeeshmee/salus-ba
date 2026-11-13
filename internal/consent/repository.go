@@ -30,6 +30,9 @@ type Repository interface {
 	// RevokeHistory makes the patient's active history consent with the clinic inactive, revoked at, and returns it;
 	// ErrInactive when there is none.
 	RevokeHistory(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error)
+	// LockCare reports whether the patient's care consent with the clinic is active, and locks it (FOR SHARE) until
+	// the transaction ends: its revocation waits for the transaction, so what it grants is ended with it.
+	LockCare(ctx context.Context, patientID, organizationID string) (bool, error)
 	// ActiveHistory returns the patient's active history consent with the clinic with the visits it lists now, or
 	// ErrNotFound.
 	ActiveHistory(ctx context.Context, patientID, organizationID string) (Consent, error)

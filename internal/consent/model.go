@@ -121,13 +121,23 @@ type Candidate struct {
 	EncounterID      string    `json:"encounterId"`
 	OrganizationID   string    `json:"organizationId"`
 	OrganizationName string    `json:"organizationName"`
+	TimeZone         string    `json:"timeZone"` // the visit's clinic's (IANA): its date is shown in it
 	Specialty        string    `json:"specialty,omitempty"`
 	Title            string    `json:"title,omitempty"`
 	Selected         bool      `json:"selected"`
 }
 
+// Preview is the visits a patient may share with one clinic (api/openapi.yaml SharingCandidateList), and the version
+// of what they share with it now, to change it at (If-Match); VersionID empty when nothing is shared.
+type Preview struct {
+	VersionID  string      `json:"versionId,omitempty"`
+	Candidates []Candidate `json:"candidates"`
+}
+
 // Sharing is what the patient shares with one clinic now (api/openapi.yaml HistorySharing): the history consent, its
-// version, and the encounters it lists; ConsentID and VersionID empty when nothing is shared.
+// version, and the encounters it lists; ConsentID and VersionID empty when nothing is shared. VersionID is opaque to
+// clients and names the consent with its meta.versionId ("<consent id>.<n>"), so a version read of one consent never
+// matches another granted after it.
 type Sharing struct {
 	OrganizationID string   `json:"organizationId"`
 	ConsentID      string   `json:"consentId,omitempty"`

@@ -32,9 +32,9 @@ type SharingRoles interface {
 	Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error)
 }
 
-// SharingClinics gives a clinic's name, unaudited (organization.Service.Name).
+// SharingClinics gives a clinic, its name and time zone, unaudited (organization.Service.Clinic).
 type SharingClinics interface {
-	Name(ctx context.Context, organizationID string) (string, error)
+	Clinic(ctx context.Context, organizationID string) (organization.Organization, error)
 }
 
 // SharingPorts are what Sharing reads.
@@ -56,10 +56,10 @@ func NewSharing(p SharingPorts) *Sharing { return &Sharing{p: p} }
 
 // Shareable returns the calling patient's finished visits at every clinic but organizationID, newest first, each as
 // the clinic would see it marked once shared (ADR 0014; docs/plans/patient-history.md "The visit's title in the
-// preview"): its date, its clinic's name, its practitioner role's specialty and the title of its first signed
+// preview"): its date (with its own clinic's time zone, to show it in), its clinic's name, its practitioner role's specialty and the title of its first signed
 // document (none without one). consent.ErrClinicNotFound for an unknown clinic. It joins the transaction in ctx.
 func (s *Sharing) Shareable(ctx context.Context, c consent.Caller, organizationID string) ([]consent.Candidate, error) {
-	if _, err := s.p.Clinics.Name(ctx, organizationID); errors.Is(err, organization.ErrNotFound) {
+	if _, err := s.p.Clinics.Clinic(ctx, organizationID); errors.Is(err, organization.ErrNotFound) {
 		return nil, consent.ErrClinicNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("history: shareable: %w", err)
@@ -69,13 +69,13 @@ func (s *Sharing) Shareable(ctx context.Context, c consent.Caller, organizationI
 	if err != nil {
 		return nil, fmt.Errorf("history: shareable: %w", err)
 	}
-	names, specialties := map[string]string{}, map[string]string{}
+	clinics, specialties := map[string]organization.Organization{}, map[string]string{}
 	out := []consent.Candidate{}
 	for _, e := range all {
 		if e.Status != encounter.StatusFinished || e.OrganizationID == organizationID || e.PatientID != c.PatientID {
 			continue
 		}
-		v, err := s.candidate(ctx, patient, e, names, specialties)
+		v, err := s.candidate(ctx, patient, e, clinics, specialties)
 		if err != nil {
 			return nil, fmt.Errorf("history: shareable: %w", err)
 		}
@@ -87,16 +87,18 @@ func (s *Sharing) Shareable(ctx context.Context, c consent.Caller, organizationI
 	return out, nil
 }
 
-// candidate is the visit e as the preview shows it; names and specialties keep the clinics' names and the roles'
+// candidate is the visit e as the preview shows it; clinics and specialties keep the clinics and the roles'
 // specialties already read.
-func (s *Sharing) candidate(ctx context.Context, patient appointment.Caller, e encounter.Encounter, names, specialties map[string]string) (consent.Candidate, error) {
-	name, ok := names[e.OrganizationID]
+func (s *Sharing) candidate(ctx context.Context, patient appointment.Caller, e encounter.Encounter, clinics map[string]organization.Organization,
+	specialties map[string]string,
+) (consent.Candidate, error) {
+	clinic, ok := clinics[e.OrganizationID]
 	if !ok {
 		var err error
-		if name, err = s.p.Clinics.Name(ctx, e.OrganizationID); err != nil {
+		if clinic, err = s.p.Clinics.Clinic(ctx, e.OrganizationID); err != nil {
 			return consent.Candidate{}, err
 		}
-		names[e.OrganizationID] = name
+		clinics[e.OrganizationID] = clinic
 	}
 	specialty, ok := specialties[e.PractitionerRoleID]
 	if !ok {
@@ -112,7 +114,8 @@ func (s *Sharing) candidate(ctx context.Context, patient appointment.Caller, e e
 		return consent.Candidate{}, err
 	}
 	v := consent.Candidate{
-		Date: e.PeriodStart, EncounterID: e.ID, OrganizationID: e.OrganizationID, OrganizationName: name, Specialty: specialty,
+		Date: e.PeriodStart, EncounterID: e.ID, OrganizationID: e.OrganizationID, OrganizationName: clinic.Name,
+		TimeZone: clinic.TimeZone, Specialty: specialty,
 	}
 	if len(docs) > 0 {
 		v.Title = docs[0].Draft.Title

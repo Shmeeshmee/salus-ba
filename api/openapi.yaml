@@ -3499,7 +3499,12 @@ paths:
         "400":
           description: >-
             `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at
-            another clinic; `care_consent_required`: no active care consent with the clinic.
+            another clinic.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`care_consent_required`: no active care consent with the clinic."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -6841,7 +6846,7 @@ components:
         versionId: {type: string}
     SharingCandidate:
       type: object
-      required: [date, encounterId, organizationId, organizationName, selected]
+      required: [date, encounterId, organizationId, organizationName, timeZone, selected]
       description: >-
         A finished visit of the patient's at another clinic, exactly as the receiving clinic will see it marked.
         Health data.
@@ -6850,6 +6855,7 @@ components:
         encounterId: {type: string, format: uuid}
         organizationId: {type: string, format: uuid}
         organizationName: {type: string}
+        timeZone: {type: string, description: "The visit's clinic's time zone (IANA), to show its date in."}
         specialty: {type: string, description: SNOMED CT code (`/specialties`).}
         title: {type: string, description: The title of the visit's first signed document.}
         selected: {type: boolean, description: Shared with the clinic now.}
@@ -6857,6 +6863,11 @@ components:
       type: object
       required: [candidates]
       properties:
+        versionId:
+          type: string
+          description: >-
+            The version of what the patient shares with the clinic now, read with the candidates (HistorySharing
+            `versionId`); absent when nothing is shared. Send it as If-Match to change the selection.
         candidates:
           type: array
           items: {$ref: "#/components/schemas/SharingCandidate"}
@@ -6880,7 +6891,11 @@ components:
           type: string
           format: uuid
           description: The history consent (FHIR Consent); absent when nothing is shared.
-        versionId: {type: string}
+        versionId:
+          type: string
+          description: >-
+            Opaque: names the history consent and its version, so a version read of one consent never matches another
+            granted after it. Send it as If-Match, `W/"<versionId>"`.
         shared:
           type: array
           items: {type: string, format: uuid}

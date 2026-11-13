@@ -64,7 +64,8 @@ func (s *Service) WithVisits(v Visits) *Service {
 // Grant gives the clinic organizationID the calling patient's consent of the kind and returns it. ErrActive when
 // one of the kind is active already, ErrProfileRequired without a profile, ErrClinicNotFound for an unknown
 // clinic, ErrKind for an unknown kind and for a history consent (granted with its visits by SetSharing: an active
-// one lists at least one), ErrForbidden to staff.
+// one lists at least one), ErrForbidden to staff. A care consent ends a history consent with the clinic still active
+// (consenting again never restores an earlier sharing).
 func (s *Service) Grant(ctx context.Context, c Caller, organizationID string, kind Kind) (Consent, error) {
 	switch {
 	case !c.patient():
@@ -90,6 +91,11 @@ func (s *Service) Grant(ctx context.Context, c Caller, organizationID string, ki
 		}
 		if err != nil {
 			return err
+		}
+		if kind == KindCare {
+			if err := s.endHistory(ctx, c, patientID, organizationID); err != nil {
+				return err
+			}
 		}
 		return s.record(ctx, c, auditevent.CodeCreate, out.ID, auditevent.OutcomeSuccess)
 	})
@@ -166,6 +172,19 @@ func (s *Service) revoked(ctx context.Context, c Caller, x Consent) error {
 		}
 	}
 	return s.jobs.EnqueueConsentRevoked(ctx, x.PatientID, x.OrganizationID)
+}
+
+// endHistory ends the patient's history consent with the clinic left active under a care consent granted anew, in
+// the transaction in ctx, audited: consenting to care again never restores an earlier sharing.
+func (s *Service) endHistory(ctx context.Context, c Caller, patientID, organizationID string) error {
+	h, err := s.repo.RevokeHistory(ctx, patientID, organizationID, s.clock.Now())
+	switch {
+	case errors.Is(err, ErrInactive):
+		return nil
+	case err != nil:
+		return err
+	}
+	return s.record(ctx, c, auditevent.CodeUpdate, h.ID, auditevent.OutcomeSuccess)
 }
 
 // revoke revokes the calling patient's consent id in the transaction in ctx, or gives the refusal.

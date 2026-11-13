@@ -3303,6 +3303,8 @@ export interface components {
             /** Format: uuid */
             organizationId: string;
             organizationName: string;
+            /** @description The visit's clinic's time zone (IANA), to show its date in. */
+            timeZone: string;
             /** @description SNOMED CT code (`/specialties`). */
             specialty?: string;
             /** @description The title of the visit's first signed document. */
@@ -3311,6 +3313,8 @@ export interface components {
             selected: boolean;
         };
         SharingCandidateList: {
+            /** @description The version of what the patient shares with the clinic now, read with the candidates (HistorySharing `versionId`); absent when nothing is shared. Send it as If-Match to change the selection. */
+            versionId?: string;
             candidates: components["schemas"]["SharingCandidate"][];
         };
         SetHistorySharingRequest: {
@@ -3325,6 +3329,7 @@ export interface components {
              * @description The history consent (FHIR Consent); absent when nothing is shared.
              */
             consentId?: string;
+            /** @description Opaque: names the history consent and its version, so a version read of one consent never matches another granted after it. Send it as If-Match, `W/"<versionId>"`. */
             versionId?: string;
             /** @description The encounters shared. */
             shared: string[];
@@ -8232,7 +8237,7 @@ export interface operations {
                     "application/json": components["schemas"]["HistorySharing"];
                 };
             };
-            /** @description `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at another clinic; `care_consent_required`: no active care consent with the clinic. */
+            /** @description `invalid_request`: not the request; `invalid_visit`: a visit that is not a finished one of the patient's at another clinic. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8253,6 +8258,15 @@ export interface operations {
             };
             /** @description `not_found`: no such clinic. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `care_consent_required`: no active care consent with the clinic. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -14,13 +14,13 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 )
 
-func (s *stubConsents) Candidates(_ context.Context, c consent.Caller, organizationID string) ([]consent.Candidate, error) {
+func (s *stubConsents) Candidates(_ context.Context, c consent.Caller, organizationID string) (consent.Preview, error) {
 	s.caller, s.arg = c, organizationID
 	s.calls = append(s.calls, "Candidates")
-	return s.candidates, s.err
+	return s.preview, s.err
 }
 
-func (s *stubConsents) SetSharing(_ context.Context, c consent.Caller, organizationID string, in consent.SetSharing, version int32) (consent.Sharing, error) {
+func (s *stubConsents) SetSharing(_ context.Context, c consent.Caller, organizationID string, in consent.SetSharing, version string) (consent.Sharing, error) {
 	s.caller, s.arg, s.set, s.version = c, organizationID, in, version
 	s.calls = append(s.calls, "SetSharing")
 	return s.firstSharing(), s.err
@@ -59,17 +59,17 @@ func serveHeader(t *testing.T, svc *stubConsents, method, path, body string, h h
 	return rec
 }
 
-var sharingAA = consent.Sharing{OrganizationID: clinicA, ConsentID: historyAA, VersionID: "3", Shared: []string{visit1, visit2}}
+var sharingAA = consent.Sharing{OrganizationID: clinicA, ConsentID: historyAA, VersionID: historyAA + ".3", Shared: []string{visit1, visit2}}
 
-const sharingJSON = `{"organizationId":"` + clinicA + `","consentId":"` + historyAA + `","versionId":"3","shared":["` + visit1 + `","` + visit2 + `"]}`
+const sharingJSON = `{"organizationId":"` + clinicA + `","consentId":"` + historyAA + `","versionId":"` + historyAA + `.3","shared":["` + visit1 + `","` + visit2 + `"]}`
 
 func TestHandler_PreviewsTheCandidates(t *testing.T) {
 	c := candidate(visit1, 20)
 	c.Selected = true
-	svc := &stubConsents{candidates: []consent.Candidate{c}}
+	svc := &stubConsents{preview: consent.Preview{Candidates: []consent.Candidate{c}, VersionID: versionAA2}}
 	rec := serve(t, svc, me, true, &bytes.Buffer{}, http.MethodGet, "/history-sharing/"+clinicA, "")
-	want := `{"candidates":[{"date":"2026-10-20T09:00:00Z","encounterId":"` + visit1 + `","organizationId":"` + clinicB +
-		`","organizationName":"Synthetic clinic B","specialty":"394579002","title":"Placeholder findings","selected":true}]}` + "\n"
+	want := `{"versionId":"` + versionAA2 + `","candidates":[{"date":"2026-10-20T09:00:00Z","encounterId":"` + visit1 + `","organizationId":"` + clinicB +
+		`","organizationName":"Synthetic clinic B","timeZone":"Europe/Sarajevo","specialty":"394579002","title":"Placeholder findings","selected":true}]}` + "\n"
 	if rec.Code != http.StatusOK || rec.Body.String() != want || svc.arg != clinicA || svc.caller != me {
 		t.Errorf("GET = %d %s (clinic %q), want 200 %s", rec.Code, rec.Body, svc.arg, want)
 	}
@@ -86,23 +86,23 @@ func TestHandler_SetsTheSharingAtTheVersionOfIfMatch(t *testing.T) {
 	for _, tt := range []struct {
 		header  http.Header
 		name    string
-		version int32
+		version string
 	}{
 		{name: "a first grant", header: http.Header{}},
-		{name: "a weak tag", header: http.Header{"If-Match": {`W/"2"`}}, version: 2},
-		{name: "a strong tag", header: http.Header{"If-Match": {`"2"`}}, version: 2},
+		{name: "a weak tag", header: http.Header{"If-Match": {`W/"` + versionAA2 + `"`}}, version: versionAA2},
+		{name: "a strong tag", header: http.Header{"If-Match": {`"` + versionAA2 + `"`}}, version: versionAA2},
 	} {
 		svc := &stubConsents{sharing: []consent.Sharing{sharingAA}}
 		rec := serveHeader(t, svc, http.MethodPut, "/history-sharing/"+clinicA, `{"encounterIds":["`+visit1+`","`+visit2+`"]}`, tt.header)
-		if rec.Code != http.StatusOK || rec.Body.String() != sharingJSON+"\n" || rec.Header().Get("ETag") != `W/"3"` {
-			t.Errorf("%s: PUT = %d %s ETag %q, want 200 %s W/\"3\"", tt.name, rec.Code, rec.Body, rec.Header().Get("ETag"), sharingJSON)
+		if rec.Code != http.StatusOK || rec.Body.String() != sharingJSON+"\n" || rec.Header().Get("ETag") != `W/"`+historyAA+`.3"` {
+			t.Errorf("%s: PUT = %d %s ETag %q, want 200 %s and the consent's version 3", tt.name, rec.Code, rec.Body, rec.Header().Get("ETag"), sharingJSON)
 		}
 		if svc.version != tt.version || svc.arg != clinicA || !slices.Equal(svc.set.EncounterIDs, []string{visit1, visit2}) {
-			t.Errorf("%s: SetSharing(%q, %+v, %d), want clinic A, the two visits, version %d", tt.name, svc.arg, svc.set, svc.version, tt.version)
+			t.Errorf("%s: SetSharing(%q, %+v, %q), want clinic A, the two visits, version %q", tt.name, svc.arg, svc.set, svc.version, tt.version)
 		}
 	}
 	svc := &stubConsents{sharing: []consent.Sharing{{OrganizationID: clinicA, Shared: []string{}}}}
-	rec := serveHeader(t, svc, http.MethodPut, "/history-sharing/"+clinicA, `{"encounterIds":[]}`, http.Header{"If-Match": {`W/"3"`}})
+	rec := serveHeader(t, svc, http.MethodPut, "/history-sharing/"+clinicA, `{"encounterIds":[]}`, http.Header{"If-Match": {`W/"` + historyAA + `.3"`}})
 	if want := `{"organizationId":"` + clinicA + `","shared":[]}` + "\n"; rec.Code != http.StatusOK || rec.Body.String() != want || rec.Header().Get("ETag") != "" {
 		t.Errorf("PUT [] = %d %s ETag %q, want 200 %s without an ETag", rec.Code, rec.Body, rec.Header().Get("ETag"), want)
 	}
@@ -136,7 +136,7 @@ func TestHandler_MapsEverySharingErrorToItsCode(t *testing.T) {
 		{err: consent.ErrForbidden, method: http.MethodGet, path: "/me/history-sharing", status: 403, code: "forbidden"},
 		{err: consent.ErrForbidden, method: http.MethodGet, path: "/history-sharing/" + clinicA, status: 403, code: "forbidden"},
 		{err: consent.ErrClinicNotFound, method: http.MethodGet, path: "/history-sharing/x", status: 404, code: "not_found"},
-		{err: consent.ErrCareConsentRequired, method: http.MethodPut, path: "/history-sharing/" + clinicA, body: put, status: 400, code: "care_consent_required"},
+		{err: consent.ErrCareConsentRequired, method: http.MethodPut, path: "/history-sharing/" + clinicA, body: put, status: 409, code: "care_consent_required"},
 		{err: consent.ErrInvalidVisit, method: http.MethodPut, path: "/history-sharing/" + clinicA, body: put, status: 400, code: "invalid_visit"},
 		{err: consent.ErrVersionConflict, method: http.MethodPut, path: "/history-sharing/" + clinicA, body: put, status: 412, code: "version_conflict"},
 		{err: consent.ErrClinicNotFound, method: http.MethodPut, path: "/history-sharing/x", body: put, status: 404, code: "not_found"},

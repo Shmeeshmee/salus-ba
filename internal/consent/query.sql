@@ -150,3 +150,10 @@ SELECT consent_id, encounter_id, added_at
 FROM history_consent_encounter
 WHERE consent_id = ANY(@consent_ids::uuid[]) AND removed_at IS NULL
 ORDER BY added_at, encounter_id;
+
+-- The patient's active care consent with the clinic, locked until the transaction ends (SetSharing): a revocation's
+-- UPDATE waits for it and then ends the history consent granted meanwhile.
+-- name: LockActiveCareConsent :one
+SELECT id FROM consent
+WHERE patient_id = @patient_id AND organization_id = @organization_id AND status = 'active'
+FOR SHARE;

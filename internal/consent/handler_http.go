@@ -20,8 +20,8 @@ type Consents interface {
 	Grant(ctx context.Context, c Caller, organizationID string, kind Kind) (Consent, error)
 	Revoke(ctx context.Context, c Caller, id string) (Consent, error)
 	Mine(ctx context.Context, c Caller) ([]Consent, error)
-	Candidates(ctx context.Context, c Caller, organizationID string) ([]Candidate, error)
-	SetSharing(ctx context.Context, c Caller, organizationID string, in SetSharing, version int32) (Sharing, error)
+	Candidates(ctx context.Context, c Caller, organizationID string) (Preview, error)
+	SetSharing(ctx context.Context, c Caller, organizationID string, in SetSharing, version string) (Sharing, error)
 	StopSharing(ctx context.Context, c Caller, organizationID string) error
 	MySharing(ctx context.Context, c Caller) ([]Sharing, error)
 }
@@ -185,7 +185,7 @@ var errorCodes = []struct {
 	{ErrKind, "invalid_request", http.StatusBadRequest},
 	{ErrInactive, "consent_inactive", http.StatusConflict},
 	{ErrProfileRequired, "profile_required", http.StatusConflict},
-	{ErrCareConsentRequired, "care_consent_required", http.StatusBadRequest},
+	{ErrCareConsentRequired, "care_consent_required", http.StatusConflict},
 	{ErrInvalidVisit, "invalid_visit", http.StatusBadRequest},
 	{ErrVersionConflict, "version_conflict", http.StatusPreconditionFailed},
 }

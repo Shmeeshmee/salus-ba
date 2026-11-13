@@ -19,13 +19,14 @@ type Visits interface {
 
 // Candidates returns the visits the calling patient may share with the clinic organizationID, each marked Selected
 // when their history consent with it lists the visit now (docs/plans/patient-history.md, SAL-42): the preview at
-// booking and in settings, exactly as the clinic would see each visit. An empty list without a profile.
+// booking and in settings, exactly as the clinic would see each visit, with the version of the sharing now (read in
+// the same transaction, so the version is the one the selection shows). An empty list without a profile.
 // ErrClinicNotFound for an unknown clinic, ErrForbidden to staff. Audited as a search of the history consent.
-func (s *Service) Candidates(ctx context.Context, c Caller, organizationID string) ([]Candidate, error) {
+func (s *Service) Candidates(ctx context.Context, c Caller, organizationID string) (Preview, error) {
 	if !c.patient() {
-		return nil, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
+		return Preview{}, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
 	}
-	out := []Candidate{}
+	out := Preview{Candidates: []Candidate{}}
 	var refused error
 	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
 		patientID, err := s.ownPatient(ctx, c)
@@ -50,27 +51,30 @@ func (s *Service) Candidates(ctx context.Context, c Caller, organizationID strin
 		listed := sharedIDs(cur)
 		for _, v := range visits {
 			v.Selected = slices.Contains(listed, v.EncounterID)
-			out = append(out, v)
+			out.Candidates = append(out.Candidates, v)
 		}
+		out.VersionID = sharingVersion(cur)
 		return s.record(ctx, c, auditevent.CodeSearchType, cur.ID, auditevent.OutcomeSuccess)
 	})
 	switch {
 	case err != nil:
-		return nil, fmt.Errorf("consent: candidates: %w", err)
+		return Preview{}, fmt.Errorf("consent: candidates: %w", err)
 	case refused != nil:
-		return nil, refused
+		return Preview{}, refused
 	}
 	return out, nil
 }
 
 // SetSharing makes the calling patient's history consent with the clinic organizationID list exactly the visits of
 // in, each a candidate (Candidates): it grants the consent when none is active (version 0), or changes it at
-// version, removing the visits not sent and adding the new ones; no visit revokes it. Every change takes effect when
+// version (Sharing.VersionID: the consent and its version, "" for none), removing the visits not sent and adding the
+// new ones; no visit revokes it. The care consent is locked for the transaction, so its revocation waits for this
+// commit and then ends what it granted. Every change takes effect when
 // its transaction commits; a removal and a revocation are final. ErrCareConsentRequired without an active care
 // consent with the clinic (or a profile), ErrVersionConflict when the sharing is not at version (none for 0),
 // ErrInvalidVisit for a visit that is not a candidate, ErrForbidden to staff. Audited as a create, or an update of
 // the history consent, also when refused.
-func (s *Service) SetSharing(ctx context.Context, c Caller, organizationID string, in SetSharing, version int32) (Sharing, error) {
+func (s *Service) SetSharing(ctx context.Context, c Caller, organizationID string, in SetSharing, version string) (Sharing, error) {
 	if !c.patient() {
 		return Sharing{}, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
 	}
@@ -107,7 +111,7 @@ func (s *Service) SetSharing(ctx context.Context, c Caller, organizationID strin
 
 // setSharing does SetSharing's work in the transaction in ctx and returns the sharing with the interaction to audit
 // (a create or an update; of the revoked consent after a revocation), or the refusal.
-func (s *Service) setSharing(ctx context.Context, c Caller, organizationID string, ids []string, version int32) (out Sharing, interaction string, refused, err error) {
+func (s *Service) setSharing(ctx context.Context, c Caller, organizationID string, ids []string, version string) (out Sharing, interaction string, refused, err error) {
 	patientID, err := s.ownPatient(ctx, c)
 	if errors.Is(err, errNoProfile) {
 		return Sharing{}, "", ErrCareConsentRequired, nil
@@ -115,11 +119,11 @@ func (s *Service) setSharing(ctx context.Context, c Caller, organizationID strin
 	if err != nil {
 		return Sharing{}, "", nil, err
 	}
-	if st, err := s.repo.State(ctx, patientID, organizationID); err != nil || !st.Active {
+	if active, err := s.repo.LockCare(ctx, patientID, organizationID); err != nil || !active {
 		return Sharing{}, "", ErrCareConsentRequired, err
 	}
 	cur, err := s.activeHistory(ctx, patientID, organizationID)
-	if err != nil || cur.VersionID != version {
+	if err != nil || sharingVersion(cur) != version {
 		return Sharing{}, "", ErrVersionConflict, err
 	}
 	if len(ids) == 0 {
@@ -278,7 +282,15 @@ func (s *Service) activeHistory(ctx context.Context, patientID, organizationID s
 }
 
 func toSharing(organizationID string, x Consent) Sharing {
-	return Sharing{OrganizationID: organizationID, ConsentID: x.ID, VersionID: strconv.Itoa(int(x.VersionID)), Shared: sharedIDs(x)}
+	return Sharing{OrganizationID: organizationID, ConsentID: x.ID, VersionID: sharingVersion(x), Shared: sharedIDs(x)}
+}
+
+// sharingVersion is the version of the sharing x (Sharing.VersionID): its consent and meta.versionId, "" for none.
+func sharingVersion(x Consent) string {
+	if x.ID == "" {
+		return ""
+	}
+	return x.ID + "." + strconv.Itoa(int(x.VersionID))
 }
 
 // sharedIDs are the encounters x lists, never nil.

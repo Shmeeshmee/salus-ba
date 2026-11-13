@@ -28,6 +28,7 @@ func TestHistorySchemas_MatchTheirGoTypes(t *testing.T) {
 		"MedicationStatementInput": medicationstatement.Input{},
 		"EntryWritten":             allergyintolerance.EntryWritten{},
 		"SharingCandidate":         consent.Candidate{},
+		"SharingCandidateList":     consent.Preview{},
 		"HistorySharing":           consent.Sharing{},
 		"SetHistorySharingRequest": consent.SetSharing{},
 	} {
