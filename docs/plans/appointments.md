@@ -106,8 +106,8 @@ The answers to the open questions of phase A, each the recommended option.
 | Table | Columns |
 | --- | --- |
 | `appointment` (added) | `confirmed_at`, `confirmed_via` (`app` \| `link`; both null or both set), `reschedule_count` (0 default), `booked_via` (`direct` \| `waitlist`, `direct` default). Grants `UPDATE (period, slot_id, confirmed_at, confirmed_via, reschedule_count)` beside the status columns; the 00019 comment's "when never changes" is amended in 00054's |
-| `appointment_change` | `id`, `appointment_id`, `organization_id`, `patient_id` (copied for row-level security), `at`, `kind` (`confirmed` \| `rescheduled` \| `status_set` \| `status_corrected`), `via` (`app` \| `link` \| `staff` \| `system`), `by_account_id` (null for the system), `agent` (a job's kind, for the system), `from_status`, `to_status`, `from_period`, `to_period`, `from_slot_id`, `to_slot_id`. Append-only: `SELECT, INSERT` only, triggers refuse `UPDATE`, `DELETE` and `TRUNCATE` for every role, as `communication`. Row-level security as `appointment`'s (the patient's own; the clinic's with the consent, and the past ones after a revocation) |
-| `appointment_action_token` | `id`, `token_hash` (SHA-256, unique), `appointment_id`, `organization_id`, `patient_id`, `account_id`, `reminder_id` (SAL-33 adds its foreign key), `channel` (`email` \| `sms`), `language`, `created_at`, `expires_at`, `used_at`, `used_action` (`confirm` \| `cancel`). Found by hash only through `appointment_action_token_find(hash)`, `SECURITY DEFINER`, returning the ids; inserted in a notifier job's clinic scope with `app.appointment_id` set |
+| `appointment_change` | `id`, `appointment_id`, `organization_id`, `patient_id` (copied for row-level security), `at`, `kind` (`confirmed` \| `rescheduled` \| `status_set`: booked to fulfilled, noshow or cancelled, every cancellation included \| `status_corrected`), `via` (`app` \| `link` \| `staff` \| `system`), `by_account_id` (null for the system), `agent` (a job's kind, for the system), `from_status`, `to_status`, `from_period`, `to_period`, `from_slot_id`, `to_slot_id`. Append-only: `SELECT, INSERT` only, triggers refuse `UPDATE`, `DELETE` and `TRUNCATE` for every role, as `communication`. Row-level security as `appointment`'s (the patient's own; the clinic's with the consent, and the past ones after a revocation); an insert says who wrote it as the scope is (the patient's scope: `app` or `link` by the patient's account, or a job; the clinic's: `staff` or a job) |
+| `appointment_action_token` | `id`, `token_hash` (SHA-256, unique), `appointment_id`, `organization_id`, `patient_id`, `account_id`, `reminder_id` (SAL-33 adds its foreign key), `channel` (`email` \| `sms`), `language`, `start_at` (the start it was issued for; SAL-34 refuses a link whose `start_at` is not the appointment's start now), `created_at`, `expires_at` (= `start_at`), `used_at`, `used_action` (`confirm` \| `cancel`). Used once by a conditional `UPDATE … WHERE used_at IS NULL`; a trigger refuses any change to a used one. Found by hash only through `appointment_action_token_find(hash)`, `SECURITY DEFINER`, returning the ids; inserted in a notifier job's clinic scope with `app.appointment_id` set |
 | `organization_appointment_settings` | `organization_id` (key), `reminder_offsets_minutes` (`integer[]`, 0 to 3 distinct values, 15 to 10080; default `{1440, 60}`), `sms_reminders` (false), `reschedule_notice_hours` (0 to 168, 24), `reschedule_max` (0 to 5, 2), `waitlist_enabled` (false), `waitlist_hold_minutes` (5 to 120, 15), `noshow_flag_threshold` (0 to 10, 0 for off), `noshow_flag_window_days` (30 to 730, 180), `created_at`, `updated_at`. Not personal data. No version: like the chat settings, a `PUT` replaces the whole row |
 
 ### Go
@@ -125,12 +125,20 @@ The answers to the open questions of phase A, each the recommended option.
 | `cancelReminders(ctx, id)`, called by `cancelled` | nothing | SAL-33 |
 | `slotFreed(ctx, a, slotID)`, called by `cancelled` | enqueues `waitlist_slot_freed {slot_id, organization_id}` on the default queue; a no-op worker completes it | SAL-35: the real worker; SAL-34 calls it from the reschedule |
 | `purchase(ctx, …)` and `settle(ctx, a, …)` in `service_purchase.go` | nothing: no price exists | SAL-35 (`purchase` with `pkg/payments`), SAL-37 (`settle`) |
-| `recordChange` in `SetStatus` and `RecordConsultationOutcome` | writes `status_set` | SAL-36 adds the correction |
+| `recordChange` in `SetStatus`, `RecordConsultationOutcome` and every cancellation (`cancelled`) | writes `status_set` (to cancelled with `via` the caller's: `app`, `staff`, or `system` for the revocation) | SAL-36 adds the correction |
 
 - `organization`: `AppointmentSettings` (the columns above, JSON snake_case), `organization.Appointments` (a second
   service of the domain like `Chat`): `Settings` and `SetSettings` for the clinic's admin (audited, refusals too,
-  every range validated here so the wave never edits it), and `For(ctx, org)` for the other domains in their
-  transaction, unaudited (not personal data).
+  every range validated here so the wave never edits it; the paid SMS option refused with `sms_unavailable` while
+  the SMS engine is the fake), and `For(ctx, org)` for the other domains in their transaction, unaudited (not
+  personal data). `For` sets the clinic's scope (`app.organization_id`) on the caller's transaction: a caller in
+  another scope reads it before setting its own, or sets its own again after it.
+- `appointment` `Ports.Prices` and `Ports.Payments`: the purchase step charges before the booking's transaction and
+  refunds when the booking then fails; both nil in every binary until SAL-23 (no price exists).
+- A trigger on `appointment` (`appointment_guard_change`) says who changes what under every UPDATE policy: the period
+  and the slot together, only in the patient's own scope, of a booked appointment that stays booked, with
+  `reschedule_count` up by exactly one (never changed otherwise); the confirmation only in the patient's scope (their
+  app or the link) and never cleared.
 - `Ports.Tokens` and `Ports.LinkURL` of `appointment.Service` for `IssueLink`; SAL-33 adds `APPOINTMENT_LINK_URL` (the
   link page's base, the api's public origin) to `internal/config` and wires both into the notifier, its only issuer.
 - New public routes (`/a/`, `/waitlist`, `/me/notification-settings` and the others) get their Vite proxy and
@@ -147,9 +155,9 @@ The answers to the open questions of phase A, each the recommended option.
 FHIR: the patient participant's status per Q3, built in step 0 (golden files).
 
 `pkg/sms` (`Sender`, `Message`, `Segments`, `smstest`) and `pkg/payments` (`Provider`, `Charge`, `Refund`, `Receipt`,
-`paymentstest`) are built in step 0, as ADR 0015 describes; `config.LoadSMS` gives the fake unless `SMS_ENGINE=http`
-comes with its endpoint and token file; nothing loads it before SAL-33, and the generic adapter stays off until the
-provider is chosen. Every wave-1 route below is in `api/openapi.yaml` from step 0 (`x-salus-package` names its
+`paymentstest`, which refuses a key reused with another amount) are built in step 0, as ADR 0015 describes;
+`config.LoadSMS` takes the fake only. No SMS adapter exists: it comes with the chosen EU/EEA provider (Q2), with its
+engine and credentials. Nothing loads `LoadSMS` before SAL-33. Every wave-1 route below is in `api/openapi.yaml` from step 0 (`x-salus-package` names its
 builder), so the generated clients and the screens can be built in parallel; a route answers 404 until its package
 mounts it.
 
@@ -178,8 +186,8 @@ it needs is reported, not made. Their paths and schemas are in `api/openapi.yaml
 | `POST /appointments/{id}/confirm` | The patient's own, while `booked` and ahead; 200 `Appointment`; repeating it is 200 with the same |
 | `POST /appointments/{id}/reschedule` | The patient's own: `{slotId}` (a free slot of the same role, ahead); 200 `Appointment` at its new version; 409 `reschedule_window_closed`, `reschedule_limit`, `not_reschedulable` (another role, the join window open, self-service off), `slot_unavailable`, `appointment_closed` (the existing code) |
 | `GET /appointments/{id}/actions` | For the patient's app: `{confirm, cancel, cancel_until, reschedule, reschedule_until, reschedules_left}` |
-| `GET /a/{token}` | The link page (`text/html`, no session): the clinic, date and time, the state, and the possible actions as buttons |
-| `POST /a/{token}` | Form `action=confirm\|cancel`; 303 to `GET /a/{token}`, which then shows the result. A used, expired or unknown token: the same page saying the link no longer works |
+| `GET /a/{token}` | The link page (`text/html`, no session): the clinic, date and time, the state, and the possible actions as buttons. A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action, so cancelling after a confirmation needs a later reminder's link or the app. An expired or unknown token, or one whose `start_at` is not the appointment's start: the same page saying the link no longer works |
+| `POST /a/{token}` | Form `action=confirm\|cancel`, and `confirm_cancel=yes` (a ticked box) for a cancel (ADR 0015 "Scanners that click"); uses the link with `UPDATE … WHERE used_at IS NULL`; 303 to `GET /a/{token}`, which then shows the outcome |
 
 **SAL-35 (waitlist).**
 

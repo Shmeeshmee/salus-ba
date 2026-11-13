@@ -18,7 +18,7 @@ class WaitlistApi {
 
   /// The patient accepts an offered slot, which books it
   ///
-  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step, which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -63,7 +63,7 @@ class WaitlistApi {
 
   /// The patient accepts an offered slot, which books it
   ///
-  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step, which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+  /// While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
   ///
   /// Parameters:
   ///

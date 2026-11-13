@@ -30,15 +30,18 @@ exist since SAL-29; push alerts carry a fixed text and no data payload.
 | --- | --- | --- | --- |
 | Booked, not confirmed | `booked` | `tentative` (Q3) | `confirmed_at` null |
 | Confirmed by the patient (link or app) | `booked` | `accepted` | `confirmed_at`, `confirmed_via` (`link` \| `app`), an `appointment_change` row |
-| Cancelled by the patient | `cancelled`, `cancelationReason` `pat` | `declined` | as today, plus the change row when it came through a link |
-| Cancelled by staff or a revocation | `cancelled`, `prov` or `pat` | unchanged | as today |
+| Cancelled by the patient (their app or a link) | `cancelled`, `cancelationReason` `pat` | `declined` | as today (`cancelled_by_account_id` their account), plus a `status_set` change row |
+| Cancelled by staff or a revocation | `cancelled`, `prov` or `pat` | unchanged: the patient did not decline (a revocation cancels with `pat` and no account, which is how it is told apart) | as today, plus a `status_set` change row (`via` `staff` or `system`) |
 | Rescheduled by the patient | `booked`, new `start`, `end`, `slot`; `meta.versionId` + 1 | `accepted` (choosing the time confirms it) | `period` and `slot_id` updated, `reschedule_count` + 1, a change row with the old and new period and slot |
 | Attended | `fulfilled` | unchanged | a change row (`status_set`, by the practitioner or the system) |
 | Not attended | `noshow` | unchanged | a change row (`status_set`), corrected later by a `status_corrected` row |
 | On the waitlist | not an Appointment row: a `waitlist_entry`, FHIR-shaped as an `Appointment` with status `waitlist` and `requestedPeriod`; JSON API only, no FHIR interaction added | | `waitlist_entry` |
 | A freed slot offered to a waitlisted patient | the slot's `status` `busy-tentative` (FHIR `SlotStatus`) | | `waitlist_offer` |
 
-Practitioner and role participants stay `accepted`. The FHIR `Appointment` read and search keep their interactions;
+`booked` with a `tentative` patient is a deliberate reading of R4: the patient booked the slot themselves, so the
+appointment is confirmed to go ahead (`booked`, not `pending`, which R4 keeps for participants who have not yet
+finalised an appointment request), while the participant's status says whether they have reconfirmed that they will
+come. Practitioner and role participants stay `accepted`. The FHIR `Appointment` read and search keep their interactions;
 the CapabilityStatement does not change.
 
 ### A reschedule is the same Appointment with a new time
@@ -122,7 +125,9 @@ video session never changes time under its participants. Staff rescheduling is n
 
 - A link is `<APPOINTMENT_LINK_URL>/a/<token>`: 32 random bytes, base64url, stored only as its SHA-256 in
   `appointment_action_token`, bound to one appointment, its patient and account, the reminder and the channel it was
-  sent in, and the language to answer in.
+  sent in, the language to answer in, and the start it was issued for (`start_at`): a link whose `start_at` is not the
+  appointment's start now is refused (SAL-34), so a reschedule leaves the old reminders' links useless; it expires at
+  that start.
 - **GET never changes anything.** Mail scanners and link previewers fetch links; a `GET` renders a page with what
   the message itself already said (clinic, date and time) and the actions still possible as buttons. The action is
   a `POST` of a form from that page (Post/Redirect/Get). No JavaScript, no cookies, no third-party requests; `Cache-
@@ -130,10 +135,23 @@ video session never changes time under its participants. Staff rescheduling is n
   that `Origin` is the page's own.
 - **CSRF.** No session or cookie is involved, so no ambient authority exists to ride; the token in the form is the
   credential, and a cross-site attacker does not have it.
-- **Single use and expiry.** The first `POST` uses the token (`used_at`, `used_action`) in the transaction that
-  confirms or cancels; any later one is refused. A token expires at the appointment's start and is useless once the
-  appointment is no longer `booked`. Unknown, used and expired tokens get the same answer, and token lookups are
+- **Single use and expiry.** The first `POST` uses the token with a conditional update (`SET used_at, used_action
+  WHERE used_at IS NULL`) in the transaction that confirms or cancels, and a trigger refuses any change to a used token
+  for every role, so a second action is impossible in the database too. A link is single use for one action: after a
+  confirmation, cancelling needs a later reminder's link or the app. A token expires at the start it was issued for and
+  is useless once the appointment is no longer `booked`. A used link's `GET` shows its holder its own outcome ("You
+  confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers
+  nothing more; unknown and expired tokens get the same "this link no longer works" answer; token lookups are
   rate-limited per address in Redis (with a TTL).
+- **Scanners that click.** Some mail security products open links in a sandboxed browser and may submit what they
+  find; such a browser loads the page from its own origin, so its `POST` carries a same-origin `Origin` and passes that
+  check, and the second tap alone does not stop it. Mitigation (cheap, in SAL-34): the cancel form needs a box ticked
+  (`confirm_cancel=yes`, checked by the server), which a scanner that only presses buttons does not do; confirming
+  needs nothing more, as a wrongly recorded confirmation harms no one. Accepted risk: a sandbox that also ticks boxes
+  could cancel. What is then true: the appointment is cancelled and its slot freed (and offered to the waitlist), the
+  patient gets the cancellation e-mail at once, and they can book again only if the time is still free; it is not
+  undone automatically. The link is single use and lets nothing else happen, and the same scanner already sees the
+  reminder's contents. If it is seen in practice, the cancel moves to the app only.
 - **Binding.** The action is done as the token's patient on the token's appointment only: the transaction is scoped
   to that patient as their app would be, after a `SECURITY DEFINER` lookup by hash; the audit event names the
   patient's account with the agent `action_link`.
@@ -159,17 +177,20 @@ off, over a window of 30 to 730 days, default 180). The patient's 24-hour cancel
 
 - **`pkg/sms`** (step 0): `Sender.Send(ctx, Message{To (E.164), Body, Reference}) (providerID string, err error)` and
   `Segments(body)` (GSM-7 or UCS-2 parts, for usage), `smstest` the in-memory fake and the default
-  (`SMS_ENGINE=fake`). A provider's adapter is built once the provider, an EU/EEA one with a DPA, is chosen (Q2) and stays off until
-  its DPA and processor entry are recorded and the owner adds credentials, as the push adapters. Nothing here logs;
+  (`SMS_ENGINE=fake`, the only engine `config.LoadSMS` takes). No adapter exists: the provider's comes with the chosen
+  EU/EEA provider (Q2), once its DPA and processor entry are recorded, with the engine and credentials that turn it
+  on. The clinic's paid SMS option cannot be turned on while the engine is the fake (`sms_unavailable`), so no usage
+  is counted for messages never sent. Nothing here logs;
   errors never carry a number or a body.
 - **`pkg/payments`** (step 0): `Provider.Charge(ctx, Charge{Key, AmountMinor, Currency, Customer}) (Receipt, error)`
-  and `Refund(ctx, Refund{Key, ReceiptID, AmountMinor}) error`, `Key` the idempotency key, and `paymentstest` the fake.
-  No adapter in this epic.
+  and `Refund(ctx, Refund{Key, ReceiptID, AmountMinor}) error`, `Key` the idempotency key, and `paymentstest` the fake
+  (a key reused with another amount, currency or customer is refused, as providers do). No adapter in this epic.
 - **Today's booking does not charge, and stays that way.** No price exists anywhere in the model. Both booking paths
   (a direct booking and a waitlist acceptance) go through one step, `appointment` `service_purchase.go`, that asks for
-  the booking's price and charges nothing when there is none, which is always until SAL-23 adds prices. With a price
-  it will charge before the booking's transaction (idempotency key: the offer's or the request's id) and refund when
-  the booking then fails; the fake proves that order in tests.
+  the booking's price (a `Prices` port, nil in every binary) and charges nothing when there is none, which is always
+  until SAL-23 adds prices. With a price it charges before the booking's transaction and refunds in full when the
+  booking then fails (built in step 0 and tested with the fake). The idempotency key is the offer's id for a waitlist
+  acceptance and, for a direct booking until SAL-23 gives a booking a request id, the patient's and the slot's.
 - **SAL-37's seam.** The patient's cancellation and reschedule call `settle` in `service_purchase.go`, a no-op today:
   purchase protection decides there whether a refund is due. No interface is added for it until it has a body.
 

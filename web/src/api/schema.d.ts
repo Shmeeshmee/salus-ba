@@ -2312,13 +2312,13 @@ export interface paths {
         };
         /**
          * The page of a reminder's one-time link
-         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). An unknown, used or expired link answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
+         * @description An HTML page without JavaScript, cookies or third-party requests (ADR 0015 "One-tap links"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome ("You confirmed this appointment", "You cancelled this appointment", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
          */
         get: operations["getAppointmentLinkPage"];
         put?: never;
         /**
          * Confirm or cancel through a reminder's one-time link
-         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` while the patient's 24-hour window is open. Uses the link once, in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+         * @description The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
          */
         post: operations["actOnAppointmentLink"];
         delete?: never;
@@ -2439,7 +2439,7 @@ export interface paths {
         put?: never;
         /**
          * The patient accepts an offered slot, which books it
-         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step, which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
+         * @description While the offer is open and unexpired: the slot moves from held to booked and the appointment is stored (`bookedVia` `waitlist`), in one transaction; paid through the purchase step before it (the offer's id the idempotency key, refunded if the booking then fails), which charges nothing until the payments epic adds prices. Audited, also when refused. Built in SAL-35 (404 until then).
          */
         post: operations["acceptWaitlistOffer"];
         delete?: never;
@@ -4297,6 +4297,11 @@ export interface components {
         AppointmentLinkAction: {
             /** @enum {string} */
             action: "confirm" | "cancel";
+            /**
+             * @description The ticked box a cancel needs (ADR 0015 "Scanners that click"); ignored for a confirm.
+             * @enum {string}
+             */
+            confirm_cancel?: "yes";
         };
         NotificationChannels: {
             push: boolean;
@@ -6390,7 +6395,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed. */
+            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed; `payment_declined`: a priced booking's payment was declined (none before the payments epic). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10196,6 +10201,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
+            /** @description `sms_unavailable`: `sms_reminders` on while no SMS provider sends (the fake engine). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

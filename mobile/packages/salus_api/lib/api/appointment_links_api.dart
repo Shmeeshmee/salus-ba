@@ -18,7 +18,7 @@ class AppointmentLinksApi {
 
   /// Confirm or cancel through a reminder's one-time link
   ///
-  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` while the patient's 24-hour window is open. Uses the link once, in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -28,9 +28,13 @@ class AppointmentLinksApi {
   ///   The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored.
   ///
   /// * [String] action (required):
+  ///
+  /// * [String] confirmCancel:
+  ///   The ticked box a cancel needs (ADR 0015 \\\"Scanners that click\\\"); ignored for a confirm.
   Future<Response> actOnAppointmentLinkWithHttpInfo(
     String token,
     String action, {
+    String? confirmCancel,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -48,6 +52,9 @@ class AppointmentLinksApi {
     if (action != null) {
       formParams[r'action'] = parameterToString(action);
     }
+    if (confirmCancel != null) {
+      formParams[r'confirm_cancel'] = parameterToString(confirmCancel);
+    }
 
     return apiClient.invokeAPI(
       path,
@@ -63,7 +70,7 @@ class AppointmentLinksApi {
 
   /// Confirm or cancel through a reminder's one-time link
   ///
-  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` while the patient's 24-hour window is open. Uses the link once, in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
   ///
   /// Parameters:
   ///
@@ -71,14 +78,19 @@ class AppointmentLinksApi {
   ///   The one-time link's token, 32 random bytes in base64url. Never logged; only its SHA-256 is stored.
   ///
   /// * [String] action (required):
+  ///
+  /// * [String] confirmCancel:
+  ///   The ticked box a cancel needs (ADR 0015 \\\"Scanners that click\\\"); ignored for a confirm.
   Future<void> actOnAppointmentLink(
     String token,
     String action, {
+    String? confirmCancel,
     Future<void>? abortTrigger,
   }) async {
     final response = await actOnAppointmentLinkWithHttpInfo(
       token,
       action,
+      confirmCancel: confirmCancel,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {
@@ -88,7 +100,7 @@ class AppointmentLinksApi {
 
   /// The page of a reminder's one-time link
   ///
-  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). An unknown, used or expired link answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
+  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome (\"You confirmed this appointment\", \"You cancelled this appointment\", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -126,7 +138,7 @@ class AppointmentLinksApi {
 
   /// The page of a reminder's one-time link
   ///
-  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). An unknown, used or expired link answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
+  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome (\"You confirmed this appointment\", \"You cancelled this appointment\", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. No session. Built in SAL-34 (404 until then).
   ///
   /// Parameters:
   ///
