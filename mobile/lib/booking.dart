@@ -179,8 +179,6 @@ class Booking {
     return page;
   }
 
-  api.HistoryApi get _history => api.HistoryApi(_client);
-
   /// The bytes of the patient's clean file [binaryId] and its content type, to hand to the device (SAL-39).
   Future<(Uint8List, String)> file(String binaryId) async {
     final response = await apiCall(

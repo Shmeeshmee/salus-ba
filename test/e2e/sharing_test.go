@@ -13,12 +13,12 @@ import (
 
 // TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose (SAL-42, docs/plans/patient-history.md):
 // a patient with three finished visits at clinic B books at clinic A; the preview lists the three, none ticked, each
-// as clinic A would see it; they share two; clinic A's practitioner reads the history consent and finds exactly
-// those two; a removal and the revocation take effect at once.
+// as clinic A would see it; they share two; clinic A's practitioner reads the history consent, and their view of the
+// patient's history (SAL-40, GET /patients/{id}/history), and finds exactly those two and never the third; a removal
+// and the revocation take effect at once in both.
 //
 // The three earlier visits are booked through the API and finished as the owner: their consultations are the
-// journey of consultation_test.go, not this one's. SAL-40's view of the patient's history (GET
-// /patients/{id}/history) adds the practitioner's read of the two visits once it is on main.
+// journey of consultation_test.go, not this one's.
 func TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose(t *testing.T) {
 	elsewhere, receiving := newBookableClinic(t), newBookableClinic(t)
 	p := newPatientWithProfile(t)
@@ -54,6 +54,9 @@ func TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose(t 
 	if got := sharedWith(t, receiving, sharing.ConsentID); !slices.Equal(got, shared) {
 		t.Errorf("clinic A's practitioner reads the history consent listing %v, want exactly %v", got, shared)
 	}
+	if got := visitsInHistory(t, receiving, p.patientID); !slices.Equal(got, shared) {
+		t.Errorf("clinic A's practitioner's view of the history holds the visits %v, want exactly the shared %v", got, shared)
+	}
 	if got := sharedWith(t, elsewhere, sharing.ConsentID); got != nil {
 		t.Errorf("the other clinic reads the history consent listing %v, want it not found", got)
 	}
@@ -64,6 +67,9 @@ func TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose(t 
 	if got := sharedWith(t, receiving, sharing.ConsentID); !slices.Equal(got, []string{visits[2]}) {
 		t.Errorf("after the removal clinic A reads %v, want only %s", got, visits[2])
 	}
+	if got := visitsInHistory(t, receiving, p.patientID); !slices.Equal(got, []string{visits[2]}) {
+		t.Errorf("after the removal clinic A's view of the history holds %v, want only %s", got, visits[2])
+	}
 	if status, code := p.refusal(http.MethodPut, "/history-sharing/"+receiving.id, map[string][]string{"encounterIds": shared}); status != http.StatusPreconditionFailed || code != "version_conflict" {
 		t.Errorf("a change without If-Match = %d %q, want 412 version_conflict", status, code)
 	}
@@ -72,6 +78,9 @@ func TestSharing_ThePatientSharesTwoOfThreeVisitsAndTheClinicSeesExactlyThose(t 
 	p.must(http.StatusNoContent, http.MethodDelete, "/history-sharing/"+receiving.id, nil, nil)
 	if got := sharedWith(t, receiving, sharing.ConsentID); got != nil {
 		t.Errorf("after the revocation clinic A reads %v, want the history consent not found", got)
+	}
+	if got := visitsInHistory(t, receiving, p.patientID); len(got) != 0 {
+		t.Errorf("after the revocation clinic A's view of the history holds %v, want none", got)
 	}
 	var mine struct {
 		Sharing []struct{ OrganizationID string }
@@ -118,6 +127,30 @@ func (p *patient) bookAgainAt(clinic *bookableClinic) {
 	}
 	p.must(http.StatusCreated, http.MethodPost, "/consents", map[string]string{"organizationId": clinic.id}, nil)
 	p.must(http.StatusCreated, http.MethodPost, "/appointments", map[string]string{"slotId": slots[0]}, nil)
+}
+
+// visitsInHistory is the clinic's practitioner's view of the patient's history (SAL-40): the visits its items belong
+// to, sorted, each item marked shared (the patient has no visit of their own at the clinic yet).
+func visitsInHistory(t *testing.T, clinic *bookableClinic, patientID string) []string {
+	t.Helper()
+	var page struct {
+		Items []struct {
+			Type, Reference, EncounterID string
+			Shared                       bool
+		}
+	}
+	clinic.practitioner.must(http.StatusOK, http.MethodGet, "/patients/"+patientID+"/history", nil, &page)
+	out := []string{}
+	for _, it := range page.Items {
+		if !it.Shared {
+			t.Errorf("history item %+v of another clinic's visit, want it marked shared", it)
+		}
+		if !slices.Contains(out, it.EncounterID) {
+			out = append(out, it.EncounterID)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // sharedWith is the clinic's practitioner's FHIR read of the history consent: the encounters it lists, and nil when
