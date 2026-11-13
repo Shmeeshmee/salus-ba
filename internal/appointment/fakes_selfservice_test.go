@@ -17,6 +17,7 @@ import (
 // them) and keeps the stored links of its tests.
 type fakeSelfService struct {
 	f      *fixture
+	onLock func() // runs before ByIDForUpdate reads: a concurrent change that commits first
 	tokens []appointment.Token
 	calls  []string
 }
@@ -38,6 +39,9 @@ func (s *fakeSelfService) find(ctx context.Context, call, id string) (int, error
 }
 
 func (s *fakeSelfService) ByIDForUpdate(ctx context.Context, id string) (appointment.Appointment, error) {
+	if s.onLock != nil {
+		s.onLock()
+	}
 	i, err := s.find(ctx, "ByIDForUpdate", id)
 	if err != nil {
 		return appointment.Appointment{}, err
@@ -130,11 +134,16 @@ func (s *fakeSelfService) UseToken(ctx context.Context, id string, action appoin
 
 // fakeSettings gives each clinic its appointment settings, the defaults for one without.
 type fakeSettings struct {
-	err error
-	set map[string]organization.AppointmentSettings
+	err  error
+	repo *fakeRepository // For sets the clinic's scope on the transaction, as organization's does
+	set  map[string]organization.AppointmentSettings
 }
 
 func (s *fakeSettings) For(_ context.Context, org string) (organization.AppointmentSettings, error) {
+	if s.repo != nil {
+		s.repo.clinic = org
+		s.repo.calls = append(s.repo.calls, "For")
+	}
 	if v, ok := s.set[org]; ok {
 		return v, s.err
 	}
@@ -189,6 +198,7 @@ func newSelfFixture(appts ...appointment.Appointment) *selfFixture {
 func newSelfFixtureAt(at time.Time, appts ...appointment.Appointment) *selfFixture {
 	f := &selfFixture{fixture: newFixture(appts...), settings: &fakeSettings{set: map[string]organization.AppointmentSettings{}}, limiter: &fakeLimiter{}}
 	f.self = &fakeSelfService{f: f.fixture}
+	f.settings.repo = f.repo
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: selfTx{inner: fakeTransactor{f: f.fixture}, s: f.self}, Clock: clock.Fixed{T: at},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,

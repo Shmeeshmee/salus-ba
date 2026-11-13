@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/netip"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -135,7 +136,21 @@ func (s *Service) use(ctx context.Context, o opened, action LinkAction) (refused
 	case action == LinkConfirm && !o.a.ConfirmedAt.IsZero():
 		return ErrClosed, nil // nothing to confirm: the link stays for a cancel
 	}
-	if err := s.SelfService.UseToken(ctx, o.tok.ID, action, s.Clock.Now()); errors.Is(err, ErrLinkInvalid) {
+	// The appointment as it is now, locked: a reschedule or cancellation that committed after open read it is seen, and
+	// one that starts now waits for this transaction.
+	a, err := s.SelfService.ByIDForUpdate(ctx, o.a.ID)
+	now := s.Clock.Now()
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return ErrLinkInvalid, nil
+	case err != nil:
+		return nil, err
+	case a.Status != StatusBooked || !a.Start.Equal(o.tok.StartAt) || !now.Before(o.tok.StartAt):
+		return ErrLinkInvalid, nil
+	case action == LinkConfirm && !a.ConfirmedAt.IsZero():
+		return ErrClosed, nil
+	}
+	if err := s.SelfService.UseToken(ctx, o.tok.ID, action, now); errors.Is(err, ErrLinkInvalid) {
 		return ErrLinkInvalid, nil // a concurrent use committed first
 	} else if err != nil {
 		return nil, err
@@ -212,7 +227,7 @@ func (s *Service) allowLookup(ctx context.Context, addr string) error {
 		return nil
 	}
 	mac := hmac.New(sha256.New, s.LinkKey)
-	mac.Write([]byte(addr))
+	mac.Write([]byte(lookupKey(addr)))
 	ok, err := s.Limiter.Allow(ctx, "link:"+hex.EncodeToString(mac.Sum(nil)), linkLookups, linkWindow)
 	switch {
 	case err != nil:
@@ -221,6 +236,20 @@ func (s *Service) allowLookup(ctx context.Context, addr string) error {
 		return ErrLinkRateLimited
 	}
 	return nil
+}
+
+// lookupKey is what an address's lookups are counted under: an IPv6 address's /64 (the block one subscriber holds,
+// which they can cycle through), an IPv4 address itself, and anything unparsable as it is.
+func lookupKey(addr string) string {
+	ip, err := netip.ParseAddr(addr)
+	if err != nil {
+		return addr
+	}
+	if ip = ip.Unmap(); ip.Is6() {
+		p, _ := ip.Prefix(64) // never fails for a /64 of an IPv6 address
+		return p.String()
+	}
+	return ip.String()
 }
 
 // tokenHash is the SHA-256 of the raw bytes of a link's token (base64url, 32 bytes), and false for anything else.

@@ -51,9 +51,10 @@ type LinkService interface {
 }
 
 // LinkHandler serves the page of a reminder's one-time link, GET and POST /a/{token} (api/openapi.yaml): HTML without
-// JavaScript, cookies or third-party requests, never cached, indexed or referred, in a frame nowhere. A GET changes
-// nothing; the POST, from the page's own origin only, confirms or cancels and answers 303 to the page. The token is in
-// the path only: the access log records the route pattern, and no error carries it.
+// JavaScript, cookies or third-party requests, never cached or indexed, in a frame nowhere, and referred by its origin
+// only (strict-origin: under no-referrer browsers send "Origin: null" with the form, which the POST refuses). A GET
+// changes nothing; the POST, from the page's own origin only, confirms or cancels and answers 303 to the page. The token
+// is in the path only: the access log records the route pattern, and no error carries it.
 type LinkHandler struct {
 	svc      LinkService
 	log      *slog.Logger
@@ -131,7 +132,7 @@ func (h *LinkHandler) act(w http.ResponseWriter, r *http.Request) {
 	case err == nil, errors.Is(err, ErrLinkInvalid), errors.Is(err, ErrClosed), errors.Is(err, ErrCancellationWindowClosed):
 		// The page shows what is true now: the outcome, the link no longer working, or the clinic to contact.
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Referrer-Policy", "strict-origin")
 		http.Redirect(w, r, "/a/"+url.PathEscape(token), http.StatusSeeOther)
 	default:
 		httpx.InternalError(w, r, h.log, err)
@@ -201,7 +202,7 @@ func (h *LinkHandler) write(w http.ResponseWriter, r *http.Request, status int, 
 		return
 	}
 	for k, v := range map[string]string{
-		"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+		"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "strict-origin",
 		"X-Robots-Tag": "noindex", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Content-Security-Policy": h.csp,
 	} {
 		w.Header().Set(k, v)

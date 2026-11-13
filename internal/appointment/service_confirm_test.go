@@ -2,6 +2,7 @@ package appointment_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,5 +122,24 @@ func TestActions_NoneOnAClosedAppointmentAndRefusals(t *testing.T) {
 			t.Errorf("Actions() as %s = %v, want %v", tc.caller.AccountID, err, tc.want)
 		}
 		checkEvents(t, "Actions", f.audit, event(tc.caller, auditevent.CodeRead, "", "", auditevent.OutcomeMinorFailure))
+	}
+}
+
+// The clinic's settings are read without leaving the clinic's scope on the patient's transaction.
+func TestActionsAndReschedule_RunInThePatientsScopeOnlyAfterReadingTheSettings(t *testing.T) {
+	f := newSelfFixture(booked(apptA, patientA, roleA1, clinicA, start))
+	if _, err := f.svc.Actions(t.Context(), me, apptA); err != nil {
+		t.Fatal(err)
+	}
+	if f.repo.clinic != "" || f.repo.patient != patientA {
+		t.Errorf("after Actions the scope is clinic %q, patient %q; want the patient's only", f.repo.clinic, f.repo.patient)
+	}
+	r := rescheduleFixture(booked(apptA, patientA, roleA1, clinicA, start))
+	if _, err := r.svc.Reschedule(t.Context(), me, apptA, slotLater); err != nil {
+		t.Fatal(err)
+	}
+	calls := strings.Join(r.repo.calls, " ")
+	if !strings.Contains(calls, "For SetClinic SetPatient") {
+		t.Errorf("calls %s, want the clinic's scope dropped and the patient's set right after the settings", calls)
 	}
 }

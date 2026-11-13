@@ -22,6 +22,19 @@ type ClinicSettings interface {
 	For(ctx context.Context, org string) (organization.AppointmentSettings, error)
 }
 
+// settingsFor reads the appointment settings of the clinic org in the transaction in ctx, then drops the clinic's scope
+// that For sets and sets the patient's again, so what follows runs in the patient's scope only.
+func (s *Service) settingsFor(ctx context.Context, org, patientID string) (organization.AppointmentSettings, error) {
+	set, err := s.Settings.For(ctx, org)
+	if err != nil {
+		return organization.AppointmentSettings{}, err
+	}
+	if err := s.Repo.SetClinic(ctx, ""); err != nil {
+		return organization.AppointmentSettings{}, err
+	}
+	return set, s.Repo.SetPatient(ctx, patientID)
+}
+
 // rescheduleRefusals are the refusals of a reschedule. Each rolls its transaction back (a slot may have been held
 // already, or the exclusion constraint aborted it) and is audited in a transaction of its own.
 var rescheduleRefusals = []error{
@@ -114,7 +127,7 @@ func (s *Service) mayReschedule(ctx context.Context, a Appointment, b slot.Booka
 	if a.Status != StatusBooked {
 		return ErrClosed
 	}
-	set, err := s.Settings.For(ctx, a.OrganizationID)
+	set, err := s.settingsFor(ctx, a.OrganizationID, a.PatientID)
 	if err != nil {
 		return err
 	}

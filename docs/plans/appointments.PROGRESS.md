@@ -81,13 +81,16 @@ As built (agent decisions, for the owner to review):
 | Consent | A reschedule needs the care consent active (`409 consent_required`, added to the OpenAPI), as a booking; a link no longer works under a consent no longer active; the in-app confirmation needs none (the revocation cancels the appointments it applies to) |
 | Confirming a confirmed appointment through a link | Refused without using the link, so it can still cancel; the page (303) shows the confirmed state |
 | A used link's page | Its outcome with the start it was issued for (`start_at`), whatever the appointment became since |
-| Rate limit | 30 link lookups (`GET` or `POST`) per address in 10 minutes, Redis `ratelimit:link:<HMAC of the address>` (cleared by `make e2e` with the others) |
+| Rate limit | 30 link lookups (`GET` or `POST`) per IPv4 address or IPv6 /64 in 10 minutes, Redis `ratelimit:link:<HMAC of the address>` (cleared by `make e2e` with the others) |
 | Unknown link's language | The browser's `Accept-Language` among the ten, else Bosnian; a known link's own language otherwise |
 | Join window | Opens 10 minutes before the start, as `videosession`'s: the constant is repeated in `appointment` (`joinOpensBefore`) |
 | Refusal order of a reschedule | Self-service off, another role or clinic, the join window open (`not_reschedulable`); then the notice (`reschedule_window_closed`); then the limit; then its own slot (`slot_unavailable`); then the consent |
 | The reschedule e-mail | A new notifier job, `appointment_rescheduled_email`, in the reschedule's transaction; it sends the time current when it runs |
 | The legacy reminder until SAL-33 | The booking's 24-hour `appointment_reminder_email` stays scheduled for the old time and sends then with the current time; the reschedule schedules one for the new time. SAL-33 replaces both with its rows |
 | Client address | `httpx.ClientIP` (moved from `auth`, which now uses it), for the rate limit only |
+| Referrer policy | `strict-origin`, not ADR 0015's `no-referrer` (review of #92): under `no-referrer` browsers send `Origin: null` with the form's `POST` (Fetch, "append a request Origin header"), which the `Origin` check refuses. A Referer then carries the api's origin only, never the token's path. ADR 0015 "GET never changes anything" says `no-referrer`: for the owner to amend |
+| A link's use | Reads the appointment under its row lock (`ByIDForUpdate`) and decides validity on that row, so a reschedule or cancellation committed after the page was read leaves an old-time link useless (review of #92) |
+| Settings in the patient's transaction | `organization.Appointments.For` sets the clinic's scope; the reschedule and the actions drop it and set the patient's again right after (review of #92) |
 | Web history | Behind "Show changes" on the appointment's page, read (and audited) only when asked |
 
 Copy waiting for the owner (all of it new): the link page in ten languages (`internal/appointment/templates/link/`; `legal`:

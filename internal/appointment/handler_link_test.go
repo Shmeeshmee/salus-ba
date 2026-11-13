@@ -79,7 +79,7 @@ func TestLinkPage_ShowsTheAppointmentAndItsActionsWithoutScriptOrCaching(t *test
 		t.Fatalf("GET = %d %q", w.Code, w.Header().Get("Content-Type"))
 	}
 	for header, want := range map[string]string{
-		"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex", "X-Content-Type-Options": "nosniff",
+		"Cache-Control": "no-store", "Referrer-Policy": "strict-origin", "X-Robots-Tag": "noindex", "X-Content-Type-Options": "nosniff",
 		"X-Frame-Options": "DENY",
 	} {
 		if got := w.Header().Get(header); got != want {
@@ -298,5 +298,18 @@ func TestLinkPage_TheAccessLogNamesTheRouteNotTheToken(t *testing.T) {
 	}
 	if got := log.String(); strings.Contains(got, pageToken) || !strings.Contains(got, "route=\"GET /a/{token}\"") {
 		t.Errorf("log:\n%s\nwant the route patterns and no token", got)
+	}
+}
+
+// Browsers send an Origin with a form POST only under a referrer policy that allows it (Fetch, "append a request
+// Origin header": no-referrer gives "null"): strict-origin, which also keeps the token's path out of any Referer.
+func TestLinkPage_ItsReferrerPolicyLetsBrowsersSendTheOrigin(t *testing.T) {
+	w, _ := serveLink(t, &stubLinks{page: openPage("en")}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/a/"+pageToken, nil))
+	if got := w.Header().Get("Referrer-Policy"); got != "strict-origin" {
+		t.Errorf("Referrer-Policy %q, want strict-origin", got)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `<meta name="referrer" content="strict-origin">`) || strings.Contains(body, "no-referrer") {
+		t.Errorf("the page's referrer meta is not strict-origin:\n%s", body)
 	}
 }

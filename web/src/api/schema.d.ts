@@ -10733,7 +10733,7 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
-                    "Referrer-Policy"?: "no-referrer";
+                    "Referrer-Policy"?: "strict-origin";
                     "X-Robots-Tag"?: "noindex";
                     [name: string]: unknown;
                 };

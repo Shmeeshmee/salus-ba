@@ -5080,7 +5080,7 @@ paths:
           description: The page.
           headers:
             Cache-Control: {schema: {type: string, const: no-store}}
-            Referrer-Policy: {schema: {type: string, const: no-referrer}}
+            Referrer-Policy: {schema: {type: string, const: strict-origin}}
             X-Robots-Tag: {schema: {type: string, const: noindex}}
           content:
             text/html:

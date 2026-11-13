@@ -26,6 +26,8 @@
 				request>client_ip delete
 				request>headers delete
 				request>uri delete
+				# A one-time link's 303 to its page carries the token in Location (SAL-34): no response header is logged.
+				resp_headers delete
 				# caddy-l4 names the client's address `remote` (or `remote_addr`), and Go's network errors
 				# quote both ends of a connection.
 				remote delete

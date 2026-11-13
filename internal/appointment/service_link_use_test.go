@@ -254,3 +254,40 @@ func TestUseLink_ADatabaseFailureIsNotARefusal(t *testing.T) {
 		t.Errorf("Link() with Redis down = %v, want the backend's error", err)
 	}
 }
+
+// A reschedule that commits after the page was read and before the link's action leaves the link issued for the old
+// time useless: its use reads the appointment under its lock.
+func TestUseLink_ARescheduleCommittedFirstLeavesTheOldLinkUseless(t *testing.T) {
+	for _, action := range []appointment.LinkAction{appointment.LinkConfirm, appointment.LinkCancel} {
+		a := booked(apptA, patientA, roleA1, clinicA, start)
+		f := newSelfFixture(a)
+		token := f.link(a, tokA, "en")
+		f.self.onLock = func() {
+			f.repo.appts[0].Start, f.repo.appts[0].End = start.Add(48*time.Hour), start.Add(48*time.Hour+30*time.Minute)
+		}
+		if err := f.svc.UseLink(t.Context(), token, address, action, true); !errors.Is(err, appointment.ErrLinkInvalid) {
+			t.Errorf("UseLink(%s) after a reschedule = %v, want ErrLinkInvalid", action, err)
+		}
+		if got := f.repo.appts[0]; got.Status != appointment.StatusBooked || !got.ConfirmedAt.IsZero() || !f.self.tokens[0].UsedAt.IsZero() {
+			t.Errorf("UseLink(%s) acted on the moved appointment: %+v, link %+v", action, got, f.self.tokens[0])
+		}
+	}
+}
+
+// IPv6 lookups count per /64, the block one subscriber holds; IPv4 per address.
+func TestLink_RateLimitedPerIPv6Slash64(t *testing.T) {
+	a := booked(apptA, patientA, roleA1, clinicA, start)
+	f := newSelfFixture(a)
+	token := f.link(a, tokA, "en")
+	for _, addr := range []string{"2001:db8:1:2::1", "2001:db8:1:2:ffff::9", "2001:db8:1:3::1", "203.0.113.7", "203.0.113.8"} {
+		_, _ = f.svc.Link(t.Context(), token, addr)
+	}
+	if len(f.limiter.counts) != 4 {
+		t.Errorf("counters %v, want one for the shared /64, one for the other /64 and one per IPv4 address", f.limiter.counts)
+	}
+	for key, n := range f.limiter.counts {
+		if strings.Contains(key, "2001") || strings.Contains(key, "203.0") {
+			t.Errorf("counter key %q (%d) carries an address", key, n)
+		}
+	}
+}

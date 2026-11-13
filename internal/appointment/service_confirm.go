@@ -112,7 +112,7 @@ func (s *Service) actions(ctx context.Context, a Appointment, now time.Time) (Ac
 	if a.Status != StatusBooked || !a.Start.After(now) {
 		return Actions{}, nil
 	}
-	set, err := s.Settings.For(ctx, a.OrganizationID)
+	set, err := s.settingsFor(ctx, a.OrganizationID, a.PatientID)
 	if err != nil {
 		return Actions{}, err
 	}
