@@ -9,6 +9,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/payments"
 	"github.com/Shmeeshmee/salus/pkg/payments/paymentstest"
 )
 
@@ -79,5 +80,43 @@ func TestPurchase_RefundsWhenTheBookingThenFailsAndRefusesADeclinedPayment(t *te
 	provider.Err = errors.New("the provider is down")
 	if _, err := f.svc.Book(t.Context(), me, slotFree); err == nil || errors.Is(err, appointment.ErrPaymentDeclined) || len(f.repo.appts) != 0 {
 		t.Errorf("Book() with the provider down = %v, want a failure and no appointment", err)
+	}
+}
+
+// cancellingProvider cancels the request once it has charged, and records whether the refund's context was done.
+type cancellingProvider struct {
+	*paymentstest.Provider
+	cancel     context.CancelFunc
+	refundDone bool
+}
+
+func (p *cancellingProvider) Charge(ctx context.Context, c payments.Charge) (payments.Receipt, error) {
+	r, err := p.Provider.Charge(ctx, c)
+	p.cancel()
+	return r, err
+}
+
+func (p *cancellingProvider) Refund(ctx context.Context, r payments.Refund) error {
+	p.refundDone = ctx.Err() != nil
+	return p.Provider.Refund(ctx, r)
+}
+
+// A request cancelled after the charge still refunds a booking that then fails (review of the fixes, finding 2).
+func TestPurchase_RefundsEvenWhenTheRequestIsCancelled(t *testing.T) {
+	f, _ := pricedFixture(5000)
+	ctx, cancel := context.WithCancel(t.Context())
+	provider := &cancellingProvider{Provider: &paymentstest.Provider{}, cancel: cancel}
+	f.svc = appointment.NewService(appointment.Ports{
+		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, Consents: f.consents, Slots: f.slots,
+		Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs, Stats: f.stats,
+		Prices: fakePrices{amount: 5000}, Payments: provider,
+	})
+	delete(f.consents.state, patientA+clinicA)
+	if _, err := f.svc.Book(ctx, me, slotFree); !errors.Is(err, appointment.ErrConsentRequired) {
+		t.Fatalf("Book() = %v, want ErrConsentRequired", err)
+	}
+	got := provider.Charged()
+	if len(got) != 1 || provider.Refunded(got[0].ID) != 5000 || provider.refundDone {
+		t.Errorf("charged %+v, refunded with a done context %t; want the charge refunded on a live context", got, provider.refundDone)
 	}
 }

@@ -150,7 +150,8 @@ func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointmen
 	}
 	out, err := s.bookSlot(ctx, c, b, now)
 	if err != nil {
-		if rerr := s.refund(ctx, receipt); rerr != nil {
+		// Not cut short by the request's end: a charge must not stay without its booking.
+		if rerr := s.refund(context.WithoutCancel(ctx), receipt); rerr != nil {
 			return Appointment{}, errors.Join(err, fmt.Errorf("appointment: book: refund: %w", rerr))
 		}
 		return Appointment{}, err
