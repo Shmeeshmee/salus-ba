@@ -1803,6 +1803,62 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'Посјете подијељене из других клиника';
+
+  @override
+  String get confirmAttendance => 'Потврди долазак';
+
+  @override
+  String get appointmentConfirmedStatus => 'Потврђен';
+
+  @override
+  String get appointmentConfirmedNotice => 'Ваш термин је потврђен.';
+
+  @override
+  String get changeTime => 'Промијени вријеме';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Вријеме можете промијенити до $date у $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Преостало промјена времена: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Изаберите ново вријеме';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Сада заказано: $date у $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Премјестити термин?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Ваш термин ће бити премјештен на $date у $time. Досадашње вријеме биће ослобођено.';
+  }
+
+  @override
+  String get moveAppointment => 'Премјести термин';
+
+  @override
+  String get appointmentMoved => 'Ваш термин је премјештен на ново вријеме.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Вријеме овог термина више се не може промијенити у апликацији. Обратите се клиници.';
+
+  @override
+  String get rescheduleLimit =>
+      'Вријеме овог термина промијењено је онолико пута колико клиника дозвољава.';
+
+  @override
+  String get notReschedulable =>
+      'Вријеме овог термина не може се промијенити у апликацији.';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -3603,6 +3659,62 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get consentForHistory => 'Посјете подијељене из других клиника';
+
+  @override
+  String get confirmAttendance => 'Потврди долазак';
+
+  @override
+  String get appointmentConfirmedStatus => 'Потврђен';
+
+  @override
+  String get appointmentConfirmedNotice => 'Ваш термин је потврђен.';
+
+  @override
+  String get changeTime => 'Промијени вријеме';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Вријеме можете промијенити до $date у $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Преостало промјена времена: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Изаберите ново вријеме';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Сада заказано: $date у $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Премјестити термин?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Ваш термин ће бити премјештен на $date у $time. Досадашње вријеме биће ослобођено.';
+  }
+
+  @override
+  String get moveAppointment => 'Премјести термин';
+
+  @override
+  String get appointmentMoved => 'Ваш термин је премјештен на ново вријеме.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Вријеме овог термина више се не може промијенити у апликацији. Обратите се клиници.';
+
+  @override
+  String get rescheduleLimit =>
+      'Вријеме овог термина промијењено је онолико пута колико клиника дозвољава.';
+
+  @override
+  String get notReschedulable =>
+      'Вријеме овог термина не може се промијенити у апликацији.';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -5404,4 +5516,60 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get consentForHistory => 'Posjete podijeljene iz drugih klinika';
+
+  @override
+  String get confirmAttendance => 'Potvrdi dolazak';
+
+  @override
+  String get appointmentConfirmedStatus => 'Potvrđen';
+
+  @override
+  String get appointmentConfirmedNotice => 'Vaš termin je potvrđen.';
+
+  @override
+  String get changeTime => 'Promijeni vrijeme';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'Vrijeme možete promijeniti do $date u $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'Preostalo promjena vremena: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'Izaberite novo vrijeme';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'Sada zakazano: $date u $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'Premjestiti termin?';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'Vaš termin će biti premješten na $date u $time. Dosadašnje vrijeme biće oslobođeno.';
+  }
+
+  @override
+  String get moveAppointment => 'Premjesti termin';
+
+  @override
+  String get appointmentMoved => 'Vaš termin je premješten na novo vrijeme.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'Vrijeme ovog termina više se ne može promijeniti u aplikaciji. Obratite se klinici.';
+
+  @override
+  String get rescheduleLimit =>
+      'Vrijeme ovog termina promijenjeno je onoliko puta koliko klinika dozvoljava.';
+
+  @override
+  String get notReschedulable =>
+      'Vrijeme ovog termina ne može se promijeniti u aplikaciji.';
 }

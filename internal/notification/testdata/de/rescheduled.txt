@@ -1,0 +1,9 @@
+Subject: Ihr Termin hat eine neue Uhrzeit
+
+Ihr Termin bei Synthetic clinic wurde verschoben.
+Neues Datum und neue Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
+
+Um den Termin anzusehen oder abzusagen, öffnen Sie die Salus-App:
+https://patient.example.test/appointments
+
+Sie können ihn bis 24 Stunden vor Beginn absagen.

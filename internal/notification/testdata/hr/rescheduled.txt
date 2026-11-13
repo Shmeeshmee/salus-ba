@@ -1,0 +1,9 @@
+Subject: Vaš termin ima novo vrijeme
+
+Vaš je termin u ustanovi Synthetic clinic premješten.
+Novi datum i vrijeme: ponedjeljak, 7. siječnja 2030. u 10:00 (Europe/Sarajevo)
+
+Za pregled ili otkazivanje termina otvorite aplikaciju Salus:
+https://patient.example.test/appointments
+
+Termin možete otkazati najkasnije 24 sata prije početka.

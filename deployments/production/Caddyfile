@@ -103,9 +103,10 @@ app.{$SALUS_DOMAIN} {
 		path /places*
 		path /analytics/platform*
 		path /patients*
+		path /clinic/appointment-settings*
 	}
 	# /appointments/<id> and /appointments/<id>/call are screens of the app: only the JSON actions go to the api.
-	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$
+	@apiAppointments path_regexp ^/appointments/[^/]+/(cancel|status|changes|questionnaires|consultation(/join|/end)?)$
 	# /questionnaires and /questionnaires/<id> are screens of the app too: only their writes go to the api.
 	@apiQuestionnaires {
 		path /questionnaires*
@@ -129,6 +130,8 @@ app.{$SALUS_DOMAIN} {
 	}
 }
 
+# The API for the mobile app, and the page of a reminder's one-time link (/a/<token>, ADR 0015, Q4): the global log
+# filter above deletes every request's URI, so the token is never in Caddy's log (scripts/check-caddy-routes.sh).
 api.{$SALUS_DOMAIN} {
 	import common
 	handle {

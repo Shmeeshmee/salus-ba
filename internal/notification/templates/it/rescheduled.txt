@@ -1,0 +1,9 @@
+Il suo appuntamento ha un nuovo orario
+
+Il suo appuntamento presso {{.Clinic}} è stato spostato.
+Nuova data e ora: {{.When}}
+
+Per vedere o annullare l'appuntamento, apra l'app Salus:
+{{.Link}}
+
+Può annullarlo fino a 24 ore prima dell'inizio.

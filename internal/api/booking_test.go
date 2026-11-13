@@ -73,6 +73,10 @@ func newBooking(t *testing.T, app *pgxpool.Pool) booking {
 		Repo: b.repo, Audit: audit, Tx: tx, Clock: clk, Consents: b.consents,
 		Slots: slot.NewService(slot.NewPostgresRepository(app), tx, clk, schedules, clinics), Patients: b.patients,
 		Clinics: clinics, Roles: roles, Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs),
+		SelfService: appointment.NewPostgresSelfServiceRepository(app), // the patient's reschedule (SAL-34)
+		Settings: organization.NewAppointments(organization.AppointmentsPorts{
+			Repo: organization.NewPostgresAppointmentsRepository(app), Audit: audit, Tx: tx, Clock: clk,
+		}),
 	})
 	return b
 }

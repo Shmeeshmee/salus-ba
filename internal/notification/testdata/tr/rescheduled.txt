@@ -1,0 +1,10 @@
+Subject: Randevunuzun yeni bir zamanı var
+
+Randevunuz yeni bir zamana taşındı.
+Klinik: Synthetic clinic
+Yeni tarih ve saat: 7 Ocak 2030 Pazartesi, saat 10:00 (Europe/Sarajevo)
+
+Randevunuzu görmek veya iptal etmek için Salus uygulamasını açın:
+https://patient.example.test/appointments
+
+Randevunuzu, başlamasından en geç 24 saat öncesine kadar iptal edebilirsiniz.

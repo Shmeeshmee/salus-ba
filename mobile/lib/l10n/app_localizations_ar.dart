@@ -1842,4 +1842,59 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get consentForHistory => 'زيارات مُشارَكة من عيادات أخرى';
+
+  @override
+  String get confirmAttendance => 'تأكيد الحضور';
+
+  @override
+  String get appointmentConfirmedStatus => 'مؤكد';
+
+  @override
+  String get appointmentConfirmedNotice => 'تم تأكيد موعدك.';
+
+  @override
+  String get changeTime => 'تغيير الوقت';
+
+  @override
+  String rescheduleUntil(String date, String time) {
+    return 'يمكن تغيير الوقت حتى $date الساعة $time.';
+  }
+
+  @override
+  String reschedulesLeft(int count) {
+    return 'عدد مرات تغيير الوقت المتبقية: $count';
+  }
+
+  @override
+  String get rescheduleTitle => 'اختر وقتًا جديدًا';
+
+  @override
+  String rescheduleCurrent(String date, String time) {
+    return 'المحجوز حاليًا: $date الساعة $time';
+  }
+
+  @override
+  String get rescheduleConfirmTitle => 'نقل الموعد؟';
+
+  @override
+  String rescheduleConfirmBody(String date, String time) {
+    return 'سيُنقل موعدك إلى $date الساعة $time. وسيُتاح وقتك الحالي لغيرك.';
+  }
+
+  @override
+  String get moveAppointment => 'نقل الموعد';
+
+  @override
+  String get appointmentMoved => 'تم نقل موعدك إلى الوقت الجديد.';
+
+  @override
+  String get rescheduleWindowClosed =>
+      'لم يعد من الممكن تغيير وقت هذا الموعد عبر التطبيق. يرجى التواصل مع العيادة.';
+
+  @override
+  String get rescheduleLimit =>
+      'تم تغيير وقت هذا الموعد بالعدد الذي تسمح به العيادة.';
+
+  @override
+  String get notReschedulable => 'لا يمكن تغيير وقت هذا الموعد عبر التطبيق.';
 }

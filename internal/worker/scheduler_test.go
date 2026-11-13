@@ -128,7 +128,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		appointment.BookedEmailArgs{}, appointment.CancelledEmailArgs{}, appointment.ReminderEmailArgs{}, appointment.AccessEndArgs{},
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
 		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{}, communication.PartitionsArgs{},
-		appointment.SlotFreedArgs{},
+		appointment.SlotFreedArgs{}, appointment.RescheduledEmailArgs{},
 		clinicstats.RefreshArgs{}, clinicstats.NightlyArgs{},
 		TrendsBuildArgs{Period: "2026-10"},
 	} {

@@ -2124,3 +2124,34 @@ only through a `SECURITY DEFINER` function by its hash; its row is read in the i
 | A history row is altered to hide a correction | `appointment_change` is append-only: no `UPDATE` or `DELETE` grant, triggers refuse both and `TRUNCATE` for every role |
 | A patient learns who at the clinic changed their appointment | The patient's view of the history carries no account or agent |
 | A history row claims a staff member or a patient's app it was not | The insert policy ties `via` to the scope: the patient's scope writes `app` or `link` by the patient's own account (or a job), the clinic's scope `staff` by an account of that clinic (or a job) |
+
+### SAL-34: one-tap confirm or cancel, self-service rescheduling (no migration)
+
+**Processing added.** A patient confirms or cancels an appointment from a reminder's one-time link, on a page the api
+serves without a session (ADR 0015 "One-tap links", Q4, Q5), or in the app; and moves their own appointment to another
+free slot of the same practitioner role within the clinic's notice and limit. A reschedule frees the old slot for the
+waitlist (a job with opaque ids) and e-mails the patient the new time (the clinic's name and the date only, as the
+booking's e-mail). Lawful basis as for the appointment. No processor added.
+
+**Personal data added.** None stored beyond step 0's columns and rows: `confirmed_at`, `confirmed_via`,
+`reschedule_count`, the appointment's new `period` and `slot_id`, its history rows (`confirmed`, `rescheduled`, the
+cancellation's `status_set` via `link`) and a link's `used_at` and `used_action`. Redis holds a counter of link lookups
+per address for 10 minutes, keyed by an HMAC of the address under `RATE_LIMIT_KEY` (never the address or the token).
+
+**Who sees what.** The link's page shows only the clinic's name, the date and time in the clinic's zone and the
+appointment's state, never a name, practitioner or specialty; a used link shows only its own outcome. Whoever holds
+the link (a forwarded e-mail) can confirm or cancel that one appointment, once, as the reminder itself allows. Every
+read and use is audited as the patient's account with the agent `action_link`, refusals too; the actions in the app
+as the patient's.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A link prefetcher or mail scanner changes an appointment | A `GET` changes nothing (tested for any number of fetches); the action is a `POST` from the page's own origin (`Origin` checked, no `Origin` refused); a cancel needs its box ticked (`confirm_cancel=yes`, checked by the server) |
+| A scanner that also ticks boxes cancels an appointment | Accepted (ADR 0015): the patient gets the cancellation e-mail at once and may book again; the link is single use and allows nothing else |
+| A link used twice or after the appointment changed | Used once by a conditional `UPDATE` (two at once: one wins, tested on Postgres); refused once expired, once the appointment is not booked, once it was rescheduled (`start_at`), and under a consent no longer active |
+| A link's token in a log, the audit, Redis or a referrer | The route pattern is logged, never the path (tested); Caddy's log filter deletes every URI (`scripts/check-caddy-routes.sh` fails without it); the audit names the appointment; Redis keys are an HMAC of the address; `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `X-Robots-Tag: noindex` |
+| Guessing tokens | 32 random bytes; lookups limited to 30 per address in 10 minutes; unknown, expired and used-up links answer alike |
+| A reschedule moves another patient's appointment or a staff member moves one | The service checks the patient's own appointment through `access`; the database's `appointment_guard_change` lets only the patient's scope move a booked appointment, once per count |
+| A reschedule double-books | The new slot is held (`free` to `busy`) and the exclusion constraint checks the new period in the same transaction; concurrent reschedules serialise on the appointment's row lock (tested on Postgres) |

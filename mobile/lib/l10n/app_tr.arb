@@ -460,5 +460,20 @@
   "sharingStopped": "Geçmişinizi artık bu klinikle paylaşmıyorsunuz.",
   "sharingChanged": "Paylaşılan ziyaretleriniz bu arada değişti. Kontrol edip yeniden kaydedin.",
   "bookedNotShared": "Randevunuz alındı, ancak geçmişiniz paylaşılamadı. Paylaşılan geçmiş bölümünden paylaşabilirsiniz.",
-  "consentForHistory": "Diğer kliniklerden paylaşılan ziyaretler"
+  "consentForHistory": "Diğer kliniklerden paylaşılan ziyaretler",
+  "confirmAttendance": "Geleceğimi onayla",
+  "appointmentConfirmedStatus": "Onaylandı",
+  "appointmentConfirmedNotice": "Randevunuz onaylandı.",
+  "changeTime": "Saati değiştir",
+  "rescheduleUntil": "Saati değiştirmek için son tarih: {date}, saat {time}.",
+  "reschedulesLeft": "Kalan saat değişikliği hakkı: {count}",
+  "rescheduleTitle": "Yeni bir saat seçin",
+  "rescheduleCurrent": "Şu anki randevu: {date}, saat {time}",
+  "rescheduleConfirmTitle": "Randevu taşınsın mı?",
+  "rescheduleConfirmBody": "Randevunuz {date} günü saat {time} için taşınacak. Mevcut saatiniz serbest bırakılacak.",
+  "moveAppointment": "Randevuyu taşı",
+  "appointmentMoved": "Randevunuz yeni saate taşındı.",
+  "rescheduleWindowClosed": "Bu randevunun saati artık uygulamadan değiştirilemez. Lütfen klinikle iletişime geçin.",
+  "rescheduleLimit": "Bu randevunun saati, kliniğin izin verdiği sayıda değiştirildi.",
+  "notReschedulable": "Bu randevunun saati uygulamadan değiştirilemez."
 }

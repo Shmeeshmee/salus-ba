@@ -18,7 +18,7 @@ class AppointmentLinksApi {
 
   /// Confirm or cancel through a reminder's one-time link
   ///
-  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own (its host the request's). Answers 303 to the page, which shows the result, also when the link no longer works, the confirmation was made already or the 24 hours have begun (the page says what is true now); a refused action leaves the link unused. No session.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -70,7 +70,7 @@ class AppointmentLinksApi {
 
   /// Confirm or cancel through a reminder's one-time link
   ///
-  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own. Answers 303 to the page, which shows the result. No session. Built in SAL-34 (404 until then).
+  /// The page's form, the second tap: `confirm` while unconfirmed, `cancel` (with the box `confirm_cancel` ticked) while the patient's 24-hour window is open. Uses the link once (`UPDATE … WHERE used_at IS NULL`, a used link never changes), in the transaction that confirms or cancels, as the link's patient on its appointment only; the `Origin` must be the page's own (its host the request's). Answers 303 to the page, which shows the result, also when the link no longer works, the confirmation was made already or the 24 hours have begun (the page says what is true now); a refused action leaves the link unused. No session.
   ///
   /// Parameters:
   ///
@@ -100,7 +100,7 @@ class AppointmentLinksApi {
 
   /// The page of a reminder's one-time link
   ///
-  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome (\"You confirmed this appointment\", \"You cancelled this appointment\", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. A GET never changes anything. No session. Built in SAL-34 (404 until then).
+  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome (\"You confirmed this appointment\", \"You cancelled this appointment\", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, or one of an appointment no longer booked or under a consent no longer active, answers the same page saying it no longer works. A GET never changes anything. No session. Audited as a read by the patient's account with the agent `action_link`. Lookups are limited per address (an HMAC of it in Redis).
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -138,7 +138,7 @@ class AppointmentLinksApi {
 
   /// The page of a reminder's one-time link
   ///
-  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome (\"You confirmed this appointment\", \"You cancelled this appointment\", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, answers the same page saying it no longer works. A GET never changes anything. No session. Built in SAL-34 (404 until then).
+  /// An HTML page without JavaScript, cookies or third-party requests (ADR 0015 \"One-tap links\"): the clinic, the date and time, the appointment's state, and the actions still possible as buttons. Changes nothing, however often it is fetched (link prefetchers). A used link shows its holder its own outcome (\"You confirmed this appointment\", \"You cancelled this appointment\", with the clinic, date and time only) and offers nothing more: a link is single use for one action. An unknown or expired link, or one issued for another start than the appointment's now, or one of an appointment no longer booked or under a consent no longer active, answers the same page saying it no longer works. A GET never changes anything. No session. Audited as a read by the patient's account with the agent `action_link`. Lookups are limited per address (an HMAC of it in Redis).
   ///
   /// Parameters:
   ///

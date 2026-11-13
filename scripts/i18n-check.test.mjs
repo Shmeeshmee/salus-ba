@@ -123,3 +123,19 @@ test('checks the e-mail templates against en/: the same files and the same templ
   assert.match(got, /templates\/fr\/extra\.txt: not in en\//);
   assert.match(got, /templates\/ar\/invite\.txt: missing/);
 });
+
+test("checks the one-time link's page in the ten patient languages against en.json", () => {
+  const files = {};
+  for (const lang of email) {
+    files[`internal/appointment/templates/link/${lang}.json`] = { invalid: 'x', when: 'At {clinic}', legal: { defaultMessage: 'y', description: 'legal' } };
+  }
+  assert.deepEqual(problems(files), []);
+  files['internal/appointment/templates/link/tr.json'] = { invalid: 'x', when: 'At {klinik}', legal: 'y' };
+  files['internal/appointment/templates/link/ja.json'] = {};
+  delete files['internal/appointment/templates/link/ar.json'];
+  const got = problems(files).join('\n');
+  assert.match(got, /link\/tr\.json: when: placeholders klinik, want clinic/);
+  assert.match(got, /link\/tr\.json: legal: the legal tag differs from en/);
+  assert.match(got, /link\/ja\.json: not a language of this app/);
+  assert.match(got, /link\/ar\.json: missing/);
+});

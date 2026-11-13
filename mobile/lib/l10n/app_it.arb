@@ -460,5 +460,20 @@
   "sharingStopped": "Non condivide più la Sua storia clinica con questa clinica.",
   "sharingChanged": "Le Sue visite condivise sono cambiate nel frattempo. Le controlli e salvi di nuovo.",
   "bookedNotShared": "L'appuntamento è prenotato, ma non è stato possibile condividere la Sua storia clinica. Può condividerla nella sezione «Storia condivisa».",
-  "consentForHistory": "Visite condivise da altre cliniche"
+  "consentForHistory": "Visite condivise da altre cliniche",
+  "confirmAttendance": "Confermi la presenza",
+  "appointmentConfirmedStatus": "Confermato",
+  "appointmentConfirmedNotice": "Il Suo appuntamento è confermato.",
+  "changeTime": "Cambi orario",
+  "rescheduleUntil": "L'orario può essere cambiato fino al giorno {date} alle ore {time}.",
+  "reschedulesLeft": "Cambi di orario rimanenti: {count}",
+  "rescheduleTitle": "Scelga un nuovo orario",
+  "rescheduleCurrent": "Prenotato ora: il giorno {date} alle ore {time}",
+  "rescheduleConfirmTitle": "Spostare l'appuntamento?",
+  "rescheduleConfirmBody": "Il Suo appuntamento sarà spostato al giorno {date} alle ore {time}. L'orario attuale sarà liberato.",
+  "moveAppointment": "Sposta appuntamento",
+  "appointmentMoved": "Il Suo appuntamento è stato spostato al nuovo orario.",
+  "rescheduleWindowClosed": "L'orario di questo appuntamento non può più essere cambiato nell'app. Contatti la clinica.",
+  "rescheduleLimit": "L'orario di questo appuntamento è stato cambiato tante volte quante la clinica consente.",
+  "notReschedulable": "L'orario di questo appuntamento non può essere cambiato nell'app."
 }

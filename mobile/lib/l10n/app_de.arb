@@ -460,5 +460,20 @@
   "sharingStopped": "Sie teilen Ihre Vorgeschichte nicht mehr mit dieser Klinik.",
   "sharingChanged": "Ihre geteilten Besuche haben sich inzwischen geändert. Prüfen Sie sie und speichern Sie erneut.",
   "bookedNotShared": "Ihr Termin ist gebucht, aber Ihre Vorgeschichte konnte nicht geteilt werden. Sie können sie unter „Geteilte Vorgeschichte“ teilen.",
-  "consentForHistory": "Aus anderen Kliniken geteilte Besuche"
+  "consentForHistory": "Aus anderen Kliniken geteilte Besuche",
+  "confirmAttendance": "Teilnahme bestätigen",
+  "appointmentConfirmedStatus": "Bestätigt",
+  "appointmentConfirmedNotice": "Ihr Termin ist bestätigt.",
+  "changeTime": "Uhrzeit ändern",
+  "rescheduleUntil": "Die Uhrzeit kann bis {date} um {time} geändert werden.",
+  "reschedulesLeft": "Verbleibende Änderungen der Uhrzeit: {count}",
+  "rescheduleTitle": "Neue Uhrzeit wählen",
+  "rescheduleCurrent": "Derzeit gebucht: {date} um {time}",
+  "rescheduleConfirmTitle": "Termin verschieben?",
+  "rescheduleConfirmBody": "Ihr Termin wird auf {date} um {time} verschoben. Die bisherige Uhrzeit wird freigegeben.",
+  "moveAppointment": "Termin verschieben",
+  "appointmentMoved": "Ihr Termin ist auf die neue Uhrzeit verschoben.",
+  "rescheduleWindowClosed": "Die Uhrzeit dieses Termins kann in der App nicht mehr geändert werden. Bitte wenden Sie sich an die Klinik.",
+  "rescheduleLimit": "Die Uhrzeit dieses Termins wurde so oft geändert, wie die Klinik es erlaubt.",
+  "notReschedulable": "Die Uhrzeit dieses Termins kann in der App nicht geändert werden."
 }

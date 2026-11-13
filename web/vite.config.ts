@@ -17,7 +17,7 @@ export default defineConfig({
       '/invites': apiUrl,
       '/practitioner-roles': apiUrl,
       // Only the JSON actions: /appointments/<id> and /appointments/<id>/call are screens of the app.
-      '^/appointments/[^/]+/(cancel|status|questionnaires|consultation(/join|/end)?)$': apiUrl,
+      '^/appointments/[^/]+/(cancel|status|changes|questionnaires|consultation(/join|/end)?)$': apiUrl,
       '/questionnaire-responses': apiUrl,
       '/binaries': apiUrl, // the files of questionnaire answers: status and content
       '/specialties': apiUrl,
@@ -36,6 +36,7 @@ export default defineConfig({
       '/places': apiUrl, // the places of a clinic's location (SAL-19); no screen is under it
       '/analytics/platform': apiUrl, // the All of Salus figures (SAL-21); no screen is under it
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
+      '/clinic/appointment-settings': apiUrl, // the clinic's appointment rules (SAL-32); the screen is /clinic
     },
   },
   test: {

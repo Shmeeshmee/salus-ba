@@ -137,6 +137,7 @@ function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now
       </span>
       {name && <span className="appt-name">{name}</span>}
       {appt.status !== 'booked' && <span className="tag">{t(`calendar.status.${appt.status}`)}</span>}
+      <ConfirmationTag appt={appt} />
       {current && <span className="now">{t('calendar.now')}</span>}
     </Link>
   )
@@ -149,6 +150,24 @@ function Card({ appt, zone, now, joins }: { appt: Appointment; zone: string; now
       </button>
     </div>
   )
+}
+
+// confirmation is whether the patient of a booked appointment confirmed they will come: their participant is
+// accepted once confirmed and tentative until then (ADR 0015); nothing for an appointment no longer booked.
+function confirmation(appt: Appointment): 'confirmed' | 'unconfirmed' | undefined {
+  if (appt.status !== 'booked') return undefined
+  const status = appt.participant.find((p) => p.actor.reference.startsWith('Patient/'))?.status
+  if (status === 'accepted') return 'confirmed'
+  if (status === 'tentative') return 'unconfirmed'
+  return undefined
+}
+
+// ConfirmationTag is the badge of confirmation(appt), or nothing.
+export function ConfirmationTag({ appt }: { appt: Appointment }) {
+  const t = useT()
+  const c = confirmation(appt)
+  if (!c) return null
+  return <span className={`tag ${c}`}>{t(c === 'confirmed' ? 'appointments.confirmed' : 'appointments.notConfirmed')}</span>
 }
 
 // instant is an RFC 3339 instant in UTC without fractions, the form FHIR searches take.

@@ -35,8 +35,19 @@ const places = {
   ],
 }
 
+const appointmentSettings = {
+  reminder_offsets_minutes: [1440, 60],
+  sms_reminders: false,
+  reschedule_notice_hours: 24,
+  reschedule_max: 2,
+  waitlist_enabled: false,
+  waitlist_hold_minutes: 15,
+  noshow_flag_threshold: 0,
+  noshow_flag_window_days: 180,
+}
+
 function renderSettings(routes: Record<string, Route>, language: Language = 'en', platform = true) {
-  const fake = fakeFetch({ 'GET /places': () => Response.json(places), ...routes })
+  const fake = fakeFetch({ 'GET /places': () => Response.json(places), 'GET /clinic/appointment-settings': () => Response.json(appointmentSettings), ...routes })
   renderInLanguage(
     <ClinicSettings api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} organizationId={id} platform={platform} />,
     language,
@@ -324,5 +335,12 @@ describe("the clinic's location and its contribution to the platform figures", (
 
     expect(await screen.findByLabelText('Регија')).toBeTruthy()
     expect(screen.getByLabelText('Град')).toBeTruthy()
+  })
+
+  it("has the clinic's rescheduling rules beside its details", async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(await screen.findByRole('heading', { name: 'Rescheduling' })).toBeTruthy()
+    expect(((await screen.findByLabelText('Notice in hours')) as HTMLInputElement).value).toBe('24')
   })
 })
