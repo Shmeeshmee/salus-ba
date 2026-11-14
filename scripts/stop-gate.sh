@@ -17,7 +17,9 @@ skip() {
 }
 
 # mailpit_port exports SALUS_MAILPIT_PORT, the first free port from 8026, when 8025 is held by anything but this
-# project's own Mailpit. A port the developer set (environment or deployments/.env) is kept.
+# project's own Mailpit. A port the developer set (environment or deployments/.env) is kept. A stopped Mailpit of
+# this project is removed when the port moves: `up --no-recreate` would start it on its old 8025 mapping. It holds
+# only the e-mails the tests sent.
 mailpit_port() {
   [ -n "${SALUS_MAILPIT_PORT:-}" ] && return
   grep -qs '^SALUS_MAILPIT_PORT=' deployments/.env && return
@@ -28,6 +30,7 @@ mailpit_port() {
   for port in $(seq 8026 8099); do
     if ! grep -qx "$port" <<<"$listening"; then
       export SALUS_MAILPIT_PORT=$port
+      docker compose -f deployments/docker-compose.yml rm -f mailpit > /dev/null 2>&1
       echo "stop-gate: 127.0.0.1:8025 is taken; Mailpit's web UI on 127.0.0.1:$port" >&2
       return
     fi

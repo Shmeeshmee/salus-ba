@@ -174,12 +174,14 @@ archcheck: tools-image
 ## scripts/stop-gate.sh, which tells a stack that did not come up (arch-gate-stack) from a failing check
 ## (arch-gate-checks). The stack half starts only the test services that are not running and recreates none: `run`
 ## alone recreates a running service whose config differs, and LiveKit's and Mailpit's do from another worktree
-## (their bind-mount paths are in the config hash). No orphan is removed.
+## (their bind-mount paths are in the config hash). No orphan is removed. It ends with an empty run of the tools
+## container, so a tools container that cannot start is a stack failure, not a failing check.
 arch-gate: arch-gate-stack
 	@$(MAKE) --no-print-directory arch-gate-checks
 
 arch-gate-stack: tools-image
 	$(COMPOSE) up -d --no-recreate --wait $(TEST_SERVICES)
+	$(GO_NODEPS) true
 
 arch-gate-checks:
 	$(GO_NODEPS) go -C tools run ./archcheck -root /src

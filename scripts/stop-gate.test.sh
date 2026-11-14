@@ -38,7 +38,7 @@ chmod +x "$work/bin/"*
 
 # A main checkout with the script committed, and a worktree of it.
 main="$work/main"
-mkdir -p "$main/scripts"
+mkdir -p "$main/scripts" "$main/deployments"
 cp "$here/stop-gate.sh" "$main/scripts/"
 git -C "$main" init -q
 git -C "$main" add .
@@ -92,6 +92,22 @@ gate "$main" 0 "8025 taken by another project" FAKE_LISTEN="8025 8026"
 expect "8025 taken by another project" '^make arch-gate-stack mailpit=8027$' "$work/log"
 expect "8025 taken by another project" '127.0.0.1:8027' "$work/err"
 
+expect "8025 taken by another project" '^docker compose -f deployments/docker-compose.yml rm -f mailpit$' "$work/log"
+
+# A stopped Mailpit of this project keeps its old 8025 mapping under `up --no-recreate`; it is removed when the port
+# moves (above), and left alone when it does not.
+gate "$main" 0 "8025 free"
+refute "8025 free" ' rm -f mailpit$' "$work/log"
+
+gate "$main" 1 "8025 to 8099 all taken" FAKE_LISTEN="$(seq -s ' ' 8025 8099)"
+expect "8025 to 8099 all taken" 'not run: 127.0.0.1:8025 and 8026-8099 are all taken' "$work/err"
+refute "8025 to 8099 all taken" '^make' "$work/log"
+
+printf 'SALUS_MAILPIT_PORT=9125\n' > "$main/deployments/.env"
+gate "$main" 0 "a Mailpit port in deployments/.env" FAKE_LISTEN=8025
+expect "a Mailpit port in deployments/.env" '^make arch-gate-stack mailpit=default$' "$work/log"
+rm "$main/deployments/.env"
+
 gate "$main" 0 "8025 held by this project's own Mailpit" FAKE_LISTEN=8025 FAKE_OWN_MAILPIT=1
 expect "8025 held by this project's own Mailpit" '^make arch-gate-stack mailpit=default$' "$work/log"
 
@@ -106,6 +122,8 @@ printf '#!/usr/bin/env bash\necho "runner $*" >> "$FAKE_LOG"\n' > "$work/wt/scri
 gate "$work/wt" 0 "a worktree with its slot from scripts/runner.sh" FAKE_LISTEN=8025
 expect "a worktree with its slot from scripts/runner.sh" '^runner env$' "$work/log"
 expect "a worktree with its slot from scripts/runner.sh" '^make arch-gate-stack mailpit=default$' "$work/log"
+
+gate "$work/wt" 2 "a failing check in a worktree" FAKE_CHECKS=2
 
 printf '#!/usr/bin/env bash\nexit 1\n' > "$work/wt/scripts/runner.sh"
 gate "$work/wt" 1 "a worktree whose slot cannot be assigned"
