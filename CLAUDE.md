@@ -243,18 +243,24 @@ tests green at the end of every package. Measure before claiming a performance g
   and one commit each, then opens the PR(s). Jira tickets are fetched when `JIRA_EMAIL`, `JIRA_API_TOKEN` and
   `JIRA_BASE_URL` are set.
 - A stacked series is merged with the `merge-stack` skill.
+- Time, waits and cleanup (`.claude/agents/package-runner.md` §4a, measured in `docs/tooling/RUNNER_TIMING.md`):
+  every wait has a hard timeout, nobody watches CI, checks run fast-then-full once, a fix loop has 2 rounds, a
+  flaky check gets 1 rerun, and a package stops at its budget. The session that opens a PR requests Copilot and
+  ends.
 
 ## Claude Code setup
 
 | Path | What it is |
 | --- | --- |
-| `.claude/settings.json` | Stop hook: runs `make arch-gate` (`go vet`, tests, archcheck, all in Docker) once the Makefile has that target |
+| `.claude/settings.json` | Stop hook: `scripts/runner.sh gate`, which runs `make arch-gate` (`go vet`, tests, archcheck, all in Docker) unless this exact tree already passed it |
 | `.claude/agents/package-runner.md` | Implements and commits exactly one work package |
 | `.claude/commands/run-package.md` | `/run-package <plan> <package>` |
 | `.claude/skills/go-domain/` | The test-first loop inside a domain: layers, FHIR handlers, consent and audit |
 | `.claude/skills/database-migrations/` | Migration conventions, ownership and retention for personal data |
 | `.claude/skills/merge-stack/` | Merge a stacked PR series bottom-up |
-| `scripts/run-feature.sh` | Runs a plan end to end |
+| `scripts/run-feature.sh` | Runs a plan end to end: a time budget per package (`RUNNER_BUDGET_MIN`, 60), cleanup after each, never waits on CI |
+| `scripts/runner.sh` | The runner's helpers: per-worktree compose project and ports, phases and budget, waits with a pidfile and a timeout, fast and full check layers, cleanup, the TIMINGS and CLEANUP lines |
+| `scripts/runner-reap.sh` | Lists (and with `--kill` ends) shells, containers and worktree stacks that sessions left behind for N hours |
 
 ## Checks
 
