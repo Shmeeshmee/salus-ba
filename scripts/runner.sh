@@ -14,7 +14,7 @@
 #   runner.sh full                     the full check set, once, at the end of the package
 #   runner.sh cleanup                  kill what the session started, stop the stack services it started
 #   runner.sh report                   the TIMINGS, FLAKY and CLEANUP lines for the report
-#   runner.sh gate                     the Stop hook: make arch-gate, unless this exact tree already passed it
+#   runner.sh gate                     the Stop hook: scripts/stop-gate.sh (exit 2 only on a failing check), unless this tree already passed
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel); cd "$root"
@@ -325,7 +325,7 @@ cmd_gate() {
      awk -v t="$tree" '$1 == "full" && $2 == t && $3 == 0 { found = 1 } END { exit !found }' "$state/checks" 2>/dev/null; then
     echo "arch-gate: this tree already passed; skipped"; return 0
   fi
-  make arch-gate
+  bash scripts/stop-gate.sh # exits 2 on a failing check, 1 when the stack cannot run; the mark is written on 0 only
   mkdir -p "$(dirname "$mark")"; echo "$tree" > "$mark"
 }
 

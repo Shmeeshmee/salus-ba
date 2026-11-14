@@ -252,7 +252,7 @@ tests green at the end of every package. Measure before claiming a performance g
 
 | Path | What it is |
 | --- | --- |
-| `.claude/settings.json` | Stop hook: `scripts/runner.sh gate`, which runs `make arch-gate` (`go vet`, tests, archcheck, all in Docker) unless this exact tree already passed it |
+| `.claude/settings.json` | Stop hook: `scripts/runner.sh gate`, which skips a tree that already passed and otherwise runs `scripts/stop-gate.sh`: `make arch-gate` (`go vet`, tests, archcheck, all in Docker) on the checkout's own compose project, blocking only on a failing check; a stack that cannot start is reported, not looped on |
 | `.claude/agents/package-runner.md` | Implements and commits exactly one work package |
 | `.claude/commands/run-package.md` | `/run-package <plan> <package>` |
 | `.claude/skills/go-domain/` | The test-first loop inside a domain: layers, FHIR handlers, consent and audit |

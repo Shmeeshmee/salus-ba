@@ -20,7 +20,7 @@ TEST_SERVICES := postgres redis mailpit mailpit-starttls mailpit-tls livekit obj
 GO_TEST        = go test $(TESTFLAGS) ./... && go -C tools test $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-reminders bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-reminders bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate arch-gate-stack arch-gate-checks e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
@@ -170,12 +170,18 @@ i18n-check: web-install
 archcheck: tools-image
 	$(GO) go -C tools run ./archcheck -root /src
 
-## arch-gate: archcheck, go vet and the tests; the Claude Code Stop hook runs it. It starts only the test services
-## that are not running and recreates none: `run` alone recreates a running service whose config differs, and
-## LiveKit's and Mailpit's do from another worktree (their bind-mount paths are in the config hash). No orphan is
-## removed.
-arch-gate: tools-image
+## arch-gate: archcheck, go vet and the tests; the Claude Code Stop hook runs its two halves through
+## scripts/stop-gate.sh, which tells a stack that did not come up (arch-gate-stack) from a failing check
+## (arch-gate-checks). The stack half starts only the test services that are not running and recreates none: `run`
+## alone recreates a running service whose config differs, and LiveKit's and Mailpit's do from another worktree
+## (their bind-mount paths are in the config hash). No orphan is removed.
+arch-gate: arch-gate-stack
+	@$(MAKE) --no-print-directory arch-gate-checks
+
+arch-gate-stack: tools-image
 	$(COMPOSE) up -d --no-recreate --wait $(TEST_SERVICES)
+
+arch-gate-checks:
 	$(GO_NODEPS) go -C tools run ./archcheck -root /src
 	$(GO_NODEPS) go vet ./...
 	$(GO_NODEPS) sh -c '$(GO_TEST)'
