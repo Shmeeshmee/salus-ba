@@ -3,6 +3,9 @@
 # docker, make and ss on PATH: which exit code each outcome gives (0 passed, 2 a check failed, 1 the gate could
 # not run), and which compose project and Mailpit port the stack is started with. Run by scripts/lint.sh.
 set -euo pipefail
+# runner.sh and the Makefile export GIT_COMMON_DIR; inherited, it would make the throwaway repository below share
+# the real one's .git.
+unset GIT_DIR GIT_COMMON_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
@@ -17,13 +20,14 @@ case "$1" in
   info) exit "${FAKE_DOCKER_INFO:-0}" ;;
   compose)
     [[ " $* " == *" port mailpit 8025 "* ]] && [ -n "${FAKE_OWN_MAILPIT:-}" ] && echo "127.0.0.1:8025"
-    [[ " $* " == *" ps -a --status created --services "* ]] && printf '%s\n' ${FAKE_CREATED:-} ;;
+    [[ " $* " == *" ps -a --status created --services "* ]] && printf '%s\n' ${FAKE_CREATED:-}
+    [[ " $* " == *" ps -a --status exited --services "* ]] && printf '%s\n' ${FAKE_EXITED:-} ;;
 esac
 exit 0
 EOF
 cat > "$work/bin/make" <<'EOF'
 #!/usr/bin/env bash
-echo "make $* mailpit=${SALUS_MAILPIT_PORT:-default}" >> "$FAKE_LOG"
+echo "make $* mailpit=${SALUS_MAILPIT_PORT:-default}${COMPOSE_PROJECT_NAME:+ project=$COMPOSE_PROJECT_NAME}${SALUS_API_PORT:+ api=$SALUS_API_PORT}" >> "$FAKE_LOG"
 case "$1" in
   arch-gate-stack) exit "${FAKE_STACK:-0}" ;;
   arch-gate-checks) exit "${FAKE_CHECKS:-0}" ;;
@@ -92,12 +96,12 @@ gate "$main" 0 "8025 taken by another project" FAKE_LISTEN="8025 8026"
 expect "8025 taken by another project" '^make arch-gate-stack mailpit=8027$' "$work/log"
 expect "8025 taken by another project" '127.0.0.1:8027' "$work/err"
 
-expect "8025 taken by another project" '^docker compose -f deployments/docker-compose.yml rm -f mailpit$' "$work/log"
-
-# A stopped Mailpit of this project keeps its old 8025 mapping under `up --no-recreate`; it is removed when the port
-# moves (above), and left alone when it does not.
-gate "$main" 0 "8025 free"
-refute "8025 free" ' rm -f mailpit$' "$work/log"
+# A stopped Mailpit keeps the port it was created with under `up --no-recreate`; it is removed before the start, and
+# no other stopped service is.
+gate "$main" 0 "a stopped Mailpit" FAKE_EXITED="mailpit postgres"
+expect "a stopped Mailpit" '^docker compose -f deployments/docker-compose.yml rm -f mailpit$' "$work/log"
+gate "$main" 0 "nothing stopped"
+refute "nothing stopped" ' rm -f mailpit$' "$work/log"
 
 gate "$main" 1 "8025 to 8099 all taken" FAKE_LISTEN="$(seq -s ' ' 8025 8099)"
 expect "8025 to 8099 all taken" 'not run: 127.0.0.1:8025 and 8026-8099 are all taken' "$work/err"
@@ -125,9 +129,40 @@ expect "a worktree with its slot from scripts/runner.sh" '^make arch-gate-stack 
 
 gate "$work/wt" 2 "a failing check in a worktree" FAKE_CHECKS=2
 
+# Project and ports exported by the launching shell would beat the worktree's deployments/.env in compose.
+gate "$work/wt" 0 "a worktree with a stray project name" COMPOSE_PROJECT_NAME=salus SALUS_API_PORT=8080
+expect "a worktree with a stray project name" '^make arch-gate-stack mailpit=default$' "$work/log"
+grep -q 'project=salus\b\|api=8080' "$work/log" &&
+  { echo "FAIL a worktree with a stray project name: inherited COMPOSE_PROJECT_NAME or SALUS_API_PORT reached make" >&2; failures=$((failures + 1)); }
+
 printf '#!/usr/bin/env bash\nexit 1\n' > "$work/wt/scripts/runner.sh"
 gate "$work/wt" 1 "a worktree whose slot cannot be assigned"
 refute "a worktree whose slot cannot be assigned" '^make' "$work/log"
+
+# runner.sh gate, the Stop hook itself: stop-gate.sh's exit code comes back unchanged, and only a pass marks the
+# tree so the next stop skips it.
+gw="$work/gate"
+mkdir -p "$gw/scripts"
+cp "$here/runner.sh" "$gw/scripts/"
+printf '#!/usr/bin/env bash\nexit "${FAKE_RC:-0}"\n' > "$gw/scripts/stop-gate.sh"
+printf '.claude/runs/\n' > "$gw/.gitignore"
+git -C "$gw" init -q
+git -C "$gw" add .
+git -C "$gw" -c user.name=test -c user.email=test@example.invalid commit -qm init
+rungate() { # rungate <want exit> <name> [VAR=value...]
+  local want=$1 name=$2 got=0; shift 2
+  (cd "$gw" && env "$@" bash scripts/runner.sh gate > "$work/out" 2>&1) || got=$?
+  [ "$got" -eq "$want" ] || { echo "FAIL runner gate, $name: exit $got, want $want" >&2; sed 's/^/  /' "$work/out" >&2; failures=$((failures + 1)); }
+}
+for rc in 2 1; do
+  rungate "$rc" "stop-gate exits $rc" FAKE_RC="$rc"
+  [ ! -e "$gw/.claude/runs/gate.tree" ] ||
+    { echo "FAIL runner gate, stop-gate exits $rc: the tree was marked as passed" >&2; failures=$((failures + 1)); }
+done
+rungate 0 "stop-gate passes" FAKE_RC=0
+[ -s "$gw/.claude/runs/gate.tree" ] || { echo "FAIL runner gate, stop-gate passes: the tree was not marked" >&2; failures=$((failures + 1)); }
+rungate 0 "the same tree again" FAKE_RC=2
+grep -q 'already passed' "$work/out" || { echo "FAIL runner gate, the same tree again: not skipped" >&2; failures=$((failures + 1)); }
 
 if [ "$failures" -ne 0 ]; then
   echo "stop-gate.test.sh: $failures failed" >&2

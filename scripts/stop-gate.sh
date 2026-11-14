@@ -17,9 +17,7 @@ skip() {
 }
 
 # mailpit_port exports SALUS_MAILPIT_PORT, the first free port from 8026, when 8025 is held by anything but this
-# project's own Mailpit. A port the developer set (environment or deployments/.env) is kept. A stopped Mailpit of
-# this project is removed when the port moves: `up --no-recreate` would start it on its old 8025 mapping. It holds
-# only the e-mails the tests sent.
+# project's own Mailpit. A port the developer set (environment or deployments/.env) is kept.
 mailpit_port() {
   [ -n "${SALUS_MAILPIT_PORT:-}" ] && return
   grep -qs '^SALUS_MAILPIT_PORT=' deployments/.env && return
@@ -30,7 +28,6 @@ mailpit_port() {
   for port in $(seq 8026 8099); do
     if ! grep -qx "$port" <<<"$listening"; then
       export SALUS_MAILPIT_PORT=$port
-      docker compose -f deployments/docker-compose.yml rm -f mailpit > /dev/null 2>&1
       echo "stop-gate: 127.0.0.1:8025 is taken; Mailpit's web UI on 127.0.0.1:$port" >&2
       return
     fi
@@ -40,16 +37,23 @@ mailpit_port() {
 
 # drop_created removes the stack's containers that were created and never started. A service whose start failed (its
 # port taken) is left so, without its network; `up --no-recreate` would start it as it is, report the stack up, and
-# the tests would fail on it. Never started, it holds nothing, so it goes and `up` creates it afresh.
+# the tests would fail on it. Never started, it holds nothing, so it goes and `up` creates it afresh. A stopped
+# Mailpit goes too: `up --no-recreate` would restart it on the port it was created with, which may no longer be the
+# one wanted (or free). It holds only the e-mails the tests sent.
 drop_created() {
   local -a compose=(docker compose -f deployments/docker-compose.yml) created
-  mapfile -t created < <("${compose[@]}" ps -a --status created --services 2>/dev/null | grep .)
+  mapfile -t created < <({ "${compose[@]}" ps -a --status created --services
+    "${compose[@]}" ps -a --status exited --services | grep -x mailpit; } 2>/dev/null | grep . | sort -u)
   [ "${#created[@]}" -eq 0 ] || "${compose[@]}" rm -f "${created[@]}" > /dev/null 2>&1
 }
 
 docker info > /dev/null 2>&1 || skip "Docker is not reachable"
 
 if [ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]; then
+  # The worktree's deployments/.env decides its project and ports; the same names exported by the shell that
+  # started Claude would win over it in compose and point the gate at another checkout's stack.
+  unset COMPOSE_PROJECT_NAME
+  for v in $(compgen -v SALUS_); do [[ $v == *_PORT ]] && unset "$v"; done
   [ -f scripts/runner.sh ] ||
     skip "this worktree has no compose project of its own: scripts/runner.sh env (#96) assigns it, and is not on this branch"
   bash scripts/runner.sh env >&2 || skip "scripts/runner.sh env could not assign this worktree its project and ports"
