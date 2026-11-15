@@ -73,8 +73,6 @@ function correctionMessage(t: T, code?: string): string {
   return t('common.somethingWrong')
 }
 
-
-
 // NoShowTag is a flag of useNoShowFlags as a tag inside a calendar card, which is a link: the detail in its title,
 // not a focusable tooltip, as nothing focusable may sit inside a link.
 export function NoShowTag({ flag }: { flag?: Flag }) {

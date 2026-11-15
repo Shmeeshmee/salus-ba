@@ -113,7 +113,7 @@ func TestNew_ServesTheClinicsAppointmentSettings(t *testing.T) {
 	}
 }
 
-// Two admins' saves of the settings read at the same version, sent at the same time: exactly one is stored (200) and
+// Two saves of the settings read at the same version, sent at the same time by the admin from two copies of its client: exactly one is stored (200) and
 // the other is refused with 412 version_conflict; the stored settings are the winner's.
 func TestNew_ConcurrentAppointmentSettingsSavesLeaveOneWinner(t *testing.T) {
 	c := newConsultationApp(t)
