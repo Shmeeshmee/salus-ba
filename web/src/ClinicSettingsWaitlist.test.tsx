@@ -44,6 +44,14 @@ describe('ClinicSettingsWaitlist', () => {
     expect(reads).toBe(2)
   })
 
+  it('says when someone else saved the settings first, keeping what was entered', async () => {
+    renderSettings({ 'PUT /clinic/appointment-settings': () => apiError(412, 'version_conflict') })
+    fireEvent.change(await screen.findByLabelText(/Hold for an offer/), { target: { value: '45' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Settings were changed by someone else — reload the page. What you entered stays in the form.')).toBeTruthy()
+    expect((screen.getByLabelText(/Hold for an offer/) as HTMLInputElement).value).toBe('45')
+  })
+
   it('refuses a hold out of range, and says when saving failed', async () => {
     const fake = renderSettings({ 'PUT /clinic/appointment-settings': () => apiError(500, 'internal') })
     fireEvent.change(await screen.findByLabelText(/Hold for an offer/), { target: { value: '200' } })

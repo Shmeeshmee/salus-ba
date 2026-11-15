@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ApiClient } from './api/client'
 import { attempt } from './api/result'
+import { saveAppointmentSettings } from './appointmentSettings'
 import type { components } from './api/schema'
 import { useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -42,12 +43,9 @@ function Form({ api, settings, onSaved }: { api: ApiClient; settings: Settings; 
     if (!Number.isInteger(n) || n < 0 || n > 10 || !Number.isInteger(d) || d < 30 || d > 730 || threshold === '' || days === '') {
       return t('calendar.noshow.invalid')
     }
-    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
-    // section or another admin saved since the page opened is kept and only this section's two fields change.
-    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
-    if (!fresh.ok) return t('common.somethingWrong')
-    const res = await attempt(api.PUT('/clinic/appointment-settings', { body: { ...fresh.data, noshow_flag_threshold: n, noshow_flag_window_days: d } }))
-    if (!res.ok) return t('common.somethingWrong')
+    // Only this section's two fields change; someone else's save of them since they were shown is a conflict.
+    const res = await saveAppointmentSettings(api, settings, { noshow_flag_threshold: n, noshow_flag_window_days: d })
+    if (!res.ok) return res.conflict ? t('appointments.settingsConflict') : t('common.somethingWrong')
     onSaved(res.data)
     setSaved(true)
     return undefined

@@ -45,8 +45,10 @@ x-objectstore-env: &objectstore-env
 
 # The clinics' webhook secrets are sealed with WEBHOOK_KEY (SAL-29): only the api (which seals a new one) and the
 # worker (which delivers) load it. Synthetic, local only; production's is the root-only key file on the encrypted
-# volume (WEBHOOK_KEY_FILE, ADR 0011).
+# volume (WEBHOOK_KEY_FILE, ADR 0011). SALUS_ENV=dev: without the key they would generate one each (config.LoadWebhookKey),
+# which the other could not open, so the stack sets this one for both; outside dev a missing key stops them.
 x-webhook-env: &webhook-env
+  SALUS_ENV: dev
   WEBHOOK_KEY: bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk= # base64 of 32 synthetic bytes
 
 x-host-user: &host-user
@@ -59,8 +61,11 @@ services:
     # The default 100 connections is too few for `make cover`: every test package runs in parallel, each
     # test with its own pools (River clients included); 87 were measured at the peak, and one run failed with
     # 53300 (docs/accounts/PROGRESS.md, package 5). With the booking packages the uncached suite went past
-    # 200 and failed with 53300 again; the measured peak is in docs/booking/PROGRESS.md, package 6.
-    command: ["postgres", "-c", "max_connections=400"]
+    # 200 and failed with 53300 again; the measured peak is in docs/booking/PROGRESS.md, package 6. 600 since the
+    # post-appointments gaps: with three stacks' suites on one host each runs slower, so its connections are held longer
+    # (the peaks are in docs/plans/appointments.PROGRESS.md, "Post-appointments gaps"); the Makefile also caps go test at
+    # TEST_PACKAGES packages.
+    command: ["postgres", "-c", "max_connections=600"]
     environment:
       POSTGRES_USER: salus
       POSTGRES_PASSWORD: salus # local only; synthetic data only

@@ -2279,3 +2279,26 @@ C2: a specialty with one practitioner is that colleague's figures).
 | The flag revealing a patient's attendance at the clinic to staff outside their care | Only for appointments the caller sees in full; counted only from the patient's appointments at the caller's own clinic, in its row-level security scope (after a revocation the future appointments are not seen, so not flagged) |
 | No-show counts per practitioner as employee monitoring | Admins only, as SAL-20's per-practitioner figures; open question L5 stands |
 | Waitlist bookings singling out a patient in small counts | Counts only, inside the clinic that holds the records |
+
+### Post-appointments gaps (SAL-32 epic; migration 00058, renumbered at merge)
+
+**Personal data added.** None. `organization_appointment_settings.version` counts the saves of a clinic's settings,
+which hold no personal data; the GET's ETag carries it and a stale save is refused (412), so no admin's change is
+lost silently.
+
+**The repeat no-show flag in the week view.** The calendar's week asks `GET /clinic/noshow-flags` once for its seven
+days, narrowed to the practitioner shown (`practitioner`), so an admin's view of one practitioner reads and audits
+nothing of the others' patients, and tags each flagged appointment as the appointment's page does: the same rules (staff only, the appointments
+the caller sees in full, each audited), never a reason to refuse a booking, not in the patient's app. A failed read
+shows the week without flags.
+
+**Retention, read from config (pending lawyer L1–L3).** The retention job's rules take a policy from the worker's
+environment (`config.LoadRetentionPolicy`): clinical data (`encounter`, `condition`, `allergy_intolerance`,
+`medication_statement` and their Provenance, `document_draft`, `transcript_segment`, `appointment`,
+`appointment_change`) is kept, never deleted automatically: `RETENTION_CLINICAL_DATA` takes only `keep`, and the job
+refuses to start on any other policy. The operational logs (`appointment_reminder`, `notification_delivery`) are
+deleted after `RETENTION_OPERATIONAL_LOG_DAYS`, 90 by default, as before. Both stay defaults until the lawyer answers.
+
+**Webhook key per environment.** The api and the worker refuse to start without `WEBHOOK_KEY` (or its file) outside
+`SALUS_ENV=dev`, so no environment starts on a key it did not set. That the key is its own and not another's (or the
+compose file's synthetic one) stays a deploy check: production's comes from the key file (ADR 0011).

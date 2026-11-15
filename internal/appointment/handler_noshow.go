@@ -12,7 +12,7 @@ import (
 
 // NoShows is what the NoShowHandler calls (Service).
 type NoShows interface {
-	NoShowFlags(ctx context.Context, c Caller, from, to time.Time) ([]NoShowFlag, error)
+	NoShowFlags(ctx context.Context, c Caller, from, to time.Time, practitionerID string) ([]NoShowFlag, error)
 }
 
 // NoShowHandler serves the repeat no-show flags to the clinic's staff (SAL-36, api/openapi.yaml). Errors are
@@ -44,7 +44,7 @@ type flagsJSON struct {
 	Flags []flagJSON `json:"flags"`
 }
 
-// flags answers GET /clinic/noshow-flags?from=&to= (RFC 3339 instants).
+// flags answers GET /clinic/noshow-flags?from=&to= (RFC 3339 instants)[&practitioner=<Practitioner id>].
 func (h *NoShowHandler) flags(w http.ResponseWriter, r *http.Request) {
 	c, ok, err := h.caller(r.Context())
 	switch {
@@ -57,11 +57,12 @@ func (h *NoShowHandler) flags(w http.ResponseWriter, r *http.Request) {
 	}
 	from, errFrom := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
 	to, errTo := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
+	practitioner := r.URL.Query().Get("practitioner") // optional: one practitioner's week; an unknown id has no flags
 	if errFrom != nil || errTo != nil {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	all, err := h.svc.NoShowFlags(r.Context(), c, from, to)
+	all, err := h.svc.NoShowFlags(r.Context(), c, from, to, practitioner)
 	switch {
 	case errors.Is(err, ErrInvalidRange):
 		writeCode(w, http.StatusBadRequest, "invalid_request")

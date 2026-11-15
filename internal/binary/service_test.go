@@ -303,6 +303,25 @@ func TestStatusAndDownload_RefuseAFileTheResponseNoLongerLists(t *testing.T) {
 	}
 }
 
+// The scan that rejects a file detaches it in the same commit; a status read whose row still showed the file
+// quarantined and whose next statement already sees it detached (READ COMMITTED: a snapshot per statement) answers
+// the file rejected, not 404: the app polling the status of a file being rejected never loses it (the attachments
+// end-to-end test failed so, intermittently).
+func TestStatus_AnswersAFileRejectedWhileItIsRead(t *testing.T) {
+	f := newFixture(t)
+	b := f.seed(t, pdf(), binary.StatusQuarantined)
+	f.holder.beforeAttached = func() {
+		rejected := f.repo.files[b.ID]
+		rejected.Status = binary.StatusRejected
+		f.repo.files[b.ID] = rejected
+		f.holder.attached = nil
+	}
+	got, err := f.svc.Status(t.Context(), me, b.ID)
+	if err != nil || got.Status != binary.StatusRejected {
+		t.Fatalf("Status() of a file rejected while read = %v, %v; want it rejected", got.Status, err)
+	}
+}
+
 // A rejected file is detached by the scan, but the patient's app still reads its status to show M7: only its
 // bytes are gone (no key, no object), so Status answers rejected and Download stays refused.
 func TestStatus_StillAnswersARejectedFileTheResponseNoLongerLists(t *testing.T) {

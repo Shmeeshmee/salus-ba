@@ -16,6 +16,11 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
 
+// startCeiling bounds the wait for the binary to start: it is polled every 10 ms and the test goes on as soon as it is
+// up, so the ceiling only matters when something is wrong; it is high because a host running several stacks' suites
+// at once can take tens of seconds to hand out a first Postgres connection (15 s was too short).
+const startCeiling = 60 * time.Second
+
 func TestMain(m *testing.M) { pgtest.Main(m, migrations.FS) }
 
 func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
@@ -99,6 +104,39 @@ func TestRun_FailsWithoutTheRetentionDatabaseURL(t *testing.T) {
 	}
 }
 
+// Outside dev the worker does not start without its webhook key, and never on a retention policy that would delete
+// clinical data (pending lawyer L1–L3); jobSettings reads the policy the job runs on.
+func TestRun_FailsWithoutTheWebhookKeyOrOnAClinicalDeletion(t *testing.T) {
+	for name, tt := range map[string]struct {
+		env  map[string]string
+		want string
+	}{
+		"no webhook key":     {map[string]string{"WEBHOOK_KEY": "", "SALUS_ENV": "production"}, "WEBHOOK_KEY"},
+		"clinical deletion":  {map[string]string{"RETENTION_CLINICAL_DATA": "delete"}, "RETENTION_CLINICAL_DATA"},
+		"log days not a day": {map[string]string{"RETENTION_OPERATIONAL_LOG_DAYS": "0"}, "RETENTION_OPERATIONAL_LOG_DAYS"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://unused@localhost/unused")
+			t.Setenv("RETENTION_DATABASE_URL", "postgres://unused@localhost/unused")
+			setLiveKit(t)
+			setFiles(t)
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+			if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("run() error = %v, want one naming %s", err, tt.want)
+			}
+		})
+	}
+	setFiles(t) // the webhook key
+	t.Setenv("RETENTION_OPERATIONAL_LOG_DAYS", "120")
+	cfg := config.Config{}
+	p, err := jobSettings(&cfg)
+	if err != nil || p.ClinicalData != "keep" || p.OperationalLogs != 120*24*time.Hour || len(cfg.WebhookKey) != 32 {
+		t.Errorf("jobSettings() = %+v, %v, key %d bytes; want keep, 120 days and the key", p, err, len(cfg.WebhookKey))
+	}
+}
+
 // The clinic statistics' builds need the stats role's login; without it the worker does not start.
 func TestRun_FailsWithoutTheStatsDatabaseURL(t *testing.T) {
 	dbURL := pgtest.NewDatabaseURL(t)
@@ -159,7 +197,7 @@ func (b *syncBuffer) String() string {
 }
 
 // runUntilStarted runs run until it logs "started", then cancels it and returns its error and logs. Startup
-// (connecting to Postgres) gets up to 15 s, so a busy test server does not fail the test.
+// (connecting to Postgres) is waited for as long as it takes, up to startCeiling, so a busy host does not fail the test.
 func runUntilStarted(t *testing.T) (string, error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -167,7 +205,7 @@ func runUntilStarted(t *testing.T) (string, error) {
 	logs := &syncBuffer{}
 	done := make(chan error, 1)
 	go func() { done <- run(ctx, logs) }()
-	deadline := time.After(15 * time.Second)
+	deadline := time.After(startCeiling)
 	for !strings.Contains(logs.String(), `"msg":"started"`) {
 		select {
 		case err := <-done:
@@ -175,7 +213,7 @@ func runUntilStarted(t *testing.T) (string, error) {
 		case <-deadline:
 			cancel()
 			err := <-done
-			t.Fatalf("run did not log started within 15 s (error after cancel: %v):\n%s", err, logs.String())
+			t.Fatalf("run did not log started within %v (error after cancel: %v):\n%s", startCeiling, err, logs.String())
 		case <-time.After(10 * time.Millisecond):
 		}
 	}

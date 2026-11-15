@@ -67,6 +67,15 @@ describe('ClinicSettingsReschedule', () => {
     expect(reads).toBe(2)
   })
 
+  it('says when someone else saved the settings first, keeping what was entered', async () => {
+    renderReschedule({ [`GET ${path}`]: () => Response.json(stored), [`PUT ${path}`]: () => apiError(412, 'version_conflict') })
+
+    await fill('48', '1')
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Settings were changed by someone else — reload the page. What you entered stays in the form.')
+    expect((screen.getByLabelText('Notice in hours') as HTMLInputElement).value).toBe('48')
+  })
+
   it('says that a limit of 0 turns self-service rescheduling off', async () => {
     renderReschedule({ [`GET ${path}`]: () => Response.json({ ...stored, reschedule_max: 0 }) })
 

@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clamd"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
@@ -312,7 +313,7 @@ func TestNew_RefusesToStartWithoutTheFilesDependencies(t *testing.T) {
 		"no key":     {Store: full.Store, Scanner: full.Scanner},
 		"no scanner": {Store: full.Store, KEK: full.KEK},
 	} {
-		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), files, webhookKey, worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
+		if _, err := worker.New(db.app, db.retention, db.stats, liveKit(t), files, webhookKey, retention.DefaultPolicy(), worker.Trends{}, slog.New(slog.DiscardHandler)); err == nil {
 			t.Errorf("New() with %s: error = nil", name)
 		}
 	}

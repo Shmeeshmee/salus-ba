@@ -68,7 +68,7 @@ func TestRetention_RoleIsGrantedSelectAndDeleteOnExactlyTheTablesWhoseRuleIsDele
 	t.Parallel()
 	db := pgtest.NewDatabase(t)
 	want := map[string][]string{}
-	for _, r := range retention.Rules() {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
 		if r.Then == retention.ThenDelete {
 			want[r.Table] = []string{"DELETE", "SELECT"}
 		}

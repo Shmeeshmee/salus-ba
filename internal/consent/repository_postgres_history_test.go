@@ -428,7 +428,7 @@ func TestLockCare_MakesARevocationWaitForTheGrantAndEndIt(t *testing.T) {
 				return err
 			})
 		}()
-		waitForALockWait(t, owner)
+		pgtest.WaitForLockWait(t, owner) // the revocation waits for the care consent's lock
 		_, err = repo.GrantHistory(ctx, patientA, clinicA, visits, granted)
 		return err
 	}); err != nil {
@@ -448,21 +448,4 @@ func TestLockCare_MakesARevocationWaitForTheGrantAndEndIt(t *testing.T) {
 	}); err != nil {
 		t.Error(err)
 	}
-}
-
-// waitForALockWait waits until a backend of the test's database waits for a row lock.
-func waitForALockWait(t *testing.T, owner *pgxpool.Pool) {
-	t.Helper()
-	for range 200 {
-		var waiting bool
-		if err := owner.QueryRow(t.Context(), `SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-			WHERE datname = current_database() AND wait_event_type = 'Lock')`).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("no backend waited for the care consent's lock within 2 s")
 }

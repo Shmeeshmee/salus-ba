@@ -50,6 +50,9 @@ func jsonFields(v any) (all, required []string) {
 	typ := reflect.TypeOf(v)
 	for i := range typ.NumField() {
 		name, opts, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
+		if name == "-" { // never encoded (AppointmentSettings.Version travels as the ETag)
+			continue
+		}
 		all = append(all, name)
 		if !strings.Contains(opts, "omitempty") {
 			required = append(required, name)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ApiClient } from './api/client'
 import { attempt } from './api/result'
+import { saveAppointmentSettings } from './appointmentSettings'
 import type { components } from './api/schema'
 import { useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -39,11 +40,9 @@ function WaitlistForm({ api, settings, onSaved }: { api: ApiClient; settings: Se
     setSaved(false)
     const minutes = Number(hold)
     if (!Number.isInteger(minutes) || minutes < 5 || minutes > 120) return t('waitlist.holdRange')
-    // PUT replaces the whole row and the settings carry no version: read them again just before, so what another
-    // section or another admin saved since the page opened is kept and only this section's fields change.
-    const fresh = await attempt(api.GET('/clinic/appointment-settings'))
-    if (!fresh.ok) return t('waitlist.settingsSaveFailed')
-    const res = await attempt(api.PUT('/clinic/appointment-settings', { body: { ...fresh.data, waitlist_enabled: enabled, waitlist_hold_minutes: minutes } }))
+    // Only this section's fields change; someone else's save of them since they were shown is a conflict.
+    const res = await saveAppointmentSettings(api, settings, { waitlist_enabled: enabled, waitlist_hold_minutes: minutes })
+    if (!res.ok && res.conflict) return t('appointments.settingsConflict')
     if (!res.ok) return res.code === 'invalid_request' ? t('waitlist.holdRange') : t('waitlist.settingsSaveFailed')
     onSaved(res.data)
     setSaved(true)

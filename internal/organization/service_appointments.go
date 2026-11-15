@@ -2,6 +2,7 @@ package organization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -71,9 +72,10 @@ func (s *Appointments) Settings(ctx context.Context, c Caller) (AppointmentSetti
 	return out, nil
 }
 
-// SetSettings replaces the settings of the admin's clinic with in, audited as an update of the clinic; refusals as
-// Settings', audited too. ErrInvalidAppointmentSettings for settings out of their ranges, ErrSMSUnavailable for the
-// SMS option while no SMS provider sends.
+// SetSettings replaces the settings of the admin's clinic, read at in.Version, with in, audited as an update of the
+// clinic, and returns them at their new version; refusals as Settings', audited too. ErrInvalidAppointmentSettings
+// for settings out of their ranges, ErrSMSUnavailable for the SMS option while no SMS provider sends,
+// ErrSettingsChanged when another save came after in.Version was read (nothing stored; audited as refused).
 func (s *Appointments) SetSettings(ctx context.Context, c Caller, in AppointmentSettings) (AppointmentSettings, error) {
 	if err := adminOf(c); err != nil {
 		if aerr := s.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -89,19 +91,30 @@ func (s *Appointments) SetSettings(ctx context.Context, c Caller, in Appointment
 	if in.SMSReminders && !s.SMSAvailable {
 		return AppointmentSettings{}, ErrSMSUnavailable
 	}
+	out := in
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
 			return err
 		}
-		if err := s.Repo.PutAppointmentSettings(ctx, c.OrganizationID, in, s.Clock.Now()); err != nil {
+		version, err := s.Repo.PutAppointmentSettings(ctx, c.OrganizationID, in, s.Clock.Now())
+		if err != nil {
 			return err
 		}
+		out.Version = version
 		return s.Audit.Record(ctx, settingsEvent(c, auditevent.OutcomeSuccess))
 	})
+	if errors.Is(err, ErrSettingsChanged) { // refused, audited as refused: the save's transaction rolled back
+		if aerr := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+			return s.Audit.Record(ctx, settingsEvent(c, auditevent.OutcomeMinorFailure))
+		}); aerr != nil {
+			return AppointmentSettings{}, fmt.Errorf("organization: appointment settings: %w", aerr)
+		}
+		return AppointmentSettings{}, ErrSettingsChanged
+	}
 	if err != nil {
 		return AppointmentSettings{}, fmt.Errorf("organization: appointment settings: %w", err)
 	}
-	return in, nil
+	return out, nil
 }
 
 // For returns the settings of the clinic org, the defaults when it has stored none, in the transaction in ctx (or one

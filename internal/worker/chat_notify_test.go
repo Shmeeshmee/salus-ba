@@ -18,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -187,7 +188,7 @@ func startChatJobs(t *testing.T, db logins, log *slog.Logger) (*pushtest.Sender,
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := worker.New(db.app, db.retention, db.stats, liveKit(t), testFiles(t), webhookKey, worker.Trends{}, log)
+	jobs, err := worker.New(db.app, db.retention, db.stats, liveKit(t), testFiles(t), webhookKey, retention.DefaultPolicy(), worker.Trends{}, log)
 	if err != nil {
 		t.Fatal(err)
 	}

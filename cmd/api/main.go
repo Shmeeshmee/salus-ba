@@ -68,6 +68,9 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if _, err := config.LoadChatSummary(); err != nil {
 		return err
 	}
+	if cfg.WebhookKey, err = config.LoadWebhookKey(); err != nil { // each environment sets its own; dev generates one
+		return err
+	}
 	app, err := api.New(ctx, cfg, lk, files, drafter, &llmtest.Summarizer{DiscardCalls: true}, log)
 	if err != nil {
 		return err

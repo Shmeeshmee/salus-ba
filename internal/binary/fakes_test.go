@@ -347,6 +347,9 @@ func (r *fakeRepository) Existing(context.Context, []string) ([]string, error) {
 // fakeHolder is the questionnaire response: each check answers what it is set to, and the attachment list is
 // kept as the real holder keeps it.
 type fakeHolder struct {
+	// beforeAttached runs as Attached starts: what another transaction commits between the read of the file's row
+	// and the read of its response's files.
+	beforeAttached func()
 	uploadRefusal  error
 	secondRefusal  error // UploadTarget's answer from its second call on (the upload's commit)
 	editRefusal    error
@@ -438,6 +441,9 @@ func (h *fakeHolder) Cleared(ctx context.Context, responseID, binaryID string) e
 func (h *fakeHolder) Attached(ctx context.Context, responseID string) ([]string, error) {
 	if err := inTx(ctx); err != nil {
 		return nil, err
+	}
+	if h.beforeAttached != nil {
+		h.beforeAttached()
 	}
 	var out []string
 	for _, a := range h.attached {
