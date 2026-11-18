@@ -57,7 +57,7 @@ x-host-user: &host-user
 
 services:
   postgres:
-    image: postgres:18.6
+    image: postgres:18.7
     # The default 100 connections is too few for `make cover`: every test package runs in parallel, each
     # test with its own pools (River clients included); 87 were measured at the peak, and one run failed with
     # 53300 (docs/accounts/PROGRESS.md, package 5). With the booking packages the uncached suite went past
