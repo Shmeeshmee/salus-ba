@@ -3,7 +3,7 @@
 # web/vite.config.ts to the api service on the same origin (docs/adr/0011-single-server-deployment.md).
 # SALUS_DOMAIN (set by the production compose file) names LiveKit's host in the Content-Security-Policy; the
 # default is only for local runs. Same Node image as node.Dockerfile.
-FROM node:26.13.0-trixie-slim AS build
+FROM node:26.13.1-trixie-slim AS build
 WORKDIR /src
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --no-audit --no-fund
