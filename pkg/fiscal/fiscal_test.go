@@ -50,6 +50,13 @@ func TestCheck_RefusesAMalformedReceipt(t *testing.T) {
 		"a line's quantity":  func(r *fiscal.Receipt) { r.Lines[0].Quantity = 0 },
 		"a line's name":      func(r *fiscal.Receipt) { r.Lines[0].Name = "" },
 		"a line's total":     func(r *fiscal.Receipt) { r.Lines[0].TotalMinor, r.TotalMinor = 4000, 4000 },
+		"a sale's negative quantity": func(r *fiscal.Receipt) {
+			r.Lines[0].Quantity, r.Lines[0].TotalMinor, r.TotalMinor = -1, -5000, -5000
+		},
+		"a reversal's positive quantity": func(r *fiscal.Receipt) { r.Reverses = "F-1" },
+		"a discount above the amount": func(r *fiscal.Receipt) {
+			r.Lines[0].DiscountMinor, r.Lines[0].TotalMinor, r.TotalMinor = 5001, -1, -1
+		},
 	} {
 		r := receipt()
 		r.Lines = append([]fiscal.Line(nil), r.Lines...)

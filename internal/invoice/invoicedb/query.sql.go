@@ -13,8 +13,9 @@ import (
 
 const invoiceByID = `-- name: InvoiceByID :one
 
-SELECT id, organization_id, patient_id, company_name, company_tax_id, appointment_id, kind, reverses_id, number, issued_at,
-       issued_by_account_id, payment_method, total_minor, currency, fiscal_status, fiscal_id, fiscal_code, fiscalized_at
+SELECT id, organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name, company_tax_id,
+       appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id, payment_method, total_minor, currency,
+       fiscal_status, fiscal_id, fiscal_code, fiscal_qr, fiscalized_at
 FROM invoice
 WHERE id = $1
 `
@@ -22,6 +23,9 @@ WHERE id = $1
 type InvoiceByIDRow struct {
 	ID                pgtype.UUID
 	OrganizationID    pgtype.UUID
+	SellerLegalName   string
+	SellerTaxID       string
+	SellerAddress     string
 	PatientID         pgtype.UUID
 	CompanyName       pgtype.Text
 	CompanyTaxID      pgtype.Text
@@ -37,6 +41,7 @@ type InvoiceByIDRow struct {
 	FiscalStatus      string
 	FiscalID          pgtype.Text
 	FiscalCode        pgtype.Text
+	FiscalQr          pgtype.Text
 	FiscalizedAt      pgtype.Timestamptz
 }
 
@@ -47,6 +52,9 @@ func (q *Queries) InvoiceByID(ctx context.Context, id pgtype.UUID) (InvoiceByIDR
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
+		&i.SellerLegalName,
+		&i.SellerTaxID,
+		&i.SellerAddress,
 		&i.PatientID,
 		&i.CompanyName,
 		&i.CompanyTaxID,
@@ -62,6 +70,7 @@ func (q *Queries) InvoiceByID(ctx context.Context, id pgtype.UUID) (InvoiceByIDR
 		&i.FiscalStatus,
 		&i.FiscalID,
 		&i.FiscalCode,
+		&i.FiscalQr,
 		&i.FiscalizedAt,
 	)
 	return i, err

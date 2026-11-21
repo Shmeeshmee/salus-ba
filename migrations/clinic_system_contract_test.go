@@ -97,12 +97,12 @@ func seedBilling(t *testing.T, owner *pgxpool.Pool) ([2]patientRow, billingRows)
 	if _, err := owner.Exec(ctx, `INSERT INTO charge_item_definition_translation (charge_item_definition_id, language, name) VALUES ($1, 'en', 'Placeholder exam')`, b.service); err != nil {
 		t.Fatal(err)
 	}
-	b.patientReceipt = issue(t, owner, `INSERT INTO invoice (organization_id, patient_id, appointment_id, kind, number, issued_at,
+	b.patientReceipt = issue(t, owner, `INSERT INTO invoice (seller_legal_name, seller_tax_id, seller_address, organization_id, patient_id, appointment_id, kind, number, issued_at,
 			issued_by_account_id, payment_method, total_minor)
-		VALUES ($1, $2, $3, 'receipt', 1, now(), $4, 'cash', 5000) RETURNING id`, b.service, clinicA, p[0].patient, a.aPast, p[0].account)
-	b.companyReceipt = issue(t, owner, `INSERT INTO invoice (organization_id, company_name, company_tax_id, kind, number, issued_at,
+		VALUES ('Synthetic clinic d.o.o.', '4200000000001', 'Placeholder street 1, 71000', $1, $2, $3, 'receipt', 1, now(), $4, 'cash', 5000) RETURNING id`, b.service, clinicA, p[0].patient, a.aPast, p[0].account)
+	b.companyReceipt = issue(t, owner, `INSERT INTO invoice (seller_legal_name, seller_tax_id, seller_address, organization_id, company_name, company_tax_id, kind, number, issued_at,
 			issued_by_account_id, payment_method, total_minor)
-		VALUES ($1, 'Synthetic company', '4200000000000', 'invoice', 2, now(), $2, 'transfer', 5000) RETURNING id`, b.service, clinicA, p[0].account)
+		VALUES ('Synthetic clinic d.o.o.', '4200000000001', 'Placeholder street 1, 71000', $1, 'Synthetic company', '4200000000000', 'invoice', 2, now(), $2, 'transfer', 5000) RETURNING id`, b.service, clinicA, p[0].account)
 	return p, b
 }
 
@@ -239,7 +239,8 @@ func TestInvoice_IsAppendOnlyExceptItsFiscalStatus(t *testing.T) {
 		t.Error("the owner changed an issued receipt's line")
 	}
 
-	fiscalize := `UPDATE invoice SET fiscal_status = 'fiscalized', fiscal_id = 'F-1', fiscal_code = 'C-1', fiscalized_at = now() WHERE id = $1`
+	fiscalize := `UPDATE invoice SET fiscal_status = 'fiscalized', fiscal_id = 'F-1', fiscal_code = 'C-1', fiscal_qr = 'Q-1',
+		fiscalized_at = now() WHERE id = $1`
 	if err := exec(`UPDATE invoice SET fiscal_status = 'failed' WHERE id = $1`, b.companyReceipt); err != nil {
 		t.Errorf("pending to failed: %v", err)
 	}
@@ -249,12 +250,17 @@ func TestInvoice_IsAppendOnlyExceptItsFiscalStatus(t *testing.T) {
 	if err := exec(`UPDATE invoice SET fiscal_status = 'fiscalized' WHERE id = $1`, b.patientReceipt); sqlState(err) != "23514" {
 		t.Errorf("fiscalized without an identifier and a code = %v, want a check violation", err)
 	}
+	if err := exec(`UPDATE invoice SET fiscal_status = 'fiscalized', fiscal_id = 'F-1', fiscal_code = 'C-1', fiscalized_at = now()
+		WHERE id = $1`, b.patientReceipt); sqlState(err) != "23514" {
+		t.Errorf("fiscalized without the QR = %v, want a check violation", err)
+	}
 	if err := exec(fiscalize, b.patientReceipt); err != nil {
 		t.Errorf("pending to fiscalized: %v", err)
 	}
 	for _, stmt := range []string{
 		`UPDATE invoice SET fiscal_status = 'pending' WHERE id = $1`,
 		`UPDATE invoice SET fiscal_code = 'C-2' WHERE id = $1`,
+		`UPDATE invoice SET fiscal_qr = 'Q-2' WHERE id = $1`,
 		`UPDATE invoice SET fiscal_status = 'failed' WHERE id = $1`,
 	} {
 		if err := exec(stmt, b.patientReceipt); err == nil {
@@ -262,8 +268,8 @@ func TestInvoice_IsAppendOnlyExceptItsFiscalStatus(t *testing.T) {
 		}
 	}
 
-	reverse := `INSERT INTO invoice (organization_id, patient_id, kind, reverses_id, number, issued_at, issued_by_account_id,
-		payment_method, total_minor) VALUES ($1, $2, 'receipt', $3, $4, now(), $5, 'cash', -5000)`
+	reverse := `INSERT INTO invoice (seller_legal_name, seller_tax_id, seller_address, organization_id, patient_id, kind, reverses_id, number, issued_at, issued_by_account_id,
+		payment_method, total_minor) VALUES ('Synthetic clinic d.o.o.', '4200000000001', 'Placeholder street 1, 71000', $1, $2, 'receipt', $3, $4, now(), $5, 'cash', -5000)`
 	if err := exec(reverse, clinicA, p[0].patient, b.patientReceipt, 3, p[0].account); err != nil {
 		t.Errorf("the reversal: %v", err)
 	}
@@ -277,8 +283,8 @@ func TestInvoice_RefusesAPatientAndACompanyTogetherAndARepeatedNumber(t *testing
 	t.Parallel()
 	owner := pgtest.NewDatabase(t)
 	p, _ := seedBilling(t, owner)
-	insert := `INSERT INTO invoice (organization_id, patient_id, company_name, kind, number, issued_at, issued_by_account_id,
-		payment_method, total_minor) VALUES ($1, $2, $3, 'receipt', $4, now(), $5, 'card', 100)`
+	insert := `INSERT INTO invoice (seller_legal_name, seller_tax_id, seller_address, organization_id, patient_id, company_name, kind, number, issued_at, issued_by_account_id,
+		payment_method, total_minor) VALUES ('Synthetic clinic d.o.o.', '4200000000001', 'Placeholder street 1, 71000', $1, $2, $3, 'receipt', $4, now(), $5, 'card', 100)`
 	if _, err := owner.Exec(t.Context(), insert, clinicA, p[0].patient, "Synthetic company", 10, p[0].account); sqlState(err) != "23514" {
 		t.Errorf("patient and company = %v, want a check violation", err)
 	}
@@ -378,8 +384,8 @@ func TestInvoice_RefusesLaterLinesAnotherClinicsServiceAndAnotherClinicsVisit(t 
 	err := postgres.NewTransactor(owner).WithTx(t.Context(), func(ctx context.Context) error {
 		db := postgres.Conn(ctx, owner)
 		var id string
-		if err := db.QueryRow(ctx, `INSERT INTO invoice (organization_id, kind, number, issued_at, issued_by_account_id, payment_method,
-			total_minor) VALUES ($1, 'receipt', 20, now(), $2, 'cash', 5000) RETURNING id`, clinicA, p[0].account).Scan(&id); err != nil {
+		if err := db.QueryRow(ctx, `INSERT INTO invoice (seller_legal_name, seller_tax_id, seller_address, organization_id, kind, number, issued_at, issued_by_account_id, payment_method,
+			total_minor) VALUES ('Synthetic clinic d.o.o.', '4200000000001', 'Placeholder street 1, 71000', $1, 'receipt', 20, now(), $2, 'cash', 5000) RETURNING id`, clinicA, p[0].account).Scan(&id); err != nil {
 			return err
 		}
 		_, err := db.Exec(ctx, addLine, id, otherService)
@@ -392,8 +398,8 @@ func TestInvoice_RefusesLaterLinesAnotherClinicsServiceAndAnotherClinicsVisit(t 
 	if err := owner.QueryRow(t.Context(), `SELECT id FROM appointment WHERE organization_id = $1 LIMIT 1`, clinicB).Scan(&bVisit); err != nil {
 		t.Fatal(err)
 	}
-	_, err = owner.Exec(t.Context(), `INSERT INTO invoice (organization_id, company_name, appointment_id, kind, number, issued_at,
-		issued_by_account_id, payment_method, total_minor) VALUES ($1, 'Synthetic company', $2, 'invoice', 21, now(), $3, 'transfer', 0)`,
+	_, err = owner.Exec(t.Context(), `INSERT INTO invoice (seller_legal_name, seller_tax_id, seller_address, organization_id, company_name, appointment_id, kind, number, issued_at,
+		issued_by_account_id, payment_method, total_minor) VALUES ('Synthetic clinic d.o.o.', '4200000000001', 'Placeholder street 1, 71000', $1, 'Synthetic company', $2, 'invoice', 21, now(), $3, 'transfer', 0)`,
 		clinicA, bVisit, p[0].account)
 	if sqlState(err) != "23503" {
 		t.Errorf("clinic A's company invoice of clinic B's visit = %v, want a foreign key violation", err)
@@ -415,5 +421,28 @@ func TestSubscriptionInvoice_IsNotMarkedPaidByTheApp(t *testing.T) {
 	})
 	if sqlState(err) != "42501" {
 		t.Errorf("the app marks its invoice paid: %v, want permission denied", err)
+	}
+}
+
+// A receipt carries its seller as it was at issue (the clinic's legal name, tax id and address may change later), and
+// never reverses itself.
+func TestInvoice_KeepsItsSellerAndNeverReversesItself(t *testing.T) {
+	t.Parallel()
+	owner := pgtest.NewDatabase(t)
+	p, b := seedBilling(t, owner)
+	_, err := owner.Exec(t.Context(), `INSERT INTO invoice (organization_id, kind, number, issued_at, issued_by_account_id,
+		payment_method, total_minor) VALUES ($1, 'receipt', 30, now(), $2, 'cash', 0)`, clinicA, p[0].account)
+	if sqlState(err) != "23502" {
+		t.Errorf("a receipt without its seller = %v, want a not-null violation", err)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE invoice SET seller_tax_id = '4200000000002' WHERE id = $1`, b.patientReceipt); err == nil {
+		t.Error("the owner changed an issued receipt's seller")
+	}
+	_, err = owner.Exec(t.Context(), `INSERT INTO invoice (id, reverses_id, seller_legal_name, seller_tax_id, seller_address,
+		organization_id, kind, number, issued_at, issued_by_account_id, payment_method, total_minor)
+		VALUES ('00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000301', 'Synthetic clinic d.o.o.',
+		'4200000000001', 'Placeholder street 1, 71000', $1, 'receipt', 31, now(), $2, 'cash', 0)`, clinicA, p[0].account)
+	if sqlState(err) != "23514" {
+		t.Errorf("a receipt that reverses itself = %v, want a check violation", err)
 	}
 }

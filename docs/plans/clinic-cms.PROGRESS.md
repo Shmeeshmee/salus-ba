@@ -68,6 +68,18 @@ refuses a second reversal of one receipt (`TestInvoice_RefusesLaterLinesAnotherC
 `TestReporter_ReversesAFiscalizedReceiptOnly`). Left to the wave, recorded below: a slot carrying its rule's mode and a
 reschedule keeping it (A); `clinic_subscription`'s status moving only forward, which D enforces with its status moves.
 
+Second independent review (a fresh subagent, after CI's one failure), fixed before merge: the QR payload had no
+column, and the guard's list of fiscal columns would have kept a later migration from filling one on a fiscalized
+receipt (`fiscal_qr`, in the guard and in `invoice_fiscalized`); the seller's legal name, tax id and address are copied
+onto the receipt at issue (`seller_legal_name`, `seller_tax_id`, `seller_address`), so a retried report or a reprint
+after the clinic edits its details names the seller as it was; `fiscal.Check` refuses a sale with a negative quantity,
+a reversal with a positive one and a discount above the line's amount; a receipt never reverses itself
+(`invoice_reverses_other`) and the fake refuses to reverse a reversal; the directory's price-list policy checks
+`o.listed` itself, as `practitioner_directory` does (defence in depth: no test reproduces a leak through the
+organization's policies today). `TestReminder_SentOnceAtTheRightInstant` failed CI once on a random token holding "Cy";
+the token is taken out before the check. Left to the wave, recorded below: a reschedule within the appointment's mode
+(A); a receipt's patient being one the clinic cares for, and no reversal of a reversal (C).
+
 Checks (2026-11-21, in the worktree's own compose project): `make lint` (with `make i18n-check`), `make test`,
 `make archcheck`, `make cover` (90.9% total, the new packages 96.7 to 100%), `make e2e`, `make fhir-validate` (0 errors
 in 122 files), `make web-typecheck`, `make web-test` (1066), `make mobile-analyze`, `make mobile-test` (571; its shared
@@ -81,6 +93,15 @@ Notes for the wave:
 - **A.** A reschedule moves an appointment to another slot of its role; with modes, only to a slot of the same mode
   (the appointment's mode never changes; no `UPDATE` grant). Slot generation must carry each rule's mode, and the
   free-slot cleanup (`DeleteFreeSlotsExcept`) must compare the mode with the period.
+- **A.** The second review asks for the reschedule rule in the database as well as the service, if it is cheap: the app
+  may update `appointment.slot_id` (00054) but not `visit_mode`, so nothing in the schema stops a video appointment
+  moving onto an in-person slot.
+- **C.** A receipt without a visit may name any patient (patients are global, the foreign key bypasses row-level
+  security), and that patient then sees it: the service issues one only to a patient the clinic cares for (a care
+  relationship or a visit), tested. A reversal of a reversal is refused by the service (the schema allows it; the fake
+  refuses it).
+- **C.** The seller's columns are copied from `organization` at issue; issuing is refused while the clinic's legal name,
+  tax id or address is missing.
 - **C.** Lines are inserted only in the receipt's own transaction and from its clinic's price list (trigger). A
   reversal's sign (negative quantities and total) is the service's rule; the schema allows it.
 - **D.** The app may update `clinic_subscription` (plan, status, period) in its clinic's scope; "only forward" is D's,

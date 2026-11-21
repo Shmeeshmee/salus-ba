@@ -69,7 +69,8 @@ func (r *Reporter) fiscalize(rc fiscal.Receipt) (fiscal.Fiscalized, error) {
 	sum := sha256.Sum256([]byte(rc.Reference))
 	h := hex.EncodeToString(sum[:])
 	f := fiscal.Fiscalized{At: r.Clock.Now(), ID: "TEST-" + h[:16], Code: h[16:32], QR: "TEST:" + h[:32]}
-	r.byRef[rc.Reference], r.byID[f.ID] = f, true
+	// A receipt's fiscal id may be reversed once; a reversal's never.
+	r.byRef[rc.Reference], r.byID[f.ID] = f, rc.Reverses == ""
 	return f, nil
 }
 

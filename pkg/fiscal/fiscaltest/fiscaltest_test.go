@@ -43,19 +43,26 @@ func TestReporter_FiscalizesOnceAndCountsEveryCall(t *testing.T) {
 	}
 }
 
-// A reversal names the fiscal id of a receipt the fake fiscalized, and of no other; it is fiscalized once too.
+// A reversal names the fiscal id of a receipt the fake fiscalized, and of no other, never of a reversal; it is
+// fiscalized once too.
 func TestReporter_ReversesAFiscalizedReceiptOnly(t *testing.T) {
 	r := &fiscaltest.Reporter{Clock: clock.Fixed{T: at}}
 	orig, _ := r.Report(t.Context(), receipt("r-1"))
 	rev := receipt("r-2")
 	rev.Reverses, rev.TotalMinor, rev.Lines[0].Quantity, rev.Lines[0].TotalMinor = orig.ID, -100, -1, -100
-	if got, err := r.Reverse(t.Context(), rev); err != nil || got.ID == "" || got.ID == orig.ID {
-		t.Errorf("Reverse() = %+v, %v; want its own fiscal id", got, err)
+	reversed, err := r.Reverse(t.Context(), rev)
+	if err != nil || reversed.ID == "" || reversed.ID == orig.ID {
+		t.Errorf("Reverse() = %+v, %v; want its own fiscal id", reversed, err)
 	}
 	again := rev
 	again.Reference = "r-5"
 	if _, err := r.Reverse(t.Context(), again); !errors.Is(err, fiscal.ErrRejected) {
 		t.Errorf("a second reversal of the receipt = %v, want ErrRejected", err)
+	}
+	revOfRev := rev
+	revOfRev.Reference, revOfRev.Reverses = "r-6", reversed.ID
+	if _, err := r.Reverse(t.Context(), revOfRev); !errors.Is(err, fiscal.ErrRejected) {
+		t.Errorf("a reversal of the reversal = %v, want ErrRejected", err)
 	}
 	rev.Reference, rev.Reverses = "r-3", "unknown"
 	if _, err := r.Reverse(t.Context(), rev); !errors.Is(err, fiscal.ErrRejected) {

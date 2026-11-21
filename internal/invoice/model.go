@@ -46,6 +46,9 @@ type Invoice struct {
 	FiscalizedAt      time.Time // zero until fiscalized
 	ID                string
 	OrganizationID    string
+	SellerLegalName   string // the clinic's, copied at issue
+	SellerTaxID       string
+	SellerAddress     string
 	PatientID         string // empty unless to a patient
 	CompanyName       string // empty unless to a company
 	CompanyTaxID      string
@@ -55,6 +58,7 @@ type Invoice struct {
 	Currency          string
 	FiscalID          string
 	FiscalCode        string
+	FiscalQR          string // the QR payload printed on it
 	Kind              Kind
 	PaymentMethod     PaymentMethod
 	FiscalStatus      FiscalStatus

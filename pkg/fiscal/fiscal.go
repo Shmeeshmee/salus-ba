@@ -76,9 +76,9 @@ var (
 var currency = regexp.MustCompile(`^[A-Z]{3}$`)
 
 // Check refuses, with ErrInvalidReceipt, a receipt without a reference, seller, number, time or lines, with an unknown
-// currency or payment method, a line without a name or quantity, a line whose total is not its quantity times its
-// unit price less its discount (on a reversal, a negative quantity, the discount given back), or lines that do not add
-// up to the total.
+// currency or payment method, a line without a name, a line whose quantity is not positive on a receipt and negative
+// on a reversal, a discount above the line's amount, a line whose total is not its quantity times its unit price less
+// its discount (on a reversal, the discount given back), or lines that do not add up to the total.
 func Check(r Receipt) error {
 	if r.Reference == "" || r.SellerTaxID == "" || r.Number <= 0 || r.IssuedAt.IsZero() || len(r.Lines) == 0 ||
 		!currency.MatchString(r.Currency) {
@@ -91,7 +91,7 @@ func Check(r Receipt) error {
 	}
 	var total int64
 	for _, l := range r.Lines {
-		if l.Name == "" || l.Quantity == 0 || l.UnitPriceMinor < 0 || l.DiscountMinor < 0 || l.TotalMinor != lineTotal(l) {
+		if !validLine(l, r.Reverses != "") {
 			return ErrInvalidReceipt
 		}
 		total += l.TotalMinor
@@ -100,6 +100,17 @@ func Check(r Receipt) error {
 		return ErrInvalidReceipt
 	}
 	return nil
+}
+
+// validLine reports whether a line is named, of a positive quantity on a receipt and a negative one on a reversal,
+// with a discount of at most its amount, and totals to its quantity times its unit price less the discount.
+func validLine(l Line, reversal bool) bool {
+	qty := int64(l.Quantity)
+	if reversal {
+		qty = -qty
+	}
+	return l.Name != "" && qty > 0 && l.UnitPriceMinor >= 0 && l.DiscountMinor >= 0 &&
+		l.DiscountMinor <= qty*l.UnitPriceMinor && l.TotalMinor == lineTotal(l)
 }
 
 // lineTotal is a line's quantity times its unit price, less its discount on a sale and plus it on a reversal.

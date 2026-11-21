@@ -56,11 +56,11 @@ CREATE TABLE charge_item_definition (
 ALTER TABLE charge_item_definition ENABLE ROW LEVEL SECURITY;
 CREATE POLICY charge_item_definition_clinic ON charge_item_definition
     USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
--- Prices are shown at booking: the directory sees the active services of listed clinics (organization's policy).
+-- Prices are shown at booking: the directory sees the active services of listed clinics.
 CREATE POLICY charge_item_definition_directory ON charge_item_definition FOR SELECT
     USING (active
            AND NULLIF(current_setting('app.directory', true), '') = 'public'
-           AND EXISTS (SELECT 1 FROM organization o WHERE o.id = charge_item_definition.organization_id));
+           AND EXISTS (SELECT 1 FROM organization o WHERE o.id = charge_item_definition.organization_id AND o.listed));
 -- Never deleted: a service no longer offered is made inactive, and receipts copy what they need.
 GRANT SELECT, INSERT ON charge_item_definition TO salus_app;
 GRANT UPDATE (name, code, price_minor, currency, duration_minutes, vat_rate_bp, modes, active, version_id, updated_at)
@@ -93,6 +93,10 @@ CREATE TABLE invoice (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     created_at timestamptz DEFAULT now() NOT NULL,
     organization_id uuid NOT NULL REFERENCES organization (id),
+    -- The seller as it was at issue: the clinic's legal name, tax id and address are copied, as they may change later.
+    seller_legal_name text NOT NULL CHECK (seller_legal_name <> ''),
+    seller_tax_id text NOT NULL CHECK (seller_tax_id ~ '^[0-9]{12,13}$'),
+    seller_address text NOT NULL CHECK (seller_address <> ''),
     patient_id uuid REFERENCES patient (id),
     company_name text CHECK (company_name <> ''),
     company_tax_id text CHECK (company_tax_id ~ '^[0-9]{12,13}$'),
@@ -108,15 +112,18 @@ CREATE TABLE invoice (
     fiscal_status text DEFAULT 'pending' NOT NULL CHECK (fiscal_status IN ('pending', 'fiscalized', 'failed')),
     fiscal_id text,
     fiscal_code text,
+    fiscal_qr text, -- the QR payload printed on the receipt
     fiscalized_at timestamptz,
     -- A patient, a company or neither (an anonymous cash sale); a company's tax id only with its name.
     CONSTRAINT invoice_buyer CHECK (patient_id IS NULL OR company_name IS NULL),
     CONSTRAINT invoice_company CHECK (company_tax_id IS NULL OR company_name IS NOT NULL),
     CONSTRAINT invoice_fiscalized CHECK ((fiscal_status = 'fiscalized') = (fiscal_id IS NOT NULL AND fiscal_code IS NOT NULL
+                                                                          AND fiscal_qr IS NOT NULL
                                                                           AND fiscalized_at IS NOT NULL)),
     CONSTRAINT invoice_number_key UNIQUE (organization_id, number),
-    -- A receipt is reversed once, by a receipt of its own clinic.
+    -- A receipt is reversed once, by another receipt of its own clinic.
     CONSTRAINT invoice_reverses_key UNIQUE (reverses_id),
+    CONSTRAINT invoice_reverses_other CHECK (reverses_id <> id),
     CONSTRAINT invoice_id_organization_key UNIQUE (id, organization_id),
     CONSTRAINT invoice_reverses_fkey FOREIGN KEY (reverses_id, organization_id) REFERENCES invoice (id, organization_id),
     -- A visit's receipt is of the visit's clinic and, when it names a patient, of the visit's patient (MATCH SIMPLE
@@ -138,7 +145,7 @@ CREATE POLICY invoice_own ON invoice FOR SELECT
     USING (patient_id = NULLIF(current_setting('app.patient_id', true), '')::uuid);
 -- Issued once; only the fiscal columns change (the trigger says how). No DELETE: retention decides (placeholder).
 GRANT SELECT, INSERT ON invoice TO salus_app;
-GRANT UPDATE (fiscal_status, fiscal_id, fiscal_code, fiscalized_at) ON invoice TO salus_app;
+GRANT UPDATE (fiscal_status, fiscal_id, fiscal_code, fiscal_qr, fiscalized_at) ON invoice TO salus_app;
 
 -- An issued receipt never changes, for every role, the owner too: only the fiscal columns move, from pending to
 -- fiscalized or failed, and from failed to fiscalized (the retried report). A fiscalized receipt never changes. Removal
@@ -149,7 +156,7 @@ CREATE FUNCTION invoice_guard_change() RETURNS trigger
     SET search_path = pg_catalog
 AS $$
 DECLARE
-    fiscal text[] := ARRAY['fiscal_status', 'fiscal_id', 'fiscal_code', 'fiscalized_at'];
+    fiscal text[] := ARRAY['fiscal_status', 'fiscal_id', 'fiscal_code', 'fiscal_qr', 'fiscalized_at'];
 BEGIN
     IF (to_jsonb(NEW) - fiscal) IS DISTINCT FROM (to_jsonb(OLD) - fiscal) THEN
         RAISE EXCEPTION 'invoice: an issued receipt never changes' USING ERRCODE = 'check_violation';

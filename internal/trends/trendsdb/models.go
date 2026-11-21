@@ -661,6 +661,9 @@ type Invoice struct {
 	ID                pgtype.UUID
 	CreatedAt         pgtype.Timestamptz
 	OrganizationID    pgtype.UUID
+	SellerLegalName   string
+	SellerTaxID       string
+	SellerAddress     string
 	PatientID         pgtype.UUID
 	CompanyName       pgtype.Text
 	CompanyTaxID      pgtype.Text
@@ -676,6 +679,7 @@ type Invoice struct {
 	FiscalStatus      string
 	FiscalID          pgtype.Text
 	FiscalCode        pgtype.Text
+	FiscalQr          pgtype.Text
 	FiscalizedAt      pgtype.Timestamptz
 }
 
