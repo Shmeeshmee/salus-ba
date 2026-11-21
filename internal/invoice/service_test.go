@@ -17,7 +17,7 @@ var _ invoice.Prices = (*chargeitemdefinition.Service)(nil)
 // Step 0 is the contract only: every method refuses until package C builds it (docs/plans/clinic-cms.md).
 func TestService_RefusesEveryMethodUntilPackageC(t *testing.T) {
 	clk := clock.Fixed{T: time.Date(2026, 11, 21, 9, 0, 0, 0, time.UTC)}
-	svc := invoice.NewService(nil, chargeitemdefinition.NewService(nil, clk), &fiscaltest.Reporter{Clock: clk}, clk)
+	svc := invoice.NewService(nil, chargeitemdefinition.NewService(chargeitemdefinition.Ports{Clock: clk}), &fiscaltest.Reporter{Clock: clk}, clk)
 	ctx, c := t.Context(), invoice.Caller{AccountID: "a", OrganizationID: "o", Admin: true}
 	_, issue := svc.Issue(ctx, c, invoice.Draft{Kind: invoice.KindReceipt, PaymentMethod: invoice.PaymentCash})
 	_, read := svc.Read(ctx, c, "i")

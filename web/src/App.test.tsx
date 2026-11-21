@@ -123,6 +123,14 @@ describe('App', () => {
     expect(location.pathname).toBe('/clinic')
   })
 
+  it('gives an admin the price list from the clinic settings, and a practitioner none', async () => {
+    renderAt('/price-list', { ...staff(admin), 'GET /clinic/services': () => Response.json([]) })
+    expect(await screen.findByRole('heading', { name: 'Price list' })).toBeTruthy()
+    cleanup()
+    renderAt('/price-list', staff({ ...admin, role: 'practitioner' }))
+    expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+  })
+
   it('gives a practitioner no clinic settings', async () => {
     renderAt('/clinic', staff({ ...admin, role: 'practitioner' }))
 

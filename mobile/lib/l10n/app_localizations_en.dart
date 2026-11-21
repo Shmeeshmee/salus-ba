@@ -1977,4 +1977,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'This time is no longer held for you. You stay on the waitlist.';
+
+  @override
+  String get pricesHeading => 'Prices at this clinic';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'You pay at the clinic. Nothing is charged in the app.';
 }

@@ -2042,4 +2042,11 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار.';
+
+  @override
+  String get pricesHeading => 'الأسعار في هذه العيادة';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق.';
 }

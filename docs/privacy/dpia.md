@@ -2336,3 +2336,23 @@ directory the active services of listed clinics (prices at booking). The members
 | A receipt reveals a patient's visit to another clinic or patient | Row-level security: the clinic's scope and the patient's own only; a visit's receipt is held to the visit's clinic (and patient, when it names one) by composite foreign keys; a line only from the receipt's clinic's price list |
 | More than the law requires reaches the Tax Administration | `pkg/fiscal`'s receipt carries the seller's tax id, amounts, item names and the payment method, never a patient; what ESET needs is recorded here with package G once the specification is known (Q6) |
 | A fake fiscalization is taken for a legal receipt | `config.LoadFiscal` takes only the fake until package G; the fake's identifiers start with `TEST-` |
+
+### Package B: the price list
+
+**Processing added.** The clinic's admin keeps the price list (`GET`, `POST /clinic/services`,
+`PUT /clinic/services/{id}`); anyone sees the active services of a listed clinic with their prices
+(`GET /organizations/{id}/services`), and the patient app shows them on the booking screen. Prices are shown and paid
+at the clinic: nothing is charged in the app (`appointment.Prices` stays nil).
+
+**Personal data added.** None. A service's name, code, price, duration, VAT rate, modes and translated names describe
+the clinic, not a person; the public read takes no session and stores nothing about who asked. The audit of a write
+names the admin's account, as every audited write does.
+
+**Who sees what.** Every service, active or not: the clinic's staff. The active services of a listed clinic: anyone
+(row-level security and the service both check `active` and `listed`). Only the clinic's admin changes the list; each
+write is audited, also when refused.
+
+| Risk | Measure |
+| --- | --- |
+| A price change rewrites what a patient was charged | A receipt copies its lines at issue (`Service.Lines`: the name, unit price and VAT rate then); a service is never deleted, only taken off the list |
+| A clinic that is not listed shows its prices | The directory's policy and the service both require a listed clinic; anyone else's gets 404 (tested) |

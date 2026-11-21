@@ -515,5 +515,7 @@
   "waitlistWithdrawn": "Sie haben die Warteliste verlassen.",
   "waitlistOff": "Diese Praxis hat keine Warteliste.",
   "waitlistTooMany": "Sie stehen bereits fünfmal auf der Warteliste dieser Praxis. Verlassen Sie zuerst einen Eintrag.",
-  "waitlistOfferExpired": "Dieser Termin ist nicht mehr für Sie reserviert. Sie bleiben auf der Warteliste."
+  "waitlistOfferExpired": "Dieser Termin ist nicht mehr für Sie reserviert. Sie bleiben auf der Warteliste.",
+  "pricesHeading": "Preise dieser Praxis",
+  "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet."
 }

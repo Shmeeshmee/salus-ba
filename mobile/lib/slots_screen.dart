@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salus_api/api.dart' as api;
 
 import 'appointments_screen.dart';
 import 'booking.dart';
@@ -9,6 +10,8 @@ import 'files.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
+import 'questionnaire_language.dart' show appLanguage;
+import 'service_price.dart';
 import 'session.dart';
 import 'sharing.dart';
 import 'ui.dart' as ui;
@@ -183,6 +186,22 @@ class _BookScreenState extends State<BookScreen> {
     _loadSharing();
   }
 
+  /// The clinic's services and prices for this visit, in the app's language: shown, never charged. Every slot is a
+  /// video visit until slots carry their mode in the app (docs/plans/clinic-cms.md, package A).
+  List<api.OfferedService> _prices = const [];
+  String? _pricesLanguage;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final language = appLanguage(context);
+    if (language == _pricesLanguage) return;
+    _pricesLanguage = language;
+    widget.booking.offeredServices(widget.clinic.id, api.VisitMode.video, language).then((got) {
+      if (mounted && _pricesLanguage == language) setState(() => _prices = got);
+    }, onError: (Object _) {}); // booking goes on without the prices
+  }
+
   /// Reads what is shared with the clinic now; nothing changes on the screen when it fails or nothing is.
   Future<void> _loadSharing() async {
     try {
@@ -331,6 +350,7 @@ class _BookScreenState extends State<BookScreen> {
         Text(widget.role.name),
         if (specialty != null) Text(specialty),
         Text(widget.clinic.name),
+        ServicePrices(services: _prices),
         SwitchListTile(value: _share, onChanged: _busy ? null : _toggleSharing, title: Text(t.sharingToggle)),
         if (_share && _choice != null)
           SharingPicker(

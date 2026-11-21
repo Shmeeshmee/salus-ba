@@ -1981,4 +1981,11 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Bu saat artık sizin için ayrılmış değil. Bekleme listesinde kalıyorsunuz.';
+
+  @override
+  String get pricesHeading => 'Bu klinikteki fiyatlar';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.';
 }
