@@ -186,6 +186,9 @@ func jobSettings(cfg *config.Config) (retention.Policy, error) {
 	if cfg.WebhookKey, err = config.LoadWebhookKey(); err != nil {
 		return retention.Policy{}, err
 	}
+	if _, err = config.LoadFiscal(); err != nil { // the receipts' reports: the fake only, until the ESET adapter (clinic-cms G)
+		return retention.Policy{}, err
+	}
 	p, err := config.LoadRetentionPolicy()
 	if err != nil {
 		return retention.Policy{}, err

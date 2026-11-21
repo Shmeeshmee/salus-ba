@@ -2678,13 +2678,13 @@ export interface paths {
         };
         /**
          * The clinic's receipts issued in a period
-         * @description Newest first, with their lines and fiscal status. For the clinic's admin. Built in package C of docs/plans/clinic-cms.md (404 until then). Health data (a patient's receipts): audited.
+         * @description Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
          */
         get: operations["listClinicReceipts"];
         put?: never;
         /**
          * Issue a receipt for a visit or on its own
-         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Built in package C (404 until then). Audited, also when refused.
+         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
          */
         post: operations["issueReceipt"];
         delete?: never;
@@ -2702,7 +2702,7 @@ export interface paths {
         };
         /**
          * A receipt of the clinic
-         * @description For the clinic's admin and the practitioner who issued it. Built in package C (404 until then). Audited.
+         * @description For the clinic's admin and the practitioner who issued it. Audited.
          */
         get: operations["getClinicReceipt"];
         put?: never;
@@ -2724,7 +2724,7 @@ export interface paths {
         put?: never;
         /**
          * Reverse an issued receipt
-         * @description Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Built in package C (404 until then). Audited, also when refused.
+         * @description Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Audited, also when refused.
          */
         post: operations["reverseReceipt"];
         delete?: never;
@@ -2742,7 +2742,7 @@ export interface paths {
         };
         /**
          * A receipt as a PDF on the clinic's letterhead
-         * @description The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Built in package C (404 until then). Audited.
+         * @description The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Audited.
          */
         get: operations["getClinicReceiptPdf"];
         put?: never;
@@ -2762,7 +2762,7 @@ export interface paths {
         };
         /**
          * The clinic's receipts summed for a day or a period, for its accountant
-         * @description Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Built in package C (404 until then). Audited.
+         * @description Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.
          */
         get: operations["getReceiptsReport"];
         put?: never;
@@ -2782,7 +2782,7 @@ export interface paths {
         };
         /**
          * The patient's own receipts, from every clinic
-         * @description Newest first. Built in package C (404 until then). Audited.
+         * @description Newest first. Audited.
          */
         get: operations["listMyReceipts"];
         put?: never;
@@ -2802,7 +2802,7 @@ export interface paths {
         };
         /**
          * The patient's own receipt as a PDF
-         * @description The same document as the clinic's. Built in package C (404 until then). Audited.
+         * @description The same document as the clinic's. Audited.
          */
         get: operations["getMyReceiptPdf"];
         put?: never;
@@ -3906,7 +3906,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -12096,6 +12096,15 @@ export interface operations {
             };
             /** @description `not_found`: not staff of a clinic, or no such visit of the clinic. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `billing_details_missing`: the clinic's legal name, tax id or address is missing; a receipt names its seller. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

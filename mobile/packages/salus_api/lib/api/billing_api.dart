@@ -156,7 +156,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin and the practitioner who issued it. Built in package C (404 until then). Audited.
+  /// For the clinic's admin and the practitioner who issued it. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -193,7 +193,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin and the practitioner who issued it. Built in package C (404 until then). Audited.
+  /// For the clinic's admin and the practitioner who issued it. Audited.
   ///
   /// Parameters:
   ///
@@ -224,7 +224,7 @@ class BillingApi {
 
   /// A receipt as a PDF on the clinic's letterhead
   ///
-  /// The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Built in package C (404 until then). Audited.
+  /// The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -261,7 +261,7 @@ class BillingApi {
 
   /// A receipt as a PDF on the clinic's letterhead
   ///
-  /// The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Built in package C (404 until then). Audited.
+  /// The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Audited.
   ///
   /// Parameters:
   ///
@@ -349,7 +349,7 @@ class BillingApi {
 
   /// The patient's own receipt as a PDF
   ///
-  /// The same document as the clinic's. Built in package C (404 until then). Audited.
+  /// The same document as the clinic's. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -386,7 +386,7 @@ class BillingApi {
 
   /// The patient's own receipt as a PDF
   ///
-  /// The same document as the clinic's. Built in package C (404 until then). Audited.
+  /// The same document as the clinic's. Audited.
   ///
   /// Parameters:
   ///
@@ -417,7 +417,7 @@ class BillingApi {
 
   /// The clinic's receipts summed for a day or a period, for its accountant
   ///
-  /// Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Built in package C (404 until then). Audited.
+  /// Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -466,7 +466,7 @@ class BillingApi {
 
   /// The clinic's receipts summed for a day or a period, for its accountant
   ///
-  /// Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Built in package C (404 until then). Audited.
+  /// Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.
   ///
   /// Parameters:
   ///
@@ -505,7 +505,7 @@ class BillingApi {
 
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Built in package C (404 until then). Audited, also when refused.
+  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -550,7 +550,7 @@ class BillingApi {
 
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Built in package C (404 until then). Audited, also when refused.
+  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -586,7 +586,7 @@ class BillingApi {
 
   /// The clinic's receipts issued in a period
   ///
-  /// Newest first, with their lines and fiscal status. For the clinic's admin. Built in package C of docs/plans/clinic-cms.md (404 until then). Health data (a patient's receipts): audited.
+  /// Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -629,7 +629,7 @@ class BillingApi {
 
   /// The clinic's receipts issued in a period
   ///
-  /// Newest first, with their lines and fiscal status. For the clinic's admin. Built in package C of docs/plans/clinic-cms.md (404 until then). Health data (a patient's receipts): audited.
+  /// Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
   ///
   /// Parameters:
   ///
@@ -723,7 +723,7 @@ class BillingApi {
 
   /// The patient's own receipts, from every clinic
   ///
-  /// Newest first. Built in package C (404 until then). Audited.
+  /// Newest first. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> listMyReceiptsWithHttpInfo({
@@ -755,7 +755,7 @@ class BillingApi {
 
   /// The patient's own receipts, from every clinic
   ///
-  /// Newest first. Built in package C (404 until then). Audited.
+  /// Newest first. Audited.
   Future<List<Receipt>?> listMyReceipts({
     Future<void>? abortTrigger,
   }) async {
@@ -931,7 +931,7 @@ class BillingApi {
 
   /// Reverse an issued receipt
   ///
-  /// Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Built in package C (404 until then). Audited, also when refused.
+  /// Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -979,7 +979,7 @@ class BillingApi {
 
   /// Reverse an issued receipt
   ///
-  /// Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Built in package C (404 until then). Audited, also when refused.
+  /// Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Audited, also when refused.
   ///
   /// Parameters:
   ///

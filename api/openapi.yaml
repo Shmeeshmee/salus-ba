@@ -5678,8 +5678,8 @@ paths:
       x-salus-package: cms-c
       summary: The clinic's receipts issued in a period
       description: >-
-        Newest first, with their lines and fiscal status. For the clinic's admin. Built in package C of
-        docs/plans/clinic-cms.md (404 until then). Health data (a patient's receipts): audited.
+        Newest first, with their lines and fiscal status. For the clinic's admin. Package C of
+        docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5718,7 +5718,7 @@ paths:
         By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from
         the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by
         a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is
-        a reversal. Built in package C (404 until then). Audited, also when refused.
+        a reversal. Audited, also when refused.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5753,6 +5753,11 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`billing_details_missing`: the clinic's legal name, tax id or address is missing; a receipt names its seller."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
   /clinic/receipts/{id}:
@@ -5760,7 +5765,7 @@ paths:
       operationId: getClinicReceipt
       x-salus-package: cms-c
       summary: A receipt of the clinic
-      description: For the clinic's admin and the practitioner who issued it. Built in package C (404 until then). Audited.
+      description: For the clinic's admin and the practitioner who issued it. Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5791,7 +5796,7 @@ paths:
       summary: Reverse an issued receipt
       description: >-
         Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the
-        clinic's admin. Built in package C (404 until then). Audited, also when refused.
+        clinic's admin. Audited, also when refused.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5838,8 +5843,7 @@ paths:
       summary: A receipt as a PDF on the clinic's letterhead
       description: >-
         The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff
-        who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Built in package C (404 until
-        then). Audited.
+        who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5870,7 +5874,7 @@ paths:
       summary: The clinic's receipts summed for a day or a period, for its accountant
       description: >-
         Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or
-        as CSV with `format=csv`. For the clinic's admin. Built in package C (404 until then). Audited.
+        as CSV with `format=csv`. For the clinic's admin. Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5907,7 +5911,7 @@ paths:
       operationId: listMyReceipts
       x-salus-package: cms-c
       summary: The patient's own receipts, from every clinic
-      description: Newest first. Built in package C (404 until then). Audited.
+      description: Newest first. Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5936,7 +5940,7 @@ paths:
       operationId: getMyReceiptPdf
       x-salus-package: cms-c
       summary: The patient's own receipt as a PDF
-      description: The same document as the clinic's. Built in package C (404 until then). Audited.
+      description: The same document as the clinic's. Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -8024,6 +8028,7 @@ components:
             - invalid_service
             - invalid_receipt
             - already_reversed
+            - billing_details_missing
         linkIds:
           type: array
           items: {type: string}
