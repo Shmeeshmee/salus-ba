@@ -1,16 +1,17 @@
 -- name: CreateAppointment :one
 -- Booking, in the patient's scope; a time the role is booked at already violates
 -- appointment_no_double_booking (23P01), which aborts the transaction.
-INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at, booked_via)
+INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at, booked_via,
+                         visit_mode)
 VALUES (@patient_id, @practitioner_role_id, @organization_id, @slot_id, tstzrange(@start_at::timestamptz, @end_at::timestamptz),
-        @created_at, @created_at, @booked_via)
+        @created_at, @created_at, @booked_via, @visit_mode)
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: AppointmentByID :one
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = @id;
@@ -19,7 +20,7 @@ WHERE id = @id;
 -- AppointmentByID, locking the row against a change (a cancellation's UPDATE waits) until the transaction
 -- ends: a write that rests on the appointment being booked. Row-level security asks the UPDATE policies too.
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = @id
@@ -29,7 +30,7 @@ FOR SHARE;
 -- Appointment?patient=…&date=ge…&date=lt…&status=…, a clinic's calendar, a patient's visits in a clinic. An
 -- absent parameter matches everything; the scope decides the rest.
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)::uuid)
@@ -47,7 +48,7 @@ SET status = 'cancelled', cancelled_at = @at, cancellation_reason = @reason, can
     updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: SetAppointmentStatus :one
@@ -55,7 +56,7 @@ UPDATE appointment
 SET status = @status, updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: ListBookedForStats :many
@@ -114,7 +115,7 @@ ORDER BY lower(period);
 -- AppointmentByID, locking the row until the transaction ends: a reschedule decides on what it reads, and a concurrent
 -- reschedule or cancellation waits for it. Row-level security asks the UPDATE policies too.
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = @id
@@ -126,7 +127,7 @@ UPDATE appointment
 SET confirmed_at = @at, confirmed_via = @via, updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = 'booked' AND confirmed_at IS NULL
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: RescheduleAppointment :one
@@ -139,7 +140,7 @@ SET period = tstzrange(@start_at::timestamptz, @end_at::timestamptz), slot_id = 
     updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = 'booked' AND reschedule_count = @from_count
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: FindActionToken :one
@@ -367,7 +368,7 @@ UPDATE appointment
 SET status = @to_status::text, updated_at = @at, version_id = version_id + 1
 WHERE id = @id AND status = @from_status::text AND status IN ('fulfilled', 'noshow') AND @to_status::text IN ('fulfilled', 'noshow')
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: CountNoShowsSince :many

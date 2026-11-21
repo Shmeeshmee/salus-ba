@@ -1,0 +1,15 @@
+{
+  "resourceType": "ValueSet",
+  "id": "visit-mode",
+  "url": "https://salus.invalid/fhir/ValueSet/visit-mode",
+  "version": "0.1.0",
+  "name": "VisitMode",
+  "title": "Visit mode",
+  "status": "active",
+  "date": "2026-11-21",
+  "publisher": "Salus",
+  "description": "The ways a patient attends a slot or an appointment: every code of the visit-mode code system.",
+  "compose": {
+    "include": [{ "system": "https://salus.invalid/fhir/CodeSystem/visit-mode" }]
+  }
+}

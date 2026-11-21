@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
@@ -45,6 +46,7 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 type resource struct {
 	ResourceType      string                `json:"resourceType"`
 	ID                string                `json:"id"`
+	Extension         []fhir.Extension      `json:"extension"`
 	Status            Status                `json:"status"`
 	Start             string                `json:"start"`
 	End               string                `json:"end"`
@@ -86,6 +88,7 @@ func toFHIR(s Seen) resource {
 	res := resource{
 		ResourceType: "Appointment", ID: a.ID, Status: a.Status, Meta: fhir.NewMeta(a.VersionID, a.LastUpdated),
 		Start: instant(a.Start), End: instant(a.End), Participant: []participant{{Status: patientStatus(a), Actor: patient}},
+		Extension: []fhir.Extension{{URL: slot.ExtensionVisitMode, ValueCode: string(visitMode(a.Mode))}},
 	}
 	if s.PractitionerID != "" {
 		res.Participant = append(res.Participant, participant{Status: "accepted", Actor: fhir.Reference{Reference: "Practitioner/" + s.PractitionerID}})

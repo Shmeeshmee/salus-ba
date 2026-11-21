@@ -36,6 +36,22 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/chargeitemdefinition/query.sql
+    gen:
+      go:
+        package: chargeitemdefinitiondb
+        out: internal/chargeitemdefinition/chargeitemdefinitiondb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/invoice/query.sql
+    gen:
+      go:
+        package: invoicedb
+        out: internal/invoice/invoicedb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/organization/query.sql
     gen:
       go:
@@ -121,6 +137,14 @@ sql:
       go:
         package: appointmentdb
         out: internal/appointment/appointmentdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/subscription/query.sql
+    gen:
+      go:
+        package: subscriptiondb
+        out: internal/subscription/subscriptiondb
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations

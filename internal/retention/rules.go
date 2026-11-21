@@ -337,6 +337,20 @@ func appointmentRules() []Rule {
 			Then: ThenDelete,
 		},
 		{
+			Table: "invoice",
+			Basis: "The clinic's legal obligation to issue and keep receipts (GDPR Art. 6(1)(c), Art. 9(2)(h) for a receipt to a " +
+				"patient, which shows they paid for a service at a clinic): kept as the accounting and fiscal law requires, a " +
+				"placeholder of ten years after issue that needs a legal decision before production (docs/plans/clinic-cms.md " +
+				"\"Personal data\"); until then nothing removes a receipt, and the rule that does comes with its applier",
+			Then: ThenKeep,
+		},
+		{
+			Table: "invoice_line",
+			Basis: "The lines of a receipt (GDPR Art. 6(1)(c), Art. 9(2)(h)): kept with their receipt, as long as the accounting " +
+				"and fiscal law requires (placeholder ten years, needs a legal decision before production)",
+			Then: ThenKeep,
+		},
+		{
 			Table: "notification_preference",
 			Basis: "The patient's own choice (GDPR Art. 6(1)(b), the contract with the patient): their reminder channels, quiet " +
 				"hours and device time zone, replaced on each change and deleted with the account (foreign key; erasure " +

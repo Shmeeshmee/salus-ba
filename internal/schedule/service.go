@@ -310,10 +310,13 @@ func validate(in Availability) ([]Rule, error) {
 		return nil, ErrInvalidSlotMinutes
 	}
 	rules := slices.Clone(in.Rules)
-	for _, r := range rules {
+	for i, r := range rules {
 		start, okStart := Minutes(r.Start)
 		end, okEnd := Minutes(r.End)
-		if r.Day < 1 || r.Day > 7 || !okStart || !okEnd || start >= end {
+		if r.Mode == "" { // until package A lets the edit name the mode
+			rules[i].Mode = ModeVideo
+		}
+		if r.Day < 1 || r.Day > 7 || !okStart || !okEnd || start >= end || !rules[i].Mode.Valid() {
 			return nil, ErrInvalidAvailability
 		}
 	}

@@ -274,6 +274,7 @@ type Appointment struct {
 	ConfirmedVia         pgtype.Text
 	RescheduleCount      int16
 	BookedVia            string
+	VisitMode            string
 }
 
 type AppointmentActionToken struct {
@@ -379,6 +380,28 @@ type Binary struct {
 	ThumbnailWrappedKey       []byte
 }
 
+type ChargeItemDefinition struct {
+	ID              pgtype.UUID
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	OrganizationID  pgtype.UUID
+	Name            string
+	Code            pgtype.Text
+	PriceMinor      int64
+	Currency        string
+	DurationMinutes pgtype.Int4
+	VatRateBp       pgtype.Int4
+	Modes           []string
+	Active          bool
+	VersionID       int32
+}
+
+type ChargeItemDefinitionTranslation struct {
+	ChargeItemDefinitionID pgtype.UUID
+	Language               Language
+	Name                   string
+}
+
 type ChatConsent struct {
 	ID                         pgtype.UUID
 	CreatedAt                  pgtype.Timestamptz
@@ -415,6 +438,17 @@ type ClinicDiagnosisStat struct {
 	GroupCode          string
 	SubgroupCode       pgtype.Text
 	Code               string
+}
+
+type ClinicSubscription struct {
+	OrganizationID     pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	PlanCode           string
+	Status             string
+	TrialEndsAt        pgtype.Timestamptz
+	CurrentPeriodStart pgtype.Timestamptz
+	CurrentPeriodEnd   pgtype.Timestamptz
 }
 
 type Communication struct {
@@ -623,6 +657,49 @@ type Invite struct {
 	TokenHash      []byte
 }
 
+type Invoice struct {
+	ID                pgtype.UUID
+	CreatedAt         pgtype.Timestamptz
+	OrganizationID    pgtype.UUID
+	SellerLegalName   string
+	SellerTaxID       string
+	SellerAddress     string
+	PatientID         pgtype.UUID
+	CompanyName       pgtype.Text
+	CompanyTaxID      pgtype.Text
+	AppointmentID     pgtype.UUID
+	Kind              string
+	ReversesID        pgtype.UUID
+	Number            int64
+	IssuedAt          pgtype.Timestamptz
+	IssuedByAccountID pgtype.UUID
+	PaymentMethod     string
+	TotalMinor        int64
+	Currency          string
+	FiscalStatus      string
+	FiscalID          pgtype.Text
+	FiscalCode        pgtype.Text
+	FiscalQr          pgtype.Text
+	FiscalizedAt      pgtype.Timestamptz
+}
+
+type InvoiceLine struct {
+	ID                     pgtype.UUID
+	InvoiceID              pgtype.UUID
+	ChargeItemDefinitionID pgtype.UUID
+	Name                   string
+	Quantity               int32
+	UnitPriceMinor         int64
+	DiscountMinor          int64
+	VatRateBp              pgtype.Int4
+	TotalMinor             int64
+}
+
+type InvoiceSequence struct {
+	OrganizationID pgtype.UUID
+	LastNumber     int64
+}
+
 type MedicationStatement struct {
 	ID                      pgtype.UUID
 	CreatedAt               pgtype.Timestamptz
@@ -703,6 +780,12 @@ type Organization struct {
 	RegionID              pgtype.Text
 	CityID                pgtype.Text
 	RegionKind            pgtype.Text
+	AddressLine           pgtype.Text
+	PostalCode            pgtype.Text
+	LegalName             pgtype.Text
+	TaxID                 pgtype.Text
+	VatRegistered         bool
+	BillingEmail          pgtype.Text
 }
 
 type OrganizationAppointmentSetting struct {
@@ -908,6 +991,7 @@ type Slot struct {
 	VersionID      int32
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
+	VisitMode      string
 }
 
 type SmsUsage struct {
@@ -915,6 +999,30 @@ type SmsUsage struct {
 	Month          pgtype.Date
 	Messages       int32
 	Segments       int32
+}
+
+type SubscriptionInvoice struct {
+	ID             pgtype.UUID
+	OrganizationID pgtype.UUID
+	Number         int64
+	PeriodStart    pgtype.Date
+	PeriodEnd      pgtype.Date
+	Seats          int32
+	AmountMinor    int64
+	Currency       string
+	IssuedAt       pgtype.Timestamptz
+	DueAt          pgtype.Timestamptz
+	PaidAt         pgtype.Timestamptz
+	Status         string
+}
+
+type SubscriptionPlan struct {
+	Code              string
+	Name              string
+	PricePerSeatMinor int64
+	Currency          string
+	Features          []string
+	Active            bool
 }
 
 type Suggestion struct {

@@ -16,6 +16,7 @@ class AvailabilityRule {
     required this.day,
     required this.start,
     required this.end,
+    this.mode,
   });
 
   /// ISO weekday, 1 Monday to 7 Sunday.
@@ -29,27 +30,46 @@ class AvailabilityRule {
   /// After start.
   String end;
 
+  /// The visit mode of the rule's slots; always in a response, `video` for every rule made before the clinic system. A PUT takes it from package A of docs/plans/clinic-cms.md (x-salus-package cms-a); until then a PUT names no mode and every rule is video.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  VisitMode? mode;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is AvailabilityRule &&
           other.day == day &&
           other.start == start &&
-          other.end == end;
+          other.end == end &&
+          other.mode == mode;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (day.hashCode) + (start.hashCode) + (end.hashCode);
+      (day.hashCode) +
+      (start.hashCode) +
+      (end.hashCode) +
+      (mode == null ? 0 : mode!.hashCode);
 
   @override
-  String toString() => 'AvailabilityRule[day=$day, start=$start, end=$end]';
+  String toString() =>
+      'AvailabilityRule[day=$day, start=$start, end=$end, mode=$mode]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'day'] = this.day;
     json[r'start'] = this.start;
     json[r'end'] = this.end;
+    if (this.mode != null) {
+      json[r'mode'] = this.mode;
+    } else {
+      json[r'mode'] = null;
+    }
     return json;
   }
 
@@ -83,6 +103,7 @@ class AvailabilityRule {
         day: mapValueOfType<int>(json, r'day')!,
         start: mapValueOfType<String>(json, r'start')!,
         end: mapValueOfType<String>(json, r'end')!,
+        mode: VisitMode.fromJson(json[r'mode']),
       );
     }
     return null;

@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 func checkEvents(t *testing.T, name string, audit *fakeAuditor, want ...auditevent.AuditEvent) {
@@ -101,5 +102,19 @@ func TestBook_FailsOnABackendErrorWithoutLeakingItsInputs(t *testing.T) {
 		if len(f.jobs.enqueued) != 0 || len(f.audit.events) != 0 {
 			t.Errorf("%s: enqueued %v, audited %v after the rollback; want nothing", name, f.jobs.enqueued, f.audit.events)
 		}
+	}
+}
+
+// An appointment is in the mode of the slot it holds, as the slot says inside the booking's transaction
+// (docs/plans/clinic-cms.md, ADR 0016).
+func TestBook_TheAppointmentTakesTheModeOfItsSlot(t *testing.T) {
+	f := newFixture()
+	b := f.slots.bookable[slotFree]
+	b.Mode = schedule.ModeInPerson
+	f.slots.bookable[slotFree] = b
+
+	got, err := f.svc.Book(t.Context(), me, slotFree)
+	if err != nil || got.Mode != schedule.ModeInPerson {
+		t.Errorf("Book() = mode %q, %v; want in-person", got.Mode, err)
 	}
 }

@@ -18,9 +18,12 @@ tables:
   appointment_reminder: {owner: appointment, personal_data: true} # when each reminder is due and whether it went (00055, SAL-33)
   audit_event: {owner: auditevent, personal_data: true}
   binary: {owner: binary, personal_data: true}
+  charge_item_definition: {owner: chargeitemdefinition, personal_data: false} # the clinic's price list (00059)
+  charge_item_definition_translation: {owner: chargeitemdefinition, personal_data: false} # a service's name in a patient's language (00059)
   chat_consent: {owner: consent, personal_data: true}
   clinic_appointment_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
   clinic_diagnosis_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
+  clinic_subscription: {owner: subscription, personal_data: false} # the clinic's plan and status (00059)
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
   condition: {owner: condition, personal_data: true}
@@ -37,6 +40,9 @@ tables:
   history_consent: {owner: consent, personal_data: true} # 00043, SAL-42
   history_consent_encounter: {owner: consent, personal_data: true} # 00043, SAL-42
   invite: {owner: auth, personal_data: true}
+  invoice: {owner: invoice, personal_data: true} # a receipt to a patient: who paid for what, at which clinic (00059)
+  invoice_line: {owner: invoice, personal_data: true} # a receipt's lines (00059)
+  invoice_sequence: {owner: invoice, personal_data: false} # the clinic's receipt numbers (00059)
   medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   medication_statement_provenance: {owner: medicationstatement, personal_data: true} # 00053, SAL-41
   notification_delivery: {owner: notification, personal_data: true} # which channel a reminder or offer went through (00055, SAL-33)
@@ -57,6 +63,8 @@ tables:
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
   sms_usage: {owner: notification, personal_data: false} # a clinic's SMS messages and parts per month (00055, SAL-33)
+  subscription_invoice: {owner: subscription, personal_data: false} # Salus's monthly invoice to a clinic (00059)
+  subscription_plan: {owner: subscription, personal_data: false} # plans the owner edits in salusctl (00059)
   suggestion: {owner: suggestion, personal_data: true}
   term: {owner: terminology, personal_data: true} # reviewed_by, the reviewer's account (00037)
   term_explanation: {owner: terminology, personal_data: true} # reviewed_by

@@ -3,6 +3,7 @@ package worker_test
 import (
 	"context"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -291,6 +292,9 @@ func checkAbroad(t *testing.T, s *reminderStack, b booking, role string) visit {
 	return early
 }
 
+// linkToken is the one-time link's token in an e-mail.
+var linkToken = regexp.MustCompile(`/a/[A-Za-z0-9_-]+`)
+
 // checkSentOnce runs the day-before reminder's sends twice: one e-mail with both times, one push, one link.
 func checkSentOnce(t *testing.T, s *reminderStack, b booking, early visit) {
 	t.Helper()
@@ -311,8 +315,11 @@ func checkSentOnce(t *testing.T, s *reminderStack, b booking, early visit) {
 			t.Errorf("the e-mail lacks %q:\n%s", want, body)
 		}
 	}
+	// The link's token is 43 random base64url characters, which hold any two letters about once in a hundred runs:
+	// it is taken out before looking for the names.
+	withoutToken := linkToken.ReplaceAllString(body, "/a/<token>")
 	for _, never := range []string{"Cy", "Ana", b.email[:8], early.id} {
-		if strings.Contains(body+s.sender.sent[0].Subject, never) {
+		if strings.Contains(withoutToken+s.sender.sent[0].Subject, never) {
 			t.Errorf("the e-mail holds %q", never)
 		}
 	}

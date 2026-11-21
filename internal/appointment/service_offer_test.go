@@ -11,6 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/payments/paymentstest"
@@ -400,5 +401,19 @@ func TestHandOn_TriesAgainAfterTheQuietHoursAndLooksPastTheFirstPage(t *testing.
 	}
 	if len(w.wl.offers) != 1 || w.wl.offers[0].PatientID != patientA {
 		t.Errorf("offers %+v, want patient A's, past the first page", w.wl.offers)
+	}
+}
+
+// An accepted offer books an appointment in the mode of the offered slot.
+func TestAccept_TheAppointmentTakesTheModeOfItsSlot(t *testing.T) {
+	t.Parallel()
+	w, id, _ := offered(t, now.Add(time.Minute))
+	b := w.offered.slots[slotFree]
+	b.Mode = schedule.ModeInPerson
+	w.offered.slots[slotFree] = b
+
+	got, err := w.svc.Accept(t.Context(), me, id)
+	if err != nil || got.Mode != schedule.ModeInPerson {
+		t.Errorf("Accept() = mode %q, %v; want in-person", got.Mode, err)
 	}
 }

@@ -383,6 +383,7 @@ Map<String, Object?> booked(String id, {String status = 'booked'}) => {
   'end': '2026-11-05T08:30:00Z',
   'status': status,
   'bookedVia': 'direct',
+  'visitMode': 'video',
   'versionId': 1,
   'rescheduleCount': 0,
 };
