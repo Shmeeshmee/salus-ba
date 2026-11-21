@@ -1,19 +1,20 @@
 -- name: DeleteFreeSlotsExcept :execrows
--- Generation: the schedule's future free slots its rules no longer give. A busy slot is never deleted (here,
--- and by the slot_delete_free_only policy).
+-- Generation: the schedule's future free slots its rules no longer give, at that time or in that visit mode. A busy
+-- slot is never deleted (here, and by the slot_delete_free_only policy).
 DELETE FROM slot
 WHERE schedule_id = @schedule_id
   AND status = 'free'
   AND lower(period) > @after::timestamptz
-  AND (lower(period), upper(period)) NOT IN (
-      SELECT g.s, g.e FROM (SELECT unnest(@starts::timestamptz[]) AS s, unnest(@ends::timestamptz[]) AS e) AS g);
+  AND (lower(period), upper(period), visit_mode) NOT IN (
+      SELECT g.s, g.e, g.m
+      FROM (SELECT unnest(@starts::timestamptz[]) AS s, unnest(@ends::timestamptz[]) AS e, unnest(@modes::text[]) AS m) AS g);
 
 -- name: InsertSlots :execrows
--- Generation: a free slot per period; one that overlaps a slot of the schedule (slot_no_overlap) is skipped.
--- The two arrays are as long as each other, so the two unnest calls pair them up.
-INSERT INTO slot (schedule_id, organization_id, period)
-SELECT @schedule_id::uuid, @organization_id::uuid, tstzrange(g.s, g.e)
-FROM (SELECT unnest(@starts::timestamptz[]) AS s, unnest(@ends::timestamptz[]) AS e) AS g
+-- Generation: a free slot per period, in its rule's visit mode; one that overlaps a slot of the schedule
+-- (slot_no_overlap) is skipped. The three arrays are as long as each other, so the unnest calls pair them up.
+INSERT INTO slot (schedule_id, organization_id, period, visit_mode)
+SELECT @schedule_id::uuid, @organization_id::uuid, tstzrange(g.s, g.e), g.m
+FROM (SELECT unnest(@starts::timestamptz[]) AS s, unnest(@ends::timestamptz[]) AS e, unnest(@modes::text[]) AS m) AS g
 ON CONFLICT DO NOTHING;
 
 -- name: SearchFreeSlots :many

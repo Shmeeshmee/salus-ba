@@ -3209,6 +3209,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This time is no longer held for you. You stay on the waitlist.'**
   String get waitlistOfferExpired;
+
+  /// Clinic system, package A: above the choice between a visit by video and one at the clinic, before the time is picked. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'How would you like to attend?'**
+  String get visitModeQuestion;
+
+  /// Clinic system, package A: a visit by video. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'By video'**
+  String get visitModeVideo;
+
+  /// Clinic system, package A: a visit at the clinic, in person. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'At the clinic'**
+  String get visitModeInPerson;
 }
 
 class _AppLocalizationsDelegate

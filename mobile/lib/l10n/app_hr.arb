@@ -515,5 +515,8 @@
   "waitlistWithdrawn": "Napustili ste listu čekanja.",
   "waitlistOff": "Ova ustanova nema listu čekanja.",
   "waitlistTooMany": "Već ste pet puta na listi čekanja ove ustanove. Najprije napustite jednu od prijava.",
-  "waitlistOfferExpired": "Ovaj termin više nije rezerviran za vas. Ostajete na listi čekanja."
+  "waitlistOfferExpired": "Ovaj termin više nije rezerviran za vas. Ostajete na listi čekanja.",
+  "visitModeQuestion": "Kako želite obaviti termin?",
+  "visitModeVideo": "Putem videa",
+  "visitModeInPerson": "U klinici"
 }

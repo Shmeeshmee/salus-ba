@@ -8,6 +8,7 @@ import { formatDate } from './i18n/format'
 import type { Language } from './i18n/languages'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, meta, org, patientId, practitioner } from './test/fixtures'
+import { visitModeURL } from './visitMode'
 
 afterEach(cleanup)
 
@@ -195,6 +196,19 @@ describe('AppointmentDetail', () => {
 
       expect(location.pathname).toBe(`/appointments/${id}/call`)
       history.replaceState(null, '', '/')
+    })
+
+    it('is never offered for a visit at the clinic, which is marked and shows no consultation status', async () => {
+      const inPerson = { ...booked, extension: [{ url: visitModeURL, valueCode: 'in-person' }] }
+      for (const now of [() => new Date('2026-11-09T07:40:00Z'), after]) {
+        renderDetail(practitioner, { ...routes, [read]: () => fhirJSON(inPerson), [statusGet]: () => Response.json({ status: 'not_started' }) }, now)
+
+        expect(await screen.findByText('At the clinic')).toBeTruthy()
+        expect(joinButton()).toBeNull()
+        expect(screen.queryByText('You can join from 10 minutes before the start.')).toBeNull()
+        expect(screen.queryByText(/consultation/i)).toBeNull()
+        cleanup()
+      }
     })
 
     it('says when joining opens, before the window', async () => {

@@ -91,5 +91,8 @@
   "noshow.invalid": "Unesite broj nedolazaka od 0 do 10 i broj dana od 30 do 730.",
   "noshow.loadFailed": "Postavke nedolazaka nisu učitane. Ponovo učitajte stranicu da pokušate opet.",
   "noshow.saved": "Sačuvano.",
-  "noshow.save": "Sačuvaj oznaku"
+  "noshow.save": "Sačuvaj oznaku",
+  "modeN": "Vrsta posjete {n}",
+  "mode.video": "Video",
+  "mode.inPerson": "U klinici"
 }

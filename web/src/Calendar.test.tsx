@@ -8,6 +8,7 @@ import type { Language } from './i18n/languages'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, fakeFetch, fhirJSON, outcome, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, practitioner, searchset, staffRoute } from './test/fixtures'
+import { visitModeURL } from './visitMode'
 
 afterEach(cleanup)
 
@@ -58,6 +59,16 @@ describe('Calendar', () => {
 
     const thursday = within(screen.getByRole('region', { name: 'Thu 12 Nov' })).getByRole('link')
     expect(thursday.textContent).toContain('Cancelled')
+  })
+
+  it('marks a visit at the clinic and offers no call for it, also inside the join window', async () => {
+    const inPerson = { ...week[0], extension: [{ url: visitModeURL, valueCode: 'in-person' }] }
+    renderCalendar(practitioner, { [search]: () => fhirJSON(searchset([inPerson, week[1]])) })
+
+    const monday = await screen.findByRole('region', { name: 'Mon 9 Nov' })
+    expect(within(monday).getByRole('link').textContent).toContain('At the clinic')
+    expect(within(monday).queryByRole('button', { name: 'Join consultation' })).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Wed 11 Nov' })).getByRole('link').textContent).not.toContain('At the clinic')
   })
 
   it('marks the appointment under way as the current one, and no other', async () => {

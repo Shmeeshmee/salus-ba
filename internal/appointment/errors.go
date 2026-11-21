@@ -30,7 +30,7 @@ var (
 	ErrRescheduleWindowClosed = errors.New("appointment: reschedule window closed")
 	// ErrRescheduleLimit is returned when the appointment was rescheduled as often as the clinic allows (SAL-34).
 	ErrRescheduleLimit = errors.New("appointment: reschedule limit reached")
-	// ErrNotReschedulable is returned for a reschedule the clinic's rules never allow: another role's slot, the
+	// ErrNotReschedulable is returned for a reschedule the clinic's rules never allow: another role's slot, a slot of the other visit mode, the
 	// consultation's join window open, or self-service rescheduling off (SAL-34).
 	ErrNotReschedulable = errors.New("appointment: not reschedulable")
 	// ErrPaymentDeclined is returned when the payment of a priced booking is declined: nothing was booked.

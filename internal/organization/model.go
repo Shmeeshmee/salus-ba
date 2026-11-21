@@ -23,12 +23,16 @@ type Organization struct {
 	// Region and City are the clinic's location (docs/plans/analytics.md O1): a leaf region (an ISO 3166-2:BA
 	// code) and a city under it (a Wikidata id), both of terminology's places, or both empty. CityName is the
 	// city's name in Latin script, filled by Read for Organization.address.city.
-	Region    string
-	City      string
-	CityName  string
-	VersionID int32 // meta.versionId; an update names the version it changes
-	Active    bool
-	Listed    bool // anyone may find the clinic and its practitioners
+	Region   string
+	City     string
+	CityName string
+	// AddressLine and PostalCode are where patients come for an in-person visit (docs/plans/clinic-cms.md, ADR 0016):
+	// street and number, and the postal code; empty until the admin sets them, and only beside a City.
+	AddressLine string
+	PostalCode  string
+	VersionID   int32 // meta.versionId; an update names the version it changes
+	Active      bool
+	Listed      bool // anyone may find the clinic and its practitioners
 	// PatientTranscriptCopy: the clinic gives its patients a copy of their consultations' stored transcripts in
 	// the app (docs/consultation/SPEC.md "Patient documents"); off unless its admin turns it on.
 	PatientTranscriptCopy bool
@@ -38,8 +42,8 @@ type Organization struct {
 }
 
 // Changes are what an update sets: the name, and the listing, the time zone, the default language, the
-// patients' transcript copy, the location (Region and City together, both empty to clear it) and the
-// contribution to the platform figures when given (nil keeps them).
+// patients' transcript copy, the location (Region and City together, both empty to clear it), the address line, the
+// postal code (each empty to clear it) and the contribution to the platform figures when given (nil keeps them).
 type Changes struct {
 	Listed                *bool
 	TimeZone              *string
@@ -47,8 +51,28 @@ type Changes struct {
 	PatientTranscriptCopy *bool
 	Region                *string
 	City                  *string
+	AddressLine           *string
+	PostalCode            *string
 	AnalyticsContributes  *bool
 	Name                  string
+}
+
+// Address is where patients come for an in-person visit, on one line: the address line, then the postal code and
+// the city's name as far as they are there; "" for a clinic without an address line.
+func (o Organization) Address() string {
+	if o.AddressLine == "" {
+		return ""
+	}
+	place := o.CityName
+	if o.PostalCode != "" && place != "" {
+		place = o.PostalCode + " " + place
+	} else if place == "" {
+		place = o.PostalCode
+	}
+	if place == "" {
+		return o.AddressLine
+	}
+	return o.AddressLine + ", " + place
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic.

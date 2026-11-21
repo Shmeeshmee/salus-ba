@@ -3579,7 +3579,7 @@ export interface components {
              * @example 12:00
              */
             end: string;
-            /** @description The visit mode of the rule's slots; always in a response, `video` for every rule made before the clinic system. A PUT takes it from package A of docs/plans/clinic-cms.md (x-salus-package cms-a); until then a PUT names no mode and every rule is video. */
+            /** @description The visit mode of the rule's slots; always in a response, `video` for every rule made before the clinic system. A PUT may name it (x-salus-package cms-a); a rule that names none is a video rule. The slots generated from the rule carry it, and an appointment keeps the mode of the slot it was booked in. */
             mode?: components["schemas"]["VisitMode"];
         };
         Availability: {

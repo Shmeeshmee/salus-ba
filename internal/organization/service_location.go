@@ -3,7 +3,9 @@ package organization
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/internal/terminology"
 )
@@ -51,6 +53,46 @@ func (s *Service) checkLocation(ctx context.Context, ch Changes) (string, error)
 		return "", ErrInvalidLocation
 	}
 	return city.NameLatn, nil
+}
+
+// Lengths of the address (docs/plans/clinic-cms.md): generous for a street with a number, and for a postal code.
+const (
+	maxAddressLine = 200
+	maxPostalCode  = 20
+)
+
+// trimAddress trims the address line and the postal code ch sets, and refuses one that is too long
+// (ErrInvalidLocation).
+func trimAddress(ch Changes) (Changes, error) {
+	for _, f := range []struct {
+		value **string
+		max   int
+	}{{&ch.AddressLine, maxAddressLine}, {&ch.PostalCode, maxPostalCode}} {
+		if *f.value == nil {
+			continue
+		}
+		v := strings.TrimSpace(**f.value)
+		if utf8.RuneCountInString(v) > f.max {
+			return Changes{}, ErrInvalidLocation
+		}
+		*f.value = &v
+	}
+	return ch, nil
+}
+
+// withAddress is o with the address line and the postal code ch sets, or ErrInvalidLocation when o then has one of
+// them without a city: the address is a place in the clinic's city.
+func withAddress(o Organization, ch Changes) (Organization, error) {
+	if ch.AddressLine != nil {
+		o.AddressLine = *ch.AddressLine
+	}
+	if ch.PostalCode != nil {
+		o.PostalCode = *ch.PostalCode
+	}
+	if o.City == "" && (o.AddressLine != "" || o.PostalCode != "") {
+		return Organization{}, ErrInvalidLocation
+	}
+	return o, nil
 }
 
 // withLocation is o with the location and the contribution ch sets, each with the time it changed when it

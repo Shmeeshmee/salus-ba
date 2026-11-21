@@ -3,6 +3,7 @@ import type { Account, ApiClient } from './api/client'
 import type { Bundle, FhirClient, Questionnaire } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
+import { ModeSelect } from './AvailabilityModes'
 import { useT } from './i18n/useT'
 import { CrossIcon } from './icons'
 import { useLoad } from './load'
@@ -23,7 +24,8 @@ const days = [1, 2, 3, 4, 5, 6, 7] // Monday to Sunday, as the API numbers them
 // shows a 12-hour clock in some browser locales (SPEC §3 "Formatting": times are 24-hour in every language).
 const clock = /^([01]\d|2[0-3]):[0-5]\d$/
 
-// Availability edits a practitioner's slot length and weekly working hours, in the clinic's time zone: their
+// Availability edits a practitioner's slot length and weekly working hours, each by video or at the clinic, in the
+// clinic's time zone: their
 // own, or, for an admin, those of the practitioner they pick. Saving sends If-Match with the version read.
 // Below them, the role's default questionnaire (W30, W31), saved as soon as it is picked.
 export function Availability({ api, fhir, account }: { api: ApiClient; fhir: FhirClient; account: Account }) {
@@ -102,7 +104,7 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
     const res = await attempt(
       api.PUT('/practitioner-roles/{id}/availability', {
         params: { path: { id: saved.practitionerRoleId }, header: { 'If-Match': `W/"${saved.versionId}"` } },
-        body: { slotMinutes: minutes, availability: rows.map(({ day, start, end }) => ({ day, start, end })) },
+        body: { slotMinutes: minutes, availability: rows.map(({ day, start, end, mode }) => ({ day, start, end, mode: mode ?? 'video' })) },
       }),
     )
     if (res.ok) {
@@ -121,7 +123,7 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
 
   function add() {
     const last = rows.at(-1)
-    setRows((rs) => [...rs, { key: nextKey, day: last ? Math.min(last.day + 1, 7) : 1, start: '09:00', end: '17:00' }])
+    setRows((rs) => [...rs, { key: nextKey, day: last ? Math.min(last.day + 1, 7) : 1, start: '09:00', end: '17:00', mode: last?.mode ?? 'video' }])
     setNextKey((k) => k + 1)
     setDone(false)
   }
@@ -154,6 +156,7 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
                   </option>
                 ))}
               </select>
+              <ModeSelect label={t('calendar.modeN', { n: i + 1 })} value={r.mode ?? 'video'} onChange={(mode) => change(r.key, { mode })} />
               <ClockField label={t('calendar.fromN', { n: i + 1 })} value={r.start} onChange={(start) => change(r.key, { start })} />
               <span className="muted" aria-hidden="true">
                 {t('calendar.to')}

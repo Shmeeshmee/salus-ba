@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { joinMessage, joinWindow } from './consultation'
 import { appointment } from './test/fixtures'
 import { translator } from './test/translate'
+import { visitModeURL } from './visitMode'
 
 const id = 'e1000000-0000-4000-8000-000000000001'
 // 09:00 to 09:30 UTC: the window opens at 08:50 and closes at 10:00.
@@ -21,6 +22,15 @@ describe('joinWindow', () => {
 
   it.each(['cancelled', 'fulfilled', 'noshow'] as const)('is closed for a %s appointment, also inside the window', (status) => {
     expect(joinWindow({ ...booked, status }, at('2026-11-09T09:15:00Z'))).toBe('closed')
+  })
+})
+
+describe('joinWindow of an in-person visit', () => {
+  it('is closed at any time: there is no call to join', () => {
+    const inPerson = { ...booked, extension: [{ url: visitModeURL, valueCode: 'in-person' }] }
+    for (const now of ['2026-11-09T08:00:00Z', '2026-11-09T08:55:00Z', '2026-11-09T09:15:00Z']) {
+      expect(joinWindow(inPerson, at(now))).toBe('closed')
+    }
   })
 })
 

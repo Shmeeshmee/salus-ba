@@ -2042,4 +2042,13 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار.';
+
+  @override
+  String get visitModeQuestion => 'كيف تود حضور الموعد؟';
+
+  @override
+  String get visitModeVideo => 'عبر الفيديو';
+
+  @override
+  String get visitModeInPerson => 'في العيادة';
 }

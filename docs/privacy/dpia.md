@@ -2336,3 +2336,28 @@ directory the active services of listed clinics (prices at booking). The members
 | A receipt reveals a patient's visit to another clinic or patient | Row-level security: the clinic's scope and the patient's own only; a visit's receipt is held to the visit's clinic (and patient, when it names one) by composite foreign keys; a line only from the receipt's clinic's price list |
 | More than the law requires reaches the Tax Administration | `pkg/fiscal`'s receipt carries the seller's tax id, amounts, item names and the payment method, never a patient; what ESET needs is recorded here with package G once the specification is known (Q6) |
 | A fake fiscalization is taken for a legal receipt | `config.LoadFiscal` takes only the fake until package G; the fake's identifiers start with `TEST-` |
+
+### Package A: visit modes (migration 00060, renumbered at merge)
+
+**Processing added.** A practitioner's working hours name how patients attend each window, by video or at the clinic;
+the slots generated from a window carry its mode and an appointment keeps the mode of the slot it was booked in (a
+reschedule stays in it: the service refuses a slot of the other mode, and a trigger on `appointment` does the same). An
+in-person visit has no call: the join of the video consultation answers 404 for it, so no video session, room or token
+exists. Its confirmation, its reminders (e-mail and SMS) and the e-mail after a reschedule say that the visit is at the
+clinic and give the clinic's address, which the clinic's admin sets on `Organization.address` (a line and a postal code
+beside the city). Lawful basis: unchanged, the appointment's (Art. 6(1)(b), Art. 9(2)(h)).
+
+**Personal data added.** None beyond step 0's `slot.visit_mode` and `appointment.visit_mode`, now written with the
+rule's mode. The clinic's address (`organization.address_line`, `postal_code`) is not personal data.
+
+**Who sees what.** The visit mode of an appointment: whoever sees the appointment, as before. The clinic's address:
+the clinic's staff on its Organization, and the patient of an in-person visit in the messages about that visit; the
+public directory's search still shows no address.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A message tells more about the visit than before | It says only that the visit is at the clinic and the clinic's own address: nothing about the practitioner, the specialty or the reason, as the booking SPEC's "E-mail" asks; the push stays generic (no clinic, time or address); tested per language |
+| An SMS reminder grows with the address | The address follows the clinic's name in the same message; the parts are counted in the clinic's usage as before, and a clinic without an address line sends none |
+| A patient waits for a call that does not exist, or comes to the clinic for a video visit | The mode is picked before the time in the app and shown on the booking screen and the appointment; the apps offer no join for an in-person visit and the API refuses one; the e-mails of an in-person visit say that it is not by video |

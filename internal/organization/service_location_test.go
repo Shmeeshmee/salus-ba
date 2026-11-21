@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,5 +131,56 @@ func TestContributes_ReadsTheClinicsChoice(t *testing.T) {
 	}
 	if _, err := svc.Contributes(t.Context(), ""); !errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Contributes('') = %v, want ErrNotFound", err)
+	}
+}
+
+// The admin sets the clinic's address for in-person visits (docs/plans/clinic-cms.md): a line and a postal code,
+// trimmed, kept when an update names neither; only a clinic with a city has one.
+func TestUpdate_SetsTheAddressOfAClinicWithACity(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	line, postal, empty := "  Synthetic street 1 ", " 71000 ", ""
+	ch := located("BA-09", "Q1270190")
+	ch.AddressLine, ch.PostalCode = &line, &postal
+	got, err := newLocationService(repo, audit, now).Update(t.Context(), admin, clinicA, ch, 2)
+	if err != nil || got.AddressLine != "Synthetic street 1" || got.PostalCode != "71000" || got.Address() != "Synthetic street 1, 71000 Centar" {
+		t.Fatalf("Update() = %+v, %v; want the trimmed address in Centar", got, err)
+	}
+	got, err = newLocationService(repo, audit, now).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Synthetic clinic"}, 3)
+	if err != nil || got.AddressLine != "Synthetic street 1" || got.PostalCode != "71000" {
+		t.Errorf("an update naming none = %+v, %v; want the address kept", got, err)
+	}
+	long := strings.Repeat("a", 201)
+	for name, ch := range map[string]organization.Changes{
+		"a long line":               {Name: "Synthetic clinic", AddressLine: &long},
+		"a long postal code":        {Name: "Synthetic clinic", PostalCode: &long},
+		"clearing the city only":    located("", ""),
+		"an address without a city": {Name: "Synthetic clinic", AddressLine: &line},
+	} {
+		r := repo
+		if name == "an address without a city" {
+			r = newFakeRepository()
+		}
+		if _, err := newLocationService(r, audit, now).Update(t.Context(), admin, clinicA, ch, r.orgs[clinicA].VersionID); !errors.Is(err, organization.ErrInvalidLocation) {
+			t.Errorf("%s: Update() = %v, want ErrInvalidLocation", name, err)
+		}
+	}
+	ch = located("", "")
+	ch.AddressLine, ch.PostalCode = &empty, &empty
+	got, err = newLocationService(repo, audit, now).Update(t.Context(), admin, clinicA, ch, repo.orgs[clinicA].VersionID)
+	if err != nil || got.AddressLine != "" || got.Address() != "" {
+		t.Errorf("clearing both = %+v, %v; want no address", got, err)
+	}
+}
+
+func TestAddress_IsEmptyWithoutALineAndNamesWhatIsThere(t *testing.T) {
+	for want, o := range map[string]organization.Organization{
+		"":                                 {PostalCode: "71000", CityName: "Centar"},
+		"Synthetic street 1":               {AddressLine: "Synthetic street 1"},
+		"Synthetic street 1, Centar":       {AddressLine: "Synthetic street 1", CityName: "Centar"},
+		"Synthetic street 1, 71000 Centar": {AddressLine: "Synthetic street 1", PostalCode: "71000", CityName: "Centar"},
+	} {
+		if got := o.Address(); got != want {
+			t.Errorf("Address() = %q, want %q", got, want)
+		}
 	}
 }

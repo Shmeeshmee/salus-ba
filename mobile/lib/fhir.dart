@@ -11,6 +11,7 @@ import 'session.dart';
 // read FHIR"). Writes go through the generated client.
 
 const _zoneExtension = 'https://salus.invalid/fhir/StructureDefinition/organization-timezone';
+const _visitModeExtension = 'https://salus.invalid/fhir/StructureDefinition/visit-mode';
 
 /// A listed clinic: FHIR Organization with the time-zone extension.
 class Organization {
@@ -39,11 +40,14 @@ class PractitionerRole {
 
 /// A free FHIR Slot.
 class Slot {
-  const Slot({required this.id, required this.start, required this.end});
+  const Slot({required this.id, required this.start, required this.end, this.inPerson = false});
 
   final String id;
   final DateTime start;
   final DateTime end;
+
+  /// Whether the visit is at the clinic; by video otherwise (the visit-mode extension, ADR 0016).
+  final bool inPerson;
 }
 
 /// The patient's FHIR Appointment.
@@ -55,6 +59,7 @@ class Appointment {
     required this.end,
     this.roleId,
     this.confirmed = false,
+    this.inPerson = false,
   });
 
   final String id;
@@ -70,6 +75,9 @@ class Appointment {
   /// Whether the patient confirmed they will come: their participant is `accepted` (`tentative` until then,
   /// docs/plans/appointments.md Q3).
   final bool confirmed;
+
+  /// Whether the visit is at the clinic: it has no call to join (ADR 0016). By video otherwise.
+  final bool inPerson;
 }
 
 /// Searches under /fhir/R4 through the generated client's transport, so they carry the session's bearer token.
@@ -118,7 +126,12 @@ class Fhir {
       QueryParam('start', 'ge${_instant(from)}'),
       QueryParam('start', 'lt${_instant(to)}'),
     ]))
-      Slot(id: _string(r['id']), start: _time(r['start']), end: _time(r['end'])),
+      Slot(
+        id: _string(r['id']),
+        start: _time(r['start']),
+        end: _time(r['end']),
+        inPerson: _inPerson(r['extension']),
+      ),
   ];
 
   Future<List<Appointment>> appointments(String patientId) async => [
@@ -130,6 +143,7 @@ class Fhir {
         end: _time(r['end']),
         roleId: _participant(r['participant'], 'PractitionerRole/'),
         confirmed: _participantStatus(r['participant'], 'Patient/') == 'accepted',
+        inPerson: _inPerson(r['extension']),
       ),
   ];
 
@@ -226,6 +240,14 @@ class Fhir {
       if (e['url'] == _zoneExtension) return _string(e['valueCode']);
     }
     return '';
+  }
+
+  /// Whether the visit-mode extension of a Slot or an Appointment says in-person; video without it.
+  static bool _inPerson(Object? extensions) {
+    for (final e in (extensions as List?) ?? const []) {
+      if (e['url'] == _visitModeExtension) return e['valueCode'] == 'in-person';
+    }
+    return false;
   }
 
   static String _humanName(Object? names) {

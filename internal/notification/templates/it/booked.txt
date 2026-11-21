@@ -3,7 +3,9 @@ Il suo appuntamento è prenotato
 Il suo appuntamento presso {{.Clinic}} è prenotato.
 Data e ora: {{.When}}
 
-{{if .Questionnaire}}Prima dell'appuntamento c'è un questionario da compilare. Lo trova nell'app Salus.
+{{if .InPerson}}Questo appuntamento si svolge in sede, non in video.{{if .Address}} Indirizzo: {{.Address}}{{end}}
+
+{{end}}{{if .Questionnaire}}Prima dell'appuntamento c'è un questionario da compilare. Lo trova nell'app Salus.
 
 {{end}}Per vedere o annullare l'appuntamento, apra l'app Salus:
 {{.Link}}

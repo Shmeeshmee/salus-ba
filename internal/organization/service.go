@@ -201,7 +201,8 @@ func (s *Service) ListListed(ctx context.Context) ([]Organization, error) {
 // Update changes the clinic id as ch says, at the version the caller last read, and returns it at its new
 // version. Only the clinic's admin may: a member who is not gets ErrForbidden, anyone else ErrNotFound. A
 // blank or overlong name gives ErrInvalidName, a time zone that is not an IANA name ErrInvalidTimeZone and a
-// default language that is not a staff language ErrInvalidDefaultLanguage, before anything is accessed; a version that is not the current one ErrConflict.
+// default language that is not a staff language ErrInvalidDefaultLanguage, before anything is accessed; a version that is not the current one ErrConflict;
+// an address line or a postal code that is too long, or left to a clinic without a city, ErrInvalidLocation.
 func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error) {
 	ch.Name = strings.TrimSpace(ch.Name)
 	if ch.Name == "" || utf8.RuneCountInString(ch.Name) > maxName {
@@ -212,6 +213,10 @@ func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, v
 	}
 	if ch.DefaultLanguage != nil && !slices.Contains(staffLanguages, *ch.DefaultLanguage) {
 		return Organization{}, ErrInvalidDefaultLanguage
+	}
+	ch, err := trimAddress(ch)
+	if err != nil {
+		return Organization{}, err
 	}
 	cityName, err := s.checkLocation(ctx, ch)
 	if err != nil {
@@ -287,6 +292,9 @@ func (s *Service) update(ctx context.Context, id string, ch Changes, version int
 		next.PatientTranscriptCopy = *ch.PatientTranscriptCopy
 	}
 	next = withLocation(next, ch, s.clock.Now())
+	if next, err = withAddress(next, ch); err != nil {
+		return cur, err, nil
+	}
 	o, err = s.repo.Update(ctx, next, s.clock.Now())
 	if errors.Is(err, ErrConflict) { // changed since the read
 		return cur, ErrConflict, nil

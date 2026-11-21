@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // reminderJob is how the fake jobs record a reminder's dispatch.
@@ -133,7 +134,8 @@ func TestCancel_CancelsTheScheduledReminders(t *testing.T) {
 func TestTakeReminder_LocksAScheduledReminderOfItsBookedAppointment(t *testing.T) {
 	f := scheduledFixture(t)
 	got, err := f.svc.TakeReminder(t.Context(), "appointment_reminder", clinicA, reminderID(1))
-	want := appointment.ReminderNotice{Start: start, ReminderID: reminderID(1), AppointmentID: newID, OrganizationID: clinicA, PatientID: patientA, AccountID: accountA}
+	want := appointment.ReminderNotice{Start: start, ReminderID: reminderID(1), AppointmentID: newID, OrganizationID: clinicA, PatientID: patientA, AccountID: accountA,
+		Mode: schedule.ModeVideo}
 	if err != nil || got != want {
 		t.Fatalf("TakeReminder() = %+v, %v;\nwant %+v", got, err, want)
 	}

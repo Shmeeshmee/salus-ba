@@ -98,12 +98,37 @@ describe('Availability', () => {
     expect(await puts()[0].json()).toEqual({
       slotMinutes: 20,
       availability: [
-        { day: 1, start: '09:00', end: '12:00' },
-        { day: 3, start: '14:00', end: '16:30' },
+        { day: 1, start: '09:00', end: '12:00', mode: 'video' },
+        { day: 3, start: '14:00', end: '16:30', mode: 'video' },
       ],
     })
     expect(puts()[1].headers.get('If-Match')).toBe('W/"3"')
     expectCsrfOnWrites(requests)
+  })
+
+  it("shows each row's visit type and saves the one chosen, a new row starting as the row above", async () => {
+    const both = { ...saved, availability: [{ day: 1, start: '09:00', end: '12:00', mode: 'in-person' }] }
+    const { requests } = renderEditor(practitioner, {
+      [`GET ${path(cy.roleId)}`]: () => Response.json(both),
+      [`PUT ${path(cy.roleId)}`]: async (r) => Response.json({ ...both, ...((await r.json()) as typeof both), versionId: 3 }),
+    })
+
+    const first = (await screen.findByLabelText('Visit type 1')) as HTMLSelectElement
+    expect(first.value).toBe('in-person')
+    expect([...first.options].map((o) => o.textContent)).toEqual(['Video', 'At the clinic'])
+    fireEvent.click(screen.getByRole('button', { name: 'Add hours' }))
+    expect((screen.getByLabelText('Visit type 2') as HTMLSelectElement).value).toBe('in-person')
+    fireEvent.change(screen.getByLabelText('Visit type 2'), { target: { value: 'video' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await screen.findByRole('status')
+    expect(await requests.find((r) => r.method === 'PUT')!.json()).toEqual({
+      slotMinutes: 30,
+      availability: [
+        { day: 1, start: '09:00', end: '12:00', mode: 'in-person' },
+        { day: 2, start: '09:00', end: '17:00', mode: 'video' },
+      ],
+    })
   })
 
   it('removes hours', async () => {
