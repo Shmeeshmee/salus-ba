@@ -217,6 +217,9 @@ enum ErrorErrorEnum {
   websocketRequired._(r'websocket_required'),
   origin._(r'origin'),
   correctionWindowClosed._(r'correction_window_closed'),
+  invalidService._(r'invalid_service'),
+  invalidReceipt._(r'invalid_receipt'),
+  alreadyReversed._(r'already_reversed'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -414,6 +417,12 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.origin;
         case r'correction_window_closed':
           return ErrorErrorEnum.correctionWindowClosed;
+        case r'invalid_service':
+          return ErrorErrorEnum.invalidService;
+        case r'invalid_receipt':
+          return ErrorErrorEnum.invalidReceipt;
+        case r'already_reversed':
+          return ErrorErrorEnum.alreadyReversed;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

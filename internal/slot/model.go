@@ -4,7 +4,11 @@
 // public directory sees the free slots of listed clinics.
 package slot
 
-import "time"
+import (
+	"time"
+
+	"github.com/Shmeeshmee/salus/internal/schedule"
+)
 
 // Status is FHIR SlotStatus, the three the product uses.
 type Status string
@@ -30,7 +34,8 @@ type Slot struct {
 	ScheduleID     string
 	OrganizationID string
 	Status         Status
-	VersionID      int32 // meta.versionId
+	Mode           schedule.VisitMode // its rule's: in-person or video
+	VersionID      int32              // meta.versionId
 }
 
 // Bookable is a free slot of the directory with the practitioner role of its schedule, which a booking is

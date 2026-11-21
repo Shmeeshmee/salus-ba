@@ -242,6 +242,8 @@ class ApiClient {
           return Availability.fromJson(value);
         case 'AvailabilityRule':
           return AvailabilityRule.fromJson(value);
+        case 'BillingDetails':
+          return BillingDetails.fromJson(value);
         case 'Binary':
           return Binary.fromJson(value);
         case 'BookAppointmentRequest':
@@ -392,6 +394,8 @@ class ApiClient {
           return ExplainedTerm.fromJson(value);
         case 'ExplainedTermList':
           return ExplainedTermList.fromJson(value);
+        case 'FiscalStatus':
+          return FiscalStatusTypeTransformer().decode(value);
         case 'GenerateDraftRequest':
           return GenerateDraftRequest.fromJson(value);
         case 'GrantConsentRequest':
@@ -418,6 +422,8 @@ class ApiClient {
           return InviteList.fromJson(value);
         case 'InviteRequest':
           return InviteRequest.fromJson(value);
+        case 'IssueReceiptRequest':
+          return IssueReceiptRequest.fromJson(value);
         case 'KeyedError':
           return KeyedError.fromJson(value);
         case 'Language':
@@ -450,12 +456,16 @@ class ApiClient {
           return NotificationChannels.fromJson(value);
         case 'NotificationSettings':
           return NotificationSettings.fromJson(value);
+        case 'OfferedService':
+          return OfferedService.fromJson(value);
         case 'OpenConversationRequest':
           return OpenConversationRequest.fromJson(value);
         case 'OpenItem':
           return OpenItem.fromJson(value);
         case 'Patient':
           return Patient.fromJson(value);
+        case 'PaymentMethod':
+          return PaymentMethodTypeTransformer().decode(value);
         case 'PeriodUnit':
           return PeriodUnitTypeTransformer().decode(value);
         case 'Place':
@@ -498,12 +508,28 @@ class ApiClient {
           return QuietHours.fromJson(value);
         case 'ReadPosition':
           return ReadPosition.fromJson(value);
+        case 'Receipt':
+          return Receipt.fromJson(value);
+        case 'ReceiptKind':
+          return ReceiptKindTypeTransformer().decode(value);
+        case 'ReceiptLine':
+          return ReceiptLine.fromJson(value);
+        case 'ReceiptPick':
+          return ReceiptPick.fromJson(value);
+        case 'ReceiptsReport':
+          return ReceiptsReport.fromJson(value);
+        case 'ReceiptsReportByPaymentMethodInner':
+          return ReceiptsReportByPaymentMethodInner.fromJson(value);
+        case 'ReceiptsReportByServiceInner':
+          return ReceiptsReportByServiceInner.fromJson(value);
         case 'RegisterRequest':
           return RegisterRequest.fromJson(value);
         case 'RequestQuestionnaireRequest':
           return RequestQuestionnaireRequest.fromJson(value);
         case 'RescheduleAppointmentRequest':
           return RescheduleAppointmentRequest.fromJson(value);
+        case 'ReverseReceiptRequest':
+          return ReverseReceiptRequest.fromJson(value);
         case 'Review':
           return Review.fromJson(value);
         case 'ReviewDecision':
@@ -522,12 +548,18 @@ class ApiClient {
           return SavePatientRequest.fromJson(value);
         case 'SaveQuestionnaireRequest':
           return SaveQuestionnaireRequest.fromJson(value);
+        case 'SaveServiceRequest':
+          return SaveServiceRequest.fromJson(value);
         case 'SendAck':
           return SendAck.fromJson(value);
         case 'SendAckFrame':
           return SendAckFrame.fromJson(value);
         case 'SendMessageRequest':
           return SendMessageRequest.fromJson(value);
+        case 'Service':
+          return Service.fromJson(value);
+        case 'ServiceTranslation':
+          return ServiceTranslation.fromJson(value);
         case 'SetAppointmentStatusRequest':
           return SetAppointmentStatusRequest.fromJson(value);
         case 'SetHistorySharingRequest':
@@ -554,6 +586,14 @@ class ApiClient {
           return StartQuestionnaireRequest.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
+        case 'Subscription':
+          return Subscription.fromJson(value);
+        case 'SubscriptionInvoice':
+          return SubscriptionInvoice.fromJson(value);
+        case 'SubscriptionInvoiceStatus':
+          return SubscriptionInvoiceStatusTypeTransformer().decode(value);
+        case 'SubscriptionStatus':
+          return SubscriptionStatusTypeTransformer().decode(value);
         case 'SuggestionEvent':
           return SuggestionEvent.fromJson(value);
         case 'SuggestionMessage':
@@ -616,6 +656,8 @@ class ApiClient {
           return UpdateMeRequest.fromJson(value);
         case 'VerifyRequest':
           return VerifyRequest.fromJson(value);
+        case 'VisitMode':
+          return VisitModeTypeTransformer().decode(value);
         case 'WaitlistEntry':
           return WaitlistEntry.fromJson(value);
         case 'WaitlistEntryList':

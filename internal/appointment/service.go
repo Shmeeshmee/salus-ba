@@ -231,14 +231,15 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if !consent.Active {
 		return Appointment{}, ErrConsentRequired, nil
 	}
-	if _, err := s.Slots.Hold(ctx, b.OrganizationID, b.ID); errors.Is(err, slot.ErrUnavailable) {
+	held, err := s.Slots.Hold(ctx, b.OrganizationID, b.ID)
+	if errors.Is(err, slot.ErrUnavailable) {
 		return Appointment{}, ErrSlotUnavailable, nil
 	} else if err != nil {
 		return Appointment{}, nil, err
 	}
 	out, err = s.Repo.Create(ctx, Appointment{
 		PatientID: c.PatientID, PractitionerRoleID: b.PractitionerRoleID, OrganizationID: b.OrganizationID, SlotID: b.ID,
-		Start: b.Start, End: b.End, Created: now, BookedVia: BookedDirect,
+		Start: b.Start, End: b.End, Created: now, BookedVia: BookedDirect, Mode: held.Mode,
 	})
 	if err != nil {
 		return Appointment{}, nil, err

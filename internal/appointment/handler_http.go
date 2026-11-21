@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
 
@@ -48,27 +49,28 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 
 // appointmentJSON is the Appointment schema of api/openapi.yaml: no patient, no canceller.
 type appointmentJSON struct {
-	Start              time.Time  `json:"start"`
-	End                time.Time  `json:"end"`
-	CancelledAt        *time.Time `json:"cancelledAt,omitempty"`
-	ConfirmedAt        *time.Time `json:"confirmedAt,omitempty"`
-	ID                 string     `json:"id"`
-	OrganizationID     string     `json:"organizationId"`
-	PractitionerRoleID string     `json:"practitionerRoleId"`
-	SlotID             string     `json:"slotId"`
-	Status             Status     `json:"status"`
-	Reason             Reason     `json:"cancellationReason,omitempty"`
-	ConfirmedVia       Via        `json:"confirmedVia,omitempty"`
-	BookedVia          BookedVia  `json:"bookedVia"`
-	VersionID          int32      `json:"versionId"`
-	RescheduleCount    int32      `json:"rescheduleCount"`
+	Start              time.Time          `json:"start"`
+	End                time.Time          `json:"end"`
+	CancelledAt        *time.Time         `json:"cancelledAt,omitempty"`
+	ConfirmedAt        *time.Time         `json:"confirmedAt,omitempty"`
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organizationId"`
+	PractitionerRoleID string             `json:"practitionerRoleId"`
+	SlotID             string             `json:"slotId"`
+	Status             Status             `json:"status"`
+	Reason             Reason             `json:"cancellationReason,omitempty"`
+	ConfirmedVia       Via                `json:"confirmedVia,omitempty"`
+	BookedVia          BookedVia          `json:"bookedVia"`
+	Mode               schedule.VisitMode `json:"visitMode"`
+	VersionID          int32              `json:"versionId"`
+	RescheduleCount    int32              `json:"rescheduleCount"`
 }
 
 func toJSON(a Appointment) appointmentJSON {
 	out := appointmentJSON{
 		Start: a.Start.UTC(), End: a.End.UTC(), ID: a.ID, OrganizationID: a.OrganizationID, PractitionerRoleID: a.PractitionerRoleID,
 		SlotID: a.SlotID, Status: a.Status, Reason: a.Reason, VersionID: a.VersionID,
-		ConfirmedVia: a.ConfirmedVia, BookedVia: bookedVia(a.BookedVia), RescheduleCount: a.RescheduleCount,
+		ConfirmedVia: a.ConfirmedVia, BookedVia: bookedVia(a.BookedVia), Mode: visitMode(a.Mode), RescheduleCount: a.RescheduleCount,
 	}
 	if !a.CancelledAt.IsZero() {
 		at := a.CancelledAt.UTC()

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // stubAppointments answers with what it is given and keeps what it was asked.
@@ -47,9 +48,10 @@ var (
 	bookedA = appointment.Appointment{
 		ID: apptA, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, SlotID: slotFree,
 		Start: start, End: start.Add(30 * time.Minute), Created: now, LastUpdated: now, Status: appointment.StatusBooked, VersionID: 1,
+		Mode: schedule.ModeVideo,
 	}
 	bookedJSON = `{"start":"2030-01-07T09:00:00Z","end":"2030-01-07T09:30:00Z","id":"` + apptA + `","organizationId":"` + clinicA +
-		`","practitionerRoleId":"` + roleA1 + `","slotId":"` + slotFree + `","status":"booked","bookedVia":"direct","versionId":1,"rescheduleCount":0}` + "\n"
+		`","practitionerRoleId":"` + roleA1 + `","slotId":"` + slotFree + `","status":"booked","bookedVia":"direct","visitMode":"video","versionId":1,"rescheduleCount":0}` + "\n"
 )
 
 func serveAppt(t *testing.T, svc *stubAppointments, caller func(context.Context) (appointment.Caller, bool, error), log *bytes.Buffer, method, path, body string) *httptest.ResponseRecorder {

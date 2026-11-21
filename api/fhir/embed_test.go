@@ -3,6 +3,7 @@ package fhir_test
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -203,5 +204,77 @@ func TestCapabilityStatement_DefinesTheResponsesAppointmentByItsSearchParameter(
 	}
 	if !refersToAppointment {
 		t.Errorf("questionnaireresponse-appointment's value is not a required Reference(Appointment)")
+	}
+}
+
+// The visit mode of a Slot and an Appointment is our extension, a code bound to our value set of our code system
+// (in-person, video), each at its URL (docs/plans/clinic-cms.md, ADR 0016).
+func TestVisitMode_IsAnExtensionOfSlotAndAppointmentBoundToItsValueSet(t *testing.T) {
+	const base = "https://salus.invalid/fhir/"
+	var sd struct {
+		URL     string `json:"url"`
+		Type    string `json:"type"`
+		Context []struct {
+			Expression string `json:"expression"`
+		} `json:"context"`
+		Differential struct {
+			Element []struct {
+				Path    string `json:"path"`
+				Binding struct {
+					Strength string `json:"strength"`
+					ValueSet string `json:"valueSet"`
+				} `json:"binding"`
+			} `json:"element"`
+		} `json:"differential"`
+	}
+	read := func(name string, v any) {
+		t.Helper()
+		raw, err := os.ReadFile(name)
+		if err != nil || json.Unmarshal(raw, v) != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	read("StructureDefinition-visit-mode.json", &sd)
+	contexts := []string{}
+	for _, c := range sd.Context {
+		contexts = append(contexts, c.Expression)
+	}
+	bound := ""
+	for _, e := range sd.Differential.Element {
+		if e.Path == "Extension.value[x]" && e.Binding.Strength == "required" {
+			bound = e.Binding.ValueSet
+		}
+	}
+	if sd.URL != base+"StructureDefinition/visit-mode" || sd.Type != "Extension" || !slices.Equal(contexts, []string{"Slot", "Appointment"}) ||
+		bound != base+"ValueSet/visit-mode" {
+		t.Errorf("visit-mode = %+v, want an extension of Slot and Appointment bound to the visit-mode value set", sd)
+	}
+
+	var vs struct {
+		URL     string `json:"url"`
+		Compose struct {
+			Include []struct {
+				System string `json:"system"`
+			} `json:"include"`
+		} `json:"compose"`
+	}
+	read("ValueSet-visit-mode.json", &vs)
+	if vs.URL != base+"ValueSet/visit-mode" || len(vs.Compose.Include) != 1 || vs.Compose.Include[0].System != base+"CodeSystem/visit-mode" {
+		t.Errorf("ValueSet visit-mode = %+v, want all of the visit-mode code system", vs)
+	}
+	var cs struct {
+		URL     string `json:"url"`
+		Content string `json:"content"`
+		Concept []struct {
+			Code string `json:"code"`
+		} `json:"concept"`
+	}
+	read("CodeSystem-visit-mode.json", &cs)
+	codes := []string{}
+	for _, c := range cs.Concept {
+		codes = append(codes, c.Code)
+	}
+	if cs.URL != base+"CodeSystem/visit-mode" || cs.Content != "complete" || !slices.Equal(codes, []string{"in-person", "video"}) {
+		t.Errorf("CodeSystem visit-mode = %+v, want the complete in-person and video", cs)
 	}
 }

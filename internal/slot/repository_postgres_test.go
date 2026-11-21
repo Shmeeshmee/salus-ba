@@ -246,10 +246,14 @@ func TestSearch_GivesTheFreeSlotsOfListedClinicsInTheRange(t *testing.T) {
 	addSlot(t, owner, scheduleA1, clinicA, monday.Add(2*time.Hour), slot.StatusBusy)
 	addSlot(t, owner, scheduleA1, clinicA, monday.Add(3*time.Hour), slot.StatusFree) // at the end of the range
 	addSlot(t, owner, scheduleB, clinicB, monday.Add(time.Hour), slot.StatusFree)    // unlisted
+	if _, err := owner.Exec(t.Context(), `UPDATE slot SET visit_mode = 'in-person' WHERE id = $1`, first); err != nil {
+		t.Fatal(err)
+	}
 	svc := newService(app, monday)
 
 	got, err := svc.Search(t.Context(), scheduleA1, monday, monday.Add(3*time.Hour))
-	if err != nil || len(got) != 1 || got[0].ID != first || got[0].Status != slot.StatusFree || got[0].OrganizationID != clinicA {
+	if err != nil || len(got) != 1 || got[0].ID != first || got[0].Status != slot.StatusFree || got[0].OrganizationID != clinicA ||
+		got[0].Mode != schedule.ModeInPerson {
 		t.Errorf("Search(A1) = %+v, %v; want the free 10:00 slot only", got, err)
 	}
 	if got, err := svc.Search(t.Context(), scheduleB, monday, monday.Add(3*time.Hour)); err != nil || len(got) != 0 {

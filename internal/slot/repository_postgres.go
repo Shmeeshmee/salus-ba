@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot/slotdb"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -129,7 +130,7 @@ func toSlot(row slotdb.HoldSlotRow) Slot {
 	return Slot{
 		Period: Period{Start: row.StartAt.Time, End: row.EndAt.Time},
 		ID:     row.ID.String(), ScheduleID: row.ScheduleID.String(), OrganizationID: row.OrganizationID.String(),
-		Status: Status(row.Status), VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
+		Status: Status(row.Status), Mode: schedule.VisitMode(row.VisitMode), VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
 	}
 }
 
