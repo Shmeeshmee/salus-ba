@@ -1016,6 +1016,11 @@ type SubscriptionInvoice struct {
 	Status         string
 }
 
+type SubscriptionInvoiceSequence struct {
+	ID         bool
+	LastNumber int64
+}
+
 type SubscriptionPlan struct {
 	Code              string
 	Name              string

@@ -11,6 +11,7 @@
 //	salusctl document-templates seed -clinic <id> <template.json>...      the dev seed of placeholder templates
 //	salusctl conditions unconfirmed                               the backfilled diagnoses nobody confirmed (SAL-19)
 //	salusctl trends build <2026-10 | 2026-Q3 | 2026-W44>          a missed build of the platform figures (SAL-21)
+//	salusctl subscription plan|start-trial|mark-paid|status ...   the clinics' membership (subscription.go)
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
@@ -32,6 +33,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/worker"
@@ -39,7 +41,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period>"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -60,6 +62,7 @@ type services struct {
 	templates  *composition.Service
 	conditions *condition.Service
 	trends     *trends.Builder // nil while ANALYTICS_PLATFORM_ENABLED is off
+	members    *subscription.Service
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
@@ -91,6 +94,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		// Only SeedTemplate is asked of the documents: it needs the repository, the audit and the clock.
 		templates:  composition.NewService(composition.Ports{Repo: composition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}}),
 		conditions: condition.NewService(condition.NewPostgresRepository(pool)),
+		// The owner's operations need no clinic's time zone and no seats: the worker issues the invoices.
+		members: subscription.NewService(subscription.Ports{Repo: subscription.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}}),
 	}
 	if cfg.Analytics.PlatformEnabled {
 		s.trends = worker.NewTrendsBuilder(pool, pool, cfg.Analytics.MinCount, auditevent.AgentOperator)
@@ -106,6 +111,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return s.conditionsCommand(ctx, args[1:], stdout)
 	case "trends":
 		return s.trendsCommand(ctx, args[1:], stdout)
+	case "subscription":
+		return s.subscriptionCommand(ctx, args[1:], stdout)
 	case "term-reviewer":
 		return s.termReviewer(ctx, args[1:], stdout)
 	case "reset-mfa":
@@ -134,18 +141,25 @@ func (s services) createClinic(ctx context.Context, args []string, stdout io.Wri
 	}
 	var clinic organization.Organization
 	var inv auth.Invite
+	trial := "started"
 	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		if clinic, err = s.clinics.Create(ctx, *name); err != nil {
 			return err
 		}
-		inv, err = s.accounts.InviteAdmin(ctx, clinic.ID, *email)
+		if inv, err = s.accounts.InviteAdmin(ctx, clinic.ID, *email); err != nil {
+			return err
+		}
+		// The 30-day trial starts with the clinic; none while the owner has not set the default plan.
+		if _, err = s.members.StartTrial(ctx, clinic.ID); errors.Is(err, subscription.ErrNoPlan) {
+			trial, err = "none: set the plan "+subscription.DefaultPlan+", then run subscription start-trial", nil
+		}
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "organization %s\ninvite %s\n", clinic.ID, inv.ID)
+	_, err = fmt.Fprintf(stdout, "organization %s\ninvite %s\ntrial %s\n", clinic.ID, inv.ID, trial)
 	return err
 }
 

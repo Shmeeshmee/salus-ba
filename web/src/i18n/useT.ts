@@ -32,6 +32,8 @@ export function useFormat() {
     calendarDate: (date: string) => formatCalendarDate(date, language),
     dateTime: (instant: Date, zone: string) => formatDateTime(instant, zone, language),
     number: (n: number) => formatNumber(n, language),
+    // money is an amount in a currency's minor unit (two decimals: BAM, EUR), as the language writes it.
+    money: (minor: number, currency: string) => formatNumber(minor / 100, language, { style: 'currency', currency }),
     month: (month: string, style: 'short' | 'long') => formatMonth(month, language, style),
     weekday: (weekday: number) => formatWeekday(weekday, language),
   }

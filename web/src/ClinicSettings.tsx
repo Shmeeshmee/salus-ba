@@ -9,7 +9,7 @@ import { useLanguage, useT } from './i18n/useT'
 import { languageNames } from './language'
 import { useLoad } from './load'
 import { ClinicSettingsReschedule } from './ClinicSettingsReschedule'
-import { Alert, Field, Notice, Submit } from './ui'
+import { Alert, Field, Link, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 import type { components } from './api/schema'
 
@@ -81,6 +81,9 @@ export function ClinicSettings({
         {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
       </section>
       <ClinicSettingsReminders api={api} />
+      <p>
+        <Link to="/clinic/subscription">{t('subscription.link')}</Link>
+      </p>
     </>
   )
 }

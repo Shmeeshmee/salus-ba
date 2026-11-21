@@ -574,3 +574,13 @@ p.hint.join { margin-bottom: 20px; }
 /* SAL-36: the repeat no-show flag beside an appointment, and its setting below the clinic's settings. */
 .tag.noshow-flag { color: var(--color-ink); border-color: var(--color-border-strong); background: var(--color-page); }
 .settings-part { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--color-border); }
+
+/* The membership screen (Subscription.tsx): the plan's facts and the invoices. */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.facts dt { color: var(--color-text-muted, inherit); }
+.facts dd { margin: 0; }
+.plain-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.plain-table th, .plain-table td { padding: 8px 12px 8px 0; text-align: left; border-bottom: 1px solid var(--color-border); }
+@media (max-width: 480px) {
+  .plain-table { display: block; overflow-x: auto; }
+}

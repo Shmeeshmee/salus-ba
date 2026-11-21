@@ -26,6 +26,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
 	"github.com/Shmeeshmee/salus/internal/slot"
+	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -84,6 +85,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		sessions: newSessions(pool, provider, inserter, clock.System{}), responses: responses,
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
 		clinicStats: newClinicStats(statsPool, clock.System{}), trends: newTrends(pool, statsPool, platform),
+		memberships: newMemberships(pool, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
 	cfg := workConfig(log, river.QueueDefault, workers)
@@ -111,6 +113,7 @@ type defaultServices struct {
 	chat         *communication.Service
 	clinicStats  *clinicstats.Builder
 	trends       *trends.Builder // nil while the platform builds are off
+	memberships  *subscription.Service
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -134,6 +137,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &clinicStatsNightlyWorker{builds: s.clinicStats})
 	river.AddWorker(workers, &trendsWorker{builder: s.trends, log: log})
 	river.AddWorker(workers, &remindersSweepWorker{appointments: s.appointments, log: log})
+	river.AddWorker(workers, &subscriptionWorker{memberships: s.memberships, clock: clock.System{}, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

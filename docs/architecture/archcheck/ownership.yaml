@@ -63,6 +63,7 @@ tables:
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}
   sms_usage: {owner: notification, personal_data: false} # a clinic's SMS messages and parts per month (00055, SAL-33)
+  subscription_invoice_sequence: {owner: subscription, personal_data: false} # Salus's gapless invoice numbers (00063)
   subscription_invoice: {owner: subscription, personal_data: false} # Salus's monthly invoice to a clinic (00059)
   subscription_plan: {owner: subscription, personal_data: false} # plans the owner edits in salusctl (00059)
   suggestion: {owner: suggestion, personal_data: true}
