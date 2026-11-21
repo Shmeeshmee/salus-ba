@@ -1,0 +1,11 @@
+Package C (receipts and invoices). Migration placeholder, only if you need one: 00062.
+- Fill step 0's `invoice` skeleton and its routes; PDFs at /clinic/receipts/{id}/pdf and /me/receipts/{id}/pdf.
+- Number receipts through `invoice_sequence`, locked in the receipt's transaction.
+- A receipt keeps the seller's details as they were at issue.
+- Report through pkg/fiscal's fake in a River job; `failed` may still become `fiscalized` (with `fiscal_qr` filled);
+  a fiscalized receipt never changes.
+- From step 0's review, rules for your service: a receipt without a visit may only name a patient the clinic actually
+  treats, and a reversal can never be reversed.
+- Lines come from the price list through step 0's seam, against a fake: package B is being built in parallel.
+- The "Issue receipt" action in web AppointmentDetail.tsx waits for A: build the dialog and the receipts screen, and
+  name that one hook-up under INTEGRATION NOTES.

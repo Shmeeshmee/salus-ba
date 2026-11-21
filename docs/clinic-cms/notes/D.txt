@@ -1,0 +1,7 @@
+Package D (clinic subscription). Migration placeholder, only if you need one: 00063.
+- Fill step 0's `subscription` skeleton and its routes: /clinic/subscription, /clinic/subscription/invoices,
+  GET and PUT /clinic/billing-details.
+- Step 0 handed you two things: the membership status moves only forward, and the Go fields for the clinic's billing
+  details on `organization` are yours.
+- The app has no UPDATE grant on `subscription_invoice`: marking an invoice paid is salusctl's, connected as the owner.
+- Plan prices and the seller's details stay `[PRICE]` and `[SELLER]` placeholders.
