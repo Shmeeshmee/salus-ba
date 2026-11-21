@@ -59,8 +59,8 @@ Wave 2, after wave 1 has merged:                                     E   F (hold
   first: B's "modes a service is offered in" and C's receipt for a visit read A's mode. C after B: its lines come from
   the price list (built against step 0's seam until B merges). D last and independent: it touches only its own
   domain, `organization`'s admin screen and `salusctl`.
-- **Migrations.** Main is at `00057` (2026-11-21). Step 0 takes `00058`; the wave's placeholders follow: A `00059`,
-  B `00060`, C `00061`, D `00062`, wave 2 from `00063`. Each branch renumbers to the next free number when it merges
+- **Migrations.** Main is at `00058` (2026-11-21, after #97; corrected in step 0, the plan said `00057`). Step 0
+  takes `00059`; the wave's placeholders follow: A `00060`, B `00061`, C `00062`, D `00063`, wave 2 from `00064`. Each branch renumbers to the next free number when it merges
   main before its own merge, and its migration test file follows.
 - **Shared files.** `api/openapi.yaml`, the generated clients (regenerated after each merge with `make gen-clients`,
   never hand-merged), `internal/api/app.go` and the router, `internal/worker` (registration lines), `internal/config`,
@@ -118,25 +118,29 @@ owner answers. An answer that differs is a change to this plan, made before the 
 | Not paying | Q4's default: 14 days past due the admin sees a banner; 30 days past due new bookings stop (public listing hidden); care never stops: existing appointments, records, documents, exports and subject rights keep working, always |
 | Data | Nothing in the price list or a subscription is personal data. A receipt to a patient is personal data (who paid for what, at which clinic: health data, Art. 9); a receipt to a company names the company only |
 
-## Contract (step 0, phase B, migration 00058 as a placeholder)
+## Contract (step 0, phase B, migration 00059 as a placeholder)
+
+As built; every change from the first draft is listed in `docs/plans/clinic-cms.PROGRESS.md` ("Step 0", "Contract
+changes").
 
 ### Tables and columns
 
 | Table | Columns |
 | --- | --- |
-| `schedule_rule` or the schedule's rules (whichever holds them today), `slot`, `appointment` (added) | `visit_mode` (`in-person` \| `video`, default `video`, not null); slot and appointment copy their rule's |
+| `schedule.availability` (the rules are JSON), `slot`, `appointment` (added) | A key `mode` on each rule (`in-person` \| `video`, every existing rule backfilled `video`); `slot.visit_mode` and `appointment.visit_mode` (`text`, the same check, default `video`, not null). An appointment copies its slot's at booking (direct and waitlist) and has no `UPDATE` grant on it |
 | `organization` (added) | `address_line`, `postal_code` (the clinic's address for in-person visits and receipts); `legal_name`, `tax_id` (JIB/IDB), `vat_registered` (bool), `billing_email` (Salus's invoices to the clinic). Not personal data |
-| `charge_item_definition` | `id`, `organization_id`, `name`, `code`, `price_minor`, `currency`, `duration_minutes`, `vat` (Q9), `modes` (`visit_mode[]`), `active`, `version_id`, timestamps; `charge_item_definition_translation` (`id`, `language`, `name`) |
-| `invoice` | `id`, `organization_id`, `patient_id` (nullable), `company_name` and `company_tax_id` (nullable; one of patient or company, or neither for an anonymous cash sale), `appointment_id` (nullable), `kind` (`receipt` \| `invoice`), `reverses_id` (nullable), `number` (the clinic's sequence), `issued_at`, `issued_by_account_id`, `payment_method`, `total_minor`, `currency`, `fiscal_status` (`pending` \| `fiscalized` \| `failed`), `fiscal_id`, `fiscal_code`, `fiscalized_at`. Append-only after issue except the fiscal columns, which leave `pending` once (trigger). Row-level security: the clinic's scope; the patient sees their own |
-| `invoice_line` | `id`, `invoice_id`, `charge_item_definition_id`, `name` (copied at issue), `quantity`, `unit_price_minor`, `discount_minor`, `vat`, `total_minor`. Append-only with its invoice |
+| `charge_item_definition` | `id`, `organization_id`, `name`, `code`, `price_minor`, `currency` (default `BAM`), `duration_minutes` (null: the slot's length), `vat_rate_bp` (basis points, null for exempt: Q9), `modes` (`text[]`, at least one of `in-person`, `video`), `active`, `version_id`, timestamps. Row-level security: the clinic's scope; the directory sees the active services of listed clinics. Never deleted. `charge_item_definition_translation` (`charge_item_definition_id`, `language`, `name`; key the first two, as `questionnaire_translation`) |
+| `invoice` | `id`, `created_at`, `organization_id`, `patient_id` (nullable), `company_name` and `company_tax_id` (nullable; a patient, a company or neither for an anonymous cash sale, never both), `appointment_id` (nullable; held to the visit's clinic, and to its patient when the receipt names one, by two composite foreign keys), `kind` (`receipt` \| `invoice`), `reverses_id` (nullable, unique: reversed once, by a receipt of the same clinic), `number` (unique per clinic), `issued_at`, `issued_by_account_id`, `payment_method` (`cash` \| `card` \| `transfer`), `total_minor`, `currency`, `fiscal_status` (`pending` \| `fiscalized` \| `failed`), `fiscal_id`, `fiscal_code`, `fiscalized_at` (all three set exactly when fiscalized). Append-only after issue except the fiscal columns, for every role (trigger): `pending` to `fiscalized` or `failed`, `failed` to `fiscalized` (the retried report), a fiscalized receipt never changes. No `DELETE` grant. Row-level security: the clinic's scope; the patient sees their own |
+| `invoice_line` | `id`, `invoice_id`, `charge_item_definition_id` (nullable: an item off the price list), `name` (copied at issue), `quantity` (not zero; negative on a reversal), `unit_price_minor`, `discount_minor`, `vat_rate_bp` (copied at issue), `total_minor`. No `UPDATE` or `DELETE` grant, a trigger refuses an update for every role; inserted only in the receipt's clinic, in the transaction that issues the receipt and from that clinic's price list (trigger), seen where the receipt is |
+| `invoice_sequence` (added in step 0) | `organization_id` (key), `last_number`: the clinic's gapless receipt numbers, the row locked by C's `UPDATE … RETURNING` in the receipt's transaction |
 | `subscription_plan` | `code`, `name`, `price_per_seat_minor`, `currency`, `features` (`text[]`), `active` |
 | `clinic_subscription` | `organization_id` (key), `plan_code`, `status` (`trial` \| `active` \| `past_due` \| `suspended` \| `cancelled`), `trial_ends_at`, `current_period_start`, `current_period_end`, timestamps |
-| `subscription_invoice` | `id`, `organization_id`, `number` (Salus's sequence), `period_start`, `period_end`, `seats`, `amount_minor`, `currency`, `issued_at`, `due_at`, `paid_at`, `status` (`open` \| `paid` \| `void`) |
+| `subscription_invoice` | `id`, `organization_id`, `number` (Salus's sequence, unique; how it is numbered is D's), `period_start`, `period_end` (dates), `seats`, `amount_minor`, `currency`, `issued_at`, `due_at`, `paid_at` (set exactly when paid), `status` (`open` \| `paid` \| `void`); unique per clinic and `period_start` (the monthly job runs once) |
 
 Each table goes in `ownership.yaml` (owners: the domain named after it; `subscription` owns the last three) with
-`personal_data`, and in `internal/retention/rules.go`: receipts and their lines as long as the accounting and fiscal
-law requires (placeholder 10 years, needs the legal decision before production, as the booking's periods), the rest
-not personal data.
+`personal_data` (`invoice_sequence` by `invoice`), and in `internal/retention/rules.go`: receipts and their lines kept
+(`ThenKeep`) until the legal period is decided (placeholder 10 years after issue, needs the legal decision before
+production): a delete rule needs its applier, which comes with the decision. The rest is not personal data.
 
 ### Go
 
@@ -144,18 +148,32 @@ not personal data.
   `subscription`, each a package with `model.go`, `errors.go`, `repository.go`, `query.sql` and its sqlc entry, and
   the service's exported method signatures the wave fills (returning `errors.ErrUnsupported` until then, with a test
   that says so).
-- `schedule`, `slot`, `appointment`: `VisitMode` and the field on `Rule`, `Slot`, `Appointment`; the FHIR extension in
-  `handler_fhir.go` and the golden files; the value set in `api/fhir/`.
-- `pkg/fiscal` and `pkg/fiscal/fiscaltest`: the port, the fake (deterministic identifiers and codes), `config.LoadFiscal`
-  (the fake only, refusing any other engine, as `LoadSMS`).
+- `schedule`, `slot`, `appointment`: `schedule.VisitMode` (`ModeInPerson`, `ModeVideo`) and the field on `Rule`
+  (`Mode`; a rule without one is saved `video` until A lets the edit name it), `Slot` and `Appointment` (`Mode`); the
+  FHIR extension `https://salus.invalid/fhir/StructureDefinition/visit-mode` (`slot.ExtensionVisitMode`) on Slot and
+  Appointment and the golden files; the StructureDefinition, CodeSystem and ValueSet in `api/fhir/`. The JSON
+  `Appointment` carries `visitMode`, the availability's rules `mode` (read only until A). Slot generation still writes
+  `video` for every rule: A carries the rule's mode into its slots.
+- `organization`: the columns only; the Go fields, reads and writes are A's (address) and D's (billing details).
+- `pkg/fiscal` and `pkg/fiscal/fiscaltest`: the port (`Reporter` with `Report` and `Reverse`, `Receipt`, `Line`,
+  `Fiscalized`, `Check`), the fake (deterministic `TEST-` identifiers, codes and QR from the reference, the same
+  answer for a reference reported twice, `Reported` counting calls), `config.LoadFiscal` (`FISCAL_ENGINE` empty or
+  `fake`; `eset` named and refused until G, as `LoadSMS`).
+- The jobs' arguments: `invoice.FiscalizeArgs` (`invoice_fiscalize`) and `subscription.MonthlyArgs`
+  (`subscription_monthly`), opaque ids only; their workers are C's and D's.
 - The seam `invoice.Prices` → `chargeitemdefinition.Service.Lines` (C builds against a fake until B merges).
 
 ### HTTP (`api/openapi.yaml`)
 
-Every wave-1 route with its schema and `x-salus-package` naming its builder, as the appointments contract did:
-`/clinic/services` (B), `/clinic/receipts`, `/clinic/receipts/{id}`, `/clinic/receipts/{id}/reverse`,
-`/clinic/receipts/{id}.pdf`, `/clinic/reports/receipts` (C), `/clinic/subscription`, `/clinic/subscription/invoices`
-(D), `/me/receipts` (C, the patient's own), the mode on availability and booking (A). Then `make gen-clients`.
+Every wave-1 route with its schema and `x-salus-package` naming its builder (`cms-a` to `cms-d`), as the appointments
+contract did: `GET`, `POST /clinic/services`, `PUT /clinic/services/{id}`, `GET /organizations/{id}/services` (the
+prices at booking, public as the directory) (B); `GET`, `POST /clinic/receipts`, `GET /clinic/receipts/{id}`,
+`POST /clinic/receipts/{id}/reverse`, `GET /clinic/receipts/{id}/pdf` (not `{id}.pdf`: a `net/http` wildcard is a whole
+segment), `GET /clinic/reports/receipts` (JSON or CSV), `GET /me/receipts`, `GET /me/receipts/{id}/pdf` (C);
+`GET /clinic/subscription`, `GET /clinic/subscription/invoices`, `GET`, `PUT /clinic/billing-details` (D); the mode on
+availability (`AvailabilityRule.mode`, A) and on the appointment (`Appointment.visitMode`, step 0). The clinic's address
+is A's: on FHIR `Organization.address` with the existing update. New error codes `invalid_service`,
+`invalid_receipt`, `already_reversed`. Then `make gen-clients`.
 
 ## Notes for the wave-1 packages
 

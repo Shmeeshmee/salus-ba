@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/appointment/appointmentdb"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
@@ -54,6 +55,7 @@ func (r *postgresRepository) Create(ctx context.Context, a Appointment) (Appoint
 	row, err := r.q(ctx).CreateAppointment(ctx, appointmentdb.CreateAppointmentParams{
 		PatientID: p, PractitionerRoleID: role, OrganizationID: org, SlotID: sl,
 		StartAt: ts(a.Start), EndAt: ts(a.End), CreatedAt: ts(a.Created), BookedVia: string(bookedVia(a.BookedVia)),
+		VisitMode: string(visitMode(a.Mode)),
 	})
 	var pgErr *pgconn.PgError
 	switch {
@@ -172,8 +174,16 @@ func toAppointment(row appointmentdb.AppointmentByIDRow) Appointment {
 	if row.ConfirmedAt.Valid {
 		a.ConfirmedAt, a.ConfirmedVia = row.ConfirmedAt.Time, Via(row.ConfirmedVia.String)
 	}
-	a.RescheduleCount, a.BookedVia = int32(row.RescheduleCount), BookedVia(row.BookedVia)
+	a.RescheduleCount, a.BookedVia, a.Mode = int32(row.RescheduleCount), BookedVia(row.BookedVia), schedule.VisitMode(row.VisitMode)
 	return a
+}
+
+// visitMode is m, or video when unset.
+func visitMode(m schedule.VisitMode) schedule.VisitMode {
+	if m == "" {
+		return schedule.ModeVideo
+	}
+	return m
 }
 
 // bookedVia is v, or BookedDirect when unset.

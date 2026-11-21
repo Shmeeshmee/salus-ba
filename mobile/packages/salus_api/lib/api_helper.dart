@@ -86,6 +86,9 @@ String parameterToString(dynamic value) {
   if (value is DoseUnit) {
     return DoseUnitTypeTransformer().encode(value).toString();
   }
+  if (value is FiscalStatus) {
+    return FiscalStatusTypeTransformer().encode(value).toString();
+  }
   if (value is HistoryItemType) {
     return HistoryItemTypeTypeTransformer().encode(value).toString();
   }
@@ -95,17 +98,32 @@ String parameterToString(dynamic value) {
   if (value is MedicationStatus) {
     return MedicationStatusTypeTransformer().encode(value).toString();
   }
+  if (value is PaymentMethod) {
+    return PaymentMethodTypeTransformer().encode(value).toString();
+  }
   if (value is PeriodUnit) {
     return PeriodUnitTypeTransformer().encode(value).toString();
   }
+  if (value is ReceiptKind) {
+    return ReceiptKindTypeTransformer().encode(value).toString();
+  }
   if (value is ReviewStatus) {
     return ReviewStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is SubscriptionInvoiceStatus) {
+    return SubscriptionInvoiceStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is SubscriptionStatus) {
+    return SubscriptionStatusTypeTransformer().encode(value).toString();
   }
   if (value is TermCategory) {
     return TermCategoryTypeTransformer().encode(value).toString();
   }
   if (value is TermLanguage) {
     return TermLanguageTypeTransformer().encode(value).toString();
+  }
+  if (value is VisitMode) {
+    return VisitModeTypeTransformer().encode(value).toString();
   }
   if (value is WaitlistStatus) {
     return WaitlistStatusTypeTransformer().encode(value).toString();

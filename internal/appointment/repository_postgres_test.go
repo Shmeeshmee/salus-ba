@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/migrations"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
@@ -74,7 +75,7 @@ func asClinic(ctx context.Context, r appointment.Repository) error { return r.Se
 func newAppt(s seeded, patientID string, at time.Time) appointment.Appointment {
 	return appointment.Appointment{
 		PatientID: patientID, PractitionerRoleID: s.roleA1, OrganizationID: clinicA, SlotID: slotFree,
-		Start: at, End: at.Add(30 * time.Minute), Created: now,
+		Start: at, End: at.Add(30 * time.Minute), Created: now, Mode: schedule.ModeVideo,
 	}
 }
 
@@ -85,13 +86,16 @@ func TestCreateAndByID_StoreABookedAppointmentInThePatientsScope(t *testing.T) {
 	var created, read appointment.Appointment
 	err := inScope(t, app, asPatient(s.patientA), func(ctx context.Context, r appointment.Repository) error {
 		var err error
-		if created, err = r.Create(ctx, newAppt(s, s.patientA, start)); err != nil {
+		in := newAppt(s, s.patientA, start)
+		in.Mode = schedule.ModeInPerson
+		if created, err = r.Create(ctx, in); err != nil {
 			return err
 		}
 		read, err = r.ByID(ctx, created.ID)
 		return err
 	})
 	want := newAppt(s, s.patientA, start)
+	want.Mode = schedule.ModeInPerson
 	want.ID, want.Status, want.VersionID, want.LastUpdated, want.BookedVia = created.ID, appointment.StatusBooked, 1, now, appointment.BookedDirect
 	if err != nil || !same(created, want) || !same(read, want) {
 		t.Fatalf("Create() = %+v, ByID() = %+v, %v;\nwant %+v", created, read, err, want)

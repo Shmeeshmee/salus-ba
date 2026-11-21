@@ -1,0 +1,20 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "visit-mode",
+  "url": "https://salus.invalid/fhir/CodeSystem/visit-mode",
+  "version": "0.1.0",
+  "name": "VisitMode",
+  "title": "Visit mode",
+  "status": "active",
+  "date": "2026-11-21",
+  "publisher": "Salus",
+  "description": "How a patient attends a slot or an appointment.",
+  "caseSensitive": true,
+  "valueSet": "https://salus.invalid/fhir/ValueSet/visit-mode",
+  "content": "complete",
+  "count": 2,
+  "concept": [
+    { "code": "in-person", "display": "In person", "definition": "The patient comes to the clinic." },
+    { "code": "video", "display": "Video", "definition": "The patient joins a video consultation." }
+  ]
+}

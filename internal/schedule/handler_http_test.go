@@ -55,13 +55,13 @@ func serve(t *testing.T, svc *stubAvailability, signedIn bool, log *bytes.Buffer
 const mondays = `{"slotMinutes":30,"availability":[{"day":1,"start":"09:00","end":"12:00"}]}`
 
 var savedA1 = schedule.Schedule{ID: "a5000000-0000-4000-8000-0000000000a1", OrganizationID: clinicA, PractitionerRoleID: roleA1, SlotMinutes: 30,
-	VersionID: 2, Rules: []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00"}}, LastUpdated: now}
+	VersionID: 2, Rules: []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00", Mode: schedule.ModeVideo}}, LastUpdated: now}
 
 func TestHTTPHandler_GivesTheAvailabilityWithItsVersion(t *testing.T) {
 	svc := &stubAvailability{out: savedA1}
 	rec := serve(t, svc, true, &bytes.Buffer{}, http.MethodGet, "", "")
 
-	want := `{"id":"` + savedA1.ID + `","practitionerRoleId":"` + roleA1 + `","availability":[{"start":"09:00","end":"12:00","day":1}],"slotMinutes":30,"versionId":2}` + "\n"
+	want := `{"id":"` + savedA1.ID + `","practitionerRoleId":"` + roleA1 + `","availability":[{"start":"09:00","end":"12:00","mode":"video","day":1}],"slotMinutes":30,"versionId":2}` + "\n"
 	if rec.Code != http.StatusOK || rec.Body.String() != want || rec.Header().Get("ETag") != `W/"2"` {
 		t.Errorf("GET = %d %s ETag %q, want 200 %s ETag W/\"2\"", rec.Code, rec.Body, rec.Header().Get("ETag"), want)
 	}

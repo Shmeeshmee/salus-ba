@@ -34,21 +34,28 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /fhir/R4/Slot", h.search)
 }
 
+// ExtensionVisitMode is the extension of a Slot and an Appointment that says how the patient attends, in-person or
+// video (api/fhir/StructureDefinition-visit-mode.json, ADR 0016): R4 has no element for it, R5's
+// Appointment.virtualService means the same.
+const ExtensionVisitMode = "https://salus.invalid/fhir/StructureDefinition/visit-mode"
+
 // resource is a Slot as FHIR R4 JSON.
 type resource struct {
-	ResourceType string         `json:"resourceType"`
-	ID           string         `json:"id"`
-	Status       Status         `json:"status"`
-	Start        string         `json:"start"`
-	End          string         `json:"end"`
-	Schedule     fhir.Reference `json:"schedule"`
-	Meta         fhir.Meta      `json:"meta"`
+	ResourceType string           `json:"resourceType"`
+	ID           string           `json:"id"`
+	Status       Status           `json:"status"`
+	Start        string           `json:"start"`
+	End          string           `json:"end"`
+	Schedule     fhir.Reference   `json:"schedule"`
+	Meta         fhir.Meta        `json:"meta"`
+	Extension    []fhir.Extension `json:"extension"`
 }
 
 func toFHIR(s Slot) resource {
 	return resource{
 		ResourceType: "Slot", ID: s.ID, Status: s.Status, Meta: fhir.NewMeta(s.VersionID, s.LastUpdated),
-		Start: s.Start.UTC().Format(time.RFC3339), End: s.End.UTC().Format(time.RFC3339),
+		Extension: []fhir.Extension{{URL: ExtensionVisitMode, ValueCode: string(s.Mode)}},
+		Start:     s.Start.UTC().Format(time.RFC3339), End: s.End.UTC().Format(time.RFC3339),
 		Schedule: fhir.Reference{Reference: "Schedule/" + s.ScheduleID},
 	}
 }

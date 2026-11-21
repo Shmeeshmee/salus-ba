@@ -5520,6 +5520,563 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/services:
+    get:
+      operationId: listClinicServices
+      x-salus-package: cms-b
+      summary: The clinic's price list
+      description: >-
+        Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff.
+        Built in package B of docs/plans/clinic-cms.md (404 until then). Not personal data; not audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The price list.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Service"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: createClinicService
+      x-salus-package: cms-b
+      summary: Add a service to the clinic's price list
+      description: >-
+        By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the
+        app. Built in package B (404 until then). Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveServiceRequest"}
+      responses:
+        "201":
+          description: The service stored.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Service"}
+        "400":
+          description: "`invalid_request`: unreadable or a field unknown; `invalid_service`: a blank name, a negative price, an unknown mode, or a VAT rate out of range."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/services/{id}:
+    put:
+      operationId: updateClinicService
+      x-salus-package: cms-b
+      summary: Change a service of the clinic's price list
+      description: >-
+        By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are
+        copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B (404
+        until then). Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SaveServiceRequest"}
+      responses:
+        "200":
+          description: The service stored.
+          headers:
+            ETag: {schema: {type: string}, description: 'The new version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Service"}
+        "400":
+          description: "`invalid_request` or `invalid_service`, as for a new service; or no If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such service of the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: If-Match is not the current version."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /organizations/{id}/services:
+    get:
+      operationId: listOfferedServices
+      x-salus-package: cms-b
+      summary: The services a listed clinic offers, with their prices, for booking
+      description: >-
+        The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic
+        translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets
+        404. Built in package B (404 until then).
+      tags: [billing]
+      parameters:
+        - {name: id, in: path, required: true, description: The clinic's id., schema: {type: string, format: uuid}}
+        - {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/VisitMode"}}
+        - {name: language, in: query, required: false, schema: {type: string}, description: A BCP 47 tag of the language enum.}
+      responses:
+        "200":
+          description: The services.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/OfferedService"}
+        "400":
+          description: "`invalid_request`: no or an unknown mode, or an unknown language."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such listed clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/receipts:
+    get:
+      operationId: listClinicReceipts
+      x-salus-package: cms-c
+      summary: The clinic's receipts issued in a period
+      description: >-
+        Newest first, with their lines and fiscal status. For the clinic's admin. Built in package C of
+        docs/plans/clinic-cms.md (404 until then). Health data (a patient's receipts): audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: The receipts.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Receipt"}
+        "400":
+          description: "`invalid_request`: a time missing, or `to` not after `from`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: issueReceipt
+      x-salus-package: cms-c
+      summary: Issue a receipt for a visit or on its own
+      description: >-
+        By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from
+        the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by
+        a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is
+        a reversal. Built in package C (404 until then). Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/IssueReceiptRequest"}
+      responses:
+        "201":
+          description: The receipt issued.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Receipt"}
+        "400":
+          description: "`invalid_request`: unreadable or a field unknown; `invalid_receipt`: no lines, a patient and a company together, or a service not on the clinic's active price list."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: neither the clinic's admin nor the practitioner of the visit; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: not staff of a clinic, or no such visit of the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/receipts/{id}:
+    get:
+      operationId: getClinicReceipt
+      x-salus-package: cms-c
+      summary: A receipt of the clinic
+      description: For the clinic's admin and the practitioner who issued it. Built in package C (404 until then). Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The receipt.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Receipt"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such receipt the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/receipts/{id}/reverse:
+    post:
+      operationId: reverseReceipt
+      x-salus-package: cms-c
+      summary: Reverse an issued receipt
+      description: >-
+        Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the
+        clinic's admin. Built in package C (404 until then). Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReverseReceiptRequest"}
+      responses:
+        "201":
+          description: The reversing receipt.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Receipt"}
+        "400":
+          description: "`invalid_request`: unreadable, or an unknown payment method."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such receipt of the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`already_reversed`: the receipt was reversed already, or is itself a reversal."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/receipts/{id}/pdf:
+    get:
+      operationId: getClinicReceiptPdf
+      x-salus-package: cms-c
+      summary: A receipt as a PDF on the clinic's letterhead
+      description: >-
+        The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff
+        who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Built in package C (404 until
+        then). Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such receipt the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/reports/receipts:
+    get:
+      operationId: getReceiptsReport
+      x-salus-package: cms-c
+      summary: The clinic's receipts summed for a day or a period, for its accountant
+      description: >-
+        Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or
+        as CSV with `format=csv`. For the clinic's admin. Built in package C (404 until then). Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: format, in: query, required: false, schema: {type: string, enum: [json, csv], default: json}}
+      responses:
+        "200":
+          description: The report.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ReceiptsReport"}
+            text/csv:
+              schema: {type: string}
+        "400":
+          description: "`invalid_request`: a time missing, or `to` not after `from`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/receipts:
+    get:
+      operationId: listMyReceipts
+      x-salus-package: cms-c
+      summary: The patient's own receipts, from every clinic
+      description: Newest first. Built in package C (404 until then). Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The receipts.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Receipt"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account; `profile_required`: no patient profile yet."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/receipts/{id}/pdf:
+    get:
+      operationId: getMyReceiptPdf
+      x-salus-package: cms-c
+      summary: The patient's own receipt as a PDF
+      description: The same document as the clinic's. Built in package C (404 until then). Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such receipt of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/subscription:
+    get:
+      operationId: getClinicSubscription
+      x-salus-package: cms-d
+      summary: The clinic's membership
+      description: >-
+        Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's
+        admin. Built in package D of docs/plans/clinic-cms.md (404 until then). Not personal data.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The membership.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Subscription"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/subscription/invoices:
+    get:
+      operationId: listSubscriptionInvoices
+      x-salus-package: cms-d
+      summary: Salus's monthly invoices to the clinic
+      description: Newest first. For the clinic's admin. Built in package D (404 until then).
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The invoices.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/SubscriptionInvoice"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/billing-details:
+    get:
+      operationId: getBillingDetails
+      x-salus-package: cms-d
+      summary: The clinic's billing details
+      description: >-
+        Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's
+        admin. Built in package D (404 until then). Not personal data.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The billing details.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BillingDetails"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: setBillingDetails
+      x-salus-package: cms-d
+      summary: Replace the clinic's billing details
+      description: By the clinic's admin. Built in package D (404 until then). Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/BillingDetails"}
+      responses:
+        "200":
+          description: The billing details stored.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/BillingDetails"}
+        "400":
+          description: "`invalid_request`: unreadable, a field unknown, or a tax id that is not 12 or 13 digits."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     StatsFrom:
@@ -6013,6 +6570,228 @@ components:
       name: Authorization
       description: LiveKit's webhook signature, a JWT of the API key pair with the body's SHA-256 (no Bearer prefix).
   schemas:
+    VisitMode:
+      type: string
+      enum: [in-person, video]
+      description: >-
+        How the patient attends: at the clinic or by video (ADR 0016). In FHIR, the visit-mode extension of Slot and
+        Appointment.
+    Service:
+      type: object
+      required: [id, name, priceMinor, currency, modes, active, translations, versionId]
+      description: A service of the clinic's price list (FHIR ChargeItemDefinition). Not personal data.
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, description: In the clinic's language.}
+        code: {type: string, description: The clinic's own code; absent for none.}
+        priceMinor: {type: integer, format: int64, minimum: 0, description: In the currency's minor unit.}
+        currency: {type: string, pattern: "^[A-Z]{3}$", examples: [BAM]}
+        durationMinutes: {type: integer, format: int32, minimum: 5, maximum: 480, description: Absent for the slot's length.}
+        vatRateBp: {type: integer, format: int32, minimum: 0, maximum: 10000, description: "Basis points (1700 is 17 %); absent for exempt."}
+        modes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/VisitMode"}
+        active: {type: boolean}
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/ServiceTranslation"}
+        versionId: {type: integer, format: int32}
+    ServiceTranslation:
+      type: object
+      required: [language, name]
+      additionalProperties: false
+      properties:
+        language: {type: string, description: A BCP 47 tag of the language enum.}
+        name: {type: string, minLength: 1}
+    SaveServiceRequest:
+      type: object
+      required: [name, priceMinor, modes, active, translations]
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        code: {type: string, minLength: 1, maxLength: 40}
+        priceMinor: {type: integer, format: int64, minimum: 0}
+        currency: {type: string, pattern: "^[A-Z]{3}$", default: BAM}
+        durationMinutes: {type: integer, format: int32, minimum: 5, maximum: 480}
+        vatRateBp: {type: integer, format: int32, minimum: 0, maximum: 10000}
+        modes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/VisitMode"}
+        active: {type: boolean}
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/ServiceTranslation"}
+    OfferedService:
+      type: object
+      required: [id, name, priceMinor, currency]
+      description: A service as a patient sees it at booking. Paid at the clinic.
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, description: In the language asked for where translated.}
+        priceMinor: {type: integer, format: int64, minimum: 0}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        durationMinutes: {type: integer, format: int32}
+    ReceiptKind:
+      type: string
+      enum: [receipt, invoice]
+      description: A receipt to a person, or an invoice to a company.
+    PaymentMethod:
+      type: string
+      enum: [cash, card, transfer]
+    FiscalStatus:
+      type: string
+      enum: [pending, fiscalized, failed]
+      description: >-
+        Its report to the tax authority: `pending` until the job fiscalizes it, `failed` when the job gave up (the
+        report is retried), `fiscalized` once, for good.
+    ReceiptLine:
+      type: object
+      required: [name, quantity, unitPriceMinor, discountMinor, totalMinor]
+      properties:
+        serviceId: {type: string, format: uuid, description: The price list's service; absent for an item off it.}
+        name: {type: string, description: As on the price list at issue.}
+        quantity: {type: integer, format: int32, description: Negative on a reversal.}
+        unitPriceMinor: {type: integer, format: int64}
+        discountMinor: {type: integer, format: int64}
+        vatRateBp: {type: integer, format: int32, description: Absent for exempt.}
+        totalMinor: {type: integer, format: int64}
+    Receipt:
+      type: object
+      required: [id, kind, number, issuedAt, paymentMethod, totalMinor, currency, fiscalStatus, lines]
+      description: >-
+        An issued receipt or invoice (FHIR Invoice). Health data when it names a patient: it shows what they paid for,
+        at which clinic. It never changes once issued, except its fiscal status.
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: "#/components/schemas/ReceiptKind"}
+        number: {type: integer, format: int64, description: In the clinic's sequence.}
+        issuedAt: {type: string, format: date-time}
+        patientId: {type: string, format: uuid, description: Absent unless to a patient.}
+        companyName: {type: string, description: Absent unless to a company.}
+        companyTaxId: {type: string}
+        appointmentId: {type: string, format: uuid, description: The visit; absent for a receipt on its own.}
+        reversesId: {type: string, format: uuid, description: The receipt it reverses; absent unless a reversal.}
+        reversedById: {type: string, format: uuid, description: The receipt that reverses it; absent unless reversed.}
+        paymentMethod: {$ref: "#/components/schemas/PaymentMethod"}
+        totalMinor: {type: integer, format: int64}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        fiscalStatus: {$ref: "#/components/schemas/FiscalStatus"}
+        fiscalId: {type: string, description: The tax authority's identifier; absent until fiscalized.}
+        fiscalCode: {type: string, description: The verification code printed on it; absent until fiscalized.}
+        fiscalizedAt: {type: string, format: date-time}
+        lines:
+          type: array
+          items: {$ref: "#/components/schemas/ReceiptLine"}
+    ReceiptPick:
+      type: object
+      required: [serviceId, quantity]
+      additionalProperties: false
+      properties:
+        serviceId: {type: string, format: uuid}
+        quantity: {type: integer, format: int32, minimum: 1}
+        discountMinor: {type: integer, format: int64, minimum: 0, default: 0}
+    IssueReceiptRequest:
+      type: object
+      required: [kind, paymentMethod, lines]
+      additionalProperties: false
+      description: To a patient, a company or neither (an anonymous cash sale); for a visit or on its own.
+      properties:
+        kind: {$ref: "#/components/schemas/ReceiptKind"}
+        patientId: {type: string, format: uuid}
+        companyName: {type: string, minLength: 1}
+        companyTaxId: {type: string, pattern: "^[0-9]{12,13}$"}
+        appointmentId: {type: string, format: uuid}
+        paymentMethod: {$ref: "#/components/schemas/PaymentMethod"}
+        lines:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/ReceiptPick"}
+    ReverseReceiptRequest:
+      type: object
+      required: [paymentMethod]
+      additionalProperties: false
+      properties:
+        paymentMethod: {$ref: "#/components/schemas/PaymentMethod"}
+    ReceiptsReport:
+      type: object
+      required: [from, to, count, totalMinor, currency, byPaymentMethod, byService]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        count: {type: integer, description: Receipts issued, reversals included.}
+        totalMinor: {type: integer, format: int64}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        byPaymentMethod:
+          type: array
+          items:
+            type: object
+            required: [paymentMethod, count, totalMinor]
+            properties:
+              paymentMethod: {$ref: "#/components/schemas/PaymentMethod"}
+              count: {type: integer}
+              totalMinor: {type: integer, format: int64}
+        byService:
+          type: array
+          items:
+            type: object
+            required: [name, quantity, totalMinor]
+            properties:
+              serviceId: {type: string, format: uuid}
+              name: {type: string}
+              quantity: {type: integer}
+              totalMinor: {type: integer, format: int64}
+    SubscriptionStatus:
+      type: string
+      enum: [trial, active, past_due, suspended, cancelled]
+      description: >-
+        Moves only forward. `past_due`: a banner for the admin from 14 days; `suspended` from 30: new bookings stop,
+        care never does.
+    Subscription:
+      type: object
+      required: [planCode, planName, pricePerSeatMinor, currency, status]
+      description: The clinic's membership. Not personal data.
+      properties:
+        planCode: {type: string, examples: [basic]}
+        planName: {type: string}
+        pricePerSeatMinor: {type: integer, format: int64, description: Per active practitioner per month.}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        status: {$ref: "#/components/schemas/SubscriptionStatus"}
+        trialEndsAt: {type: string, format: date-time}
+        currentPeriodStart: {type: string, format: date-time}
+        currentPeriodEnd: {type: string, format: date-time}
+        pastDueSince: {type: string, format: date-time, description: The due date of the oldest open invoice past due; absent for none.}
+    SubscriptionInvoiceStatus:
+      type: string
+      enum: [open, paid, void]
+    SubscriptionInvoice:
+      type: object
+      required: [id, number, periodStart, periodEnd, seats, amountMinor, currency, issuedAt, dueAt, status]
+      properties:
+        id: {type: string, format: uuid}
+        number: {type: integer, format: int64}
+        periodStart: {type: string, format: date}
+        periodEnd: {type: string, format: date, description: Exclusive.}
+        seats: {type: integer, format: int32, description: Active practitioner roles on the 1st.}
+        amountMinor: {type: integer, format: int64}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        issuedAt: {type: string, format: date-time}
+        dueAt: {type: string, format: date-time}
+        paidAt: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/SubscriptionInvoiceStatus"}
+    BillingDetails:
+      type: object
+      required: [vatRegistered]
+      additionalProperties: false
+      description: The clinic's details on Salus's invoices to it. Not personal data.
+      properties:
+        legalName: {type: string, minLength: 1}
+        taxId: {type: string, pattern: "^[0-9]{12,13}$", description: The JIB (13 digits) or IDB (12).}
+        vatRegistered: {type: boolean}
+        billingEmail: {type: string, format: email}
     LoginRequest:
       type: object
       required: [email, password]
@@ -6666,6 +7445,12 @@ components:
           pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
           description: After start.
           examples: ["12:00"]
+        mode:
+          $ref: "#/components/schemas/VisitMode"
+          description: >-
+            The visit mode of the rule's slots; always in a response, `video` for every rule made before the clinic
+            system. A PUT takes it from package A of docs/plans/clinic-cms.md (x-salus-package cms-a); until then a
+            PUT names no mode and every rule is video.
     Availability:
       type: object
       required: [practitionerRoleId, availability, versionId]
@@ -6766,7 +7551,7 @@ components:
           enum: [fulfilled, noshow]
     Appointment:
       type: object
-      required: [id, organizationId, practitionerRoleId, slotId, start, end, status, versionId, bookedVia, rescheduleCount]
+      required: [id, organizationId, practitionerRoleId, slotId, start, end, status, versionId, bookedVia, rescheduleCount, visitMode]
       description: >-
         An appointment after a booking or a change (FHIR Appointment; reads go through FHIR). Health data: it
         shows whom the patient consults. Neither the patient nor who cancelled is in it.
@@ -6814,6 +7599,9 @@ components:
           type: string
           enum: [direct, waitlist]
           description: A free slot of the directory, or an offer of the waitlist.
+        visitMode:
+          $ref: "#/components/schemas/VisitMode"
+          description: Its slot's at booking; never changes.
         rescheduleCount:
           type: integer
           format: int32
@@ -7233,6 +8021,9 @@ components:
             - websocket_required
             - origin
             - correction_window_closed
+            - invalid_service
+            - invalid_receipt
+            - already_reversed
         linkIds:
           type: array
           items: {type: string}

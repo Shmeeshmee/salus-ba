@@ -60,7 +60,7 @@ const holdSlot = `-- name: HoldSlot :one
 UPDATE slot
 SET status = 'busy', version_id = version_id + 1, updated_at = $1
 WHERE id = $2 AND status = 'free'
-RETURNING id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+RETURNING id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
           upper(period)::timestamptz AS end_at
 `
 
@@ -76,6 +76,7 @@ type HoldSlotRow struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+	VisitMode      string
 	StartAt        pgtype.Timestamptz
 	EndAt          pgtype.Timestamptz
 }
@@ -91,6 +92,7 @@ func (q *Queries) HoldSlot(ctx context.Context, arg HoldSlotParams) (HoldSlotRow
 		&i.OrganizationID,
 		&i.VersionID,
 		&i.Status,
+		&i.VisitMode,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -128,7 +130,7 @@ func (q *Queries) InsertSlots(ctx context.Context, arg InsertSlotsParams) (int64
 
 const lockSlot = `-- name: LockSlot :one
 
-SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE id = $1
@@ -142,6 +144,7 @@ type LockSlotRow struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+	VisitMode      string
 	StartAt        pgtype.Timestamptz
 	EndAt          pgtype.Timestamptz
 }
@@ -158,6 +161,7 @@ func (q *Queries) LockSlot(ctx context.Context, id pgtype.UUID) (LockSlotRow, er
 		&i.OrganizationID,
 		&i.VersionID,
 		&i.Status,
+		&i.VisitMode,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -185,7 +189,7 @@ func (q *Queries) ReleaseSlot(ctx context.Context, arg ReleaseSlotParams) (int64
 }
 
 const searchFreeSlots = `-- name: SearchFreeSlots :many
-SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE schedule_id = $1
@@ -209,6 +213,7 @@ type SearchFreeSlotsRow struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+	VisitMode      string
 	StartAt        pgtype.Timestamptz
 	EndAt          pgtype.Timestamptz
 }
@@ -230,6 +235,7 @@ func (q *Queries) SearchFreeSlots(ctx context.Context, arg SearchFreeSlotsParams
 			&i.OrganizationID,
 			&i.VersionID,
 			&i.Status,
+			&i.VisitMode,
 			&i.StartAt,
 			&i.EndAt,
 		); err != nil {
@@ -244,7 +250,7 @@ func (q *Queries) SearchFreeSlots(ctx context.Context, arg SearchFreeSlotsParams
 }
 
 const slotByID = `-- name: SlotByID :one
-SELECT id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE id = $1
@@ -257,6 +263,7 @@ type SlotByIDRow struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+	VisitMode      string
 	StartAt        pgtype.Timestamptz
 	EndAt          pgtype.Timestamptz
 }
@@ -272,6 +279,7 @@ func (q *Queries) SlotByID(ctx context.Context, id pgtype.UUID) (SlotByIDRow, er
 		&i.OrganizationID,
 		&i.VersionID,
 		&i.Status,
+		&i.VisitMode,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -282,7 +290,7 @@ const transitionSlot = `-- name: TransitionSlot :one
 UPDATE slot
 SET status = $1, version_id = version_id + 1, updated_at = $2
 WHERE id = $3 AND status = $4::text
-RETURNING id, updated_at, schedule_id, organization_id, version_id, status, lower(period)::timestamptz AS start_at,
+RETURNING id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
           upper(period)::timestamptz AS end_at
 `
 
@@ -300,6 +308,7 @@ type TransitionSlotRow struct {
 	OrganizationID pgtype.UUID
 	VersionID      int32
 	Status         string
+	VisitMode      string
 	StartAt        pgtype.Timestamptz
 	EndAt          pgtype.Timestamptz
 }
@@ -321,6 +330,7 @@ func (q *Queries) TransitionSlot(ctx context.Context, arg TransitionSlotParams) 
 		&i.OrganizationID,
 		&i.VersionID,
 		&i.Status,
+		&i.VisitMode,
 		&i.StartAt,
 		&i.EndAt,
 	)

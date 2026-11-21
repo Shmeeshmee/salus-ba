@@ -18,11 +18,26 @@ type Schedule struct {
 	VersionID          int32  // meta.versionId; zero before the first edit
 }
 
-// Rule is one weekly window of availability: an ISO weekday (1 Monday to 7 Sunday) and a start and end
-// time of day, HH:MM in the clinic's time zone, start before end.
+// VisitMode is how the patient attends: at the clinic or by video (docs/plans/clinic-cms.md, ADR 0016). A rule has
+// one; its slots carry it and an appointment copies its slot's.
+type VisitMode string
+
+// The modes. Everything made before the clinic system is video.
+const (
+	ModeInPerson VisitMode = "in-person"
+	ModeVideo    VisitMode = "video"
+)
+
+// Valid reports whether m is one of the modes.
+func (m VisitMode) Valid() bool { return m == ModeInPerson || m == ModeVideo }
+
+// Rule is one weekly window of availability: an ISO weekday (1 Monday to 7 Sunday), a start and end time of day,
+// HH:MM in the clinic's time zone, start before end, and the visit mode of its slots. Rules never overlap, whatever
+// their modes.
 type Rule struct {
 	Start string
 	End   string
+	Mode  VisitMode
 	Day   int
 }
 

@@ -2302,3 +2302,37 @@ deleted after `RETENTION_OPERATIONAL_LOG_DAYS`, 90 by default, as before. Both s
 **Webhook key per environment.** The api and the worker refuse to start without `WEBHOOK_KEY` (or its file) outside
 `SALUS_ENV=dev`, so no environment starts on a key it did not set. That the key is its own and not another's (or the
 compose file's synthetic one) stays a deploy check: production's comes from the key file (ADR 0011).
+
+## Clinic system (`docs/plans/clinic-cms.md`, ADR 0016)
+
+### Step 0: the contract (migration 00059, renumbered at merge)
+
+**Processing added.** How a patient attends (in person at the clinic, or by video) on each slot and appointment; the
+clinic's price list; the receipts and invoices a clinic issues and their report to the tax authority; what a clinic
+owes Salus. Lawful basis: the visit mode as the appointment's (the contract with the patient, Art. 6(1)(b), and the
+care record, Art. 9(2)(h)); a receipt to a patient the clinic's legal obligation to issue and keep it (Art. 6(1)(c)),
+and, as it shows that a patient paid for a service at a clinic, Art. 9(2)(h). Nothing is processed yet: step 0 adds
+the tables and the contract; the services that write them come with packages A to D. `pkg/fiscal` runs its fake; no
+receipt reaches the Tax Administration before package G (Q6), which is a public authority receiving data by law, not a
+processor.
+
+**Personal data added.** `slot.visit_mode`, `appointment.visit_mode` (kept with the appointment); `invoice` (the
+patient it is to, the visit, the amounts and payment method, the fiscal identifiers) and `invoice_line` (the services
+paid for), kept as the accounting and fiscal law requires: a placeholder of ten years after issue that needs a legal
+decision before production; until then the retention rule keeps them and nothing removes a receipt. Not personal data:
+the price list (`charge_item_definition` and its translations), the receipt numbers (`invoice_sequence`), the
+memberships and their invoices (`subscription_plan`, `clinic_subscription`, `subscription_invoice`), the clinic's
+address and billing details on `organization`, and a receipt to a company (it names the company only).
+
+**Who sees what.** A receipt: its clinic, and the patient it is to (their own, from every clinic); never another
+clinic or patient (row-level security, tested). Its lines follow it. The price list: the clinic's staff, and the
+directory the active services of listed clinics (prices at booking). The membership: the clinic.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| An issued receipt is altered after the fact | No `UPDATE` grant but the fiscal columns, a trigger refusing any other change for every role (the owner too), the fiscal status moving from `pending` once (or from `failed` to `fiscalized`); lines have no `UPDATE` or `DELETE` grant and a trigger refuses an update for every role |
+| A receipt reveals a patient's visit to another clinic or patient | Row-level security: the clinic's scope and the patient's own only; a visit's receipt is held to the visit's clinic (and patient, when it names one) by composite foreign keys; a line only from the receipt's clinic's price list |
+| More than the law requires reaches the Tax Administration | `pkg/fiscal`'s receipt carries the seller's tax id, amounts, item names and the payment method, never a patient; what ESET needs is recorded here with package G once the specification is known (Q6) |
+| A fake fiscalization is taken for a legal receipt | `config.LoadFiscal` takes only the fake until package G; the fake's identifiers start with `TEST-` |

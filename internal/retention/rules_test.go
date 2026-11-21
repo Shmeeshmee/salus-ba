@@ -390,3 +390,21 @@ func TestRules_FollowThePolicy(t *testing.T) {
 		}
 	}
 }
+
+// Receipts are kept as the accounting and fiscal law requires; until that period is decided (placeholder ten years,
+// docs/plans/clinic-cms.md "Personal data") nothing removes them.
+func TestRules_KeepReceiptsAndTheirLinesUntilTheLegalPeriodIsDecided(t *testing.T) {
+	want := map[string]bool{"invoice": true, "invoice_line": true}
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
+		if !want[r.Table] {
+			continue
+		}
+		if r.Then != retention.ThenKeep {
+			t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+		}
+		delete(want, r.Table)
+	}
+	for table := range want {
+		t.Errorf("no rule for %s", table)
+	}
+}

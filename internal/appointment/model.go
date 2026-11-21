@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // Status is Appointment.status, the four the product uses.
@@ -50,11 +51,12 @@ type Appointment struct {
 	SlotID             string // Appointment.slot
 	CancelledBy        string // the account that cancelled; empty for none or a job
 	Status             Status
-	Reason             Reason    // Appointment.cancelationReason; empty unless cancelled
-	ConfirmedVia       Via       // ViaApp or ViaLink once confirmed; empty while unconfirmed
-	BookedVia          BookedVia // how it was booked: directly or through a waitlist offer
-	VersionID          int32     // meta.versionId
-	RescheduleCount    int32     // how often the patient moved it
+	Reason             Reason             // Appointment.cancelationReason; empty unless cancelled
+	ConfirmedVia       Via                // ViaApp or ViaLink once confirmed; empty while unconfirmed
+	BookedVia          BookedVia          // how it was booked: directly or through a waitlist offer
+	Mode               schedule.VisitMode // in-person or video: its slot's at booking, never changed (ADR 0016)
+	VersionID          int32              // meta.versionId
+	RescheduleCount    int32              // how often the patient moved it
 }
 
 // Via is how a change of an appointment was made: in the patient's app, through a one-time link of a reminder, by
