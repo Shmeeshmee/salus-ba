@@ -85,6 +85,8 @@ privacy       consent, auditevent, datarequest (GDPR subject requests), retentio
               and the pure rule package access (who may see what)
 notification  notification
 reference     terminology (the medical term list: reference data, no personal data, read-only for the app)
+billing       chargeitemdefinition (the clinic's price list), invoice (receipts and invoices a clinic issues),
+              subscription (what a clinic owes Salus: plain JSON, nothing clinical)
 ```
 
 Start with the fewest domains a feature needs. Add a domain when a SPEC asks for it, and add it to the lists
@@ -304,6 +306,34 @@ service).
 - Before saying a change is done: `make lint` (gofmt, `go vet`, golangci-lint), `make test` and
   `make archcheck` all pass.
 - Never run `git stash`; use `git worktree add` to compare with and without a change.
+
+## Product
+
+B2B: the customers are private clinics in Bosnia and Herzegovina, on a monthly membership priced per active
+practitioner (docs/plans/clinic-cms.md, ADR 0016). Salus is the system a clinic runs on, with telemedicine built in:
+in-person and video visits, the price list, the receipts the fiscal law requires, and online hours a clinic's doctors
+can work from home after hours. Patients pay at the clinic, not in the app; live translation is a paid add-on per use,
+and a transaction fee applies only to prepaid bookings by diaspora and international patients (later). Practitioners
+and clinic admins work in `web/` (schedules, calendar, the price list, receipts, the questionnaire builder,
+consultations); patients only ever see `mobile/` (find a clinic, book, fill in questionnaires, join the consultation).
+Video consultations come with live transcription, and AI features are meant to grow across the platform from there;
+anything AI reads or writes is personal data under "GDPR and health data".
+
+## UI direction
+
+Decided by the owner for `web/` (and, in spirit, `mobile/`). A screen that follows these rules looks like Salus and
+not like every other dashboard; when a choice is open, usability and function come before looks.
+
+- Light, clean dashboard look with mint/green accents. Flat page backgrounds; a gradient appears only as an accent on
+  the current-appointment card, never behind a page.
+- Show only what the practitioner needs right now; the rest sits behind a tooltip or a dropdown. An empty margin beats
+  a third column of numbers.
+- A Helvetica-like sans-serif, bundled from npm like the landing page's fonts (no third-party requests).
+- Few icons, custom SVG, one consistent stroke; no icon packs sprinkled across the UI.
+- Animations are restrained and purposeful: a transition that explains what moved, never decoration. Respect
+  `prefers-reduced-motion`.
+- The questionnaire builder is drag-and-drop and must stay simple to look at while doing a lot (sections, conditional
+  questions, file and video uploads); complexity goes into the data model and tests, not onto the screen.
 
 ## Copy
 
