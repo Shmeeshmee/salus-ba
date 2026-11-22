@@ -72,11 +72,14 @@ type resource struct {
 }
 
 // address is the clinic's location (docs/plans/analytics.md O1): its leaf region's ISO 3166-2 code as the state,
-// its city's name in Latin script, and the city's Wikidata id in the organization-city extension.
+// its city's name in Latin script, and the city's Wikidata id in the organization-city extension; with the line and
+// the postal code patients come to for an in-person visit, when the clinic has them (docs/plans/clinic-cms.md).
 type address struct {
-	City      string           `json:"city,omitempty"`
-	State     string           `json:"state"`
-	Extension []fhir.Extension `json:"extension"`
+	City       string           `json:"city,omitempty"`
+	State      string           `json:"state"`
+	PostalCode string           `json:"postalCode,omitempty"`
+	Line       []string         `json:"line,omitempty"`
+	Extension  []fhir.Extension `json:"extension"`
 }
 
 // toFHIR is the clinic as its staff read it; toDirectory as the public directory shows it, without its location
@@ -85,7 +88,11 @@ func toFHIR(o Organization) resource {
 	r := toDirectory(o)
 	r.Extension = append(r.Extension, fhir.Extension{URL: extensionContributes, ValueBoolean: &o.AnalyticsContributes})
 	if o.City != "" {
-		r.Address = []address{{State: o.Region, City: o.CityName, Extension: []fhir.Extension{{URL: extensionCity, ValueCode: o.City}}}}
+		a := address{State: o.Region, City: o.CityName, PostalCode: o.PostalCode, Extension: []fhir.Extension{{URL: extensionCity, ValueCode: o.City}}}
+		if o.AddressLine != "" {
+			a.Line = []string{o.AddressLine}
+		}
+		r.Address = []address{a}
 	}
 	return r
 }
@@ -163,8 +170,10 @@ type updateBody struct {
 	Name         string          `json:"name"`
 	Extension    []bodyExtension `json:"extension"`
 	Address      []struct {
-		State     *string         `json:"state"`
-		Extension []bodyExtension `json:"extension"`
+		State      *string         `json:"state"`
+		PostalCode *string         `json:"postalCode"`
+		Line       *[]string       `json:"line"`
+		Extension  []bodyExtension `json:"extension"`
 	} `json:"address"`
 }
 
@@ -203,7 +212,8 @@ func (b updateBody) changes() (Changes, bool) {
 }
 
 // location sets the region and the city of ch from the body's address, when it has one: one address with a state
-// and one organization-city extension; false for any other address. Its city name is ignored.
+// and one organization-city extension; false for any other address. Its city name is ignored. Its line (at most one,
+// none to clear it) and its postal code are the clinic's address for in-person visits, kept when left out.
 func (b updateBody) location(ch *Changes) bool {
 	switch {
 	case len(b.Address) == 0:
@@ -219,7 +229,16 @@ func (b updateBody) location(ch *Changes) bool {
 			return false
 		}
 	}
-	ch.Region = b.Address[0].State
+	ch.Region, ch.PostalCode = b.Address[0].State, b.Address[0].PostalCode
+	if line := b.Address[0].Line; line != nil {
+		if len(*line) > 1 {
+			return false
+		}
+		ch.AddressLine = new(string)
+		if len(*line) == 1 {
+			ch.AddressLine = &(*line)[0]
+		}
+	}
 	return ch.City != nil
 }
 

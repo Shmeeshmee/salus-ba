@@ -84,6 +84,7 @@ func (r *fakeRepository) Update(ctx context.Context, in organization.Organizatio
 	o.Name, o.Listed, o.TimeZone, o.DefaultLanguage, o.VersionID, o.LastUpdated = in.Name, in.Listed, in.TimeZone, in.DefaultLanguage, in.VersionID+1, at
 	o.PatientTranscriptCopy = in.PatientTranscriptCopy
 	o.Region, o.City, o.LocationSince = in.Region, in.City, in.LocationSince
+	o.AddressLine, o.PostalCode = in.AddressLine, in.PostalCode
 	o.AnalyticsContributes, o.ContributesSince = in.AnalyticsContributes, in.ContributesSince
 	r.orgs[in.ID] = o
 	return o, nil

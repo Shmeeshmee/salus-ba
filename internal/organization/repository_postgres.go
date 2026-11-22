@@ -78,6 +78,7 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 		PatientTranscriptCopy: o.PatientTranscriptCopy, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
 		RegionID: text(o.Region), CityID: text(o.City), LocationSince: instant(o.LocationSince),
 		AnalyticsContributes: o.AnalyticsContributes, ContributesSince: instant(o.ContributesSince),
+		AddressLine: text(o.AddressLine), PostalCode: text(o.PostalCode),
 	})
 	if foreignKeyViolation(err) {
 		return Organization{}, ErrInvalidLocation
@@ -105,6 +106,7 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 		Listed: row.Listed, DefaultLanguage: string(row.DefaultLanguage), LastUpdated: row.UpdatedAt.Time,
 		PatientTranscriptCopy: row.PatientTranscriptCopy, Region: row.RegionID.String, City: row.CityID.String,
 		LocationSince: row.LocationSince.Time, AnalyticsContributes: row.AnalyticsContributes, ContributesSince: row.ContributesSince.Time,
+		AddressLine: row.AddressLine.String, PostalCode: row.PostalCode.String,
 	}
 }
 

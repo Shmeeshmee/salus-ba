@@ -515,5 +515,8 @@
   "waitlistWithdrawn": "Vous avez quitté la liste d'attente.",
   "waitlistOff": "Cet établissement n'a pas de liste d'attente.",
   "waitlistTooMany": "Vous êtes déjà inscrit cinq fois sur la liste d'attente de cet établissement. Quittez d'abord l'une des inscriptions.",
-  "waitlistOfferExpired": "Ce créneau ne vous est plus réservé. Vous restez sur la liste d'attente."
+  "waitlistOfferExpired": "Ce créneau ne vous est plus réservé. Vous restez sur la liste d'attente.",
+  "visitModeQuestion": "Comment souhaitez-vous assister au rendez-vous ?",
+  "visitModeVideo": "En vidéo",
+  "visitModeInPerson": "À la clinique"
 }

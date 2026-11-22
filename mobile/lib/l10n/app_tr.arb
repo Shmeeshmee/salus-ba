@@ -515,5 +515,8 @@
   "waitlistWithdrawn": "Bekleme listesinden çıktınız.",
   "waitlistOff": "Bu kliniğin bekleme listesi yok.",
   "waitlistTooMany": "Bu kliniğin bekleme listesinde zaten beş kez varsınız. Önce birinden çıkın.",
-  "waitlistOfferExpired": "Bu saat artık sizin için ayrılmış değil. Bekleme listesinde kalıyorsunuz."
+  "waitlistOfferExpired": "Bu saat artık sizin için ayrılmış değil. Bekleme listesinde kalıyorsunuz.",
+  "visitModeQuestion": "Randevuya nasıl katılmak istersiniz?",
+  "visitModeVideo": "Görüntülü",
+  "visitModeInPerson": "Klinikte"
 }

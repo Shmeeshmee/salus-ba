@@ -215,7 +215,8 @@ type LocationProps = {
 }
 
 // Location is the clinic's region and a city of it, chosen from the places; a new region clears the city. A location
-// once saved can be changed, not cleared; hint shows what the All of Salus view does with it.
+// once saved can be changed, not cleared; hint shows what the All of Salus view does with it. Below them, the street
+// address and the postal code patients come to for an in-person visit (ADR 0016), once the city is chosen.
 function Location({ places, settings, change, located, hint }: LocationProps) {
   const t = useT()
   const name = useLanguage().language === 'sr-Cyrl' ? (p: Place) => p.nameCyrl : (p: Place) => p.nameLatn
@@ -263,6 +264,22 @@ function Location({ places, settings, change, located, hint }: LocationProps) {
           ))}
         </select>
       </div>
+      <Field
+        label={t('admin.addressLine')}
+        value={settings.addressLine}
+        maxLength={200}
+        disabled={settings.city === ''}
+        hint={t('admin.addressHint')}
+        onChange={(e) => change({ addressLine: e.target.value })}
+      />
+      <Field
+        label={t('admin.postalCode')}
+        value={settings.postalCode}
+        maxLength={20}
+        disabled={settings.city === ''}
+        className="short"
+        onChange={(e) => change({ postalCode: e.target.value })}
+      />
     </>
   )
 }

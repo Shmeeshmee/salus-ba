@@ -30,9 +30,12 @@ type letters struct {
 	months    []string // January first
 }
 
-// letter is what an e-mail's template is filled with: no id, no address, nothing clinical.
+// letter is what an e-mail's template is filled with: no id, no address of a person, nothing clinical.
 type letter struct {
 	Clinic string
+	// Address is where the patient comes for an in-person visit, the clinic's on one line ("" for a video visit and a
+	// clinic without one); InPerson is set for an in-person visit (docs/plans/clinic-cms.md, ADR 0016).
+	Address string
 	// When is the appointment's start in the clinic's zone, written by the language's date.txt.
 	When string
 	Link string
@@ -56,6 +59,7 @@ type letter struct {
 	Year       int
 	// Questionnaire adds COPY E1 (docs/questionnaire/COPY.md), never which questionnaire.
 	Questionnaire bool
+	InPerson      bool
 }
 
 // loadLetters parses every language's templates. The templates are part of the binary, so a broken one is a

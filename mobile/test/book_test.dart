@@ -89,6 +89,43 @@ void main() {
     expect(find.text('Wednesday 4 November 2026'), findsOneWidget);
   });
 
+  testWidgets('a day with visits by video and at the clinic asks which before the time, video first', (tester) async {
+    final h = await atSlots(tester);
+    h.api.on(
+      'GET /fhir/R4/Slot',
+      (_) async => fhirResponse(
+        200,
+        bundle([
+          slot('video', '2026-11-04T13:00:00Z', '2026-11-04T13:30:00Z'),
+          slot('clinic', '2026-11-04T14:00:00Z', '2026-11-04T14:30:00Z', mode: 'in-person'),
+        ]),
+      ),
+    );
+    await tapLink(tester, 'Next day');
+
+    expect(find.text('How would you like to attend?'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '14:00'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '15:00'), findsNothing);
+
+    await tapText(tester, 'At the clinic');
+    expect(find.widgetWithText(OutlinedButton, '14:00'), findsNothing);
+    await tapOutlined(tester, '15:00');
+
+    expect(find.text('Book this time'), findsOneWidget);
+    expect(find.text('At the clinic'), findsOneWidget);
+    expect(find.text('By video'), findsNothing);
+  });
+
+  testWidgets('a day with one kind of visit names it and asks nothing', (tester) async {
+    await atSlots(tester);
+
+    expect(find.text('How would you like to attend?'), findsNothing);
+    expect(find.text('By video'), findsOneWidget);
+
+    await tapOutlined(tester, '14:00');
+    expect(find.text('By video'), findsOneWidget);
+  });
+
   testWidgets('shows the practitioners with the specialty the API gives', (tester) async {
     final h = Harness(store: FakeTokenStore(token));
     h.api.answer('GET /auth/me', 200, account());

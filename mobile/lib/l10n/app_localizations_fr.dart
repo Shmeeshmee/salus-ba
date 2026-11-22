@@ -2005,4 +2005,14 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Ce créneau ne vous est plus réservé. Vous restez sur la liste d\'attente.';
+
+  @override
+  String get visitModeQuestion =>
+      'Comment souhaitez-vous assister au rendez-vous ?';
+
+  @override
+  String get visitModeVideo => 'En vidéo';
+
+  @override
+  String get visitModeInPerson => 'À la clinique';
 }

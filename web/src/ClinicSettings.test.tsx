@@ -288,8 +288,35 @@ describe("the clinic's location and its contribution to the platform figures", (
 
     expect((await screen.findByRole('status')).textContent).toBe('Saved.')
     const body = (await requests.find((r) => r.method === 'PUT')!.json()) as Organization
-    expect(body.address).toEqual([{ state: 'BA-SRP', city: 'Banja Luka', extension: [{ url: cityURL, valueCode: 'Q1' }] }])
+    expect(body.address).toEqual([{ state: 'BA-SRP', city: 'Banja Luka', line: [], postalCode: '', extension: [{ url: cityURL, valueCode: 'Q1' }] }])
     expect(body.extension).toContainEqual({ url: contributesURL, valueBoolean: false })
+  })
+
+  it('shows and saves the street address and the postal code patients come to, once the clinic has a city', async () => {
+    const withAddress = { ...located, address: [{ ...located.address![0], line: ['Synthetic street 1'], postalCode: '71000' }] }
+    const { requests } = renderSettings({
+      [`GET ${path}`]: () => fhirJSON(withAddress),
+      [`PUT ${path}`]: async (r) => fhirJSON({ ...((await r.json()) as Organization), meta: { ...org.meta, versionId: '4' } }),
+    })
+
+    const line = (await screen.findByLabelText('Street and number')) as HTMLInputElement
+    await vi.waitFor(() => expect(line.value).toBe('Synthetic street 1'))
+    expect((screen.getByLabelText('Postal code') as HTMLInputElement).value).toBe('71000')
+    expect(screen.getByText('Patients with an appointment at the clinic get this address in their e-mails and reminders.')).toBeTruthy()
+    fireEvent.change(line, { target: { value: ' Synthetic street 2 ' } })
+    fireEvent.change(screen.getByLabelText('Postal code'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    const body = (await requests.find((r) => r.method === 'PUT')!.json()) as Organization
+    expect(body.address).toEqual([{ state: 'BA-09', city: 'Centar', line: ['Synthetic street 2'], postalCode: '', extension: [{ url: cityURL, valueCode: 'Q1270190' }] }])
+  })
+
+  it('takes no street address before the clinic has a city', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+
+    expect(((await screen.findByLabelText('Street and number')) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Postal code') as HTMLInputElement).disabled).toBe(true)
   })
 
   it('explains what opting out means', async () => {

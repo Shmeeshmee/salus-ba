@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/push"
 	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
@@ -128,12 +129,13 @@ func (j *fakeDeliveryJobs) EnqueueDelivery(ctx context.Context, channel notifica
 type fakeReminders struct {
 	takeErr, noticeErr, linkErr error
 	start                       time.Time
+	mode                        schedule.VisitMode
 	links                       []appointment.Link
 	taken, dispatched           int
 }
 
 func (f *fakeReminders) notice() appointment.ReminderNotice {
-	return appointment.ReminderNotice{Start: f.start, ReminderID: reminderID, AppointmentID: remindAppt, OrganizationID: remindClin, PatientID: patientID, AccountID: patientAccount}
+	return appointment.ReminderNotice{Start: f.start, ReminderID: reminderID, AppointmentID: remindAppt, OrganizationID: remindClin, PatientID: patientID, AccountID: patientAccount, Mode: f.mode}
 }
 
 func (f *fakeReminders) TakeReminder(_ context.Context, _, org, id string) (appointment.ReminderNotice, error) {
@@ -187,7 +189,8 @@ func (r fakeRules) For(_ context.Context, org string) (organization.AppointmentS
 type sarajevo struct{}
 
 func (sarajevo) Read(_ context.Context, _ organization.Caller, id string) (organization.Organization, error) {
-	return organization.Organization{ID: id, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo"}, nil
+	return organization.Organization{ID: id, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo",
+		AddressLine: "Synthetic street 1", PostalCode: "71000", CityName: "Centar"}, nil
 }
 
 type fakePhones struct{ phone string }

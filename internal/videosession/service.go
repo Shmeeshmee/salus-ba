@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -182,12 +183,12 @@ func (s *Service) join(ctx context.Context, c appointment.Caller, id string, now
 }
 
 // decide gives the caller's role in the appointment of att at now, or why they may not join: not a
-// participant, no active consent (checked first: after a revocation the appointment may be cancelled too),
-// no longer booked, or outside the window.
+// participant, an in-person visit (it has no call: docs/plans/clinic-cms.md, ADR 0016), no active consent (checked
+// before the status: after a revocation the appointment may be cancelled too), no longer booked, or outside the window.
 func decide(att appointment.Attendance, now time.Time) (Role, error) {
 	a := att.Appointment
 	switch {
-	case !att.Patient && !att.Practitioner:
+	case !att.Patient && !att.Practitioner, a.Mode == schedule.ModeInPerson:
 		return "", ErrNotFound
 	case !att.ConsentActive:
 		return "", ErrConsentRequired

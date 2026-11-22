@@ -42,7 +42,7 @@ func rescheduleUntil(a Appointment, noticeHours int) time.Time {
 	return a.Start.Add(-max(time.Duration(noticeHours)*time.Hour, joinOpensBefore))
 }
 
-// Reschedule moves the patient's booked appointment id to the free slot slotID of the same practitioner role, and
+// Reschedule moves the patient's booked appointment id to the free slot slotID of the same practitioner role and visit mode, and
 // returns it at its new time and version (ADR 0015 "A reschedule is the same Appointment with a new time"). The slot is
 // resolved in the public directory first; then, in one transaction in the patient's scope, the appointment is locked
 // and checked against the clinic's rules (self-service on, the same role, the join window not open, its notice not
@@ -127,7 +127,7 @@ func (s *Service) mayReschedule(ctx context.Context, a Appointment, b slot.Booka
 	}
 	switch {
 	case set.RescheduleMax == 0, b.PractitionerRoleID != a.PractitionerRoleID, b.OrganizationID != a.OrganizationID,
-		!now.Before(a.Start.Add(-joinOpensBefore)):
+		!sameMode(a, b), !now.Before(a.Start.Add(-joinOpensBefore)):
 		return ErrNotReschedulable
 	case !now.Before(rescheduleUntil(a, set.RescheduleNoticeHours)):
 		return ErrRescheduleWindowClosed

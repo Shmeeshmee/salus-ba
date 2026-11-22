@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden e-mails in testdata/")
@@ -29,6 +30,7 @@ var start = time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
 type fakeAppointments struct {
 	err    error
 	status appointment.Status
+	mode   schedule.VisitMode
 	asked  []string // agent, clinic, appointment
 }
 
@@ -40,7 +42,7 @@ func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (app
 	return appointment.Notice{
 		Appointment: appointment.Appointment{
 			ID: id, OrganizationID: org, PatientID: "aa000000-0000-4000-8000-0000000000aa", PractitionerRoleID: "a4000000-0000-4000-8000-0000000000a1",
-			Start: start, End: start.Add(30 * time.Minute), Status: f.status,
+			Start: start, End: start.Add(30 * time.Minute), Status: f.status, Mode: f.mode,
 		},
 		AccountID: accountID,
 	}, nil
@@ -64,7 +66,8 @@ func (c zonedClinics) Read(_ context.Context, cl organization.Caller, id string)
 	if c.err != nil || cl.OrganizationID != id {
 		return organization.Organization{}, errors.Join(organization.ErrNotFound, c.err)
 	}
-	return organization.Organization{ID: id, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo"}, nil
+	return organization.Organization{ID: id, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo",
+		AddressLine: "Synthetic street 1", PostalCode: "71000", CityName: "Centar"}, nil
 }
 
 // fakeQuestionnaires tells whether a questionnaire is outstanding, as set.
@@ -297,5 +300,46 @@ func TestAppointmentEmails_SendNothingWhenTheQuestionnaireCheckFails(t *testing.
 	if err := newMailAsking(&fakeAppointments{status: appointment.StatusCancelled}, &fakeAccounts{language: "en"}, zonedClinics{}, &fakeSender{}, q).
 		SendAppointmentReminder(t.Context(), apptID, clinicID); err != nil || q.asked != nil {
 		t.Errorf("a reminder of a cancelled appointment: error = %v, asked %v; want nil and no check", err, q.asked)
+	}
+}
+
+// clinicAddress is the address of the fakes' clinic on one line.
+const clinicAddress = "Synthetic street 1, 71000 Centar"
+
+// An in-person visit's e-mails say that it is at the clinic and where (docs/plans/clinic-cms.md, ADR 0016), in every
+// language; a video visit's say nothing of the address (the golden files of the tests above, whose clinic has one).
+func TestAppointmentEmails_OfAnInPersonVisitSayWhereToCome(t *testing.T) {
+	sends := map[string]func(s *notification.Service, ctx context.Context) error{
+		"booked": func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentBooked(ctx, apptID, clinicID)
+		},
+		"reminder": func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentReminder(ctx, apptID, clinicID)
+		},
+		"rescheduled": func(s *notification.Service, ctx context.Context) error {
+			return s.SendAppointmentRescheduled(ctx, apptID, clinicID)
+		},
+	}
+	for name, send := range sends {
+		for _, lang := range languages {
+			for _, mode := range []schedule.VisitMode{schedule.ModeInPerson, schedule.ModeVideo, ""} {
+				appts, sender := &fakeAppointments{status: appointment.StatusBooked, mode: mode}, &fakeSender{}
+				if err := send(newMail(appts, &fakeAccounts{language: lang}, zonedClinics{}, sender), t.Context()); err != nil || len(sender.sent) != 1 {
+					t.Fatalf("%s in %s: %v, sent %d", name, lang, err, len(sender.sent))
+				}
+				if got, want := strings.Contains(sender.sent[0].Body, clinicAddress), mode == schedule.ModeInPerson; got != want {
+					t.Errorf("%s in %s, mode %q: the address is in the e-mail: %v, want %v", name, lang, mode, got, want)
+				}
+				if mode == schedule.ModeInPerson && lang == "en" {
+					golden(t, name+"_in_person.txt", mail(sender.sent[0]))
+				}
+			}
+		}
+	}
+	// The cancellation names no address: nobody comes.
+	appts, sender := &fakeAppointments{status: appointment.StatusCancelled, mode: schedule.ModeInPerson}, &fakeSender{}
+	if err := newMail(appts, &fakeAccounts{language: "en"}, zonedClinics{}, sender).SendAppointmentCancelled(t.Context(), apptID, clinicID); err != nil ||
+		len(sender.sent) != 1 || strings.Contains(sender.sent[0].Body, clinicAddress) {
+		t.Errorf("the cancellation: %v, %+v; want one e-mail without the address", err, sender.sent)
 	}
 }

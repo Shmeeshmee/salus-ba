@@ -304,3 +304,46 @@ func TestBookable_GivesAFreeSlotOfAListedClinicWithItsRole(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerate_ARuleThatChangesItsModeReplacesItsFreeSlotsAndKeepsABusyOne(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	if _, err := newService(app, monday).Generate(t.Context(), clinicA, scheduleA1); err != nil { // 8 video slots
+		t.Fatal(err)
+	}
+	booked := monday.Add(7*24*time.Hour + 2*time.Hour) // next Monday 11:00
+	if _, err := owner.Exec(t.Context(), `UPDATE slot SET status = 'busy' WHERE schedule_id = $1 AND lower(period) = $2`, scheduleA1, booked); err != nil {
+		t.Fatal(err)
+	}
+	inPerson := seeded()
+	inPerson[0].Rules = []schedule.Rule{{Day: 1, Start: "10:00", End: "12:00", Mode: schedule.ModeInPerson}}
+
+	got, err := newService(app, monday, inPerson...).Generate(t.Context(), clinicA, scheduleA1)
+	if err != nil || got.Deleted != 7 || got.Inserted != 7 {
+		t.Fatalf("Generate() = %+v, %v; want the 7 free video slots replaced", got, err)
+	}
+	rows, err := owner.Query(t.Context(), `SELECT lower(period), status, visit_mode FROM slot WHERE schedule_id = $1`, scheduleA1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var start time.Time
+		var status, mode string
+		if err := rows.Scan(&start, &status, &mode); err != nil {
+			t.Fatal(err)
+		}
+		n++
+		if want := start.Equal(booked); (status == "busy") != want || (mode == "video") != want {
+			t.Errorf("the slot at %v is %s and %s; want only the booked one busy and video", start, status, mode)
+		}
+	}
+	if err := rows.Err(); err != nil || n != 8 {
+		t.Fatalf("%d slots, %v; want 8", n, err)
+	}
+	if again, err := newService(app, monday, inPerson...).Generate(t.Context(), clinicA, scheduleA1); err != nil || again.Inserted != 0 || again.Deleted != 0 {
+		t.Errorf("a re-run = %+v, %v; want nothing inserted or deleted", again, err)
+	}
+}

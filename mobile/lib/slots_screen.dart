@@ -12,6 +12,7 @@ import 'profile_screen.dart';
 import 'session.dart';
 import 'sharing.dart';
 import 'ui.dart' as ui;
+import 'visit_mode.dart';
 import 'waitlist_screen.dart';
 import 'zones.dart';
 
@@ -51,6 +52,30 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
   late DateTime _day = _today;
   bool _scheduleRead = false;
   String? _schedule;
+
+  /// The mode the patient picked on a day that has both, video until they pick (ADR 0016).
+  bool _inPerson = false;
+
+  /// The day's times: the mode first, to pick when the day has both and named when it has one, then the times of it.
+  List<Widget> _times(List<Slot> slots) {
+    final t = context.t;
+    final both = hasBothModes(slots);
+    final shown = both ? slotsOfMode(slots, inPerson: _inPerson) : slots;
+    return [
+      if (both)
+        VisitModePicker(inPerson: _inPerson, onChanged: (v) => setState(() => _inPerson = v))
+      else if (slots.isNotEmpty)
+        Text(visitModeName(t, inPerson: slots.first.inPerson)),
+      if (shown.isEmpty) Text(t.noFreeTimes),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final slot in shown) OutlinedButton(onPressed: () => _choose(slot), child: Text(_zone.time(slot.start))),
+        ],
+      ),
+    ];
+  }
 
   /// The day's free slots, or null when the practitioner has no schedule.
   @override
@@ -119,19 +144,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
             ],
           ),
           ui.Heading(Zone.longDate(_day, t.localeName)),
-          ...body(
-            (slots) => [
-              if (slots == null || slots.isEmpty) Text(t.noFreeTimes),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final slot in slots ?? const <Slot>[])
-                    OutlinedButton(onPressed: () => _choose(slot), child: Text(_zone.time(slot.start))),
-                ],
-              ),
-            ],
-          ),
+          ...body((slots) => _times(slots ?? const <Slot>[])),
           TextButton(onPressed: _joinWaitlist, child: Text(t.waitlistJoinButton)),
         ],
       ],
@@ -328,6 +341,7 @@ class _BookScreenState extends State<BookScreen> {
       children: [
         ui.Heading(_zone.date(slot.start, t.localeName)),
         Text(t.timeRange(_zone.time(slot.start), _zone.time(slot.end), _zone.name)),
+        Text(visitModeName(t, inPerson: slot.inPerson)),
         Text(widget.role.name),
         if (specialty != null) Text(specialty),
         Text(widget.clinic.name),

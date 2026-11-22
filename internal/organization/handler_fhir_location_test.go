@@ -82,3 +82,39 @@ func TestHandlerUpdate_AnswersAnInvalidLocation(t *testing.T) {
 	}
 	assertGolden(t, "invalid_location.json", rec.Body.Bytes())
 }
+
+// The clinic's address for in-person visits (docs/plans/clinic-cms.md, ADR 0016) is the same Organization.address:
+// its line and its postal code beside the location.
+func TestHandlerRead_SendsTheAddressLineAndThePostalCode(t *testing.T) {
+	o := clinic(3)
+	o.Region, o.City, o.CityName, o.AddressLine, o.PostalCode = "BA-09", "Q1270190", "Centar", "Synthetic street 1", "71000"
+	rec := newOrgServer(&stubClinics{org: o}).do(t, http.MethodGet, clinicPath, "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "organization_address.json", rec.Body.Bytes())
+}
+
+func TestHandlerUpdate_SetsClearsAndKeepsTheAddressLineAndThePostalCode(t *testing.T) {
+	put := func(rest string) (*orgServer, int) {
+		s := newOrgServer(&stubClinics{org: clinic(4)})
+		body := `{"resourceType":"Organization","id":"` + clinicA + `","name":"Synthetic clinic","address":[{"state":"BA-09","extension":[{"url":"` +
+			cityURL + `","valueCode":"Q1270190"}]` + rest + `}]}`
+		return s, s.do(t, http.MethodPut, clinicPath, `W/"3"`, body).Code
+	}
+	s, status := put(`,"line":["Synthetic street 1"],"postalCode":"71000"`)
+	if ch := s.svc.changes; status != http.StatusOK || ch.AddressLine == nil || *ch.AddressLine != "Synthetic street 1" || ch.PostalCode == nil || *ch.PostalCode != "71000" {
+		t.Errorf("set: status = %d with %+v, want the line and the postal code", status, ch)
+	}
+	s, status = put(`,"line":[],"postalCode":""`)
+	if ch := s.svc.changes; status != http.StatusOK || ch.AddressLine == nil || *ch.AddressLine != "" || ch.PostalCode == nil || *ch.PostalCode != "" {
+		t.Errorf("cleared: status = %d with %+v, want both empty", status, ch)
+	}
+	s, status = put(``)
+	if ch := s.svc.changes; status != http.StatusOK || ch.AddressLine != nil || ch.PostalCode != nil {
+		t.Errorf("left out: status = %d with %+v, want both kept", status, ch)
+	}
+	if s, status = put(`,"line":["Synthetic street 1","Floor 2"]`); status != http.StatusBadRequest || s.svc.calls != 0 {
+		t.Errorf("two lines: status = %d after %d calls, want 400 and none", status, s.svc.calls)
+	}
+}

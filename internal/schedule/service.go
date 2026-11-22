@@ -313,7 +313,7 @@ func validate(in Availability) ([]Rule, error) {
 	for i, r := range rules {
 		start, okStart := Minutes(r.Start)
 		end, okEnd := Minutes(r.End)
-		if r.Mode == "" { // until package A lets the edit name the mode
+		if r.Mode == "" { // an edit that names no mode: video, as every rule before the clinic system
 			rules[i].Mode = ModeVideo
 		}
 		if r.Day < 1 || r.Day > 7 || !okStart || !okEnd || start >= end || !rules[i].Mode.Valid() {

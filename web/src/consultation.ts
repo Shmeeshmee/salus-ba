@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ErrorCode } from './api/client'
 import type { Appointment } from './api/fhir'
 import type { useT } from './i18n/useT'
+import { visitModeOf } from './visitMode'
 
 const minute = 60_000
 
@@ -9,9 +10,9 @@ export type Window = 'before' | 'open' | 'closed'
 
 // joinWindow is where now stands against a booked appointment's join window: from 10 minutes before the start
 // to 30 minutes after the end (SPEC §2 "Join button"). It only decides whether the button shows; the server
-// decides whether a token is issued.
+// decides whether a token is issued. An in-person visit has no call: its window is closed at any time (ADR 0016).
 export function joinWindow(appt: Appointment, now: Date): Window {
-  if (appt.status !== 'booked') return 'closed'
+  if (appt.status !== 'booked' || visitModeOf(appt) === 'in-person') return 'closed'
   const t = now.getTime()
   if (t < new Date(appt.start).getTime() - 10 * minute) return 'before'
   if (t >= new Date(appt.end).getTime() + 30 * minute) return 'closed'

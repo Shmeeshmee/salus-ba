@@ -1,5 +1,5 @@
 -- name: OrganizationByID :one
-SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 FROM organization
 WHERE id = @id;
 
@@ -16,14 +16,15 @@ UPDATE organization
 SET name = @name, listed = @listed, time_zone = @time_zone, default_language = @default_language, patient_transcript_copy = @patient_transcript_copy,
     region_id = sqlc.narg(region_id), city_id = sqlc.narg(city_id), location_since = sqlc.narg(location_since),
     analytics_contributes = @analytics_contributes, contributes_since = @contributes_since,
+    address_line = sqlc.narg(address_line), postal_code = sqlc.narg(postal_code),
     version_id = version_id + 1, updated_at = @updated_at
 WHERE id = @id AND version_id = @version_id
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since;
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code;
 
 -- name: CreateOrganization :one
 -- The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
 INSERT INTO organization (name) VALUES (@name)
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since;
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code;
 
 -- name: ChatSettings :one
 -- The clinic's chat settings (00047); row-level security shows only the clinic set.

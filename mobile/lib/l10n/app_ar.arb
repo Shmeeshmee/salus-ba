@@ -515,5 +515,8 @@
   "waitlistWithdrawn": "غادرت قائمة الانتظار.",
   "waitlistOff": "لا توجد قائمة انتظار لدى هذه العيادة.",
   "waitlistTooMany": "أنت مسجل بالفعل خمس مرات في قائمة انتظار هذه العيادة. غادر إحداها أولًا.",
-  "waitlistOfferExpired": "لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار."
+  "waitlistOfferExpired": "لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار.",
+  "visitModeQuestion": "كيف تود حضور الموعد؟",
+  "visitModeVideo": "عبر الفيديو",
+  "visitModeInPerson": "في العيادة"
 }

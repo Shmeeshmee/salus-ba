@@ -4,7 +4,9 @@ Randevunuz yeni bir zamana taşındı.
 Klinik: {{.Clinic}}
 Yeni tarih ve saat: {{.When}}
 
-Randevunuzu görmek veya iptal etmek için Salus uygulamasını açın:
+{{if .InPerson}}Bu randevu klinikte yapılacaktır, görüntülü değildir.{{if .Address}} Adres: {{.Address}}{{end}}
+
+{{end}}Randevunuzu görmek veya iptal etmek için Salus uygulamasını açın:
 {{.Link}}
 
 Randevunuzu, başlamasından en geç 24 saat öncesine kadar iptal edebilirsiniz.

@@ -4,7 +4,9 @@ Podsjećamo vas na termin u ustanovi {{.Clinic}}.
 Datum i vrijeme: {{.When}}
 {{if .WhenLocal}}U vašoj vremenskoj zoni: {{.WhenLocal}}
 {{end}}
-{{if .Questionnaire}}Prije termina trebate popuniti upitnik. Naći ćete ga u aplikaciji Salus.
+{{if .InPerson}}Ovaj termin je u ustanovi, a ne putem videa.{{if .Address}} Adresa: {{.Address}}{{end}}
+
+{{end}}{{if .Questionnaire}}Prije termina trebate popuniti upitnik. Naći ćete ga u aplikaciji Salus.
 
 {{end}}Da potvrdite ili otkažete termin, otvorite ovaj link:
 {{.ActionLink}}

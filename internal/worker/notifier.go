@@ -17,6 +17,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/push"
@@ -60,7 +61,9 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
+	// The places name the clinic's city in the address an in-person visit's e-mail gives (docs/plans/clinic-cms.md).
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk,
+		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool)))
 	// Issuing a token and reading an account's e-mail need only the repository, the audit, the transaction
 	// and the clock.
 	accounts := auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})

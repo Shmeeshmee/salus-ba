@@ -90,7 +90,8 @@ func (s *Service) SendAppointmentReminder(ctx context.Context, id, org string) e
 
 // sendAppointment sends e about the appointment id of the clinic org to its patient's account e-mail, in the
 // account's language, else Bosnian (docs/i18n/SPEC.md §3 "The account's language fields"): the clinic's name, the start in the clinic's time zone with the zone's name, and the link to the app's
-// appointments; nothing about the practitioner, the specialty or the visit (docs/booking/SPEC.md "E-mail"),
+// appointments, and for an in-person visit that it is at the clinic and the clinic's address (whereToCome); nothing
+// about the practitioner, the specialty or the visit (docs/booking/SPEC.md "E-mail"),
 // and for the confirmation and the reminder E1 when a questionnaire is outstanding, never which one
 // (docs/questionnaire/SPEC.md §2 "Notifications").
 // An appointment no longer in the status e applies to sends nothing. Errors carry no address or text;
@@ -124,7 +125,8 @@ func (s *Service) sendAppointment(ctx context.Context, e appointmentEmail, id, o
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
-	msg, err := l.message(to, e.template, letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + "/appointments", Questionnaire: outstanding})
+	data := whereToCome(letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + "/appointments", Questionnaire: outstanding}, n.Appointment.Mode, clinic)
+	msg, err := l.message(to, e.template, data)
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}

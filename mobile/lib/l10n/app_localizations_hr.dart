@@ -2008,4 +2008,13 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Ovaj termin više nije rezerviran za vas. Ostajete na listi čekanja.';
+
+  @override
+  String get visitModeQuestion => 'Kako želite obaviti termin?';
+
+  @override
+  String get visitModeVideo => 'Putem videa';
+
+  @override
+  String get visitModeInPerson => 'U klinici';
 }

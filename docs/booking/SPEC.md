@@ -329,10 +329,14 @@ Retention rules. Defaults: **needs a legal decision before production.**
 
 ## 5. Out of scope
 
-Video and consultations, questionnaires, payments and billing, waitlists, recurring appointments, in-person
-versus video types, rescheduling (cancel and book again), SMS and push, break-glass, practitioners on mobile,
+Video and consultations, questionnaires, payments and billing, waitlists, recurring appointments,
+rescheduling (cancel and book again), SMS and push, break-glass, practitioners on mobile,
 AI features, staff booking for a patient, the patient's export and erasure (subject-rights feature), removing
 audit ranges (see "Up next"), practitioner deactivation (and so the `restrict` applier).
+
+Amended 2026-11-21 (docs/plans/clinic-cms.md, package A; ADR 0016): in-person versus video visits are no longer out
+of scope. A schedule rule has a visit mode (`in-person` or `video`), its slots carry it, and an appointment keeps the
+mode of the slot it was booked in.
 
 ## 6. Up next
 

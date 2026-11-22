@@ -88,6 +88,25 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Change the time'), findsNothing);
   });
 
+  testWidgets('offers only the times of the appointment\'s own visit mode for a new time', (tester) async {
+    final h = await _atAppointments(tester);
+    h.api.on(
+      'GET /fhir/R4/Slot',
+      (_) async => fhirResponse(
+        200,
+        bundle([
+          slot('s1', '2026-11-04T13:00:00Z', '2026-11-04T13:30:00Z'),
+          slot('s2', '2026-11-04T14:00:00Z', '2026-11-04T14:30:00Z', mode: 'in-person'),
+        ]),
+      ),
+    );
+
+    await tapOutlined(tester, 'Change the time');
+
+    expect(find.widgetWithText(OutlinedButton, '14:00'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '15:00'), findsNothing, reason: 'a video appointment stays a video one');
+  });
+
   testWidgets('reschedules to a free slot of the same role after a confirmation', (tester) async {
     final h = await _atAppointments(tester);
 

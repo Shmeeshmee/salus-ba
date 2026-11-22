@@ -5,7 +5,7 @@ import { attempt, type Outcome } from './api/result'
 import type { components } from './api/schema'
 import { AppointmentChanges } from './AppointmentChanges'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
-import { ConfirmationTag } from './Calendar'
+import { ConfirmationTag, InPersonTag } from './Calendar'
 import { PatientHistory } from './History'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
@@ -15,6 +15,7 @@ import { NoShowCorrection, NoShowFlag } from './NoShows'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
 import { Alert, Link } from './ui'
+import { visitModeOf } from './visitMode'
 
 type T = ReturnType<typeof useT>
 
@@ -38,11 +39,13 @@ export function AppointmentDetail({ api, fhir, account, id, now = () => new Date
   const organizationId = account.organizationId ?? ''
   const practitioner = account.role === 'practitioner'
   const { state, set } = useLoad(async (): Promise<Detail> => {
-    const [zone, appt, consultation] = await Promise.all([
+    const [zone, appt, read] = await Promise.all([
       loadTimeZone(fhir, organizationId),
       fhir.get<Appointment>(`Appointment/${encodeURIComponent(id)}`),
       readConsultation(api, id),
     ])
+    // A visit at the clinic has no call, so no consultation status to show (ADR 0016).
+    const consultation = visitModeOf(appt) === 'in-person' ? undefined : read
     const patient = participant(appt, 'Patient')
     const profile = practitioner && patient ? await readPatient(fhir, patient.id) : undefined
     return { zone, appt, profile, consultation }
@@ -116,6 +119,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       <p className="when">
         <span>{t('calendar.when', { date: f.date(start, zone, 'long'), start: f.time(start, zone), end: f.time(end, zone) })}</span>
         <span className={`tag ${appt.status}`}>{t(`calendar.status.${appt.status}`)}</span>
+        <InPersonTag appt={appt} />
         <ConfirmationTag appt={appt} />
         <NoShowFlag api={api} id={appt.id} start={start} />
       </p>

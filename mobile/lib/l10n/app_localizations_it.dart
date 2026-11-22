@@ -1996,4 +1996,13 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Questo orario non è più riservato a lei. Resta nella lista d\'attesa.';
+
+  @override
+  String get visitModeQuestion => 'Come desidera svolgere l\'appuntamento?';
+
+  @override
+  String get visitModeVideo => 'In video';
+
+  @override
+  String get visitModeInPerson => 'In clinica';
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/notification"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/sms"
 )
 
@@ -417,4 +418,29 @@ func TestSendDelivery_TheReminderSMSOfAPatientAbroadHoldsBothTimes(t *testing.T)
 		}
 	}
 	t.Logf("abroad, bs: %d parts", sms.Segments(body))
+}
+
+// The reminders of an in-person visit say where to come (docs/plans/clinic-cms.md, ADR 0016): the e-mail that it is at
+// the clinic with the address, the SMS the address after the clinic's name; the push stays generic.
+func TestSendDelivery_TheRemindersOfAnInPersonVisitHoldTheAddress(t *testing.T) {
+	f := dispatched(t, afterChange.Add(-24*time.Hour))
+	f.reminders.mode = schedule.ModeInPerson
+	for _, ch := range []notification.Channel{notification.ChannelEmail, notification.ChannelSMS, notification.ChannelPush} {
+		if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, ch).ID, false); err != nil {
+			t.Fatalf("%s: %v", ch, err)
+		}
+	}
+	if len(f.sender.sent) != 1 || len(f.sms.Sent()) != 1 || len(f.pusher.Sent()) != 1 {
+		t.Fatalf("sent %d e-mails, %d SMS and %d pushes; want one each", len(f.sender.sent), len(f.sms.Sent()), len(f.pusher.Sent()))
+	}
+	golden(t, "reminder_abroad_in_person.txt", mail(f.sender.sent[0]))
+	if body := f.sender.sent[0].Body; !strings.Contains(body, "at the clinic, not by video. Address: "+clinicAddress) {
+		t.Errorf("the e-mail lacks the address:\n%s", body)
+	}
+	if body := f.sms.Sent()[0].Body; !strings.HasPrefix(body, "Podsjetnik: Synthetic clinic ("+clinicAddress+"), 25.10.2026.") {
+		t.Errorf("the SMS is %q, want the address after the clinic", body)
+	}
+	if body := f.pusher.Sent()[0].Body; strings.Contains(body, "Synthetic") {
+		t.Errorf("the push holds %q", body)
+	}
 }
