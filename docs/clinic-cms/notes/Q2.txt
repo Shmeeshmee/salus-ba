@@ -1,0 +1,3 @@
+Package Q2. Ticket SAL-43 (read the whole description). Web only: no Go, no mobile, no api/openapi.yaml change.
+Q1 is building the server's validation in parallel; build against FHIR R4 enableWhen and enableBehavior. Walk the
+builder and the preview at desktop width and 390 px with the gynaecology example.

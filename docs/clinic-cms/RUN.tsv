@@ -1,15 +1,22 @@
 # prefix: cms
-# title: Clinic system: visits, price list, receipts, subscription, online hours
+# title: Clinic system: visits, price list, receipts, subscription, online practice, questionnaire branching
 # base: main
 # stack: no
 # One branch feat/cms per wave, one commit per package (cms(<pkg>): ...), one PR per wave after its integration.
-# Step 0 (the contract) is merged: PR #107, b18974f. Wave 1: A B C D together. Wave 2: E, then F and G once unheld.
+# Step 0 is merged (PR #107). Wave 1: A B C D (built 2026-11-21, integrated in its own PR).
+# Wave 2: E H I L Q1 Q2 Q3 together, from a fresh feat/cms after wave 1 is on main.
 # F waits for the owner on Q1 (reception role), G on Q6 (ESET specification and test access).
 # package	tickets	title	hold
 A	-	Visit modes: in-person and video
 B	-	Price list
 C	-	Receipts and invoices
 D	-	Clinic subscription
-E	-	Online hours	hold
+E	-	Service on a booking and the online practice report
+H	-	Receipts follow-ups
+I	-	Membership invoice document and the suspended listing
+L	-	Landing page for the clinic system
+Q1	-	Questionnaire branching: rules and server
+Q2	-	Questionnaire branching: builder and preview
+Q3	-	Questionnaire branching: patient app
 F	-	Reception role and desk	hold
 G	-	ESET adapter	hold
