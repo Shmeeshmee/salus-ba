@@ -86,7 +86,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		sessions: newSessions(pool, provider, inserter, clock.System{}), responses: responses,
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
 		clinicStats: newClinicStats(statsPool, clock.System{}), trends: newTrends(pool, statsPool, platform),
-		receipts: newReceipts(pool, clock.System{}),
+		receipts:    newReceipts(pool, clock.System{}),
 		memberships: newMemberships(pool, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
@@ -116,7 +116,6 @@ type defaultServices struct {
 	clinicStats  *clinicstats.Builder
 	trends       *trends.Builder  // nil while the platform builds are off
 	receipts     *invoice.Service // the fiscal reports (clinic-cms C)
-	trends       *trends.Builder // nil while the platform builds are off
 	memberships  *subscription.Service
 }
 

@@ -158,7 +158,65 @@ describe('AppointmentDetail', () => {
     // A fulfilled one may be corrected within 30 days (SAL-36, docs/plans/appointments.md Q6), and nothing else.
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
     expect(await screen.findByText('Fulfilled')).toBeTruthy()
-    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Correct to no-show'])
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Issue receipt', 'Correct to no-show'])
+  })
+
+  describe('issue receipt (clinic-cms C)', () => {
+    const exam = 'c1000000-0000-4000-8000-000000000001'
+    const services = [{ id: exam, name: 'Placeholder examination', priceMinor: 5000, currency: 'BAM', modes: ['in-person'], active: true, translations: [], versionId: 1 }]
+    const issued = {
+      id: 'b1000000-0000-4000-8000-000000000001', kind: 'receipt', number: 7, issuedAt: '2026-11-09T08:40:00Z', patientId, appointmentId: id,
+      paymentMethod: 'cash', totalMinor: 5000, currency: 'BAM', fiscalStatus: 'pending', lines: [],
+    }
+
+    it.each([
+      ['the admin', admin],
+      ["the visit's own practitioner", practitioner],
+    ])('lets %s issue a receipt for the visit, to its patient', async (_, account) => {
+      let body: unknown
+      const fake = renderDetail(account, {
+        [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }),
+        [patientRead]: () => outcome(404, 'not-found'),
+        'GET /clinic/services': () => Response.json(services),
+        'POST /clinic/receipts': async (r) => {
+          body = await r.json()
+          return Response.json(issued, { status: 201 })
+        },
+      })
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Issue receipt' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+      expect(dialog.getByLabelText('Buyer')).toHaveProperty('value', 'patient')
+      fireEvent.change(await dialog.findByLabelText('Service'), { target: { value: exam } })
+      fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+
+      expect(await screen.findByText('Receipt no. 7 was issued.')).toBeTruthy()
+      expect(body).toEqual({ kind: 'receipt', paymentMethod: 'cash', appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expectCsrfOnWrites(fake.requests)
+    })
+
+    it('is not offered to another practitioner, nor for a cancelled visit or a no-show', async () => {
+      const other: Account = { ...practitioner, id: 'a1000000-0000-4000-8000-000000000003', practitionerId: dee.practitionerId }
+      renderDetail(other, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
+      expect(await screen.findByText('Fulfilled')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Issue receipt' })).toBeNull()
+      for (const status of ['cancelled', 'noshow'] as const) {
+        cleanup()
+        renderDetail(admin, { [read]: () => fhirJSON({ ...booked, status }) })
+        expect(await screen.findByText(status === 'cancelled' ? 'Cancelled' : 'No-show')).toBeTruthy()
+        expect(screen.queryByRole('button', { name: 'Issue receipt' })).toBeNull()
+      }
+    })
+
+    it('closes the dialog without issuing', async () => {
+      const fake = renderDetail(admin, { [read]: () => fhirJSON(booked), 'GET /clinic/services': () => Response.json(services) })
+      fireEvent.click(await screen.findByRole('button', { name: 'Issue receipt' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+      fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(fake.requests.some((r) => r.method === 'POST')).toBe(false)
+    })
   })
 
   it.each([

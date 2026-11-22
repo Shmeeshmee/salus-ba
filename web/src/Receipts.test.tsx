@@ -81,11 +81,25 @@ describe('Receipts', () => {
     fireEvent.click(within(rows[1]).getByRole('button', { name: 'Reverse' }))
     const dialog = within(rows[1]).getByRole('alertdialog', { name: 'Reverse receipt no. 1?' })
     expect(dialog.textContent).toContain('This cannot be undone.')
-    fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'card' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Reverse' }))
+    // The keyboard stays with the question: the focus moves into it, and back to Reverse on Keep.
+    expect(document.activeElement).toBe(within(dialog).getByRole('combobox'))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep' }))
+    expect(document.activeElement).toBe(within(rows[1]).getByRole('button', { name: 'Reverse' }))
+    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Reverse' }))
+    const asked = within(within(rows[1]).getByRole('alertdialog'))
+    fireEvent.change(asked.getByRole('combobox'), { target: { value: 'card' } })
+    fireEvent.click(asked.getByRole('button', { name: 'Reverse' }))
     await waitFor(() => expect(body).toEqual({ paymentMethod: 'card' }))
     await waitFor(() => expect(fake.requests.filter((r) => r.method === 'GET' && r.url.includes('/clinic/receipts?')).length).toBe(2))
     expectCsrfOnWrites(fake.requests)
+  })
+
+  // Its reversal would name a fiscal number the receipt never got, so it could not be reported either.
+  it('offers no reversal of a receipt whose fiscal report failed', async () => {
+    renderReceipts({ 'GET /clinic/receipts': () => Response.json([{ ...receipts[1], fiscalStatus: 'failed' }]) })
+    const rows = within(await screen.findByRole('list', { name: 'Receipts' })).getAllByRole('listitem')
+    expect(rows[0].textContent).toContain('Report failed')
+    expect(within(rows[0]).queryByRole('button', { name: 'Reverse' })).toBeNull()
   })
 
   it('says so when the receipt was reversed already, and offers no reversal of a reversal', async () => {
@@ -138,7 +152,9 @@ describe('Receipts', () => {
     const fake = renderReceipts({ 'POST /clinic/receipts': () => apiError(409, 'billing_details_missing') })
     fireEvent.click(await screen.findByRole('button', { name: 'New receipt' }))
     const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
-    fireEvent.click(await dialog.findByRole('button', { name: 'Issue receipt' }))
+    const issue = await dialog.findByRole('button', { name: 'Issue receipt' })
+    expect(issue).toHaveProperty('disabled', true) // no service chosen yet
+    fireEvent.click(issue)
     expect(fake.requests.some((r) => r.method === 'POST')).toBe(false)
     fireEvent.change(dialog.getByLabelText('Service'), { target: { value: exam } })
     fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))

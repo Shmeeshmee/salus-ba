@@ -5,11 +5,17 @@ writes under its own heading here.
 
 | Package | Status | Commit |
 | --- | --- | --- |
-| A | done 2026-11-21 | `cms(A)` on `wt/cms/A` |
-| B | done 2026-11-21 | `cms(B)` on `wt/cms/B` |
-| C | done 2026-11-21 | `cms(C)` on `wt/cms/C` |
-| D | done 2026-11-21 | `cms(D)` on `wt/cms/D` |
-| E | hold (after wave 1) | |
+| A | done 2026-11-21, integrated 2026-11-22 | `cms(A)`, merged into `feat/cms` with `cms(wave 1)` |
+| B | done 2026-11-21, integrated 2026-11-22 | `cms(B)`, merged into `feat/cms` with `cms(wave 1)` |
+| C | done 2026-11-21, integrated 2026-11-22 | `cms(C)`, merged into `feat/cms` with `cms(wave 1)` |
+| D | done 2026-11-21, integrated 2026-11-22 | `cms(D)`, merged into `feat/cms` with `cms(wave 1)` |
+| E | wave 2, not started (after wave 1 is on main) | |
+| H | wave 2, not started (after wave 1 is on main) | |
+| I | wave 2, not started (after wave 1 is on main) | |
+| L | wave 2, not started | |
+| Q1 | wave 2, not started | |
+| Q2 | wave 2, not started | |
+| Q3 | wave 2, not started | |
 | F | hold (Q1) | |
 | G | hold (Q6) | |
 
@@ -232,7 +238,7 @@ Built:
 - `practitionerrole.Service.ActiveCount` (the seats), unaudited: a count discloses no role.
 - `salusctl subscription plan | start-trial | mark-paid | status`, and `create-clinic` starts the trial (it prints
   `trial none` while the owner has not set the plan `basic`).
-- Web: `Subscription.tsx` at `/clinic/subscription` (plan, status, invoices, billing details form), a link from
+- Web: `Subscription.tsx` at `/clinic/subscription`, `/membership` since the integration (plan, status, invoices, billing details form), a link from
   `ClinicSettings.tsx`, `SubscriptionBanner` in the shell for admins (from 14 days past due, and when suspended),
   `useFormat().money`, the `subscription` catalog in the five staff languages.
 - DPIA: "Package D" under "Clinic system". Retention: nothing added, none of D's tables holds personal data.
@@ -277,7 +283,91 @@ run failed on a test 82 lines long and a test stub's field order, fixed), `make 
 `make fhir-validate` (no golden FHIR file changed), `make e2e` (not in D's check sets). The session ran past its
 60-minute budget (an interruption, then a resume on the coordinator's instruction).
 
-## E: online hours
+## Wave 1 integration
+
+Done 2026-11-22 on `feat/cms`: `wt/cms/A`, `B`, `C`, `D` merged with `--no-ff` in that order, then one commit
+`cms(wave 1): integrate A, B, C, D`.
+
+- **Merges.** Conflicts only in the shared files (this file, the DPIA, the mobile ARB catalogs, `internal/api/app.go`,
+  `internal/worker/worker.go`, `web/src/App.tsx`, `app.css`, `web/src/i18n/catalog.test.ts`); every package's block
+  kept. Generated code was not hand-merged: `make sqlc`, `make gen-clients` and `flutter gen-l10n` ran after the
+  merges. D's migration `00063` is `00061`: main ends at A `00060`, D `00061`. D has no migration test file of its own
+  in `migrations/` (its tests are `internal/subscription`'s repository tests), so none was renamed.
+- **Price list in the receipts.** C's stand-in in `internal/api/invoice.go` is gone: `priceList` builds B's service
+  once in `app.go`, for its own routes and the receipts' prices. An unknown, inactive or another clinic's service is
+  400 `invalid_receipt` (tested through the api against Postgres).
+- **Seller.** `clinicSeller` reads the legal name and tax id through the new `organization.Billing.ForClinic` (the
+  clinic's own scope, for whoever of its staff issues, unaudited like `Details`) and the address through
+  `organization.Service.Read`, which names the city. A receipt is issued once both are set; 409
+  `billing_details_missing` remains while either is missing (tested through the api, and in the e2e).
+- **Receipts see the clinic's visits.** Tested against Postgres through the api: the admin issues for a visit they
+  are not part of; another clinic's visit of the same patient is 404.
+- **Booking stop.** D's api test now books an in-person slot of a suspended clinic too (A's booking path reads the
+  clinic through the same `Clinics` port): 409 `slot_unavailable`.
+- **Web.** "Issue receipt" on the appointment for the admin and the visit's own practitioner, for a visit that is
+  booked or fulfilled (not cancelled, not a no-show); it opens C's dialog with the visit's patient as the buyer.
+- **Membership screen at `/membership`.** D's screen was at `/clinic/subscription`, which the Vite proxy and the
+  production Caddyfile send to the API: a reload or a link showed the API's JSON. It moved to `/membership` (as B's
+  price list is at `/price-list`); the API route `GET /clinic/subscription` is unchanged.
+- **Mobile.** The booking screen asks for the prices of the slot's own mode.
+- **API descriptions.** "(404 until then)" removed from every built route (B, D and SAL-33's).
+- **e2e.** `TestReceipts_AVisitAtTheClinicIsReceiptedReportedAndReversed`: price list, an in-person visit, the
+  receipt refused before the billing details, issued, reported by the fake, reversed, the reversal reported, the
+  report summing to zero and the patient seeing both. A's e2e setup of an in-person clinic is the shared helper
+  `atTheClinic`.
+
+- **Review round** (a fresh subagent over the whole diff against `origin/main`; A had none). Fixed:
+  - A receipt whose fiscal report failed is not reversed: 409 `fiscal_report_failed` (new error code), and no Reverse
+    button for it. Its reversal would name a fiscal number the receipt never got, so it could not be reported either
+    and would hold a number of the sequence for good. A pending receipt may still be reversed (its reversal is
+    reported after it).
+  - A receipt has at most 100 lines and a quantity of at most 10,000 (service and OpenAPI), so its total cannot
+    overflow an int64.
+  - The membership screen and banner show dates in the clinic's time zone, not the browser's.
+  - The reversal question takes the keyboard focus and gives it back to Reverse on Keep; Issue receipt is disabled
+    while a line is incomplete.
+  - The membership screen's path (above).
+
+  Declined, for later packages: the fake fiscal reporter forgets its receipts when the worker restarts, so a later
+  reversal is rejected (development only; package G replaces the fake); `POST /clinic/receipts` has no idempotency key,
+  so a retry after a lost response issues a second receipt (package H); the fiscal job holds its transaction during the
+  report call (fine for the in-memory fake; package G, with the real authority's latency).
+- **Browser walk** (headless Chromium from the e2e Playwright service, desktop 1280 px and 390 px, a fresh stack): working
+  hours with visit types, `/price-list`, `/receipts`, its report, the receipt dialog on the appointment, the reversal
+  question, `/membership` and the past-due banner. Fixed: the report overflowed at 390 px and C's table styles reached
+  D's invoices table (scoped to `report-table` and `report-facts`); the membership invoices table now scrolls inside its
+  panel at 390 px; spacing on the price list and above Issue receipt.
+- **e2e on the main checkout's stack.** Two journeys unrelated to the wave (the consultation pipeline's translated
+  transcript and the term review's first entry) failed twice against the main checkout's long-lived dev database and
+  passed on a fresh stack, both on `origin/main` and on this branch; the whole suite passed on a fresh stack.
+
+## Decisions for wave 2
+
+Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION_PLAN.md`, "Wave 2 packages"):
+
+| Topic | Decision |
+| --- | --- |
+| A payment of a past-due or suspended clinic | Returns it to active |
+| Membership payment term | 14 days after issue |
+| First membership invoice | On the first 1st after the trial ends |
+| Membership invoice numbers | Gapless |
+| Currency | BAM only |
+| A company's invoice in Croatian | Headed "Račun" |
+| The accountant's CSV | Readable headers in the clinic's language, amounts as decimals |
+
+## E: service on a booking and the online practice report
+
+## H: receipts follow-ups
+
+## I: membership invoice document and the suspended listing
+
+## L: landing page
+
+## Q1: questionnaire branching, rules and server
+
+## Q2: questionnaire branching, builder and preview
+
+## Q3: questionnaire branching, patient app
 
 ## F: reception role and desk
 
@@ -285,7 +375,8 @@ run failed on a test 82 lines long and a test stub's field order, fixed), `make 
 
 ## Facts
 
-- Main's next free migration number on 2026-11-21: `00060`.
+- Main's next free migration number on 2026-11-21: `00060`. After wave 1: A `00060`, D `00061`; wave 2 takes E `00062`,
+  H `00063`, I `00064`, Q1 `00065`.
 - Copilot is out of quota until 2026-12-01: the integration session has a fresh subagent review the wave's diff too.
 
 ## Waiting on a person

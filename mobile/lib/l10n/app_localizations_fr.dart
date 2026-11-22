@@ -2015,4 +2015,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'À la clinique';
+
+  @override
+  String get pricesHeading => 'Tarifs de cet établissement';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Vous payez sur place. Rien n\'est facturé dans l\'application.';
 }

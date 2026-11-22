@@ -407,6 +407,25 @@ void main() {
     });
   });
 
+  testWidgets("asks for the prices of the slot's own mode: a visit at the clinic", (tester) async {
+    final h = await atSlots(tester);
+    h.api.on('GET /fhir/R4/Slot', (request) async {
+      final from = request.url.queryParametersAll['start']!.first;
+      return fhirResponse(200, switch (from) {
+        'ge2026-11-04T23:00:00Z' => bundle([slot(slotId, '2026-11-05T08:00:00Z', '2026-11-05T08:30:00Z', mode: 'in-person')]),
+        _ => bundle([]),
+      });
+    });
+    h.api.answer('GET /organizations/$clinicId/services', 200, [
+      {'id': 'd1', 'name': 'Placeholder exam', 'priceMinor': 5000, 'currency': 'BAM'},
+    ]);
+    await tapLink(tester, 'Next day');
+    await tapOutlined(tester, '09:00');
+
+    expect(find.text('Placeholder exam'), findsOneWidget);
+    expect(h.api.last('GET /organizations/$clinicId/services').url.queryParameters['mode'], 'in-person');
+  });
+
   testWidgets('shows no prices for a clinic without a price list, or when they cannot be read', (tester) async {
     await atBook(tester, services: []);
     expect(find.text('Prices at this clinic'), findsNothing);

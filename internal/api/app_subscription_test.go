@@ -31,7 +31,9 @@ func TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn(t *testing.T) {
 	}
 	checkMembershipRoutes(t, d, exec)
 
-	slots := seedSlots(t, owner, d.roleID, 7*24*time.Hour, 8*24*time.Hour, 9*24*time.Hour)
+	slots := seedSlots(t, owner, d.roleID, 7*24*time.Hour, 8*24*time.Hour, 9*24*time.Hour, 10*24*time.Hour)
+	// The last slot is at the clinic: package A's booking of an in-person visit reads the clinic through the same port.
+	exec("UPDATE slot SET visit_mode = 'in-person' WHERE id = $1", slots[3])
 	if rec := d.patient.do(http.MethodPut, "/me/patient", `{"givenName":"Zorana","familyName":"Syntheticova","birthDate":"1977-07-07","phone":"+38760000777"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("PUT /me/patient = %d %s", rec.Code, rec.Body)
 	}
@@ -53,6 +55,9 @@ func TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn(t *testing.T) {
 	exec("UPDATE clinic_subscription SET status = 'suspended' WHERE organization_id = $1", inviteClinic)
 	if code, body := book(slots[1]); code != http.StatusConflict || !strings.Contains(body, "slot_unavailable") {
 		t.Errorf("booking with a suspended clinic = %d %s, want 409 slot_unavailable", code, body)
+	}
+	if code, body := book(slots[3]); code != http.StatusConflict || !strings.Contains(body, "slot_unavailable") {
+		t.Errorf("booking a visit at a suspended clinic = %d %s, want 409 slot_unavailable", code, body)
 	}
 	// Care never stops: the visit that was booked is still read by its practitioner and cancelled by its patient.
 	if rec := d.practitioner.do(http.MethodGet, "/fhir/R4/Appointment/"+booked.ID, ""); rec.Code != http.StatusOK {

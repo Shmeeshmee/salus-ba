@@ -378,6 +378,7 @@ var errorCodes = []struct {
 	{ErrForbidden, "forbidden", http.StatusForbidden},
 	{ErrInvalid, "invalid_receipt", http.StatusBadRequest},
 	{ErrAlreadyReversed, "already_reversed", http.StatusConflict},
+	{ErrReportFailed, "fiscal_report_failed", http.StatusConflict},
 	{ErrSellerIncomplete, "billing_details_missing", http.StatusConflict},
 }
 

@@ -79,6 +79,13 @@ describe('ClinicSettings', () => {
     expect(screen.getByRole('link', { name: 'Price list' }).getAttribute('href')).toBe('/price-list')
   })
 
+  // A screen path, not under /clinic/: the dev proxy and the production Caddyfile send /clinic/* to the API.
+  it('links to the membership', () => {
+    renderSettings({ [`GET ${path}`]: () => new Promise<Response>(() => {}) })
+
+    expect(screen.getByRole('link', { name: 'Membership and billing' }).getAttribute('href')).toBe('/membership')
+  })
+
   it('shows the reminders below the clinic settings', async () => {
     renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
 

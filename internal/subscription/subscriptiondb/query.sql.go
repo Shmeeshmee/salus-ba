@@ -394,7 +394,7 @@ WHERE status <> 'cancelled'
 ORDER BY organization_id
 `
 
-// Every clinic with a membership that is not cancelled, in the scope app.subscription_run = 'all' (00063).
+// Every clinic with a membership that is not cancelled, in the scope app.subscription_run = 'all' (00061).
 func (q *Queries) SubscribedOrganizations(ctx context.Context) ([]pgtype.UUID, error) {
 	rows, err := q.db.Query(ctx, subscribedOrganizations)
 	if err != nil {

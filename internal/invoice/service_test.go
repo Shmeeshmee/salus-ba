@@ -83,6 +83,12 @@ func TestIssue_Refuses(t *testing.T) {
 	onItsOwn := func(d *invoice.Draft) { d.AppointmentID = "" }
 	tests := []refusal{
 		{name: "no lines", caller: adminC, seller: theSeller, want: invoice.ErrInvalid, draft: with(func(d *invoice.Draft) { d.Picks = nil })},
+		{name: "a quantity above the cap", caller: adminC, seller: theSeller, want: invoice.ErrInvalid, draft: with(func(d *invoice.Draft) { d.Picks[0].Quantity = 10001 })},
+		{name: "more lines than the cap", caller: adminC, seller: theSeller, want: invoice.ErrInvalid, draft: with(func(d *invoice.Draft) {
+			for len(d.Picks) <= 100 {
+				d.Picks = append(d.Picks, d.Picks[1])
+			}
+		})},
 		{name: "a quantity of zero", caller: adminC, seller: theSeller, want: invoice.ErrInvalid, draft: with(func(d *invoice.Draft) { d.Picks[0].Quantity = 0 })},
 		{name: "a negative discount", caller: adminC, seller: theSeller, want: invoice.ErrInvalid, draft: with(func(d *invoice.Draft) { d.Picks[0].DiscountMinor = -1 })},
 		{name: "a discount above the line", caller: adminC, seller: theSeller, want: invoice.ErrInvalid, draft: with(func(d *invoice.Draft) { d.Picks[1].DiscountMinor = 1171 })},
@@ -148,6 +154,27 @@ func TestIssue_OnItsOwn(t *testing.T) {
 
 // A reversal negates the lines and the total, takes the next number, names the receipt it reverses, and is issued
 // once: never a second time, and never for a reversal.
+// A receipt whose fiscal report failed is not reversed: the reversal could never be reported either (it names the
+// receipt's fiscal number), so it would take a number of the sequence for good and stay unreportable.
+func TestReverse_RefusesAReceiptWhoseReportFailed(t *testing.T) {
+	f := newFixture(theSeller)
+	orig, err := f.svc.Issue(t.Context(), adminC, draft())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range f.repo.invoices {
+		if f.repo.invoices[i].ID == orig.ID {
+			f.repo.invoices[i].FiscalStatus = invoice.FiscalFailed
+		}
+	}
+	if _, err := f.svc.Reverse(t.Context(), adminC, orig.ID, invoice.PaymentCash); !errors.Is(err, invoice.ErrReportFailed) {
+		t.Errorf("Reverse() of a receipt whose report failed = %v, want ErrReportFailed", err)
+	}
+	if len(f.repo.invoices) != 1 {
+		t.Errorf("%d receipts stored, want only the original", len(f.repo.invoices))
+	}
+}
+
 func TestReverse_NegatesOnceAndNeverAReversal(t *testing.T) {
 	f := newFixture(theSeller)
 	orig, err := f.svc.Issue(t.Context(), adminC, draft())

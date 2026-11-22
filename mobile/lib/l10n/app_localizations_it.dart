@@ -2005,4 +2005,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'In clinica';
+
+  @override
+  String get pricesHeading => 'Prezzi di questa struttura';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Si paga presso la struttura. Nell\'app non viene addebitato nulla.';
 }

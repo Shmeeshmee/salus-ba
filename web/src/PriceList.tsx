@@ -44,7 +44,7 @@ export function PriceList({ api }: { api: ApiClient }) {
     setSaved(true)
   }
   return (
-    <section className="panel">
+    <section className="panel price-list">
       <h1>{t('prices.title')}</h1>
       <p className="hint">{t('prices.intro')}</p>
       {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}

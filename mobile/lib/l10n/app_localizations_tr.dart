@@ -1990,4 +1990,11 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'Klinikte';
+
+  @override
+  String get pricesHeading => 'Bu klinikteki fiyatlar';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.';
 }

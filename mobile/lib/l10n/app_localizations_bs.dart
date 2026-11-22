@@ -2014,4 +2014,11 @@ class AppLocalizationsBs extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'U klinici';
+
+  @override
+  String get pricesHeading => 'Cijene u ovoj ustanovi';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
 }

@@ -2416,12 +2416,12 @@ export interface paths {
         };
         /**
          * The patient's reminder channels, quiet hours and time zone
-         * @description Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33 (404 until then).
+         * @description Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33.
          */
         get: operations["getNotificationSettings"];
         /**
          * Replace the patient's reminder channels, quiet hours and time zone
-         * @description SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+         * @description SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33.
          */
         put: operations["setNotificationSettings"];
         post?: never;
@@ -2440,7 +2440,7 @@ export interface paths {
         };
         /**
          * The admin's clinic's SMS usage per month
-         * @description Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+         * @description Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33.
          */
         get: operations["getSmsUsage"];
         put?: never;
@@ -2614,13 +2614,13 @@ export interface paths {
         };
         /**
          * The clinic's price list
-         * @description Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md (404 until then). Not personal data; not audited.
+         * @description Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md. Not personal data; not audited.
          */
         get: operations["listClinicServices"];
         put?: never;
         /**
          * Add a service to the clinic's price list
-         * @description By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B (404 until then). Audited, also when refused.
+         * @description By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B. Audited, also when refused.
          */
         post: operations["createClinicService"];
         delete?: never;
@@ -2639,7 +2639,7 @@ export interface paths {
         get?: never;
         /**
          * Change a service of the clinic's price list
-         * @description By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B (404 until then). Audited, also when refused.
+         * @description By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B. Audited, also when refused.
          */
         put: operations["updateClinicService"];
         post?: never;
@@ -2658,7 +2658,7 @@ export interface paths {
         };
         /**
          * The services a listed clinic offers, with their prices, for booking
-         * @description The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B (404 until then).
+         * @description The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B.
          */
         get: operations["listOfferedServices"];
         put?: never;
@@ -2822,7 +2822,7 @@ export interface paths {
         };
         /**
          * The clinic's membership
-         * @description Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md (404 until then). Not personal data.
+         * @description Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md. Not personal data.
          */
         get: operations["getClinicSubscription"];
         put?: never;
@@ -2842,7 +2842,7 @@ export interface paths {
         };
         /**
          * Salus's monthly invoices to the clinic
-         * @description Newest first. For the clinic's admin. Built in package D (404 until then).
+         * @description Newest first. For the clinic's admin. Built in package D.
          */
         get: operations["listSubscriptionInvoices"];
         put?: never;
@@ -2862,12 +2862,12 @@ export interface paths {
         };
         /**
          * The clinic's billing details
-         * @description Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D (404 until then). Not personal data.
+         * @description Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D. Not personal data.
          */
         get: operations["getBillingDetails"];
         /**
          * Replace the clinic's billing details
-         * @description By the clinic's admin. Built in package D (404 until then). Audited, also when refused.
+         * @description By the clinic's admin. Built in package D. Audited, also when refused.
          */
         put: operations["setBillingDetails"];
         post?: never;
@@ -3906,7 +3906,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -12196,7 +12196,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `already_reversed`: the receipt was reversed already, or is itself a reversal. */
+            /** @description `already_reversed`: the receipt was reversed already, or is itself a reversal. `fiscal_report_failed`: the receipt's fiscal report failed, so a reversal of it could not be reported either. */
             409: {
                 headers: {
                     [name: string]: unknown;

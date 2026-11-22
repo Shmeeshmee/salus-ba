@@ -31,6 +31,7 @@ type invoicePorts struct {
 	appointments *appointment.Service
 	consents     *consent.Service
 	care         *appointment.Facts
+	prices       *chargeitemdefinition.Service
 	accounts     *auth.Service
 	patients     *patient.Service
 }
@@ -41,24 +42,33 @@ type invoicePorts struct {
 func invoiceRoutes(p invoicePorts, log *slog.Logger) func(*http.ServeMux) {
 	svc := invoice.NewService(invoice.Ports{
 		Repo: invoice.NewPostgresRepository(p.pool), Jobs: invoice.NewRiverJobs(p.jobs), Audit: p.audit, Tx: p.tx, Clock: clock.System{},
-		// The price list is package B's: until it merges, this service refuses to price (errors.ErrUnsupported) and no
-		// receipt can be issued. The integration passes the price list's service built for its own routes.
-		Prices:  chargeitemdefinition.NewService(nil, clock.System{}),
-		Sellers: clinicSeller{p.clinics}, Clinics: p.clinics, Visits: p.appointments, Consents: p.consents, Care: p.care,
+		Prices: p.prices, // the price list's own service (package B)
+		Sellers: clinicSeller{clinics: p.clinics, billing: organization.NewBilling(organization.BillingPorts{
+			Repo: organization.NewPostgresBillingRepository(p.pool), Audit: p.audit, Tx: p.tx,
+		})},
+		Clinics: p.clinics, Visits: p.appointments, Consents: p.consents, Care: p.care,
 	})
 	return invoice.NewHTTPHandler(svc, invoiceCaller(p.accounts, p.patients), log).Routes
 }
 
-// clinicSeller reads the seller a receipt names from the clinic: its legal name and tax id (the billing details,
-// package D) and its address (package A). Neither is on organization.Organization before those packages merge, so
-// until then every clinic's details are incomplete and issuing is refused with billing_details_missing.
-type clinicSeller struct{ clinics *organization.Service }
+// clinicSeller reads the seller a receipt names from the clinic as it is now: its legal name and tax id from the
+// billing details (package D) and its address on one line, with the city's name (package A). A clinic that has not
+// stated them gives an incomplete seller, and the receipt is refused with billing_details_missing.
+type clinicSeller struct {
+	clinics *organization.Service
+	billing *organization.Billing
+}
 
 func (s clinicSeller) Seller(ctx context.Context, org string) (invoice.Seller, error) {
-	if _, err := s.clinics.Clinic(ctx, org); err != nil {
+	details, err := s.billing.ForClinic(ctx, org)
+	if err != nil {
 		return invoice.Seller{}, err
 	}
-	return invoice.Seller{}, nil
+	clinic, err := s.clinics.Read(ctx, organization.Caller{OrganizationID: org}, org) // Read names the city
+	if err != nil {
+		return invoice.Seller{}, err
+	}
+	return invoice.Seller{LegalName: details.LegalName, TaxID: details.TaxID, Address: clinic.Address()}, nil
 }
 
 // invoiceCaller is the receipts' view of the signed-in session: for staff, whether the account is the clinic's admin

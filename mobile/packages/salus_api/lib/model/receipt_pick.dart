@@ -21,6 +21,7 @@ class ReceiptPick {
   String serviceId;
 
   /// Minimum value: 1
+  /// Maximum value: 10000
   int quantity;
 
   /// Minimum value: 0

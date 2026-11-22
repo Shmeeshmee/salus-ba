@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
@@ -82,6 +82,15 @@ function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Re
   const [method, setMethod] = useState<PaymentMethod>(r.paymentMethod)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  // Keep gives the focus back to Reverse, which the question replaced.
+  const reverseButton = useRef<HTMLButtonElement>(null)
+  const refocus = useRef(false)
+  useEffect(() => {
+    if (refocus.current && !asking) {
+      reverseButton.current?.focus()
+      refocus.current = false
+    }
+  }, [asking])
   const buyer = r.companyName ?? t(r.patientId ? 'receipts.buyer.patient' : 'receipts.buyer.cash')
 
   async function reverse() {
@@ -113,8 +122,9 @@ function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Re
         <a href={receiptPdfURL(r.id)} target="_blank" rel="noreferrer">
           {t('receipts.pdf')}
         </a>
-        {!r.reversesId && !r.reversedById && !asking && (
-          <button type="button" className="danger" disabled={busy} onClick={() => setAsking(true)}>
+        {/* A receipt whose report failed is not reversed: its reversal could not be reported either. */}
+        {!r.reversesId && !r.reversedById && r.fiscalStatus !== 'failed' && !asking && (
+          <button type="button" className="danger" ref={reverseButton} disabled={busy} onClick={() => setAsking(true)}>
             {t('receipts.reverse')}
           </button>
         )}
@@ -126,7 +136,8 @@ function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Re
           <p>{t('receipts.reverseEffect')}</p>
           <label>
             <span className="muted small">{t('receipts.reverseMethod')} </span>
-            <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+            {/* The question takes the focus from the Reverse button it replaces. */}
+            <select autoFocus value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
               {paymentMethods.map((m) => (
                 <option key={m} value={m}>
                   {t(`receipts.method.${m}`)}
@@ -138,7 +149,14 @@ function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Re
             <button type="button" className="danger" disabled={busy} onClick={reverse}>
               {t('receipts.reverse')}
             </button>
-            <button type="button" disabled={busy} onClick={() => setAsking(false)}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                refocus.current = true
+                setAsking(false)
+              }}
+            >
               {t('receipts.keep')}
             </button>
           </div>

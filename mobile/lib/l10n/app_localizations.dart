@@ -3227,6 +3227,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'At the clinic'**
   String get visitModeInPerson;
+
+  /// Clinic system, package B: booking, the heading above the clinic's services and their prices. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Prices at this clinic'**
+  String get pricesHeading;
+
+  /// Clinic system, package B: booking, under the prices: they are shown, never charged in the app. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'You pay at the clinic. Nothing is charged in the app.'**
+  String get pricesPaidAtClinic;
 }
 
 class _AppLocalizationsDelegate

@@ -5150,7 +5150,7 @@ paths:
       summary: The patient's reminder channels, quiet hours and time zone
       description: >-
         Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient
-        changes them. Patients only. Built in SAL-33 (404 until then).
+        changes them. Patients only. Built in SAL-33.
       tags: [notifications]
       security:
         - sessionCookie: []
@@ -5178,7 +5178,7 @@ paths:
       summary: Replace the patient's reminder channels, quiet hours and time zone
       description: >-
         SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours`
-        for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+        for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33.
       tags: [notifications]
       security:
         - sessionCookie: []
@@ -5222,7 +5222,7 @@ paths:
       operationId: getSmsUsage
       x-salus-package: SAL-33
       summary: The admin's clinic's SMS usage per month
-      description: Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+      description: Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33.
       tags: [notifications]
       security:
         - sessionCookie: []
@@ -5527,7 +5527,7 @@ paths:
       summary: The clinic's price list
       description: >-
         Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff.
-        Built in package B of docs/plans/clinic-cms.md (404 until then). Not personal data; not audited.
+        Built in package B of docs/plans/clinic-cms.md. Not personal data; not audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5554,7 +5554,7 @@ paths:
       summary: Add a service to the clinic's price list
       description: >-
         By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the
-        app. Built in package B (404 until then). Audited, also when refused.
+        app. Built in package B. Audited, also when refused.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5594,8 +5594,8 @@ paths:
       summary: Change a service of the clinic's price list
       description: >-
         By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are
-        copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B (404
-        until then). Audited, also when refused.
+        copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B. Audited, also
+        when refused.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5646,7 +5646,7 @@ paths:
       description: >-
         The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic
         translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets
-        404. Built in package B (404 until then).
+        404. Built in package B.
       tags: [billing]
       parameters:
         - {name: id, in: path, required: true, description: The clinic's id., schema: {type: string, format: uuid}}
@@ -5830,7 +5830,9 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "409":
-          description: "`already_reversed`: the receipt was reversed already, or is itself a reversal."
+          description: >-
+            `already_reversed`: the receipt was reversed already, or is itself a reversal. `fiscal_report_failed`: the
+            receipt's fiscal report failed, so a reversal of it could not be reported either.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5971,7 +5973,7 @@ paths:
       summary: The clinic's membership
       description: >-
         Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's
-        admin. Built in package D of docs/plans/clinic-cms.md (404 until then). Not personal data.
+        admin. Built in package D of docs/plans/clinic-cms.md. Not personal data.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -5997,7 +5999,7 @@ paths:
       operationId: listSubscriptionInvoices
       x-salus-package: cms-d
       summary: Salus's monthly invoices to the clinic
-      description: Newest first. For the clinic's admin. Built in package D (404 until then).
+      description: Newest first. For the clinic's admin. Built in package D.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -6027,7 +6029,7 @@ paths:
       summary: The clinic's billing details
       description: >-
         Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's
-        admin. Built in package D (404 until then). Not personal data.
+        admin. Built in package D. Not personal data.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -6050,7 +6052,7 @@ paths:
       operationId: setBillingDetails
       x-salus-package: cms-d
       summary: Replace the clinic's billing details
-      description: By the clinic's admin. Built in package D (404 until then). Audited, also when refused.
+      description: By the clinic's admin. Built in package D. Audited, also when refused.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -6696,7 +6698,7 @@ components:
       additionalProperties: false
       properties:
         serviceId: {type: string, format: uuid}
-        quantity: {type: integer, format: int32, minimum: 1}
+        quantity: {type: integer, format: int32, minimum: 1, maximum: 10000}
         discountMinor: {type: integer, format: int64, minimum: 0, default: 0}
     IssueReceiptRequest:
       type: object
@@ -6713,6 +6715,7 @@ components:
         lines:
           type: array
           minItems: 1
+          maxItems: 100
           items: {$ref: "#/components/schemas/ReceiptPick"}
     ReverseReceiptRequest:
       type: object
@@ -8029,6 +8032,7 @@ components:
             - invalid_receipt
             - already_reversed
             - billing_details_missing
+            - fiscal_report_failed
         linkIds:
           type: array
           items: {type: string}

@@ -72,6 +72,28 @@ func (s *Billing) Details(ctx context.Context, c Caller) (BillingDetails, error)
 	return out, nil
 }
 
+// ForClinic returns the billing details of the clinic org for a document it issues itself, such as the seller of its
+// receipts (clinic-cms C): read in the clinic's scope, set on the transaction in ctx (joining one already there), for
+// whoever of its staff issues; unaudited, as Details. ErrNotFound for no clinic.
+func (s *Billing) ForClinic(ctx context.Context, org string) (BillingDetails, error) {
+	if org == "" {
+		return BillingDetails{}, ErrNotFound
+	}
+	var out BillingDetails
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		var err error
+		out, err = s.Repo.BillingDetails(ctx, org)
+		return err
+	})
+	if err != nil {
+		return BillingDetails{}, billingError(err)
+	}
+	return out, nil
+}
+
 // SetDetails replaces the billing details of the admin's clinic with in (trimmed), audited as an update of the
 // clinic; refusals as Details', audited too. ErrInvalidBillingDetails for details that are malformed.
 func (s *Billing) SetDetails(ctx context.Context, c Caller, in BillingDetails) (BillingDetails, error) {

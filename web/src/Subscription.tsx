@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import type { ApiClient } from './api/client'
+import type { Account, ApiClient } from './api/client'
+import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
+import { loadTimeZone } from './staff'
 import { Alert, Field, Link, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 
@@ -15,7 +17,13 @@ type Details = components['schemas']['BillingDetails']
 // which the api decides (status suspended).
 const bannerAfterMs = 14 * 24 * 60 * 60 * 1000
 
-const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
+type Props = { api: ApiClient; fhir: FhirClient; account: Account }
+
+// loadWithZone reads the clinic's membership with the clinic's time zone, in which its periods and dates are shown.
+async function loadWithZone(api: ApiClient, fhir: FhirClient, organizationId: string) {
+  const [zone, m] = await Promise.all([loadTimeZone(fhir, organizationId), loadMembership(api)])
+  return { zone, m }
+}
 
 // loadMembership reads the clinic's membership; null for a clinic that has none yet (404).
 async function loadMembership(api: ApiClient): Promise<Membership | null> {
@@ -27,10 +35,13 @@ async function loadMembership(api: ApiClient): Promise<Membership | null> {
 
 // Subscription is the admin's membership screen (package D of docs/plans/clinic-cms.md): the clinic's plan and status,
 // Salus's monthly invoices to it, and its billing details. Nothing here is personal data.
-export function Subscription({ api }: { api: ApiClient }) {
+export function Subscription({ api, fhir, account }: Props) {
   const t = useT()
   const f = useFormat()
-  const { state } = useLoad(() => loadMembership(api), [api])
+  const organizationId = account.organizationId ?? ''
+  const { state: loaded } = useLoad(() => loadWithZone(api, fhir, organizationId), [api, fhir, organizationId])
+  const state = loaded.name === 'loaded' ? { name: 'loaded' as const, value: loaded.value.m } : loaded
+  const zone = () => (loaded.name === 'loaded' ? loaded.value.zone : '')
   return (
     <>
       <section className="panel">
@@ -64,13 +75,13 @@ export function Subscription({ api }: { api: ApiClient }) {
           </dl>
         )}
       </section>
-      <Invoices api={api} />
+      {loaded.name === 'loaded' && <Invoices api={api} zone={loaded.value.zone} />}
       <BillingDetails api={api} />
     </>
   )
 }
 
-function Invoices({ api }: { api: ApiClient }) {
+function Invoices({ api, zone }: { api: ApiClient; zone: string }) {
   const t = useT()
   const f = useFormat()
   const { state } = useLoad(async () => {
@@ -80,7 +91,7 @@ function Invoices({ api }: { api: ApiClient }) {
     throw new Error('invoices')
   }, [api])
   return (
-    <section className="panel">
+    <section className="panel membership-invoices">
       <h2>{t('subscription.invoicesTitle')}</h2>
       {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
       {state.name === 'failed' && <Alert message={t('subscription.invoicesLoadFailed')} />}
@@ -104,7 +115,7 @@ function Invoices({ api }: { api: ApiClient }) {
                 <td>{t('subscription.periodRange', { from: f.calendarDate(inv.periodStart), to: f.calendarDate(lastDay(inv.periodEnd)) })}</td>
                 <td>{f.number(inv.seats)}</td>
                 <td>{f.money(inv.amountMinor, inv.currency)}</td>
-                <td>{f.date(new Date(inv.dueAt), zone(), 'short')}</td>
+                <td>{f.date(new Date(inv.dueAt), zone, 'short')}</td>
                 <td>{t(`subscription.invoice.${inv.status}`)}</td>
               </tr>
             ))}
@@ -181,24 +192,25 @@ function BillingForm({ api, details, onSaved }: { api: ApiClient; details: Detai
 // SubscriptionBanner tells the clinic's admin, on every screen, that an invoice is 14 days past due or that the
 // membership is suspended. It shows nothing while loading, without a membership, or when the read fails: the banner is
 // a reminder, never in the way of the work.
-export function SubscriptionBanner({ api }: { api: ApiClient }) {
+export function SubscriptionBanner({ api, fhir, account }: Props) {
   const t = useT()
   const f = useFormat()
+  const organizationId = account.organizationId ?? ''
   // The clock is read with the answer, not while rendering.
   const { state } = useLoad(async () => {
-    const m = await loadMembership(api).catch(() => null)
+    const { zone, m } = await loadWithZone(api, fhir, organizationId).catch(() => ({ zone: '', m: null }))
     const overdue = m?.pastDueSince !== undefined && Date.now() - new Date(m.pastDueSince).getTime() >= bannerAfterMs
-    return m === null ? null : { m, overdue }
-  }, [api])
+    return m === null ? null : { m, overdue, zone }
+  }, [api, fhir, organizationId])
   if (state.name !== 'loaded' || state.value === null) return null
-  const { m, overdue } = state.value
+  const { m, overdue, zone } = state.value
   if (m.status !== 'suspended' && !overdue) return null
   return (
     <div className="alert" role="alert">
       {m.status === 'suspended'
         ? t('subscription.bannerSuspended')
-        : t('subscription.bannerPastDue', { date: f.date(new Date(m.pastDueSince ?? ''), zone(), 'long') })}{' '}
-      <Link to="/clinic/subscription">{t('subscription.bannerLink')}</Link>
+        : t('subscription.bannerPastDue', { date: f.date(new Date(m.pastDueSince ?? ''), zone, 'long') })}{' '}
+      <Link to="/membership">{t('subscription.bannerLink')}</Link>
     </div>
   )
 }

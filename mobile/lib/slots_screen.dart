@@ -199,8 +199,8 @@ class _BookScreenState extends State<BookScreen> {
     _loadSharing();
   }
 
-  /// The clinic's services and prices for this visit, in the app's language: shown, never charged. Every slot is a
-  /// video visit until slots carry their mode in the app (docs/plans/clinic-cms.md, package A).
+  /// The clinic's services and prices for this visit's mode (the slot's, ADR 0016), in the app's language: shown,
+  /// never charged.
   List<api.OfferedService> _prices = const [];
   String? _pricesLanguage;
 
@@ -210,7 +210,8 @@ class _BookScreenState extends State<BookScreen> {
     final language = appLanguage(context);
     if (language == _pricesLanguage) return;
     _pricesLanguage = language;
-    widget.booking.offeredServices(widget.clinic.id, api.VisitMode.video, language).then((got) {
+    final mode = widget.slot.inPerson ? api.VisitMode.inPerson : api.VisitMode.video;
+    widget.booking.offeredServices(widget.clinic.id, mode, language).then((got) {
       if (mounted && _pricesLanguage == language) setState(() => _prices = got);
     }, onError: (Object _) {}); // booking goes on without the prices
   }

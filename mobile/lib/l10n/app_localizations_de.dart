@@ -2016,4 +2016,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'In der Klinik';
+
+  @override
+  String get pricesHeading => 'Preise dieser Praxis';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Sie zahlen in der Praxis. In der App wird nichts berechnet.';
 }

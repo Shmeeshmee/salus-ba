@@ -86,7 +86,7 @@ export function ClinicSettings({
       </section>
       <ClinicSettingsReminders api={api} />
       <p>
-        <Link to="/clinic/subscription">{t('subscription.link')}</Link>
+        <Link to="/membership">{t('subscription.link')}</Link>
       </p>
     </>
   )

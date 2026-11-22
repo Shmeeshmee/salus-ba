@@ -137,12 +137,19 @@ func (s *Service) Issue(ctx context.Context, c Caller, d Draft) (Invoice, error)
 // validDraft reports whether d could be a receipt: a known kind and payment method, lines of a positive quantity and
 // no negative discount, an invoice exactly when a company is named, a company's tax id only with its name, and
 // never a patient and a company together.
+// maxLines and maxQuantity bound a receipt so its total fits an int64 with room to spare: with the price list's cap of
+// 1,000,000,000 minor units a line is at most 1e13, a receipt at most 1e15.
+const (
+	maxLines    = 100
+	maxQuantity = 10000
+)
+
 func validDraft(d Draft) bool {
-	if (d.Kind != KindReceipt && d.Kind != KindInvoice) || !validMethod(d.PaymentMethod) || len(d.Picks) == 0 {
+	if (d.Kind != KindReceipt && d.Kind != KindInvoice) || !validMethod(d.PaymentMethod) || len(d.Picks) == 0 || len(d.Picks) > maxLines {
 		return false
 	}
 	for _, p := range d.Picks {
-		if p.DefinitionID == "" || p.Quantity <= 0 || p.DiscountMinor < 0 {
+		if p.DefinitionID == "" || p.Quantity <= 0 || p.Quantity > maxQuantity || p.DiscountMinor < 0 {
 			return false
 		}
 	}
@@ -271,7 +278,8 @@ func (s *Service) store(ctx context.Context, c Caller, inv Invoice) (Invoice, er
 
 // Reverse issues the receipt that reverses the receipt id, once (POST /clinic/receipts/{id}/reverse): its lines and
 // total negated, the seller and the buyer as on the receipt, the clinic's next number, reported like any receipt.
-// By the clinic's admin. ErrAlreadyReversed for a receipt reversed already and for a reversal.
+// By the clinic's admin. ErrAlreadyReversed for a receipt reversed already and for a reversal, ErrReportFailed for a
+// receipt whose fiscal report failed (a pending one may be reversed: its reversal is reported after it).
 func (s *Service) Reverse(ctx context.Context, c Caller, id string, method PaymentMethod) (Invoice, error) {
 	if !validMethod(method) {
 		return Invoice{}, ErrInvalid
@@ -290,6 +298,8 @@ func (s *Service) Reverse(ctx context.Context, c Caller, id string, method Payme
 			return err
 		case orig.ReversesID != "" || orig.ReversedByID != "":
 			return ErrAlreadyReversed
+		case orig.FiscalStatus == FiscalFailed:
+			return ErrReportFailed
 		}
 		out, err = s.store(ctx, c, reversal(orig, method))
 		return err
@@ -297,7 +307,7 @@ func (s *Service) Reverse(ctx context.Context, c Caller, id string, method Payme
 	switch {
 	case errors.Is(err, ErrNotFound):
 		return Invoice{}, s.refuse(ctx, c, auditevent.CodeCreate, err)
-	case errors.Is(err, ErrAlreadyReversed):
+	case errors.Is(err, ErrAlreadyReversed), errors.Is(err, ErrReportFailed):
 		return Invoice{}, err
 	case err != nil:
 		return Invoice{}, fmt.Errorf("invoice: reverse: %w", err)

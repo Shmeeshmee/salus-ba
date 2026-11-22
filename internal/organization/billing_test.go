@@ -203,3 +203,23 @@ func TestBillingRepository_StoresTheClinicsOwnDetails(t *testing.T) {
 		t.Errorf("an id that is no UUID: %v, want ErrNotFound", err)
 	}
 }
+
+// ForClinic reads a clinic's billing details for its own receipts' seller (clinic-cms C): in that clinic's scope,
+// whoever of its staff issues, unaudited (nothing in them is personal data); ErrNotFound for no clinic.
+func TestBilling_ForClinicReadsTheDetailsInTheClinicsScope(t *testing.T) {
+	repo := &fakeBillingRepository{details: map[string]organization.BillingDetails{clinicA: syntheticDetails}}
+	audit := &fakeAuditor{}
+	svc := organization.NewBilling(organization.BillingPorts{Repo: repo, Audit: audit, Tx: fakeTransactor{}})
+	got, err := svc.ForClinic(t.Context(), clinicA)
+	if err != nil || got != syntheticDetails || repo.clinic != clinicA {
+		t.Errorf("ForClinic() = %+v, %v in scope %q, want the clinic's details in its scope", got, err, repo.clinic)
+	}
+	if len(audit.events) != 0 {
+		t.Errorf("audit %+v, want none", audit.events)
+	}
+	for _, org := range []string{"", "00000000-0000-4000-8000-00000000ffff"} {
+		if _, err := svc.ForClinic(t.Context(), org); !errors.Is(err, organization.ErrNotFound) {
+			t.Errorf("ForClinic(%q) = %v, want ErrNotFound", org, err)
+		}
+	}
+}

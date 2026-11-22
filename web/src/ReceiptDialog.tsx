@@ -148,7 +148,7 @@ export function ReceiptDialog({ api, appointmentId, onIssued, onClose }: Props) 
         )}
         <Alert message={error} />
         <div className="actions">
-          {services.length > 0 && <Submit busy={busy} label={t('receipts.dialog.issue')} busyLabel={t('receipts.dialog.issuing')} />}
+          {services.length > 0 && <Submit busy={busy} disabled={!valid} label={t('receipts.dialog.issue')} busyLabel={t('receipts.dialog.issuing')} />}
           <button type="button" disabled={busy} onClick={onClose}>
             {t('receipts.dialog.cancel')}
           </button>

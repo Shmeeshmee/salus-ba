@@ -155,6 +155,7 @@ func TestHTTP_MapsWhoAsksAndTheErrors(t *testing.T) {
 		{name: "an invalid receipt", caller: &adminC, err: invoice.ErrInvalid, method: http.MethodPost, path: "/clinic/receipts", body: `{}`, status: 400, code: "invalid_receipt"},
 		{name: "billing details missing", caller: &adminC, err: invoice.ErrSellerIncomplete, method: http.MethodPost, path: "/clinic/receipts", body: `{}`, status: 409, code: "billing_details_missing"},
 		{name: "reversed already", caller: &adminC, err: invoice.ErrAlreadyReversed, method: http.MethodPost, path: "/clinic/receipts/inv-1/reverse", body: `{"paymentMethod":"cash"}`, status: 409, code: "already_reversed"},
+		{name: "its report failed", caller: &adminC, err: invoice.ErrReportFailed, method: http.MethodPost, path: "/clinic/receipts/inv-1/reverse", body: `{"paymentMethod":"cash"}`, status: 409, code: "fiscal_report_failed"},
 		{name: "a fault", caller: &adminC, err: errors.New("synthetic fault with a secret"), method: http.MethodGet, path: "/clinic/receipts/inv-1", status: 500},
 	}
 	for _, tt := range tests {

@@ -1986,4 +1986,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'At the clinic';
+
+  @override
+  String get pricesHeading => 'Prices at this clinic';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'You pay at the clinic. Nothing is charged in the app.';
 }

@@ -2,8 +2,10 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Subscription, SubscriptionBanner } from './Subscription'
 import { newApiClient } from './api/client'
+import { newFhirClient } from './api/fhir'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, type Route } from './test/fakeFetch'
+import { admin, clinicRoute } from './test/fixtures'
 
 afterEach(cleanup)
 
@@ -31,12 +33,13 @@ const invoice = {
 
 function renderScreen(routes: Record<string, Route> = {}) {
   const fake = fakeFetch({
+    ...clinicRoute,
     'GET /clinic/subscription': () => Response.json(membership),
     'GET /clinic/subscription/invoices': () => Response.json([invoice]),
     'GET /clinic/billing-details': () => Response.json({ vatRegistered: false }),
     ...routes,
   })
-  renderInLanguage(<Subscription api={newApiClient(fake.fetch)} />, 'en')
+  renderInLanguage(<Subscription api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={admin} />, 'en')
   return fake
 }
 
@@ -50,6 +53,15 @@ describe('Subscription', () => {
     expect(row?.textContent).toContain('300.00')
     expect(row?.textContent).toContain('Open')
     expect(row?.textContent).toMatch(/1 Dec.* to 31 Dec/)
+  })
+
+  // The period starts at midnight in the clinic's zone (Europe/Sarajevo), whatever the browser's zone is.
+  it("shows the dates in the clinic's time zone", async () => {
+    renderScreen({
+      'GET /clinic/subscription': () =>
+        Response.json({ ...membership, currentPeriodStart: '2026-11-30T23:00:00Z', currentPeriodEnd: '2026-12-31T23:00:00Z' }),
+    })
+    expect(await screen.findByText(/Current period: Tuesday, 1 December 2026 to/)).toBeTruthy()
   })
 
   it('says so when the clinic has no membership yet', async () => {
@@ -101,15 +113,15 @@ describe('Subscription', () => {
 describe('SubscriptionBanner', () => {
   const days = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
   function renderBanner(route: Route) {
-    const fake = fakeFetch({ 'GET /clinic/subscription': route })
-    renderInLanguage(<SubscriptionBanner api={newApiClient(fake.fetch)} />, 'en')
+    const fake = fakeFetch({ ...clinicRoute, 'GET /clinic/subscription': route })
+    renderInLanguage(<SubscriptionBanner api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={admin} />, 'en')
     return fake
   }
 
   it('shows from 14 days past due, with a link to the invoices', async () => {
     renderBanner(() => Response.json({ ...membership, status: 'past_due', pastDueSince: days(15) }))
     expect((await screen.findByRole('alert')).textContent).toContain('New bookings stop 30 days after the due date.')
-    expect(screen.getByRole('link', { name: 'View invoices' }).getAttribute('href')).toBe('/clinic/subscription')
+    expect(screen.getByRole('link', { name: 'View invoices' }).getAttribute('href')).toBe('/membership')
   })
 
   it('says that new bookings are stopped and care is not when the membership is suspended', async () => {

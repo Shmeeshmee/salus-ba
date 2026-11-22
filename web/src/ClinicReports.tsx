@@ -50,13 +50,13 @@ function Report({ api, zone, start }: { api: ApiClient; zone: string; start: Per
       {report && report.count === 0 && <p className="muted">{t('receipts.empty')}</p>}
       {report && report.count > 0 && (
         <>
-          <dl className="facts">
+          <dl className="report-facts">
             <dt>{t('receipts.report.count')}</dt>
             <dd>{f.number(report.count)}</dd>
             <dt>{t('receipts.report.total')}</dt>
             <dd>{money(report.totalMinor, report.currency, language)}</dd>
           </dl>
-          <table>
+          <table className="report-table">
             <caption>{t('receipts.report.byMethod')}</caption>
             <thead>
               <tr>
@@ -75,7 +75,7 @@ function Report({ api, zone, start }: { api: ApiClient; zone: string; start: Per
               ))}
             </tbody>
           </table>
-          <table>
+          <table className="report-table">
             <caption>{t('receipts.report.byService')}</caption>
             <thead>
               <tr>

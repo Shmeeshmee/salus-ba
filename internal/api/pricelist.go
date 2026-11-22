@@ -15,14 +15,16 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-// priceListRoutes are the clinic's price list and the prices shown at booking (docs/plans/clinic-cms.md, package B).
-// Prices are never charged in the app: appointment.Prices stays nil.
-func priceListRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clinics *organization.Service,
-	accounts *auth.Service, log *slog.Logger,
-) func(*http.ServeMux) {
-	svc := chargeitemdefinition.NewService(chargeitemdefinition.Ports{
+// priceList is the clinic's price list (docs/plans/clinic-cms.md, package B): its own routes and the receipts' prices.
+func priceList(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clinics *organization.Service) *chargeitemdefinition.Service {
+	return chargeitemdefinition.NewService(chargeitemdefinition.Ports{
 		Repo: chargeitemdefinition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics,
 	})
+}
+
+// priceListRoutes are the clinic's price list and the prices shown at booking. Prices are never charged in the app:
+// appointment.Prices stays nil.
+func priceListRoutes(svc *chargeitemdefinition.Service, accounts *auth.Service, log *slog.Logger) func(*http.ServeMux) {
 	clinicCaller := organizationCaller(accounts)
 	caller := func(ctx context.Context) (chargeitemdefinition.Caller, bool, error) {
 		c, ok, err := clinicCaller(ctx)

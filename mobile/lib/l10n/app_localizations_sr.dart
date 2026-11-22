@@ -2012,6 +2012,13 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get visitModeInPerson => 'У клиници';
+
+  @override
+  String get pricesHeading => 'Цијене у овој установи';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Плаћате у установи. У апликацији се ништа не наплаћује.';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4021,6 +4028,13 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get visitModeInPerson => 'У клиници';
+
+  @override
+  String get pricesHeading => 'Цијене у овој установи';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Плаћате у установи. У апликацији се ништа не наплаћује.';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6032,4 +6046,11 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get visitModeInPerson => 'U klinici';
+
+  @override
+  String get pricesHeading => 'Cijene u ovoj ustanovi';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
 }

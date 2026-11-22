@@ -18,7 +18,7 @@ class BillingApi {
 
   /// Add a service to the clinic's price list
   ///
-  /// By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B (404 until then). Audited, also when refused.
+  /// By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -63,7 +63,7 @@ class BillingApi {
 
   /// Add a service to the clinic's price list
   ///
-  /// By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B (404 until then). Audited, also when refused.
+  /// By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -99,7 +99,7 @@ class BillingApi {
 
   /// The clinic's billing details
   ///
-  /// Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D (404 until then). Not personal data.
+  /// Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D. Not personal data.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> getBillingDetailsWithHttpInfo({
@@ -131,7 +131,7 @@ class BillingApi {
 
   /// The clinic's billing details
   ///
-  /// Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D (404 until then). Not personal data.
+  /// Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D. Not personal data.
   Future<BillingDetails?> getBillingDetails({
     Future<void>? abortTrigger,
   }) async {
@@ -292,7 +292,7 @@ class BillingApi {
 
   /// The clinic's membership
   ///
-  /// Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md (404 until then). Not personal data.
+  /// Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md. Not personal data.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> getClinicSubscriptionWithHttpInfo({
@@ -324,7 +324,7 @@ class BillingApi {
 
   /// The clinic's membership
   ///
-  /// Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md (404 until then). Not personal data.
+  /// Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md. Not personal data.
   Future<Subscription?> getClinicSubscription({
     Future<void>? abortTrigger,
   }) async {
@@ -665,7 +665,7 @@ class BillingApi {
 
   /// The clinic's price list
   ///
-  /// Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md (404 until then). Not personal data; not audited.
+  /// Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md. Not personal data; not audited.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> listClinicServicesWithHttpInfo({
@@ -697,7 +697,7 @@ class BillingApi {
 
   /// The clinic's price list
   ///
-  /// Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md (404 until then). Not personal data; not audited.
+  /// Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md. Not personal data; not audited.
   Future<List<Service>?> listClinicServices({
     Future<void>? abortTrigger,
   }) async {
@@ -781,7 +781,7 @@ class BillingApi {
 
   /// The services a listed clinic offers, with their prices, for booking
   ///
-  /// The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B (404 until then).
+  /// The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -831,7 +831,7 @@ class BillingApi {
 
   /// The services a listed clinic offers, with their prices, for booking
   ///
-  /// The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B (404 until then).
+  /// The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B.
   ///
   /// Parameters:
   ///
@@ -873,7 +873,7 @@ class BillingApi {
 
   /// Salus's monthly invoices to the clinic
   ///
-  /// Newest first. For the clinic's admin. Built in package D (404 until then).
+  /// Newest first. For the clinic's admin. Built in package D.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> listSubscriptionInvoicesWithHttpInfo({
@@ -905,7 +905,7 @@ class BillingApi {
 
   /// Salus's monthly invoices to the clinic
   ///
-  /// Newest first. For the clinic's admin. Built in package D (404 until then).
+  /// Newest first. For the clinic's admin. Built in package D.
   Future<List<SubscriptionInvoice>?> listSubscriptionInvoices({
     Future<void>? abortTrigger,
   }) async {
@@ -1019,7 +1019,7 @@ class BillingApi {
 
   /// Replace the clinic's billing details
   ///
-  /// By the clinic's admin. Built in package D (404 until then). Audited, also when refused.
+  /// By the clinic's admin. Built in package D. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1064,7 +1064,7 @@ class BillingApi {
 
   /// Replace the clinic's billing details
   ///
-  /// By the clinic's admin. Built in package D (404 until then). Audited, also when refused.
+  /// By the clinic's admin. Built in package D. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -1100,7 +1100,7 @@ class BillingApi {
 
   /// Change a service of the clinic's price list
   ///
-  /// By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B (404 until then). Audited, also when refused.
+  /// By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1153,7 +1153,7 @@ class BillingApi {
 
   /// Change a service of the clinic's price list
   ///
-  /// By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B (404 until then). Audited, also when refused.
+  /// By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B. Audited, also when refused.
   ///
   /// Parameters:
   ///
