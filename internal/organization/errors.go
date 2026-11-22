@@ -32,3 +32,7 @@ var (
 	// ErrSMSUnavailable is returned when the paid SMS option is turned on while no SMS provider sends (the fake).
 	ErrSMSUnavailable = errors.New("organization: no SMS provider")
 )
+
+// ErrInvalidBillingDetails is returned for billing details with a tax id that is not 12 or 13 digits, an e-mail that
+// is not an address, or a legal name that is too long.
+var ErrInvalidBillingDetails = errors.New("organization: invalid billing details")

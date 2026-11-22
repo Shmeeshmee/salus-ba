@@ -85,6 +85,9 @@ export function ClinicSettings({
         {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
       </section>
       <ClinicSettingsReminders api={api} />
+      <p>
+        <Link to="/clinic/subscription">{t('subscription.link')}</Link>
+      </p>
     </>
   )
 }

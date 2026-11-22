@@ -19,6 +19,7 @@ import { Questionnaires } from './Questionnaires'
 import { Receipts } from './Receipts'
 import { Waitlist } from './Waitlist'
 import { SignIn } from './SignIn'
+import { Subscription, SubscriptionBanner } from './Subscription'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
@@ -119,6 +120,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
         <Alert message={signOutFailed ? t('shell.signOutFailed') : undefined} />
         <Alert message={languageSave === 'failed' ? t('common.somethingWrong') : undefined} />
         <Notice message={languageSave === 'saved' ? t('shell.languageSaved') : undefined} />
+        {account.role === 'admin' && <SubscriptionBanner api={api} />}
         <Screen api={api} fhir={fhir} path={path} account={account} />
       </main>
     </>
@@ -220,6 +222,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/receipts' && account.role === 'admin') return <Receipts api={api} fhir={fhir} account={account} />
   if (path === '/receipts/report' && account.role === 'admin') return <ClinicReports api={api} fhir={fhir} account={account} />
+  if (path === '/clinic/subscription' && account.role === 'admin') return <Subscription api={api} />
   if (path === '/clinic' && account.role === 'admin') {
     return (
       <>

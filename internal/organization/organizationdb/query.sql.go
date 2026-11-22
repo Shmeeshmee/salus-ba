@@ -48,6 +48,32 @@ func (q *Queries) AppointmentSettings(ctx context.Context, organizationID pgtype
 	return i, err
 }
 
+const billingDetails = `-- name: BillingDetails :one
+SELECT legal_name, tax_id, vat_registered, billing_email
+FROM organization
+WHERE id = $1
+`
+
+type BillingDetailsRow struct {
+	LegalName     pgtype.Text
+	TaxID         pgtype.Text
+	VatRegistered bool
+	BillingEmail  pgtype.Text
+}
+
+// The clinic's details on Salus's invoices to it (docs/plans/clinic-cms.md, package D). Not personal data.
+func (q *Queries) BillingDetails(ctx context.Context, id pgtype.UUID) (BillingDetailsRow, error) {
+	row := q.db.QueryRow(ctx, billingDetails, id)
+	var i BillingDetailsRow
+	err := row.Scan(
+		&i.LegalName,
+		&i.TaxID,
+		&i.VatRegistered,
+		&i.BillingEmail,
+	)
+	return i, err
+}
+
 const chatSettings = `-- name: ChatSettings :one
 SELECT hours, response_time_hours, email_after_minutes
 FROM organization_chat_settings
@@ -327,6 +353,34 @@ func (q *Queries) PutChatSettings(ctx context.Context, arg PutChatSettingsParams
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const setBillingDetails = `-- name: SetBillingDetails :execrows
+UPDATE organization
+SET legal_name = $1, tax_id = $2, vat_registered = $3, billing_email = $4
+WHERE id = $5
+`
+
+type SetBillingDetailsParams struct {
+	LegalName     pgtype.Text
+	TaxID         pgtype.Text
+	VatRegistered bool
+	BillingEmail  pgtype.Text
+	ID            pgtype.UUID
+}
+
+func (q *Queries) SetBillingDetails(ctx context.Context, arg SetBillingDetailsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBillingDetails,
+		arg.LegalName,
+		arg.TaxID,
+		arg.VatRegistered,
+		arg.BillingEmail,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateAppointmentSettings = `-- name: UpdateAppointmentSettings :one

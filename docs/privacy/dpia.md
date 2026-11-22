@@ -2337,7 +2337,7 @@ directory the active services of listed clinics (prices at booking). The members
 | More than the law requires reaches the Tax Administration | `pkg/fiscal`'s receipt carries the seller's tax id, amounts, item names and the payment method, never a patient; what ESET needs is recorded here with package G once the specification is known (Q6) |
 | A fake fiscalization is taken for a legal receipt | `config.LoadFiscal` takes only the fake until package G; the fake's identifiers start with `TEST-` |
 
-### Package A: visit modes (migration 00060, renumbered at merge)
+### Package A: visit modes (migration 00060)
 
 **Processing added.** A practitioner's working hours name how patients attend each window, by video or at the clinic;
 the slots generated from a window carry its mode and an appointment keeps the mode of the slot it was booked in (a
@@ -2407,3 +2407,28 @@ and the fiscal data, and a company's name on an invoice.
 | A spreadsheet runs a service's name as a formula | The CSV quotes a name that starts like one |
 
 Every issue, reversal, read, list, report and PDF writes an `AuditEvent` in its transaction, a refusal one of its own.
+
+### Package D: the clinic's membership (migration 00061)
+
+**Processing added.** A clinic's plan, trial and status; Salus's monthly invoice to the clinic (its seats, the count of
+its active practitioner roles, times the plan's price); the clinic's billing details (legal name, tax id, VAT
+registration, the e-mail invoices go to); the stop of new bookings for a clinic 30 days past due. Lawful basis: the
+contract between Salus and the clinic (Art. 6(1)(b)); none of it is a patient's or a practitioner's data.
+
+**Personal data added.** None. The seat count is a number, never the roles. The billing e-mail is the clinic's
+address for invoices; an admin who enters a personal address there chooses to (the field's hint says what it is for).
+The audit of a status move, a payment and a change of the billing details names the clinic and the agent (the admin's
+account, `salusctl` or the monthly job) only.
+
+**Who sees what.** The membership, its invoices and the billing details: the clinic's admin, in the clinic's scope
+(row-level security, tested); never its other staff, a patient or another clinic. The monthly job lists the clinics
+that have a membership in its own scope (`app.subscription_run`) and then works in each clinic's scope. Only the
+owner (`salusctl`) edits a plan or marks an invoice paid.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic that does not pay loses access to its patients' records, or a patient to theirs | Only a new booking and a new waitlist entry ask the membership (`bookableClinics` in `internal/api`); existing appointments, records, documents, exports and subject rights never do (`TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
+| The app marks its own invoices paid or edits a plan | No `UPDATE` grant on `subscription_invoice`, no write grant on `subscription_plan`; tested as the app role |
+| Billing details in a log | The handlers log through `httpx.InternalError` only; the api test checks the log for them |

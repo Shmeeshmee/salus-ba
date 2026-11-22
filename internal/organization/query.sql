@@ -71,3 +71,14 @@ RETURNING version;
 -- Every clinic with its time zone, location and contribution: the columns salus_stats may read.
 SELECT id, time_zone, region_id, city_id, location_since, analytics_contributes, contributes_since
 FROM organization ORDER BY id;
+
+-- name: BillingDetails :one
+-- The clinic's details on Salus's invoices to it (docs/plans/clinic-cms.md, package D). Not personal data.
+SELECT legal_name, tax_id, vat_registered, billing_email
+FROM organization
+WHERE id = @id;
+
+-- name: SetBillingDetails :execrows
+UPDATE organization
+SET legal_name = @legal_name, tax_id = @tax_id, vat_registered = @vat_registered, billing_email = @billing_email
+WHERE id = @id;

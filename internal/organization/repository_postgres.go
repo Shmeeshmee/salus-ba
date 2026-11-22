@@ -259,3 +259,46 @@ func foreignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }
+
+type postgresBillingRepository struct {
+	db postgres.Querier
+}
+
+// NewPostgresBillingRepository returns the BillingRepository on db, using the transaction in the context when there
+// is one.
+func NewPostgresBillingRepository(db postgres.Querier) BillingRepository {
+	return &postgresBillingRepository{db: db}
+}
+
+func (r *postgresBillingRepository) SetOrganization(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.organization_id", id)
+}
+
+func (r *postgresBillingRepository) BillingDetails(ctx context.Context, org string) (BillingDetails, error) {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return BillingDetails{}, ErrNotFound
+	}
+	row, err := organizationdb.New(postgres.Conn(ctx, r.db)).BillingDetails(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return BillingDetails{}, ErrNotFound
+	case err != nil:
+		return BillingDetails{}, err
+	}
+	return BillingDetails{LegalName: row.LegalName.String, TaxID: row.TaxID.String, BillingEmail: row.BillingEmail.String, VATRegistered: row.VatRegistered}, nil
+}
+
+func (r *postgresBillingRepository) SetBillingDetails(ctx context.Context, org string, d BillingDetails) error {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return ErrNotFound
+	}
+	n, err := organizationdb.New(postgres.Conn(ctx, r.db)).SetBillingDetails(ctx, organizationdb.SetBillingDetailsParams{
+		ID: u, LegalName: text(d.LegalName), TaxID: text(d.TaxID), VatRegistered: d.VATRegistered, BillingEmail: text(d.BillingEmail),
+	})
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
+}
