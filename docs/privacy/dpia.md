@@ -2381,3 +2381,29 @@ write is audited, also when refused.
 | --- | --- |
 | A price change rewrites what a patient was charged | A receipt copies its lines at issue (`Service.Lines`: the name, unit price and VAT rate then); a service is never deleted, only taken off the list |
 | A clinic that is not listed shows its prices | The directory's policy and the service both require a listed clinic; anyone else's gets 404 (tested) |
+
+### Package C: receipts and invoices (no migration)
+
+**Processing added.** The clinic's admin, and the practitioner of a visit, issue a receipt from the clinic's price
+list (`POST /clinic/receipts`); the admin reverses, lists and sums receipts (the accountant's report, also as CSV);
+staff and the patient open a receipt as a PDF; the worker's `invoice_fiscalize` job reports each receipt through
+`pkg/fiscal` (the fake only) and stores the answer. Lawful basis as in step 0: the clinic's legal obligation
+(Art. 6(1)(c)) and Art. 9(2)(h) for a receipt to a patient. No new personal-data field and no new table.
+
+**Who sees what.** The admin every receipt of the clinic; a practitioner the receipts they issued; a patient their own
+(`GET /me/receipts`, the PDF at `/me/receipts/{id}/pdf`); nobody else. The report holds sums by payment method and by
+service, no patient. The PDF and the CSV name no patient: the PDF prints the seller, the number, the lines, the total
+and the fiscal data, and a company's name on an invoice.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic issues a receipt to a patient it does not treat, who then sees it | A receipt on its own names only a patient with an active care consent or a visit at the clinic; a visit's receipt only the visit's patient (service rule, tested; the schema's foreign keys hold the visit's) |
+| A receipt number is skipped or used twice | The clinic's row of `invoice_sequence` is locked in the receipt's transaction; a receipt that rolls back gives its number back (tested with concurrent transactions against Postgres) |
+| A receipt is reported twice, or a reversal twice | The job locks the receipt while it reports and skips a fiscalized one; the reference reported is the receipt's id; a receipt is reversed once (service rule and the schema's unique key) and a reversal never |
+| The seller on a reprint differs from the one at issue | The legal name, tax id and address are copied at issue and printed from the receipt; a reversal carries the reversed receipt's |
+| Patient data in the job, the logs or the report to the authority | The job's arguments are the receipt's and the clinic's ids; errors carry no content; what is reported holds no patient; the job's update is audited with the agent `invoice_fiscalize` |
+| A spreadsheet runs a service's name as a formula | The CSV quotes a name that starts like one |
+
+Every issue, reversal, read, list, report and PDF writes an `AuditEvent` in its transaction, a refusal one of its own.

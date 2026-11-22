@@ -11,17 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const invoiceByID = `-- name: InvoiceByID :one
-
-SELECT id, organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name, company_tax_id,
-       appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id, payment_method, total_minor, currency,
-       fiscal_status, fiscal_id, fiscal_code, fiscal_qr, fiscalized_at
-FROM invoice
-WHERE id = $1
+const insertInvoice = `-- name: InsertInvoice :one
+INSERT INTO invoice (organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name,
+                     company_tax_id, appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id,
+                     payment_method, total_minor, currency)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10, $11, $12, $13,
+        $14, $15, $16)
+RETURNING id
 `
 
-type InvoiceByIDRow struct {
-	ID                pgtype.UUID
+type InsertInvoiceParams struct {
 	OrganizationID    pgtype.UUID
 	SellerLegalName   string
 	SellerTaxID       string
@@ -38,19 +38,159 @@ type InvoiceByIDRow struct {
 	PaymentMethod     string
 	TotalMinor        int64
 	Currency          string
-	FiscalStatus      string
-	FiscalID          pgtype.Text
-	FiscalCode        pgtype.Text
-	FiscalQr          pgtype.Text
-	FiscalizedAt      pgtype.Timestamptz
 }
 
-// Receipts and invoices (docs/plans/clinic-cms.md, package C). Step 0 holds the first query; package C adds the rest.
+func (q *Queries) InsertInvoice(ctx context.Context, arg InsertInvoiceParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertInvoice,
+		arg.OrganizationID,
+		arg.SellerLegalName,
+		arg.SellerTaxID,
+		arg.SellerAddress,
+		arg.PatientID,
+		arg.CompanyName,
+		arg.CompanyTaxID,
+		arg.AppointmentID,
+		arg.Kind,
+		arg.ReversesID,
+		arg.Number,
+		arg.IssuedAt,
+		arg.IssuedByAccountID,
+		arg.PaymentMethod,
+		arg.TotalMinor,
+		arg.Currency,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertInvoiceLine = `-- name: InsertInvoiceLine :one
+INSERT INTO invoice_line (invoice_id, charge_item_definition_id, name, quantity, unit_price_minor, discount_minor,
+                          vat_rate_bp, total_minor)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8)
+RETURNING id
+`
+
+type InsertInvoiceLineParams struct {
+	InvoiceID              pgtype.UUID
+	ChargeItemDefinitionID pgtype.UUID
+	Name                   string
+	Quantity               int32
+	UnitPriceMinor         int64
+	DiscountMinor          int64
+	VatRateBp              pgtype.Int4
+	TotalMinor             int64
+}
+
+func (q *Queries) InsertInvoiceLine(ctx context.Context, arg InsertInvoiceLineParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertInvoiceLine,
+		arg.InvoiceID,
+		arg.ChargeItemDefinitionID,
+		arg.Name,
+		arg.Quantity,
+		arg.UnitPriceMinor,
+		arg.DiscountMinor,
+		arg.VatRateBp,
+		arg.TotalMinor,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const invoiceByID = `-- name: InvoiceByID :one
+
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, r.id AS reversed_by_id
+FROM invoice i
+LEFT JOIN invoice r ON r.reverses_id = i.id
+WHERE i.id = $1
+`
+
+type InvoiceByIDRow struct {
+	Invoice      Invoice
+	ReversedByID pgtype.UUID
+}
+
+// Receipts and invoices (docs/plans/clinic-cms.md, package C).
 func (q *Queries) InvoiceByID(ctx context.Context, id pgtype.UUID) (InvoiceByIDRow, error) {
 	row := q.db.QueryRow(ctx, invoiceByID, id)
 	var i InvoiceByIDRow
 	err := row.Scan(
+		&i.Invoice.ID,
+		&i.Invoice.CreatedAt,
+		&i.Invoice.OrganizationID,
+		&i.Invoice.SellerLegalName,
+		&i.Invoice.SellerTaxID,
+		&i.Invoice.SellerAddress,
+		&i.Invoice.PatientID,
+		&i.Invoice.CompanyName,
+		&i.Invoice.CompanyTaxID,
+		&i.Invoice.AppointmentID,
+		&i.Invoice.Kind,
+		&i.Invoice.ReversesID,
+		&i.Invoice.Number,
+		&i.Invoice.IssuedAt,
+		&i.Invoice.IssuedByAccountID,
+		&i.Invoice.PaymentMethod,
+		&i.Invoice.TotalMinor,
+		&i.Invoice.Currency,
+		&i.Invoice.FiscalStatus,
+		&i.Invoice.FiscalID,
+		&i.Invoice.FiscalCode,
+		&i.Invoice.FiscalQr,
+		&i.Invoice.FiscalizedAt,
+		&i.ReversedByID,
+	)
+	return i, err
+}
+
+const invoiceLines = `-- name: InvoiceLines :many
+SELECT id, invoice_id, charge_item_definition_id, name, quantity, unit_price_minor, discount_minor, vat_rate_bp, total_minor FROM invoice_line WHERE invoice_id = ANY($1::uuid[]) ORDER BY invoice_id, name, id
+`
+
+// The lines of the receipts, each receipt's by name (a line has no position).
+func (q *Queries) InvoiceLines(ctx context.Context, invoiceIds []pgtype.UUID) ([]InvoiceLine, error) {
+	rows, err := q.db.Query(ctx, invoiceLines, invoiceIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvoiceLine
+	for rows.Next() {
+		var i InvoiceLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.InvoiceID,
+			&i.ChargeItemDefinitionID,
+			&i.Name,
+			&i.Quantity,
+			&i.UnitPriceMinor,
+			&i.DiscountMinor,
+			&i.VatRateBp,
+			&i.TotalMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const invoiceLocked = `-- name: InvoiceLocked :one
+SELECT id, created_at, organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name, company_tax_id, appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id, payment_method, total_minor, currency, fiscal_status, fiscal_id, fiscal_code, fiscal_qr, fiscalized_at FROM invoice WHERE id = $1 FOR UPDATE
+`
+
+// The receipt, locked until the transaction ends: the fiscal job reports it once.
+func (q *Queries) InvoiceLocked(ctx context.Context, id pgtype.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, invoiceLocked, id)
+	var i Invoice
+	err := row.Scan(
 		&i.ID,
+		&i.CreatedAt,
 		&i.OrganizationID,
 		&i.SellerLegalName,
 		&i.SellerTaxID,
@@ -74,4 +214,182 @@ func (q *Queries) InvoiceByID(ctx context.Context, id pgtype.UUID) (InvoiceByIDR
 		&i.FiscalizedAt,
 	)
 	return i, err
+}
+
+const invoicesIssued = `-- name: InvoicesIssued :many
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, r.id AS reversed_by_id
+FROM invoice i
+LEFT JOIN invoice r ON r.reverses_id = i.id
+WHERE i.organization_id = $1 AND i.issued_at >= $2 AND i.issued_at < $3
+ORDER BY i.issued_at DESC, i.number DESC
+`
+
+type InvoicesIssuedParams struct {
+	OrganizationID pgtype.UUID
+	FromTime       pgtype.Timestamptz
+	ToTime         pgtype.Timestamptz
+}
+
+type InvoicesIssuedRow struct {
+	Invoice      Invoice
+	ReversedByID pgtype.UUID
+}
+
+func (q *Queries) InvoicesIssued(ctx context.Context, arg InvoicesIssuedParams) ([]InvoicesIssuedRow, error) {
+	rows, err := q.db.Query(ctx, invoicesIssued, arg.OrganizationID, arg.FromTime, arg.ToTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvoicesIssuedRow
+	for rows.Next() {
+		var i InvoicesIssuedRow
+		if err := rows.Scan(
+			&i.Invoice.ID,
+			&i.Invoice.CreatedAt,
+			&i.Invoice.OrganizationID,
+			&i.Invoice.SellerLegalName,
+			&i.Invoice.SellerTaxID,
+			&i.Invoice.SellerAddress,
+			&i.Invoice.PatientID,
+			&i.Invoice.CompanyName,
+			&i.Invoice.CompanyTaxID,
+			&i.Invoice.AppointmentID,
+			&i.Invoice.Kind,
+			&i.Invoice.ReversesID,
+			&i.Invoice.Number,
+			&i.Invoice.IssuedAt,
+			&i.Invoice.IssuedByAccountID,
+			&i.Invoice.PaymentMethod,
+			&i.Invoice.TotalMinor,
+			&i.Invoice.Currency,
+			&i.Invoice.FiscalStatus,
+			&i.Invoice.FiscalID,
+			&i.Invoice.FiscalCode,
+			&i.Invoice.FiscalQr,
+			&i.Invoice.FiscalizedAt,
+			&i.ReversedByID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const invoicesOfPatient = `-- name: InvoicesOfPatient :many
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, r.id AS reversed_by_id
+FROM invoice i
+LEFT JOIN invoice r ON r.reverses_id = i.id
+WHERE i.patient_id = $1
+ORDER BY i.issued_at DESC, i.number DESC
+`
+
+type InvoicesOfPatientRow struct {
+	Invoice      Invoice
+	ReversedByID pgtype.UUID
+}
+
+func (q *Queries) InvoicesOfPatient(ctx context.Context, patientID pgtype.UUID) ([]InvoicesOfPatientRow, error) {
+	rows, err := q.db.Query(ctx, invoicesOfPatient, patientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvoicesOfPatientRow
+	for rows.Next() {
+		var i InvoicesOfPatientRow
+		if err := rows.Scan(
+			&i.Invoice.ID,
+			&i.Invoice.CreatedAt,
+			&i.Invoice.OrganizationID,
+			&i.Invoice.SellerLegalName,
+			&i.Invoice.SellerTaxID,
+			&i.Invoice.SellerAddress,
+			&i.Invoice.PatientID,
+			&i.Invoice.CompanyName,
+			&i.Invoice.CompanyTaxID,
+			&i.Invoice.AppointmentID,
+			&i.Invoice.Kind,
+			&i.Invoice.ReversesID,
+			&i.Invoice.Number,
+			&i.Invoice.IssuedAt,
+			&i.Invoice.IssuedByAccountID,
+			&i.Invoice.PaymentMethod,
+			&i.Invoice.TotalMinor,
+			&i.Invoice.Currency,
+			&i.Invoice.FiscalStatus,
+			&i.Invoice.FiscalID,
+			&i.Invoice.FiscalCode,
+			&i.Invoice.FiscalQr,
+			&i.Invoice.FiscalizedAt,
+			&i.ReversedByID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const nextInvoiceNumber = `-- name: NextInvoiceNumber :one
+INSERT INTO invoice_sequence (organization_id, last_number) VALUES ($1, 1)
+ON CONFLICT (organization_id) DO UPDATE SET last_number = invoice_sequence.last_number + 1
+RETURNING last_number
+`
+
+// The clinic's next receipt number. The row stays locked until the transaction ends, so two receipts issued at the
+// same instant get consecutive numbers, and a receipt that is rolled back gives its number back: no gap, no repeat.
+func (q *Queries) NextInvoiceNumber(ctx context.Context, organizationID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, nextInvoiceNumber, organizationID)
+	var last_number int64
+	err := row.Scan(&last_number)
+	return last_number, err
+}
+
+const setInvoiceFailed = `-- name: SetInvoiceFailed :execrows
+UPDATE invoice SET fiscal_status = 'failed' WHERE id = $1 AND fiscal_status = 'pending'
+`
+
+func (q *Queries) SetInvoiceFailed(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, setInvoiceFailed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setInvoiceFiscalized = `-- name: SetInvoiceFiscalized :execrows
+UPDATE invoice
+SET fiscal_status = 'fiscalized', fiscal_id = $1, fiscal_code = $2, fiscal_qr = $3,
+    fiscalized_at = $4
+WHERE id = $5 AND fiscal_status IN ('pending', 'failed')
+`
+
+type SetInvoiceFiscalizedParams struct {
+	FiscalID     pgtype.Text
+	FiscalCode   pgtype.Text
+	FiscalQr     pgtype.Text
+	FiscalizedAt pgtype.Timestamptz
+	ID           pgtype.UUID
+}
+
+func (q *Queries) SetInvoiceFiscalized(ctx context.Context, arg SetInvoiceFiscalizedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setInvoiceFiscalized,
+		arg.FiscalID,
+		arg.FiscalCode,
+		arg.FiscalQr,
+		arg.FiscalizedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

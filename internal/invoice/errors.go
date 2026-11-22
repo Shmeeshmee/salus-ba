@@ -13,4 +13,10 @@ var (
 	ErrInvalid = errors.New("invoice: invalid receipt")
 	// ErrAlreadyReversed is returned for a reversal of a receipt that was already reversed, or of a reversal.
 	ErrAlreadyReversed = errors.New("invoice: already reversed")
+	// ErrSellerIncomplete is returned for a receipt of a clinic whose legal name, tax id or address is missing: a
+	// receipt names its seller.
+	ErrSellerIncomplete = errors.New("invoice: the clinic's billing details are incomplete")
+	// ErrOriginalPending is returned by the fiscal job for a reversal whose receipt is not fiscalized yet: the job
+	// is retried.
+	ErrOriginalPending = errors.New("invoice: the reversed receipt is not fiscalized yet")
 )

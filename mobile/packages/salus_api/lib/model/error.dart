@@ -220,6 +220,7 @@ enum ErrorErrorEnum {
   invalidService._(r'invalid_service'),
   invalidReceipt._(r'invalid_receipt'),
   alreadyReversed._(r'already_reversed'),
+  billingDetailsMissing._(r'billing_details_missing'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -423,6 +424,8 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.invalidReceipt;
         case r'already_reversed':
           return ErrorErrorEnum.alreadyReversed;
+        case r'billing_details_missing':
+          return ErrorErrorEnum.billingDetailsMissing;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

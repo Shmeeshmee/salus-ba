@@ -3,9 +3,6 @@
 // with quantity and discount, paid in cash, by card or by transfer, numbered in the clinic's gapless sequence, and
 // reported to the tax authority through pkg/fiscal by a River job after its transaction. An issued receipt never
 // changes; a mistake is a reversing receipt. A receipt to a patient is health data (Art. 9); every access is audited.
-//
-// Step 0 holds the contract: the model, the ports and the service's methods, each refused with errors.ErrUnsupported
-// until package C builds it.
 package invoice
 
 import "time"
@@ -54,6 +51,7 @@ type Invoice struct {
 	CompanyTaxID      string
 	AppointmentID     string // the visit; empty for one on its own
 	ReversesID        string // the receipt it reverses; empty unless a reversal
+	ReversedByID      string // the receipt that reverses it; empty unless reversed (read, never stored)
 	IssuedByAccountID string
 	Currency          string
 	FiscalID          string
@@ -93,6 +91,40 @@ type Caller struct {
 type Period struct {
 	From time.Time
 	To   time.Time
+}
+
+// Seller is the clinic as a receipt names it: its legal name, tax id (JIB) and address, copied onto the receipt at
+// issue. Not personal data.
+type Seller struct {
+	LegalName string
+	TaxID     string
+	Address   string
+}
+
+// Report is the clinic's receipts issued in a period, summed for its accountant: reversals count as receipts and
+// take their amounts back.
+type Report struct {
+	Period          Period
+	Currency        string
+	ByPaymentMethod []MethodTotal  // cash, card, transfer; a method with no receipt is left out
+	ByService       []ServiceTotal // by name
+	Count           int
+	TotalMinor      int64
+}
+
+// MethodTotal is a payment method's receipts in a Report.
+type MethodTotal struct {
+	PaymentMethod PaymentMethod
+	Count         int
+	TotalMinor    int64
+}
+
+// ServiceTotal is a service's lines in a Report: the quantity sold less the quantity reversed, and their total.
+type ServiceTotal struct {
+	ChargeItemDefinitionID string // empty for an item off the price list
+	Name                   string
+	Quantity               int64
+	TotalMinor             int64
 }
 
 // FiscalizeArgs is the invoice_fiscalize job: report one receipt to the tax authority, after the transaction that
