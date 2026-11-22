@@ -2361,3 +2361,23 @@ public directory's search still shows no address.
 | A message tells more about the visit than before | It says only that the visit is at the clinic and the clinic's own address: nothing about the practitioner, the specialty or the reason, as the booking SPEC's "E-mail" asks; the push stays generic (no clinic, time or address); tested per language |
 | An SMS reminder grows with the address | The address follows the clinic's name in the same message; the parts are counted in the clinic's usage as before, and a clinic without an address line sends none |
 | A patient waits for a call that does not exist, or comes to the clinic for a video visit | The mode is picked before the time in the app and shown on the booking screen and the appointment; the apps offer no join for an in-person visit and the API refuses one; the e-mails of an in-person visit say that it is not by video |
+
+### Package B: the price list
+
+**Processing added.** The clinic's admin keeps the price list (`GET`, `POST /clinic/services`,
+`PUT /clinic/services/{id}`); anyone sees the active services of a listed clinic with their prices
+(`GET /organizations/{id}/services`), and the patient app shows them on the booking screen. Prices are shown and paid
+at the clinic: nothing is charged in the app (`appointment.Prices` stays nil).
+
+**Personal data added.** None. A service's name, code, price, duration, VAT rate, modes and translated names describe
+the clinic, not a person; the public read takes no session and stores nothing about who asked. The audit of a write
+names the admin's account, as every audited write does.
+
+**Who sees what.** Every service, active or not: the clinic's staff. The active services of a listed clinic: anyone
+(row-level security and the service both check `active` and `listed`). Only the clinic's admin changes the list; each
+write is audited, also when refused.
+
+| Risk | Measure |
+| --- | --- |
+| A price change rewrites what a patient was charged | A receipt copies its lines at issue (`Service.Lines`: the name, unit price and VAT rate then); a service is never deleted, only taken off the list |
+| A clinic that is not listed shows its prices | The directory's policy and the service both require a listed clinic; anyone else's gets 404 (tested) |

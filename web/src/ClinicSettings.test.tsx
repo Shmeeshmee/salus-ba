@@ -73,6 +73,12 @@ describe('ClinicSettings', () => {
     expect(within(screen.getByRole('heading', { name: 'Clinic settings' }).closest('section')!).getByText('Loading')).toBeTruthy()
   })
 
+  it('links to the price list', () => {
+    renderSettings({ [`GET ${path}`]: () => new Promise<Response>(() => {}) })
+
+    expect(screen.getByRole('link', { name: 'Price list' }).getAttribute('href')).toBe('/price-list')
+  })
+
   it('shows the reminders below the clinic settings', async () => {
     renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
 

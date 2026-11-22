@@ -11,6 +11,7 @@ import { CallScreen } from './CallScreen'
 import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
+import { PriceList } from './PriceList'
 import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
 import { Practitioners } from './Practitioners'
 import { Questionnaires } from './Questionnaires'
@@ -222,5 +223,6 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
       </>
     )
   }
+  if (path === '/price-list' && account.role === 'admin') return <PriceList api={api} />
   return <p className="panel">{t('shell.notFound')}</p>
 }

@@ -518,5 +518,7 @@
   "waitlistOfferExpired": "Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja.",
   "visitModeQuestion": "Kako želite obaviti termin?",
   "visitModeVideo": "Putem videa",
-  "visitModeInPerson": "U klinici"
+  "visitModeInPerson": "U klinici",
+  "pricesHeading": "Cijene u ovoj ustanovi",
+  "pricesPaidAtClinic": "Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje."
 }

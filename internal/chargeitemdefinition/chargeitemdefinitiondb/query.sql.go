@@ -11,11 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const definitionExists = `-- name: DefinitionExists :one
+SELECT EXISTS (SELECT 1 FROM charge_item_definition WHERE id = $1)
+`
+
+func (q *Queries) DefinitionExists(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, definitionExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const definitionTranslations = `-- name: DefinitionTranslations :many
+SELECT charge_item_definition_id, language, name
+FROM charge_item_definition_translation
+WHERE charge_item_definition_id = ANY ($1::uuid[])
+ORDER BY charge_item_definition_id, language
+`
+
+// The translated names of the services ids, where the scope shows the service.
+func (q *Queries) DefinitionTranslations(ctx context.Context, ids []pgtype.UUID) ([]ChargeItemDefinitionTranslation, error) {
+	rows, err := q.db.Query(ctx, definitionTranslations, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChargeItemDefinitionTranslation
+	for rows.Next() {
+		var i ChargeItemDefinitionTranslation
+		if err := rows.Scan(&i.ChargeItemDefinitionID, &i.Language, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const definitions = `-- name: Definitions :many
 
 SELECT id, updated_at, organization_id, name, code, price_minor, currency, duration_minutes, vat_rate_bp, modes, active,
        version_id
 FROM charge_item_definition
+WHERE organization_id = $1
 ORDER BY name, id
 `
 
@@ -34,10 +74,11 @@ type DefinitionsRow struct {
 	VersionID       int32
 }
 
-// The price list (docs/plans/clinic-cms.md, package B). Step 0 holds the first query; package B adds the rest.
-// The services the scope shows (the clinic's, or the directory's active ones of listed clinics), by name.
-func (q *Queries) Definitions(ctx context.Context) ([]DefinitionsRow, error) {
-	rows, err := q.db.Query(ctx, definitions)
+// The price list (docs/plans/clinic-cms.md, package B).
+// The services of a clinic that the scope shows (every one in the clinic's scope, the active ones of a listed clinic in
+// the directory's), by name.
+func (q *Queries) Definitions(ctx context.Context, organizationID pgtype.UUID) ([]DefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, definitions, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -67,4 +108,118 @@ func (q *Queries) Definitions(ctx context.Context) ([]DefinitionsRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const deleteDefinitionTranslations = `-- name: DeleteDefinitionTranslations :exec
+DELETE FROM charge_item_definition_translation
+WHERE charge_item_definition_id = $1
+`
+
+// Saving a service replaces its translations.
+func (q *Queries) DeleteDefinitionTranslations(ctx context.Context, chargeItemDefinitionID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteDefinitionTranslations, chargeItemDefinitionID)
+	return err
+}
+
+const insertDefinition = `-- name: InsertDefinition :one
+INSERT INTO charge_item_definition (created_at, updated_at, organization_id, name, code, price_minor, currency,
+                                    duration_minutes, vat_rate_bp, modes, active)
+VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9,
+        $10)
+RETURNING id, version_id
+`
+
+type InsertDefinitionParams struct {
+	At              pgtype.Timestamptz
+	OrganizationID  pgtype.UUID
+	Name            string
+	Code            pgtype.Text
+	PriceMinor      int64
+	Currency        string
+	DurationMinutes pgtype.Int4
+	VatRateBp       pgtype.Int4
+	Modes           []string
+	Active          bool
+}
+
+type InsertDefinitionRow struct {
+	ID        pgtype.UUID
+	VersionID int32
+}
+
+func (q *Queries) InsertDefinition(ctx context.Context, arg InsertDefinitionParams) (InsertDefinitionRow, error) {
+	row := q.db.QueryRow(ctx, insertDefinition,
+		arg.At,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Code,
+		arg.PriceMinor,
+		arg.Currency,
+		arg.DurationMinutes,
+		arg.VatRateBp,
+		arg.Modes,
+		arg.Active,
+	)
+	var i InsertDefinitionRow
+	err := row.Scan(&i.ID, &i.VersionID)
+	return i, err
+}
+
+const insertDefinitionTranslation = `-- name: InsertDefinitionTranslation :exec
+INSERT INTO charge_item_definition_translation (charge_item_definition_id, language, name)
+VALUES ($1, $2, $3)
+`
+
+type InsertDefinitionTranslationParams struct {
+	ChargeItemDefinitionID pgtype.UUID
+	Language               Language
+	Name                   string
+}
+
+func (q *Queries) InsertDefinitionTranslation(ctx context.Context, arg InsertDefinitionTranslationParams) error {
+	_, err := q.db.Exec(ctx, insertDefinitionTranslation, arg.ChargeItemDefinitionID, arg.Language, arg.Name)
+	return err
+}
+
+const updateDefinition = `-- name: UpdateDefinition :one
+UPDATE charge_item_definition
+SET name = $1, code = $2, price_minor = $3, currency = $4,
+    duration_minutes = $5, vat_rate_bp = $6, modes = $7, active = $8,
+    version_id = version_id + 1, updated_at = $9
+WHERE id = $10 AND version_id = $11
+RETURNING version_id
+`
+
+type UpdateDefinitionParams struct {
+	Name            string
+	Code            pgtype.Text
+	PriceMinor      int64
+	Currency        string
+	DurationMinutes pgtype.Int4
+	VatRateBp       pgtype.Int4
+	Modes           []string
+	Active          bool
+	At              pgtype.Timestamptz
+	ID              pgtype.UUID
+	VersionID       int32
+}
+
+// Optimistic locking: no row when the service is not at version_id (or is not the scope's).
+func (q *Queries) UpdateDefinition(ctx context.Context, arg UpdateDefinitionParams) (int32, error) {
+	row := q.db.QueryRow(ctx, updateDefinition,
+		arg.Name,
+		arg.Code,
+		arg.PriceMinor,
+		arg.Currency,
+		arg.DurationMinutes,
+		arg.VatRateBp,
+		arg.Modes,
+		arg.Active,
+		arg.At,
+		arg.ID,
+		arg.VersionID,
+	)
+	var version_id int32
+	err := row.Scan(&version_id)
+	return version_id, err
 }

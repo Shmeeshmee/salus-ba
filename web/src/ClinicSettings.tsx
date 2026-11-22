@@ -9,7 +9,7 @@ import { useLanguage, useT } from './i18n/useT'
 import { languageNames } from './language'
 import { useLoad } from './load'
 import { ClinicSettingsReschedule } from './ClinicSettingsReschedule'
-import { Alert, Field, Notice, Submit } from './ui'
+import { Alert, Field, Link, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 import type { components } from './api/schema'
 
@@ -22,7 +22,8 @@ type Place = components['schemas']['Place']
 // city of GET /places) and whether it contributes to the All of Salus figures, with If-Match on the version read.
 // platform is whether the All of Salus view is on (GET /auth/me features): off, the opt-out and the location hint,
 // which speak of that view, are not shown (docs/plans/analytics.md §2a). Below them, the clinic's rescheduling rules
-// (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33).
+// (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33). A link leads to the price list
+// (PriceList, docs/plans/clinic-cms.md package B).
 export function ClinicSettings({
   api,
   fhir,
@@ -63,6 +64,9 @@ export function ClinicSettings({
     <>
       <section className="panel">
         <h1>{t('admin.clinicSettings')}</h1>
+        <p>
+          <Link to="/price-list">{t('prices.title')}</Link>
+        </p>
         {load.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
         {load.name === 'failed' && <Alert message={t('admin.clinicLoadFailed')} />}
         {load.name === 'loaded' && places.name === 'failed' && <Alert message={t('admin.placesLoadFailed')} />}

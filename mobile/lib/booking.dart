@@ -220,6 +220,13 @@ class Booking {
     return {for (final e in list?.explanations ?? const <api.ExplainedTerm>[]) e.termId: e};
   }
 
+  /// The services the listed clinic [clinicId] offers for a visit in [mode], with their prices, named in [language]
+  /// where the clinic translated them (docs/plans/clinic-cms.md, package B). Shown at booking, never charged.
+  Future<List<api.OfferedService>> offeredServices(String clinicId, api.VisitMode mode, String language) async {
+    final list = await apiCall(() => api.BillingApi(_client).listOfferedServices(clinicId, mode, language: language));
+    return list ?? const <api.OfferedService>[];
+  }
+
   /// The explained terms of the signed document whose Composition is [id], per field and line (SAL-13).
   Future<api.DocumentTerms?> documentTerms(String id) => apiCall(() => api.DocumentsApi(_client).getDocumentTerms(id));
 

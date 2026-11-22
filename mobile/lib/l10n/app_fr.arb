@@ -518,5 +518,7 @@
   "waitlistOfferExpired": "Ce créneau ne vous est plus réservé. Vous restez sur la liste d'attente.",
   "visitModeQuestion": "Comment souhaitez-vous assister au rendez-vous ?",
   "visitModeVideo": "En vidéo",
-  "visitModeInPerson": "À la clinique"
+  "visitModeInPerson": "À la clinique",
+  "pricesHeading": "Tarifs de cet établissement",
+  "pricesPaidAtClinic": "Vous payez sur place. Rien n'est facturé dans l'application."
 }

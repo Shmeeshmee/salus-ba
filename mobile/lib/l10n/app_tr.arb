@@ -518,5 +518,7 @@
   "waitlistOfferExpired": "Bu saat artık sizin için ayrılmış değil. Bekleme listesinde kalıyorsunuz.",
   "visitModeQuestion": "Randevuya nasıl katılmak istersiniz?",
   "visitModeVideo": "Görüntülü",
-  "visitModeInPerson": "Klinikte"
+  "visitModeInPerson": "Klinikte",
+  "pricesHeading": "Bu klinikteki fiyatlar",
+  "pricesPaidAtClinic": "Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz."
 }

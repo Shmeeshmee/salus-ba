@@ -518,5 +518,7 @@
   "waitlistOfferExpired": "لم يعد هذا الموعد محجوزًا لك. تبقى في قائمة الانتظار.",
   "visitModeQuestion": "كيف تود حضور الموعد؟",
   "visitModeVideo": "عبر الفيديو",
-  "visitModeInPerson": "في العيادة"
+  "visitModeInPerson": "في العيادة",
+  "pricesHeading": "الأسعار في هذه العيادة",
+  "pricesPaidAtClinic": "تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق."
 }
