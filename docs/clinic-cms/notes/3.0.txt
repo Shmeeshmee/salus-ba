@@ -1,0 +1,7 @@
+Package 3.0 (the wave 3 contract). Migration: 00065.
+- Read docs/plans/clinic-cms.PROGRESS.md (step 0) first and work the same way: contract only, no behaviour.
+- A patient profile is today one per account and not clinic-scoped (internal/patient/model.go): the clinic-registered
+  profile is the largest change here. Keep a patient's own profile exactly as it is.
+- auth.Role is admin, practitioner, patient today; docs/accounts/SPEC.md "Roles" is an owner decision, reopened by
+  the owner on 2026-11-23 for `reception` only.
+- Have a fresh subagent review the contract before you commit, as step 0's review found five real gaps.
