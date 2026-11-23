@@ -531,5 +531,6 @@
   "receiptIssuedOn": "Издато {date}",
   "receiptReversal": "Сторно ранијег рачуна",
   "receiptLine": "{name} × {quantity}",
-  "serviceAtClinic": "Одабраћу у установи"
+  "serviceAtClinic": "Одабраћу у установи",
+  "answersNotEnabled": "Ова питања се више не постављају, па су њихови одговори уклоњени: {items}. Провјерите одговоре и поново пошаљите."
 }

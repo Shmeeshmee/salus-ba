@@ -204,6 +204,7 @@ List<Widget> answersRead(
   required Zone zone,
 }) {
   final on = enabled(items, answers);
+  final depth = nesting(items);
   final label = Theme.of(context).textTheme.labelLarge;
   final t = context.t;
   return [
@@ -211,9 +212,9 @@ List<Widget> answersRead(
     if (authored != null) Text(t.submittedAt(t.dateAndTime(zone.date(authored, t.localeName), zone.time(authored)))),
     for (final it in flatten(items))
       if (on[it.linkId]! && it.type == ItemType.group)
-        ui.Heading(it.text)
+        nested(depth[it.linkId]!, ui.Heading(it.text))
       else if (on[it.linkId]! && it.isQuestion)
-        Column(
+        nested(depth[it.linkId]!, Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(it.text, style: label),
@@ -224,6 +225,10 @@ List<Widget> answersRead(
             else
               Text(answerText(t, it, answers[it.linkId]!)),
           ],
-        ),
+        )),
   ];
 }
+
+/// [child] indented by [depth] steps, the sections it sits in inside a section (SAL-43: a branch inside a branch).
+Widget nested(int depth, Widget child) =>
+    depth == 0 ? child : Padding(padding: EdgeInsetsDirectional.only(start: 16.0 * depth), child: child);

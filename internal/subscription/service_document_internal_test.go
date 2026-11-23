@@ -52,3 +52,28 @@ func TestDocument_LaysOutTheMembershipInvoice(t *testing.T) {
 		}
 	}
 }
+
+// Every staff language's catalog (templates/pdf) fills every label and placeholder of the invoice.
+func TestDocument_EveryStaffLanguageFillsEveryLabel(t *testing.T) {
+	inv := Invoice{
+		PeriodStart: time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), PeriodEnd: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
+		IssuedAt: time.Date(2026, 12, 1, 1, 0, 0, 0, time.UTC), DueAt: time.Date(2026, 12, 15, 1, 0, 0, 0, time.UTC),
+		PaidAt: time.Date(2026, 12, 10, 9, 0, 0, 0, time.UTC), Currency: "BAM", Number: 7, AmountMinor: 30000, Seats: 3, Status: InvoicePaid,
+	}
+	seller := Seller{Name: "[SELLER]", TaxID: "[SELLER TAX ID]", Address: "[SELLER ADDRESS]", Account: "[SELLER ACCOUNT]"}
+	heading := map[string]string{"bs": "Račun br. 7", "hr": "Račun br. 7", "sr-Latn": "Račun br. 7", "sr-Cyrl": "Рачун бр. 7", "en": "Invoice no. 7"}
+	for lang, want := range heading {
+		clinic := organization.Organization{Name: "Synthetic clinic", TimeZone: "UTC", DefaultLanguage: lang}
+		d := document(inv, clinic, organization.BillingDetails{TaxID: "4200000000001"}, seller)
+		text := strings.Join(d.Meta, "\n")
+		for _, s := range d.Sections {
+			if s.Heading == "" {
+				t.Errorf("%s: a section without a heading", lang)
+			}
+			text += "\n" + s.Heading + "\n" + strings.Join(s.Paragraphs, "\n") + "\n" + strings.Join(s.Items, "\n")
+		}
+		if d.Sections[0].Heading != want || strings.ContainsAny(text, "{}%") || strings.Contains(text, ": \n") || !strings.Contains(text, "[SELLER ACCOUNT]") {
+			t.Errorf("%s: the invoice reads\n%s", lang, text)
+		}
+	}
+}

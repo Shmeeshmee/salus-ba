@@ -30,6 +30,7 @@ function List({ api, zone, start }: { api: ApiClient; zone: string; start: Perio
   const [period, setPeriod] = useState(start)
   const [issuing, setIssuing] = useState(false)
   const [notice, setNotice] = useState<string>()
+  const [retried, setRetried] = useState<ReadonlySet<string>>(new Set())
   const range = instants(period, zone)
   const { state, reload } = useLoad(async () => {
     if (!range) return []
@@ -60,8 +61,10 @@ function List({ api, zone, start }: { api: ApiClient; zone: string; start: Perio
               api={api}
               receipt={r}
               zone={zone}
+              retried={retried.has(r.id)}
               onChanged={reload}
               onRetried={() => {
+                setRetried((ids) => new Set(ids).add(r.id))
                 setNotice(t('receipts.retried', { number: r.number }))
                 reload()
               }}
@@ -84,9 +87,11 @@ function List({ api, zone, start }: { api: ApiClient; zone: string; start: Perio
   )
 }
 
-type RowProps = { api: ApiClient; receipt: Receipt; zone: string; onChanged: () => void; onRetried: () => void }
+// retried: the receipt was reported again from this page; it stays failed until its report runs and is not offered
+// again meanwhile (one click, one report).
+type RowProps = { api: ApiClient; receipt: Receipt; zone: string; retried: boolean; onChanged: () => void; onRetried: () => void }
 
-function Row({ api, receipt: r, zone, onChanged, onRetried }: RowProps) {
+function Row({ api, receipt: r, zone, retried, onChanged, onRetried }: RowProps) {
   const t = useT()
   const f = useFormat()
   const { language } = useLanguage()
@@ -144,7 +149,7 @@ function Row({ api, receipt: r, zone, onChanged, onRetried }: RowProps) {
         <a href={receiptPdfURL(r.id)} target="_blank" rel="noreferrer">
           {t('receipts.pdf')}
         </a>
-        {r.fiscalStatus === 'failed' && (
+        {r.fiscalStatus === 'failed' && !retried && (
           <button type="button" disabled={busy} onClick={retry}>
             {t('receipts.retry')}
           </button>

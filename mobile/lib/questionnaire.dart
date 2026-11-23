@@ -207,6 +207,21 @@ Iterable<Item> flatten(List<Item> items) sync* {
   }
 }
 
+/// By linkId, how many sections inside a section an item sits in: 0 at the top level and in a top-level section, 1
+/// in a branch inside a section, and so on. The form indents an item by it, so a nested branch reads as one.
+Map<String, int> nesting(List<Item> items) {
+  final out = <String, int>{};
+  void walk(List<Item> items, int depth) {
+    for (final it in items) {
+      out[it.linkId] = depth < 1 ? 0 : depth - 1;
+      walk(it.items, depth + 1);
+    }
+  }
+
+  walk(items, 0);
+  return out;
+}
+
 /// The shown required questions without an answer, in document order, as the server names them on submit.
 List<String> missing(List<Item> items, Answers answers) {
   final on = enabled(items, answers);

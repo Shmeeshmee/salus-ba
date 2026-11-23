@@ -67,8 +67,8 @@ bool _holds(Item it, List<Object> Function(String question) answersOf) {
 bool _meets(Condition c, List<Object> given) => switch (c.operator) {
   Operator.exists => given.isNotEmpty == c.answer,
   Operator.equal => given.any((v) => _compare(v, c.answer) == 0),
-  // R4: true when no answer equals it, so also when the question is not answered.
-  Operator.notEqual => !given.any((v) => _compare(v, c.answer) == 0),
+  // False on an unanswered or hidden question, as every operator but exists (test/testdata/enablewhen).
+  Operator.notEqual => given.isNotEmpty && !given.any((v) => _compare(v, c.answer) == 0),
   Operator.greater => given.any((v) => (_compare(v, c.answer) ?? 0) > 0),
   Operator.less => given.any((v) => (_compare(v, c.answer) ?? 0) < 0),
   Operator.greaterOrEqual => given.any((v) => (_compare(v, c.answer) ?? -1) >= 0),

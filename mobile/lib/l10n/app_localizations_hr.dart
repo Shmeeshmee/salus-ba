@@ -2045,4 +2045,40 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get discardConfirm => 'Promijeni i ukloni';
+
+  @override
+  String get myReceipts => 'Moji računi';
+
+  @override
+  String get receiptsIntro =>
+      'Računi koje su vam klinike izdale za usluge koje ste platili u klinici. Klinike čuvaju račune onoliko dugo koliko to propisuje zakon o fiskalizaciji.';
+
+  @override
+  String get noReceipts => 'Još nemate računa.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Račun br. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Izdano $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno ranijeg računa';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Odabrat ću u ustanovi';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ta se pitanja više ne postavljaju pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovno pošaljite.';
+  }
 }

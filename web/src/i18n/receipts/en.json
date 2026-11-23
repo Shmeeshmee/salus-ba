@@ -82,6 +82,7 @@
   "practice.practitioner": "Practitioner",
   "practice.mode": "Visit",
   "practice.hours": "Hours offered",
+  "practice.hoursHint": "Past periods are calculated from today's working hours.",
   "practice.visits": "Visits held",
   "practice.amount": "Receipted",
   "practice.video": "Video",

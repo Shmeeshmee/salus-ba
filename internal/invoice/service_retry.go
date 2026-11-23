@@ -23,7 +23,7 @@ func (s *Service) Retry(ctx context.Context, c Caller, id string) (Invoice, erro
 			return err
 		}
 		var err error
-		if out, err = s.p.Repo.ByID(ctx, id); err != nil {
+		if out, err = s.p.Repo.Locked(ctx, id); err != nil { // one retry at a time decides on the status
 			return err
 		}
 		if out.FiscalStatus != FiscalFailed {

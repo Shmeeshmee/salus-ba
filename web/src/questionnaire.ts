@@ -4,17 +4,9 @@ import { all, fileKinds, isChoice, isQuestion, type Behavior, type Condition, ty
 import { languageNames } from './language'
 
 type JSONQuestionnaire = components['schemas']['Questionnaire']
-// The JSON API's item takes today one condition, is, on a yes or no or a choice (the legacy shape below). Every
-// other condition is sent as FHIR R4 enableWhen with enableBehavior, which Q1 of docs/clinic-cms adds to the API;
-// until the clients are regenerated after it, these types widen the generated ones by that shape.
-type LegacyCondition = { question: string; answerBoolean?: boolean; answerString?: string }
-type JSONItem = Omit<components['schemas']['QuestionnaireItem'], 'enableWhen' | 'item'> & {
-  enableWhen?: LegacyCondition | EnableWhen[]
-  enableBehavior?: Behavior
-  item?: JSONItem[]
-}
-type JSONQuestionnaireIn = Omit<JSONQuestionnaire, 'item'> & { item: JSONItem[] }
-export type SaveRequest = Omit<components['schemas']['SaveQuestionnaireRequest'], 'item'> & { item: JSONItem[] }
+type JSONItem = components['schemas']['QuestionnaireItem']
+type JSONEnableWhen = NonNullable<JSONItem['enableWhen']>[number]
+export type SaveRequest = components['schemas']['SaveQuestionnaireRequest']
 export type Status = Questionnaire['status']
 
 // ContentLanguage is a language a questionnaire is written or translated in: any of the ten patient languages
@@ -93,15 +85,13 @@ function kindOf(type: string, repeats?: boolean): Kind {
 
 const operators: Operator[] = ['exists', '=', '!=', '>', '<', '>=', '<=']
 
-function conditionOf(c: EnableWhen | LegacyCondition): Condition {
-  const operator = 'operator' in c && operators.includes(c.operator as Operator) ? (c.operator as Operator) : '='
-  const e = c as EnableWhen
-  return { question: c.question, operator, answer: e.answerBoolean ?? e.answerInteger ?? e.answerDecimal ?? e.answerDate ?? e.answerString ?? '' }
+function conditionOf(c: EnableWhen | JSONEnableWhen): Condition {
+  const operator = operators.includes(c.operator as Operator) ? (c.operator as Operator) : '='
+  return { question: c.question, operator, answer: c.answerBoolean ?? c.answerInteger ?? c.answerDecimal ?? c.answerDate ?? c.answerString ?? '' }
 }
 
-// logicOf reads an item's conditions, from FHIR's list or the JSON API's single legacy condition.
-function logicOf(when?: EnableWhen[] | LegacyCondition, behavior?: Behavior): Partial<Item> {
-  const list = when === undefined ? [] : Array.isArray(when) ? when : [when]
+// logicOf reads an item's conditions, FHIR R4 enableWhen and enableBehavior, from the FHIR read or the JSON API.
+function logicOf(list: (EnableWhen | JSONEnableWhen)[] = [], behavior?: Behavior): Partial<Item> {
   if (list.length === 0) return {}
   const enableWhen = list.map(conditionOf)
   return list.length > 1 ? { enableWhen, enableBehavior: behavior ?? 'all' } : { enableWhen }
@@ -192,7 +182,7 @@ function fromJSONItem(j: JSONItem): Item {
   })
 }
 
-export function fromJSON(q: JSONQuestionnaire | JSONQuestionnaireIn): Version {
+export function fromJSON(q: JSONQuestionnaire): Version {
   return {
     id: q.id,
     url: q.url,
@@ -225,8 +215,8 @@ function toJSONItem(it: Item, questionOf: (id: string) => Item | undefined): JSO
 }
 
 // answerOf is a condition as FHIR enableWhen, its value in the answer[x] of the question's type.
-function answerOf(c: Condition, on?: Item): EnableWhen {
-  const out: EnableWhen = { question: c.question, operator: c.operator }
+function answerOf(c: Condition, on?: Item): JSONEnableWhen {
+  const out: JSONEnableWhen = { question: c.question, operator: c.operator }
   const a = c.answer
   if (typeof a === 'boolean') out.answerBoolean = a
   else if (typeof a === 'number') out[on?.kind === 'decimal' ? 'answerDecimal' : 'answerInteger'] = a
@@ -235,15 +225,10 @@ function answerOf(c: Condition, on?: Item): EnableWhen {
   return out
 }
 
-// logicRequest writes an item's conditions: one is on a yes or no or a choice in the API's legacy shape, so
-// published questionnaires keep their form; anything else as FHIR enableWhen with enableBehavior.
-function logicRequest(it: Item, questionOf: (id: string) => Item | undefined = () => undefined): Partial<JSONItem> {
+// logicRequest writes an item's conditions as FHIR R4 enableWhen, with enableBehavior when there are several.
+function logicRequest(it: Item, questionOf: (id: string) => Item | undefined): Partial<JSONItem> {
   const list = it.enableWhen ?? []
   if (list.length === 0) return {}
-  const [c] = list
-  if (list.length === 1 && c.operator === '=' && typeof c.answer !== 'number' && questionOf(c.question)?.kind !== 'date') {
-    return { enableWhen: typeof c.answer === 'boolean' ? { question: c.question, answerBoolean: c.answer } : { question: c.question, answerString: c.answer } }
-  }
   const enableWhen = list.map((x) => answerOf(x, questionOf(x.question)))
   return list.length > 1 ? { enableWhen, enableBehavior: it.enableBehavior ?? 'all' } : { enableWhen }
 }

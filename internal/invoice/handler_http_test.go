@@ -180,7 +180,7 @@ func TestHTTP_ListsReportsAndPDFs(t *testing.T) {
 	s := &stub{receipt: fiscalized(), report: invoice.Report{
 		Currency: "BAM", Language: "bs", Count: 3, TotalMinor: 9500,
 		ByPaymentMethod: []invoice.MethodTotal{{PaymentMethod: invoice.PaymentCash, Count: 2}, {PaymentMethod: invoice.PaymentCard, Count: 1, TotalMinor: 9500}},
-		ByService:       []invoice.ServiceTotal{{ChargeItemDefinitionID: exam, Name: "=Placeholder, examination", Quantity: 2, TotalMinor: 9500}},
+		ByService:       []invoice.ServiceTotal{{ChargeItemDefinitionID: exam, Name: "=Placeholder; \"examination\"", Quantity: 2, TotalMinor: 9500}},
 	}}
 	rec := serve(t, s, &adminC, http.MethodGet, "/clinic/receipts"+window, "")
 	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), `[{"`) || !s.period.From.Equal(at.Add(-9*time12h/12)) || s.period.To.Sub(s.period.From) != 2*time12h {
@@ -197,14 +197,16 @@ func TestHTTP_ListsReportsAndPDFs(t *testing.T) {
 		}
 	}
 	rec = serve(t, s, &adminC, http.MethodGet, "/clinic/reports/receipts"+window+"&format=csv", "")
-	wantCSV := "Vrsta,Šifra,Naziv,Broj računa,Količina,Iznos,Valuta\nUkupno,,,3,,95.00,BAM\nNačin plaćanja,cash,Gotovina,2,,0.00,BAM\n" +
-		"Način plaćanja,card,Kartica,1,,95.00,BAM\nUsluga,svc-exam,\"'=Placeholder, examination\",,2,95.00,BAM\n"
+	// Semicolons and decimal commas, as Excel reads a file with Bosnian settings; a field holding either, a quote or a
+	// line break is quoted (RFC 4180, with ; as the separator).
+	wantCSV := "Vrsta;Šifra;Naziv;Broj računa;Količina;Iznos;Valuta\nUkupno;;;3;;95,00;BAM\nNačin plaćanja;cash;Gotovina;2;;0,00;BAM\n" +
+		"Način plaćanja;card;Kartica;1;;95,00;BAM\nUsluga;svc-exam;\"'=Placeholder; \"\"examination\"\"\";;2;95,00;BAM\n"
 	if rec.Body.String() != wantCSV || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/csv") {
 		t.Errorf("csv = %q (%s)\nwant %q", rec.Body, rec.Header().Get("Content-Type"), wantCSV)
 	}
 	s.report = invoice.Report{Currency: "BAM", Language: "en", Count: 1, TotalMinor: -105}
 	rec = serve(t, s, &adminC, http.MethodGet, "/clinic/reports/receipts"+window+"&format=csv", "")
-	if want := "Section,Code,Name,Receipts,Quantity,Amount,Currency\nTotal,,,1,,-1.05,BAM\n"; rec.Body.String() != want {
+	if want := "Section;Code;Name;Receipts;Quantity;Amount;Currency\nTotal;;;1;;-1,05;BAM\n"; rec.Body.String() != want {
 		t.Errorf("csv in English = %q, want %q", rec.Body, want)
 	}
 	for name, tt := range map[string]struct {

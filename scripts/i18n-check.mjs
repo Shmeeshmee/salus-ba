@@ -8,8 +8,9 @@
 //           base gen-l10n needs for the script variants) is the same text as app_sr_Cyrl.arb;
 //   e-mail: internal/notification/templates/<language>/ against en/: the same files, the same {{…}} fields;
 //   link:   internal/appointment/templates/link/<language>.json against en.json, in the ten patient languages, as web's;
-//   pdf:    internal/invoice/templates/pdf/<language>.json (the receipt's labels) against en.json, in the five staff
-//           languages, as web's.
+//   pdf:    internal/invoice/templates/pdf/<language>.json (the receipt's labels) and
+//           internal/subscription/templates/pdf/<language>.json (the membership invoice's) against en.json, in the five
+//           staff languages, as web's.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
@@ -35,6 +36,7 @@ export function check(root, parse) {
   checkEmail(root, report);
   checkFlat(join(root, 'internal', 'appointment', 'templates', 'link'), ALL, parse, report);
   checkFlat(join(root, 'internal', 'invoice', 'templates', 'pdf'), STAFF, parse, report);
+  checkFlat(join(root, 'internal', 'subscription', 'templates', 'pdf'), STAFF, parse, report);
   return out;
 }
 

@@ -930,7 +930,7 @@ describe('Builder: branching (SAL-43)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
     await vi.waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
     const sent = (await saveBody(requests)).item
-    expect(sent[4].enableWhen).toEqual({ question: 'had', answerBoolean: false })
+    expect(sent[4].enableWhen).toEqual([{ question: 'had', operator: '=', answerBoolean: false }])
     expect(sent[3].enableWhen).toEqual([{ question: 'age', operator: '<', answerInteger: 18 }])
   })
 

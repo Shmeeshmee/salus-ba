@@ -59,7 +59,7 @@ directory when something goes in it.
 | `docs/` | `architecture/`, ADRs (`docs/adr/NNNN-title.md`), and one folder per feature (see "Working on a feature") |
 | `web/` | React + TypeScript (Vite) app for practitioners and admins |
 | `mobile/` | Flutter app (iOS and Android) for patients only |
-| `landing/` | Marketing landing page: React + TypeScript (Vite), its own app beside `web/`, prerendered to static HTML at build time (`scripts/prerender.ts`) and served with its `nginx.conf` by the `landing` compose service. Copy and data in `src/content/`, one folder per page section in `src/sections/`. No third-party requests (fonts are bundled from npm). Not deployed yet: fill in the `[PRICE]`, `[X]`, `[YOUR EMAIL]`, `[Hosting]` and `[Certification]` placeholders in `src/content/` before it is |
+| `landing/` | Marketing landing page: React + TypeScript (Vite), its own app beside `web/`, prerendered to static HTML at build time (`scripts/prerender.ts`) and served with its `nginx.conf` by the `landing` compose service. Copy and data in `src/content/`, one folder per page section in `src/sections/`. No third-party requests (fonts are bundled from npm). Not deployed yet: fill in the `[PRICE]`, `[YOUR EMAIL]`, `[Hosting]` and `[Certification]` placeholders in `src/content/` before it is |
 
 Never: `/src`, `internal/utils`, `internal/common`, `internal/shared`, `internal/helpers`, or top-level
 technical-layer packages (`internal/services`, `internal/repositories`, `internal/handlers`).

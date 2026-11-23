@@ -88,10 +88,10 @@ void main() {
       (name: '!= another option', c: const Condition('x', Operator.notEqual, 'B'), given: ['A'], on: true),
       (name: '!= the option', c: const Condition('x', Operator.notEqual, 'B'), given: ['A', 'B'], on: false),
       (
-        name: '!= unanswered: no answer equals it',
+        name: '!= unanswered: false, as every operator but exists',
         c: const Condition('x', Operator.notEqual, 'B'),
         given: [],
-        on: true,
+        on: false,
       ),
       (name: '> integer', c: const Condition('x', Operator.greater, 20), given: [21], on: true),
       (name: '> integer, equal', c: const Condition('x', Operator.greater, 20), given: [20], on: false),

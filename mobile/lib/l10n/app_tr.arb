@@ -531,5 +531,6 @@
   "receiptIssuedOn": "Düzenlenme tarihi: {date}",
   "receiptReversal": "Önceki bir makbuzun iptali",
   "receiptLine": "{name} × {quantity}",
-  "serviceAtClinic": "Klinikte seçeceğim"
+  "serviceAtClinic": "Klinikte seçeceğim",
+  "answersNotEnabled": "Bu sorular artık sorulmuyor, bu yüzden yanıtları kaldırıldı: {items}. Yanıtlarınızı kontrol edip yeniden gönderin."
 }

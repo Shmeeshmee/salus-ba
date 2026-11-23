@@ -63,18 +63,24 @@ export function answered(items: Item[], response: QuestionnaireResponseItem[] = 
   const enabled = (linkId: string) => on.has(linkId)
   const question = (it: Item): Question => ({ linkId: it.linkId, text: it.text, kind: it.kind, values: answers.get(it.linkId) ?? [] })
 
+  // A block is one section's run of questions; a branch inside a section is its own block, and the section's
+  // questions after it, where the branch joins, start a block of the section again (sections nest, SAL-43).
   const blocks: Block[] = []
-  for (const it of items) {
-    if (!enabled(it.linkId)) continue
-    if (it.kind === 'group') {
-      const questions = it.items.filter((c) => isQuestion(c.kind) && enabled(c.linkId)).map(question)
-      if (questions.length > 0) blocks.push({ section: it.text, questions })
-    } else if (isQuestion(it.kind)) {
-      const last = blocks.at(-1)
-      if (last && last.section === undefined) last.questions.push(question(it))
-      else blocks.push({ questions: [question(it)] })
+  let owner: string | undefined
+  const add = (q: Item, group?: Item) => {
+    const last = blocks.at(-1)
+    if (last && owner === group?.linkId) last.questions.push(question(q))
+    else blocks.push(group ? { section: group.text, questions: [question(q)] } : { questions: [question(q)] })
+    owner = group?.linkId
+  }
+  const walk = (list: Item[], group?: Item) => {
+    for (const it of list) {
+      if (!enabled(it.linkId)) continue
+      if (it.kind === 'group') walk(it.items, it)
+      else if (isQuestion(it.kind)) add(it, group)
     }
   }
+  walk(items)
   return blocks
 }
 

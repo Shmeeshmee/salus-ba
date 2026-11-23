@@ -429,6 +429,12 @@ p.hint.join { margin-bottom: 20px; }
   visibility: hidden; opacity: 0; transition: opacity .12s;
 }
 .tip:hover [role='tooltip'], .tip:focus-within [role='tooltip'] { visibility: visible; opacity: 1; }
+.has-hint { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+/* Centred under its column heading and never wider than the screen, so it stays in view at 390 px. */
+.report-table th .tip [role='tooltip'] {
+  font-weight: 400; white-space: normal; right: auto; left: 50%; transform: translateX(-50%);
+  max-width: min(260px, calc(100vw - 32px));
+}
 .tag.active { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
 .tag.retired { color: var(--color-text-muted); background: var(--color-page); }
 .builder { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }

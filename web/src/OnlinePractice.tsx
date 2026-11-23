@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
@@ -58,7 +58,9 @@ function Report({ api, zone, names, start }: { api: ApiClient; zone: string; nam
             <tr>
               <th scope="col">{t('receipts.practice.practitioner')}</th>
               <th scope="col">{t('receipts.practice.mode')}</th>
-              <th scope="col">{t('receipts.practice.hours')}</th>
+              <th scope="col">
+                <HoursOffered />
+              </th>
               <th scope="col">{t('receipts.practice.visits')}</th>
               <th scope="col">{t('receipts.practice.amount')}</th>
             </tr>
@@ -77,5 +79,22 @@ function Report({ api, zone, names, start }: { api: ApiClient; zone: string; nam
         </table>
       )}
     </section>
+  )
+}
+
+// HoursOffered is the column's heading with its hint on hover and focus: the hours of a past period come from the
+// working hours as they are today, since earlier ones are not kept (clinic-cms E, wave 2 integration).
+function HoursOffered() {
+  const t = useT()
+  const id = useId()
+  return (
+    <span className="tip">
+      <span className="has-hint" tabIndex={0} aria-describedby={id}>
+        {t('receipts.practice.hours')}
+      </span>
+      <span role="tooltip" id={id}>
+        {t('receipts.practice.hoursHint')}
+      </span>
+    </span>
   )
 }

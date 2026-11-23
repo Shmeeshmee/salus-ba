@@ -155,9 +155,11 @@ describe('a translated questionnaire', () => {
 describe('conditions (SAL-43)', () => {
   const q = (kind: Parameters<typeof newItem>[0], id: string) => ({ ...newItem(kind, id), text: id })
 
-  it('sends one is condition on a yes or no or a choice in the legacy shape, so published forms keep theirs', () => {
+  it('sends one is condition on a yes or no or a choice as FHIR enableWhen too, without enableBehavior', () => {
     const items = [q('boolean', 'a'), { ...q('string', 'b'), enableWhen: [{ question: 'a', operator: '=' as const, answer: true }] }]
-    expect(toRequest('T', '', items).item[1].enableWhen).toEqual({ question: 'a', answerBoolean: true })
+    const sent = toRequest('T', '', items).item[1]
+    expect(sent.enableWhen).toEqual([{ question: 'a', operator: '=', answerBoolean: true }])
+    expect(sent.enableBehavior).toBeUndefined()
   })
 
   it('sends anything else as FHIR enableWhen with enableBehavior, the value in its type', () => {

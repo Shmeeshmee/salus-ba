@@ -288,13 +288,16 @@ func reportJSON(rep Report) map[string]any {
 }
 
 // writeCSV writes the report for the clinic's accountant: a header in the clinic's language, then the total, a row
-// per payment method and a row per service, amounts as decimals with a point (106.70). A name that a spreadsheet
-// would read as a formula is quoted with an apostrophe.
+// per payment method and a row per service. Fields are separated by semicolons and amounts are decimals with a comma
+// (106,70), as Excel reads a file with Bosnian settings (the owner's default, clinic-cms wave 2), whatever the clinic's
+// language; a field holding a semicolon, a quote or a line break is quoted (RFC 4180). A name that a spreadsheet
+// would read as a formula is prefixed with an apostrophe.
 func writeCSV(w io.Writer, rep Report) error {
 	l := labelsOf(rep.Language)
 	cw := csv.NewWriter(w)
+	cw.Comma = ';'
 	n := func(v int64) string { return strconv.FormatInt(v, 10) }
-	amount := labels{}.money // a decimal point, whatever the language
+	amount := labels{comma: true}.money // a decimal comma, whatever the language
 	rows := [][]string{
 		{l.get("csv_section"), l.get("csv_key"), l.get("csv_name"), l.get("csv_count"), l.get("csv_quantity"), l.get("csv_total"), l.get("csv_currency")},
 		{l.get("csv_row_total"), "", "", n(int64(rep.Count)), "", amount(rep.TotalMinor), rep.Currency},

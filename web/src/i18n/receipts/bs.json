@@ -82,6 +82,7 @@
   "practice.practitioner": "Doktor",
   "practice.mode": "Posjeta",
   "practice.hours": "Ponuđeni sati",
+  "practice.hoursHint": "Za protekle periode sati se računaju prema današnjem radnom vremenu.",
   "practice.visits": "Održane posjete",
   "practice.amount": "Naplaćeno",
   "practice.video": "Video",

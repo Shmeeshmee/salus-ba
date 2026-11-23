@@ -5943,7 +5943,9 @@ paths:
                 type: string
                 description: >-
                   A header in the clinic's language, then the total, a row per payment method and a row per service;
-                  amounts as decimals with a point (106.70), not minor units (package H).
+                  fields separated by semicolons and amounts as decimals with a comma (106,70), not minor units, as
+                  Excel reads a file with Bosnian settings; a field holding a semicolon, a quote or a line break is
+                  quoted (RFC 4180 with `;`). Packages H and the wave 2 integration.
         "400":
           description: "`invalid_request`: a time missing, or `to` not after `from`."
           content:

@@ -531,5 +531,6 @@
   "receiptIssuedOn": "صدر في {date}",
   "receiptReversal": "إلغاء إيصال سابق",
   "receiptLine": "{name} × {quantity}",
-  "serviceAtClinic": "سأختار في العيادة"
+  "serviceAtClinic": "سأختار في العيادة",
+  "answersNotEnabled": "لم تعد هذه الأسئلة مطروحة، لذلك حُذفت إجاباتها: {items}. راجع إجاباتك وأرسلها مرة أخرى."
 }

@@ -531,5 +531,6 @@
   "receiptIssuedOn": "Émis le {date}",
   "receiptReversal": "Annulation d’un reçu antérieur",
   "receiptLine": "{name} × {quantity}",
-  "serviceAtClinic": "Je choisirai sur place"
+  "serviceAtClinic": "Je choisirai sur place",
+  "answersNotEnabled": "Ces questions ne sont plus posées, leurs réponses ont donc été supprimées : {items}. Vérifiez vos réponses et envoyez-les à nouveau."
 }

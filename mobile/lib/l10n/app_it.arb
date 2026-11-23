@@ -531,5 +531,6 @@
   "receiptIssuedOn": "Emessa il {date}",
   "receiptReversal": "Storno di una ricevuta precedente",
   "receiptLine": "{name} × {quantity}",
-  "serviceAtClinic": "Sceglierò presso la struttura"
+  "serviceAtClinic": "Sceglierò presso la struttura",
+  "answersNotEnabled": "Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: {items}. Controlli le risposte e invii di nuovo."
 }

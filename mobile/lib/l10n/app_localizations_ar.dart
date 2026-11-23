@@ -2082,4 +2082,40 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get discardConfirm => 'تغيير وحذف';
+
+  @override
+  String get myReceipts => 'إيصالاتي';
+
+  @override
+  String get receiptsIntro =>
+      'الإيصالات التي أصدرتها لك العيادات عن الخدمات التي دفعت ثمنها في العيادة. تحتفظ العيادات بالإيصالات طوال المدة التي يفرضها قانون الفوترة الضريبية.';
+
+  @override
+  String get noReceipts => 'لا توجد لديك إيصالات بعد.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'إيصال رقم $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'صدر في $date';
+  }
+
+  @override
+  String get receiptReversal => 'إلغاء إيصال سابق';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'سأختار في العيادة';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'لم تعد هذه الأسئلة مطروحة، لذلك حُذفت إجاباتها: $items. راجع إجاباتك وأرسلها مرة أخرى.';
+  }
 }

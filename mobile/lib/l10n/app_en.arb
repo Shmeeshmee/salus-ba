@@ -2694,5 +2694,14 @@
   "serviceAtClinic": "I will choose at the clinic",
   "@serviceAtClinic": {
     "description": "Clinic system, package E: booking, the first choice above the services: the patient names no service and leaves it to the clinic. Draft, waiting for the owner."
+  },
+  "answersNotEnabled": "These questions are no longer asked, so their answers were removed: {items}. Check your answers and submit again.",
+  "@answersNotEnabled": {
+    "description": "SAL-43, wave 2 integration: a submit refused because answers belong to questions the patient's answers now hide; the app removed them. items: the questions' texts, comma separated. Draft, waiting for the owner.",
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
-import type { components } from './api/schema'
 import { FhirError, type Bundle, type FhirClient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
 import {
@@ -40,7 +39,6 @@ import { Languages, TranslationEditor } from './Translations'
 import { Alert, Confirm, Link } from './ui'
 
 type Loaded = { version: Version; series: Version[] }
-type SaveBody = components['schemas']['SaveQuestionnaireRequest']
 type Props = { api: ApiClient; fhir: FhirClient; id: string }
 
 type T = ReturnType<typeof useT>
@@ -204,7 +202,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
       api.PUT('/questionnaires/{id}', {
         params: { path: { id: v.id }, header: { 'If-Match': `W/"${versionId}"` } },
         // The generated body type has today's single condition; the FHIR form is Q1's (see questionnaire.ts).
-        body: toRequest(title, description, items, language, translations) as unknown as SaveBody,
+        body: toRequest(title, description, items, language, translations),
       }),
     )
     setBusy(false)

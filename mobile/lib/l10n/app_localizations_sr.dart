@@ -2040,6 +2040,42 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get discardConfirm => 'Промијени и уклони';
+
+  @override
+  String get myReceipts => 'Моји рачуни';
+
+  @override
+  String get receiptsIntro =>
+      'Рачуни које су вам клинике издале за услуге које сте платили у клиници. Клинике чувају рачуне онолико дуго колико то прописује закон о фискализацији.';
+
+  @override
+  String get noReceipts => 'Још немате рачуна.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Рачун бр. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Издато $date';
+  }
+
+  @override
+  String get receiptReversal => 'Сторно ранијег рачуна';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Одабраћу у установи';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
+  }
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4077,6 +4113,42 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get discardConfirm => 'Промијени и уклони';
+
+  @override
+  String get myReceipts => 'Моји рачуни';
+
+  @override
+  String get receiptsIntro =>
+      'Рачуни које су вам клинике издале за услуге које сте платили у клиници. Клинике чувају рачуне онолико дуго колико то прописује закон о фискализацији.';
+
+  @override
+  String get noReceipts => 'Још немате рачуна.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Рачун бр. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Издато $date';
+  }
+
+  @override
+  String get receiptReversal => 'Сторно ранијег рачуна';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Одабраћу у установи';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
+  }
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6116,4 +6188,40 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get discardConfirm => 'Promijeni i ukloni';
+
+  @override
+  String get myReceipts => 'Moji računi';
+
+  @override
+  String get receiptsIntro =>
+      'Računi koje su vam klinike izdale za usluge koje ste platili u klinici. Klinike čuvaju račune onoliko dugo koliko to propisuje zakon o fiskalizaciji.';
+
+  @override
+  String get noReceipts => 'Još nemate računa.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Račun br. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Izdato $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno ranijeg računa';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Odabraću u ustanovi';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovo pošaljite.';
+  }
 }

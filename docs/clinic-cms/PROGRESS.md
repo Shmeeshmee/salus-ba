@@ -9,13 +9,13 @@ writes under its own heading here.
 | B | done 2026-11-21, integrated 2026-11-22 | `cms(B)`, merged into `feat/cms` with `cms(wave 1)` |
 | C | done 2026-11-21, integrated 2026-11-22 | `cms(C)`, merged into `feat/cms` with `cms(wave 1)` |
 | D | done 2026-11-21, integrated 2026-11-22 | `cms(D)`, merged into `feat/cms` with `cms(wave 1)` |
-| E | wave 2, not started (after wave 1 is on main) | |
-| H | wave 2, not started (after wave 1 is on main) | |
-| I | wave 2, not started (after wave 1 is on main) | |
-| L | done 2026-11-23 | `cms(L)` on `wt/cms/L` |
-| Q1 | wave 2, not started | |
-| Q2 | wave 2, not started | |
-| Q3 | done 2026-11-23 | `cms(Q3)` on `wt/cms/Q3` |
+| E | done 2026-11-23, integrated 2026-11-23 | `cms(E)`, merged into `feat/cms` with `cms(wave 2)` |
+| H | done 2026-11-23, integrated 2026-11-23 | `cms(H)`, merged into `feat/cms` with `cms(wave 2)` |
+| I | done 2026-11-23, integrated 2026-11-23 | `cms(I)`, merged into `feat/cms` with `cms(wave 2)` |
+| L | done 2026-11-23, integrated 2026-11-23 | `cms(L)`, merged into `feat/cms` with `cms(wave 2)` |
+| Q1 | done 2026-11-23, integrated 2026-11-23 | `cms(Q1)`, merged into `feat/cms` with `cms(wave 2)` |
+| Q2 | done 2026-11-23, integrated 2026-11-23 | `cms(Q2)`, merged into `feat/cms` with `cms(wave 2)` |
+| Q3 | done 2026-11-23, integrated 2026-11-23 | `cms(Q3)`, merged into `feat/cms` with `cms(wave 2)` |
 | F | hold (Q1) | |
 | G | hold (Q6) | |
 
@@ -353,7 +353,7 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 | Membership invoice numbers | Gapless |
 | Currency | BAM only |
 | A company's invoice in Croatian | Headed "Račun" |
-| The accountant's CSV | Readable headers in the clinic's language, amounts as decimals |
+| The accountant's CSV | Readable headers in the clinic's language, amounts as decimals; semicolons and decimal commas, as Excel reads a file with Bosnian settings (owner's default, wave 2 integration) |
 
 ## E: service on a booking and the online practice report
 
@@ -735,6 +735,95 @@ analyzer issues, `i18n-check` pass. No device walk: running the app on a device 
 
 **Left to the integration session.** Run Q1's `test/testdata/enablewhen/*.json` vectors against `enable_when.dart`; the
 mobile e2e of both paths of the gynaecology example and the changed-answer case.
+
+## Wave 2 integration
+
+Done 2026-11-23 on `feat/cms`: `wt/cms/Q1`, `Q2`, `Q3`, `H`, `I`, `E`, `L` merged with `--no-ff` in that order, then
+one commit `cms(wave 2): integrate E, H, I, L, Q1, Q2, Q3`. `origin/main` had not moved (`df5480d`), so the migrations
+keep their numbers: E `00062`, H `00063`, I `00064`; `00065` (Q1's) is unused.
+
+- **Merges.** Conflicts only in shared files: `web/src/questionnaire.ts` (Q2's taken, then reworked below),
+  `api/openapi.yaml` (both error codes kept), the mobile ARB catalogs (merged as JSON: every package's keys), the DPIA
+  (every package's block), and generated code. Generated code was not hand-merged: `make sqlc` (E's column changes
+  every domain's `models.go`), `make gen-clients` and `flutter gen-l10n` ran after the merges.
+- **Branching vectors in every evaluator.** `test/testdata/enablewhen` now runs as tests in the repo for web
+  (`web/src/enableWhen.vectors.test.ts`, the items read through the builder's own FHIR read) and mobile
+  (`mobile/test/enable_when_vectors_test.dart`, read as the app reads the API), beside Q1's two Go packages. Web
+  passed all 37 cases as merged; mobile failed 11, all from Q3's `!=` holding on an unanswered question. Fixed to
+  Q1's rule (every operator but `exists` is false on an unanswered or hidden question); Q3's unit case changed with it.
+- **Web writes FHIR only.** Q2's widened `JSONItem`/`SaveRequest` types and the cast in `Builder.tsx` are gone: the
+  builder reads and writes the generated `enableWhen` array and `enableBehavior`, a single `=` too (no legacy object);
+  the server still accepts the legacy object on input. Two tests that pinned the legacy wire shape changed on purpose.
+- **Mobile.** Saves send only shown answers (Q3); a submit refused with 422 `answer_not_enabled` now names the
+  questions (new string `answersNotEnabled`, ten languages) and saves the shown answers again, so the next submit
+  passes. Groups inside groups are indented one step per level, in the form and the read-only view.
+- **The practitioner's view of a response** (`web/src/responses.ts`) walks sections at any depth: a branch inside a
+  section was dropped with its answers (review finding).
+- **e2e.** `TestQuestionnaire_TheGynaecologyExampleKeepsOnlyThePathTaken` (the yes path at 17, the no path, and yes
+  changed to no: refused with `answer_not_enabled` naming the branch's two questions, accepted once the app's save
+  holds the path taken) and `TestQuestionnaire_TheBuilderBranchesTheGynaecologyExample` (the web builder builds it
+  with "Ask a question if the answer is Yes", the preview takes both paths and the changed answer, publish; its FHIR
+  read has the `enableWhen` arrays and the unconditional join). The older journey that saved an answer of a hidden
+  question now expects the refusal, then the re-save. Mobile's side is widget journeys against the fake API
+  (`questionnaire_screen_test.dart`, the shared `gynaecology.json`): there is no device e2e in this repository.
+- **Receipts and booking.** `ReceiptDialog` keeps E's first line from the booked service and H's `Idempotency-Key`;
+  the key now belongs to the receipt as drafted, so a double click or a retry issues it once and a receipt changed
+  after a failed attempt gets a new key (review finding; before, the server answered the changed receipt with the
+  first one). New: `TestNew_ThePracticeReportCountsOfferedHeldAndReceiptedWorkByMode` (internal/api, Postgres),
+  `TestReceiptLinePosition_TheBackfillNumbersExistingLinesByName` (00063 on lines issued before it),
+  `TestReceipts_AServicePickedAtBookingStartsTheVisitsReceipt` (e2e), and a hint beside "Hours offered".
+- **Retry.** `Retry` locks the receipt and `invoice_fiscalize` is unique by receipt while one is queued or running, so
+  two clicks report it once (`TestNew_RetryingAFailedReceiptQueuesOneReport`); the web hides "Report again" for a
+  receipt retried from the page (review finding).
+- **Accountant's CSV.** Semicolons and decimal commas in every language (owner's default for Excel with Bosnian
+  settings); a field with a semicolon, a quote or a line break is quoted (RFC 4180 with `;`).
+- **Membership.** The invoice PDF's labels moved from the Go map to `internal/subscription/templates/pdf/<language>.json`,
+  checked by `make i18n-check` as the receipt's are; `TestNotifier_SendsAnIssuedMembershipInvoiceWithItsPDF` runs the
+  monthly job and the notifier to the compose Mailpit and checks the subject and the PDF attachment.
+- **Flaky tests.** `cmd/scheduler`: River gives its notifier's listener 10 s to connect, so under load `Start` itself
+  returned a timeout; `run` now tries River's start up to 3 times, 2 s apart (River resets a client whose start
+  failed), with tests of its own. Measured under the full suite: the test body took under 3 s; the rest of its 16–37 s
+  was the test database's drop. `internal/schedule`: the handler test's logger left the record's time in the log,
+  which held "09:00" at 08:09:00; the test logger now drops the time, and the check also looks for "12:00".
+- **Docs.** `docs/questionnaire/SPEC.md` (§1, item model, linkIds, submit, D4, out of scope, up next, personal data)
+  states the branching model; CLAUDE.md's landing row no longer lists `[X]`.
+- **Browser walk** (headless Chromium from the playwright service, this integration's own stack, a synthetic clinic,
+  1280 and 390 px; the temporary spec and its Go wrapper are not committed): the appointment with "Service:
+  Placeholder examination" and the receipt dialog starting from it; `/receipts` with "Report again" on a failed
+  receipt and its notice after the click; `/receipts/practice` with the hint (at 390 px it ran off the screen's left
+  edge: now centred under its heading and capped to the screen); `/membership` with the PDF download
+  (`salus-invoice.pdf`); the builder with two branch questions, "Conditional", "Branches join here" and the preview on
+  Yes; the landing page (with reduced motion). No horizontal scroll on any page at either width. On a phone a palette
+  type is tapped, not dragged.
+
+**Checks** (this integration's own compose project, `salus-cms-w2`; e2e on a fresh one: stack down and its own
+volumes removed first). After the review's fixes: `make lint` (gofmt, vet, golangci-lint, i18n-check, migrations),
+`make test`, `make archcheck`, `make cover` (90.8% total, every package at 80% or more), `make web-lint`,
+`web-typecheck`, `web-test` (1201), `web-build`, `make mobile-analyze`, `mobile-test` (671), `make e2e` (346 s): all
+pass; `make gen-clients` leaves no diff. Before them, on the same tree but for the review's fixes: `make fhir-validate`
+and the landing set (`landing-lint`, `-typecheck`, `-test`, `-build`) pass; neither area changed after.
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| The CSV | `;` and decimal comma for every language | Owner's default for Excel with Bosnian settings |
+| The JSON API's questionnaire writes from web | FHIR `enableWhen` array always | Q1's API takes it; the legacy object stays accepted on input |
+| A submit holding hidden answers on mobile | Name the questions, save the shown answers again, submit again | The server refuses rather than drops (Q1) |
+| The idempotency key | One per receipt as drafted | A changed receipt is another receipt |
+| Retrying a failed report | One queued report per receipt; the button hidden after a retry from the page | One click, one report to the authority |
+| The scheduler's start | Up to 3 tries, 2 s apart | River's 10 s listener connect times out under load |
+
+**Review** (a fresh subagent over `origin/main...HEAD`). Fixed: the nested sections in the practitioner's view, the
+idempotency key of a changed receipt, the retry's lock and duplicate jobs, two stale SPEC lines. Declined, with
+reasons in the PR: the server also takes `!=`, `>=`, `<=` on a date (FHIR allows them; the builder offers before,
+after and on; the SPEC now says so); older app builds blocked by the refusal (the patient app is not released); the
+app's record of the server's answers on a response saved before Q1 (handled by the refusal and the re-save); Go's
+`!=` on mismatched types (validation makes it unreachable).
+
+**Open.** No device run of the mobile journeys (a manual step). The builder still adds sections at the top level
+only (a branch within a branch is built from conditional questions). The practice report's amount column wraps at
+390 px.
 
 ## F: reception role and desk
 

@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
@@ -37,8 +37,14 @@ export function ReceiptDialog({ api, appointmentId, serviceId, onIssued, onClose
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  // One key for every attempt of this receipt: a double click or a retry after a lost answer issues it once.
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  // One key for every attempt of this receipt as it stands: a double click or a retry after a lost answer issues it
+  // once; a receipt changed after a failed attempt is another receipt and gets a new key (the server answers a known
+  // key with the receipt it first issued).
+  const sentKey = useRef({ draft: '', key: '' })
+  const keyFor = (draft: string) => {
+    if (sentKey.current.draft !== draft) sentKey.current = { draft, key: crypto.randomUUID() }
+    return sentKey.current.key
+  }
   const { state } = useLoad(async () => {
     const res = await attempt(api.GET('/clinic/services'))
     if (!res.ok) throw new Error('services')
@@ -58,19 +64,15 @@ export function ReceiptDialog({ api, appointmentId, serviceId, onIssued, onClose
     if (busy || !valid) return
     setBusy(true)
     setError(undefined)
-    const res = await attempt(
-      api.POST('/clinic/receipts', {
-        params: { header: { 'Idempotency-Key': idempotencyKey } },
-        body: {
-          kind: buyer === 'company' ? 'invoice' : 'receipt',
-          paymentMethod: method,
-          appointmentId,
-          companyName: buyer === 'company' ? companyName.trim() : undefined,
-          companyTaxId: buyer === 'company' && companyTaxId !== '' ? companyTaxId : undefined,
-          lines: picks.map((p) => ({ serviceId: p!.serviceId, quantity: p!.quantity, discountMinor: p!.discountMinor })),
-        },
-      }),
-    )
+    const body = {
+      kind: buyer === 'company' ? ('invoice' as const) : ('receipt' as const),
+      paymentMethod: method,
+      appointmentId,
+      companyName: buyer === 'company' ? companyName.trim() : undefined,
+      companyTaxId: buyer === 'company' && companyTaxId !== '' ? companyTaxId : undefined,
+      lines: picks.map((p) => ({ serviceId: p!.serviceId, quantity: p!.quantity, discountMinor: p!.discountMinor })),
+    }
+    const res = await attempt(api.POST('/clinic/receipts', { params: { header: { 'Idempotency-Key': keyFor(JSON.stringify(body)) } }, body }))
     setBusy(false)
     if (res.ok) onIssued(res.data)
     else setError(message(t, res.code))

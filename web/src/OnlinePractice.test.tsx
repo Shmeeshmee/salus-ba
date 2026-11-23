@@ -41,6 +41,15 @@ describe('OnlinePractice', () => {
     expect(screen.queryByText(dee.roleId)).toBeNull()
   })
 
+  it("says beside Hours offered that past periods use today's working hours", async () => {
+    renderPractice({ 'GET /clinic/reports/practice': () => Response.json(report) })
+    const table = within(await screen.findByRole('table', { name: 'By practitioner and visit' }))
+    const head = table.getByRole('columnheader', { name: /^Hours offered/ })
+    const tip = within(head).getByRole('tooltip')
+    expect(tip.textContent).toBe("Past periods are calculated from today's working hours.")
+    expect(within(head).getByText('Hours offered').getAttribute('aria-describedby')).toBe(tip.id)
+  })
+
   it('says when the period has nothing to show', async () => {
     renderPractice({ 'GET /clinic/reports/practice': () => Response.json({ ...report, rows: [] }) })
     expect(await screen.findByText('No hours offered and no visits in this period.')).toBeTruthy()

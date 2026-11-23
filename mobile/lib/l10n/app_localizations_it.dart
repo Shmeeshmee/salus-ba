@@ -2031,4 +2031,40 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get discardConfirm => 'Modifica e rimuovi';
+
+  @override
+  String get myReceipts => 'Le mie ricevute';
+
+  @override
+  String get receiptsIntro =>
+      'Le ricevute che le cliniche ti hanno rilasciato per i servizi pagati in clinica. Le cliniche conservano le ricevute per il tempo richiesto dalla legge fiscale.';
+
+  @override
+  String get noReceipts => 'Non hai ancora ricevute.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Ricevuta n. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Emessa il $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno di una ricevuta precedente';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Sceglierò presso la struttura';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: $items. Controlli le risposte e invii di nuovo.';
+  }
 }

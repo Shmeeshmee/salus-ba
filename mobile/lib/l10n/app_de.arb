@@ -531,5 +531,6 @@
   "receiptIssuedOn": "Ausgestellt am {date}",
   "receiptReversal": "Storno eines früheren Belegs",
   "receiptLine": "{name} × {quantity}",
-  "serviceAtClinic": "Ich wähle in der Praxis"
+  "serviceAtClinic": "Ich wähle in der Praxis",
+  "answersNotEnabled": "Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: {items}. Prüfen Sie Ihre Antworten und senden Sie sie erneut."
 }

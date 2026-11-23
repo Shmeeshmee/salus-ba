@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -115,6 +116,42 @@ Map<String, Object?> _branching() => questionnaire(
       ],
       'item': [
         {'linkId': 'young', 'text': 'Placeholder follow-up question', 'type': 'boolean'},
+      ],
+    },
+    {'linkId': 'main', 'text': 'Placeholder main question', 'type': 'string'},
+  ],
+);
+
+/// SAL-43's example as the server, the web preview and this app share it (test/testdata/enablewhen).
+Map<String, Object?> _gynaecology() {
+  final vector = jsonDecode(File('../test/testdata/enablewhen/gynaecology.json').readAsStringSync()) as Map;
+  return questionnaire(items: ((vector['questionnaire'] as Map)['item'] as List).cast<Map<String, Object?>>());
+}
+
+/// A section on a number, holding a yes or no that opens a section of its own, then the main question (SAL-43).
+Map<String, Object?> _nested() => questionnaire(
+  items: [
+    {'linkId': 'age', 'text': 'Placeholder whole number', 'type': 'integer'},
+    {
+      'linkId': 'branch',
+      'type': 'group',
+      'text': 'Placeholder section',
+      'enableWhen': [
+        {'question': 'age', 'operator': '<', 'answerInteger': 18},
+      ],
+      'item': [
+        {'linkId': 'young', 'text': 'Placeholder follow-up question', 'type': 'boolean'},
+        {
+          'linkId': 'inner',
+          'type': 'group',
+          'text': 'Placeholder inner section',
+          'enableWhen': [
+            {'question': 'young', 'operator': '=', 'answerBoolean': true},
+          ],
+          'item': [
+            {'linkId': 'inner-q', 'text': 'Placeholder inner question', 'type': 'string'},
+          ],
+        },
       ],
     },
     {'linkId': 'main', 'text': 'Placeholder main question', 'type': 'string'},
@@ -276,6 +313,80 @@ void main() {
       await _reveal(tester, find.text('Choose a date'));
       await _reveal(tester, _field('name'));
       expect(find.descendant(of: _field('name'), matching: find.text('Required')), findsOneWidget);
+    });
+
+    testWidgets('a branch inside a branch is indented under its section and joins back (SAL-43)', (tester) async {
+      _answerSaves(await _opened(tester, version: _nested()));
+      await tester.enterText(find.descendant(of: _field('age'), matching: find.byType(EditableText)), '16');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      await _tapIn(tester, 'young', 'Yes');
+
+      await _reveal(tester, _field('inner-q'));
+      final outer = tester.getTopLeft(_field('young')).dx;
+      final inner = tester.getTopLeft(_field('inner-q')).dx;
+      final main = tester.getTopLeft(_field('main')).dx;
+      expect(find.text('Placeholder inner section'), findsOneWidget);
+      expect(inner, greaterThan(outer), reason: 'the nested branch is indented');
+      expect(main, lessThan(outer + 1), reason: 'the main question joins back at the top level');
+
+      await _tapIn(tester, 'young', 'No');
+      expect(find.text('Placeholder inner section'), findsNothing);
+    });
+
+    group("SAL-43's example (test/testdata/enablewhen/gynaecology.json)", () {
+      Future<Harness> example(WidgetTester tester) async {
+        final h = await _opened(tester, version: _gynaecology());
+        _answerSaves(h);
+        return h;
+      }
+
+      Future<void> typed(WidgetTester tester, String linkId, String text) async {
+        await _type(tester, linkId, text);
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+      }
+
+      List<Object?> sent(Harness h) => [for (final a in _saves(h).last['answers'] as List) a['linkId']];
+
+      testWidgets('yes at 17 asks the month, the age and the question under 18, then the main questions', (tester) async {
+        final h = await example(tester);
+        expect(find.text('In which month of pregnancy?'), findsNothing);
+        await _tapIn(tester, 'abortion', 'Yes');
+        await typed(tester, 'abortion-month', '3');
+        await typed(tester, 'abortion-age', '17');
+        await typed(tester, 'abortion-under-18', 'Placeholder answer');
+        await typed(tester, 'main-1', 'Placeholder answer');
+
+        expect(sent(h), ['abortion', 'abortion-month', 'abortion-age', 'abortion-under-18', 'main-1']);
+      });
+
+      testWidgets('no goes straight to the main questions', (tester) async {
+        final h = await example(tester);
+        await _tapIn(tester, 'abortion', 'No');
+        await _reveal(tester, _field('main-1'));
+        expect(find.text('In which month of pregnancy?'), findsNothing);
+        await typed(tester, 'main-1', 'Placeholder answer');
+
+        expect(sent(h), ['abortion', 'main-1']);
+      });
+
+      testWidgets('a change from yes to no asks, then sends only the path taken', (tester) async {
+        final h = await example(tester);
+        await _tapIn(tester, 'abortion', 'Yes');
+        await typed(tester, 'abortion-month', '3');
+        await typed(tester, 'abortion-age', '17');
+
+        await _tapIn(tester, 'abortion', 'No');
+        expect(
+          find.text('This change skips 2 questions you already answered. Their answers will be removed.'),
+          findsOneWidget,
+        );
+        await tapFound(tester, find.widgetWithText(TextButton, 'Change and remove'));
+
+        expect(sent(h), ['abortion']);
+        expect(find.text('How old were you?'), findsNothing);
+      });
     });
 
     testWidgets('a condition shows its question and hides it again', (tester) async {
@@ -788,6 +899,34 @@ void main() {
 
       expect(find.text('Some required questions are not answered.'), findsOneWidget);
       expect(find.descendant(of: _field('smoker'), matching: find.text('This question is required.')), findsOneWidget);
+    });
+
+    testWidgets('a submit refused as answer_not_enabled names the questions and saves the path taken again', (
+      tester,
+    ) async {
+      final h = await _opened(tester);
+      _answerSaves(h);
+      await _tapIn(tester, 'smoker', 'No');
+      final saves = _saves(h).length;
+      h.api.answer(_submit, 422, {
+        'error': 'answer_not_enabled',
+        'linkIds': ['freq'],
+      });
+
+      await _submitTapped(tester);
+      await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Submit')));
+      await tester.pumpAndSettle();
+
+      expect(
+        _inFooter(
+          'These questions are no longer asked, so their answers were removed: Placeholder single choice. '
+          'Check your answers and submit again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Some required questions are not answered.'), findsNothing);
+      expect(_saves(h), hasLength(saves + 1), reason: 'the shown answers replace the ones the server holds');
+      expect([for (final a in _saves(h).last['answers'] as List) a['linkId']], ['smoker']);
     });
 
     testWidgets('a refused submit says so', (tester) async {

@@ -154,3 +154,15 @@ test("checks the receipt PDF's labels in the five staff languages against en.jso
   assert.match(got, /pdf\/de\.json: not a language of this app/);
   assert.match(got, /pdf\/bs\.json: missing/);
 });
+
+test('the membership invoice PDF catalogs are checked as the receipt\'s', () => {
+  const files = {};
+  for (const lang of ['bs', 'hr', 'sr-Latn', 'sr-Cyrl', 'en']) {
+    files[`internal/subscription/templates/pdf/${lang}.json`] = { invoice: 'Invoice no. {number}', total: 'Total' };
+  }
+  assert.deepEqual(problems(files), []);
+  files['internal/subscription/templates/pdf/sr-Cyrl.json'] = { invoice: 'Рачун бр. {broj}' };
+  const got = problems(files).join('\n');
+  assert.match(got, /subscription\/templates\/pdf\/sr-Cyrl\.json: invoice: placeholders broj, want number/);
+  assert.match(got, /subscription\/templates\/pdf\/sr-Cyrl\.json.*total/);
+});

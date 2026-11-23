@@ -377,12 +377,26 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       });
     } on ApiFailure catch (f) {
       if (!mounted) return;
+      if (f.code == 'answer_not_enabled') return _notEnabled(f.linkIds);
       setState(() {
         _submitting = false;
         if (f.status == 422) _message = context.t.requiredMissing;
       });
       _refusedFinal(f, invalid: (_) => context.t.questionRequired);
     }
+  }
+
+  /// A submit refused for answers to questions the patient's answers now hide (SAL-43, 422 `answer_not_enabled`): a
+  /// save from before, or from another device, still holds them. The questions are named, and the shown answers are
+  /// saved again, which replaces the ones the server holds; the patient then submits again.
+  void _notEnabled(List<String> linkIds) {
+    final items = {for (final it in flatten(_items)) it.linkId: it};
+    setState(() {
+      _submitting = false;
+      _message = context.t.answersNotEnabled([for (final id in linkIds) ?items[id]?.text].join(', '));
+      _edits++;
+    });
+    _saveNow();
   }
 
   Future<bool?> _confirmSubmit() => showDialog<bool>(
@@ -481,10 +495,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   List<Widget> _form() {
     final on = enabled(_items, _all);
+    final depth = nesting(_items);
     return [
       Text(context.t.savedAsYouGo(widget.clinic)),
       for (final it in flatten(_items))
-        if (on[it.linkId]! && it.type != ItemType.unsupported) _item(it),
+        if (on[it.linkId]! && it.type != ItemType.unsupported) nested(depth[it.linkId]!, _item(it)),
       // Submit waits for every file to be checked (SPEC §3 O9); the footer says why.
       if (!_closed) ui.SubmitButton(context.t.submit, busy: _submitting || _uploads.pending, onPressed: _submit),
     ];

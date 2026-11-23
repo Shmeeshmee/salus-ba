@@ -2,7 +2,11 @@ package subscription
 
 import (
 	"context"
+	"embed"
+	"encoding/json"
 	"fmt"
+	"io/fs"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,9 +97,9 @@ func document(inv Invoice, clinic organization.Organization, buyer organization.
 		zone = time.UTC
 	}
 	date := func(t time.Time) string { return t.In(zone).Format("02.01.2006") }
-	facts := []string{l.issued + ": " + date(inv.IssuedAt), l.due + ": " + date(inv.DueAt)}
+	facts := []string{l.get("issued") + ": " + date(inv.IssuedAt), l.get("due") + ": " + date(inv.DueAt)}
 	if !inv.PaidAt.IsZero() {
-		facts = append(facts, l.paid+": "+date(inv.PaidAt))
+		facts = append(facts, l.get("paid")+": "+date(inv.PaidAt))
 	}
 	name := buyer.LegalName
 	if name == "" {
@@ -103,7 +107,7 @@ func document(inv Invoice, clinic organization.Organization, buyer organization.
 	}
 	buyerLines := []string{name}
 	if buyer.TaxID != "" {
-		buyerLines = append(buyerLines, l.taxID+": "+buyer.TaxID)
+		buyerLines = append(buyerLines, l.get("taxId")+": "+buyer.TaxID)
 	}
 	if clinic.AddressLine != "" {
 		buyerLines = append(buyerLines, strings.TrimSuffix(clinic.AddressLine+", "+clinic.PostalCode, ", "))
@@ -113,65 +117,71 @@ func document(inv Invoice, clinic organization.Organization, buyer organization.
 		unit = inv.AmountMinor / int64(inv.Seats)
 	}
 	last := inv.PeriodEnd.AddDate(0, 0, -1) // the period ends at the next month's first midnight
-	item := fmt.Sprintf(l.item, date(inv.PeriodStart), date(last)) +
+	number := strconv.FormatInt(inv.Number, 10)
+	item := l.get("item", "from", date(inv.PeriodStart), "to", date(last)) +
 		fmt.Sprintf(": %d × %s = %s %s", inv.Seats, l.money(unit), l.money(inv.AmountMinor), inv.Currency)
 	return pdfdoc.Document{
 		Created: inv.IssuedAt,
 		Title:   seller.Name,
-		Meta:    []string{l.taxID + ": " + seller.TaxID, seller.Address},
+		Meta:    []string{l.get("taxId") + ": " + seller.TaxID, seller.Address},
 		Sections: []pdfdoc.Section{
-			{Heading: fmt.Sprintf(l.invoice, inv.Number), Paragraphs: facts},
-			{Heading: l.buyer, Paragraphs: buyerLines},
-			{Heading: l.items, Items: []string{item}},
-			{Heading: l.total, Paragraphs: []string{l.money(inv.AmountMinor) + " " + inv.Currency}},
-			{Heading: l.payment, Paragraphs: []string{fmt.Sprintf(l.transfer, seller.Account, inv.Number)}},
+			{Heading: l.get("invoice", "number", number), Paragraphs: facts},
+			{Heading: l.get("buyer"), Paragraphs: buyerLines},
+			{Heading: l.get("items"), Items: []string{item}},
+			{Heading: l.get("total"), Paragraphs: []string{l.money(inv.AmountMinor) + " " + inv.Currency}},
+			{Heading: l.get("payment"), Paragraphs: []string{l.get("transfer", "account", seller.Account, "number", number)}},
 		},
 	}
 }
+
+// The invoice's printed words, one catalog per staff language (templates/pdf/<language>.json, flat, with {name}
+// placeholders only), checked by make i18n-check as the receipt's are (internal/invoice). The invoice is Salus's
+// document to a clinic, read by its staff; nothing else prints them.
+//
+//go:embed templates/pdf
+var labelsFS embed.FS
+
+// staffLanguages are the catalog's languages; the first is the fallback.
+var staffLanguages = []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en"}
+
+// labels are the invoice's printed words in one staff language.
+type labels struct {
+	text  map[string]string
+	comma bool // a decimal comma
+}
+
+// documentLabels is read once from the binary: a broken file is a programming error the tests catch, so it panics.
+var documentLabels = func() map[string]labels {
+	out := map[string]labels{}
+	for _, lang := range staffLanguages {
+		b, err := fs.ReadFile(labelsFS, "templates/pdf/"+lang+".json")
+		if err != nil {
+			panic(err)
+		}
+		var text map[string]string
+		if err := json.Unmarshal(b, &text); err != nil {
+			panic(fmt.Sprintf("subscription: templates/pdf/%s.json: %v", lang, err))
+		}
+		out[lang] = labels{text: text, comma: lang != "en"}
+	}
+	return out
+}()
 
 // languageOf is the staff language the invoice is written in: the clinic's default, Bosnian for any other.
 func languageOf(language string) string {
 	if _, ok := documentLabels[language]; ok {
 		return language
 	}
-	return "bs"
+	return staffLanguages[0]
 }
 
-// labels are the invoice's printed words in one staff language. The invoice is Salus's document to a clinic, read by
-// its staff; nothing else prints them.
-type labels struct {
-	invoice, item, transfer string // formats: the number; the month's first and last day; the account and the number
-	issued, due, paid       string
-	taxID, buyer, items     string
-	total, payment          string
-	comma                   bool // a decimal comma
-}
-
-var documentLabels = map[string]labels{
-	"en": {
-		invoice: "Invoice no. %d", item: "Membership %s to %s, active practitioners", transfer: "Bank transfer to account %s, reference %d.",
-		issued: "Issued", due: "Due", paid: "Paid", taxID: "Tax ID (JIB)", buyer: "Buyer", items: "Items", total: "Total", payment: "Payment",
-	},
-	"bs": {
-		invoice: "Račun br. %d", item: "Članarina %s do %s, aktivni ljekari", transfer: "Uplata na račun %s, poziv na broj %d.",
-		issued: "Izdato", due: "Rok plaćanja", paid: "Plaćeno", taxID: "JIB", buyer: "Kupac", items: "Stavke", total: "Ukupno", payment: "Plaćanje",
-		comma: true,
-	},
-	"hr": {
-		invoice: "Račun br. %d", item: "Članarina %s do %s, aktivni liječnici", transfer: "Uplata na račun %s, poziv na broj %d.",
-		issued: "Izdano", due: "Rok plaćanja", paid: "Plaćeno", taxID: "JIB", buyer: "Kupac", items: "Stavke", total: "Ukupno", payment: "Plaćanje",
-		comma: true,
-	},
-	"sr-Latn": {
-		invoice: "Račun br. %d", item: "Članarina %s do %s, aktivni ljekari", transfer: "Uplata na račun %s, poziv na broj %d.",
-		issued: "Izdato", due: "Rok plaćanja", paid: "Plaćeno", taxID: "JIB", buyer: "Kupac", items: "Stavke", total: "Ukupno", payment: "Plaćanje",
-		comma: true,
-	},
-	"sr-Cyrl": {
-		invoice: "Рачун бр. %d", item: "Чланарина %s до %s, активни љекари", transfer: "Уплата на рачун %s, позив на број %d.",
-		issued: "Издато", due: "Рок плаћања", paid: "Плаћено", taxID: "ЈИБ", buyer: "Купац", items: "Ставке", total: "Укупно", payment: "Плаћање",
-		comma: true,
-	},
+// get returns the label key with its {name} placeholders filled from pairs of name and value.
+func (l labels) get(key string, pairs ...string) string {
+	s := l.text[key]
+	for i := 0; i+1 < len(pairs); i += 2 {
+		s = strings.ReplaceAll(s, "{"+pairs[i]+"}", pairs[i+1])
+	}
+	return s
 }
 
 // money writes an amount of the minor unit with two decimals: 30000 is 300,00 (300.00 in English).
