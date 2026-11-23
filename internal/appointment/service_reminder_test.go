@@ -22,7 +22,7 @@ func reminderJob(n int, org string, due time.Time) string {
 // start, each with its dispatch job at its due time, in the booking's transaction.
 func TestBook_SchedulesAReminderPerOffsetOfTheClinic(t *testing.T) {
 	f := newFixture()
-	if _, err := f.svc.Book(t.Context(), me, slotFree); err != nil {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); err != nil {
 		t.Fatal(err)
 	}
 	want := []appointment.Reminder{
@@ -58,7 +58,7 @@ func TestBook_SchedulesOnlyTheRemindersStillAheadOfTheClinicsOffsets(t *testing.
 			s.ReminderOffsetsMinutes = tt.offsets
 			f.rules.settings = map[string]organization.AppointmentSettings{clinicA: s}
 		}
-		if _, err := f.svc.Book(t.Context(), me, tt.slot); err != nil {
+		if _, err := f.svc.Book(t.Context(), me, tt.slot, ""); err != nil {
 			t.Fatalf("%s: %v", tt.name, err)
 		}
 		var got []int
@@ -75,7 +75,7 @@ func TestBook_SchedulesOnlyTheRemindersStillAheadOfTheClinicsOffsets(t *testing.
 func TestBook_FailsWholeWhenItsRemindersCannotBeScheduled(t *testing.T) {
 	f := newFixture()
 	f.rules.err = errBackend
-	if _, err := f.svc.Book(t.Context(), me, slotFree); !errors.Is(err, errBackend) {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); !errors.Is(err, errBackend) {
 		t.Fatalf("Book() error = %v, want the settings' failure", err)
 	}
 	if len(f.repo.appts) != 0 || len(f.reminders.reminders) != 0 {
@@ -87,7 +87,7 @@ func TestBook_FailsWholeWhenItsRemindersCannotBeScheduled(t *testing.T) {
 func scheduledFixture(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture()
-	if _, err := f.svc.Book(t.Context(), me, slotFree); err != nil {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); err != nil {
 		t.Fatal(err)
 	}
 	f.audit.events, f.jobs.enqueued = nil, nil
@@ -251,7 +251,7 @@ func TestScheduleReminders_AMoveBackSchedulesTheStartAgainAndLeavesTheOldGenerat
 	}
 	f.repo.appts = nil
 	f.slots.held = nil
-	if _, err := f.svc.Book(t.Context(), me, slotFree); err != nil {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); err != nil {
 		t.Fatal(err)
 	}
 	if n := len(f.reminders.reminders); n != 4 || f.reminders.reminders[2].State != appointment.ReminderScheduled || f.reminders.reminders[3].State != appointment.ReminderScheduled {

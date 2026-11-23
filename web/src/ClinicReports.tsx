@@ -44,6 +44,7 @@ function Report({ api, zone, start }: { api: ApiClient; zone: string; start: Per
         <ReceiptPeriod period={period} onChange={setPeriod} />
         {range && <a href={reportCsvURL(range.from, range.to)}>{t('receipts.report.csv')}</a>}
         <Link to="/receipts">{t('receipts.report.back')}</Link>
+        <Link to="/receipts/practice">{t('receipts.practice.open')}</Link>
       </div>
       {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
       {state.name === 'failed' && <Alert message={t('receipts.report.loadFailed')} />}

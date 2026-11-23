@@ -171,6 +171,8 @@ lib/model/platform_heatmap_cells_inner.dart
 lib/model/platform_months.dart
 lib/model/platform_rises.dart
 lib/model/platform_rises_rises_inner.dart
+lib/model/practice_report.dart
+lib/model/practice_report_rows_inner.dart
 lib/model/push_device.dart
 lib/model/questionnaire.dart
 lib/model/questionnaire_default.dart

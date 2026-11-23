@@ -108,6 +108,7 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**getClinicReceiptPdf**](doc//BillingApi.md#getclinicreceiptpdf) | **GET** /clinic/receipts/{id}/pdf | A receipt as a PDF on the clinic's letterhead
 *BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
 *BillingApi* | [**getMyReceiptPdf**](doc//BillingApi.md#getmyreceiptpdf) | **GET** /me/receipts/{id}/pdf | The patient's own receipt as a PDF
+*BillingApi* | [**getPracticeReport**](doc//BillingApi.md#getpracticereport) | **GET** /clinic/reports/practice | The online practice report, per practitioner and visit mode
 *BillingApi* | [**getReceiptsReport**](doc//BillingApi.md#getreceiptsreport) | **GET** /clinic/reports/receipts | The clinic's receipts summed for a day or a period, for its accountant
 *BillingApi* | [**getSubscriptionInvoicePdf**](doc//BillingApi.md#getsubscriptioninvoicepdf) | **GET** /clinic/subscription/invoices/{id}/pdf | A membership invoice as a PDF
 *BillingApi* | [**issueReceipt**](doc//BillingApi.md#issuereceipt) | **POST** /clinic/receipts | Issue a receipt for a visit or on its own
@@ -379,6 +380,8 @@ Class | Method | HTTP request | Description
  - [PlatformMonths](doc//PlatformMonths.md)
  - [PlatformRises](doc//PlatformRises.md)
  - [PlatformRisesRisesInner](doc//PlatformRisesRisesInner.md)
+ - [PracticeReport](doc//PracticeReport.md)
+ - [PracticeReportRowsInner](doc//PracticeReportRowsInner.md)
  - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)

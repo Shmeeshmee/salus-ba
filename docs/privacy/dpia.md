@@ -2492,3 +2492,27 @@ clinic (service and api tests). The directory scope reads only whether a clinic'
 | Hiding a clinic from the directory cuts care | Only the directory scope changes (`app.directory = 'public'`); the clinic's, the patients' and the shared scopes do not, so existing appointments, records, documents, exports and subject rights go on (`migrations/directory_membership_test.go`, `TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
 | The billing e-mail or an amount in a log or a job's error | The job carries ids only; the notification errors carry no address; the SMTP error keeps the server's code only |
 | The app changes an invoice | Still no `UPDATE` grant on `subscription_invoice`: the e-mail is not recorded on the invoice; River keeps the job's state |
+
+### Package E: the service on a booking and the online practice report (migration 00062)
+
+**Processing added.** A patient may name one service of the clinic's price list when booking (`POST /appointments`
+`serviceId`, optional): it is kept on the appointment (`appointment.service_id`), shown to the clinic on the FHIR
+Appointment (the `appointment-service` extension, a reference to the ChargeItemDefinition) and starts the visit's
+receipt. The clinic's admin reads the online practice report (`GET /clinic/reports/practice`): per practitioner role and
+visit mode, the minutes offered by the availability, the visits held and the amount receipted for them.
+
+**Personal data added.** `appointment.service_id`: which service a patient booked at a clinic, health data as the
+appointment is (Art. 9; it can name the kind of care). Needed so the clinic prepares the visit and receipts it; kept and
+erased with the appointment's row (its retention rule; no new table). The report holds no patient data: counts and sums
+per practitioner role, from opaque appointment ids and receipt totals that never leave the service.
+
+**Who sees what.** The service on an appointment: whoever sees the appointment (the patient, and the clinic's staff
+through access); at the name level after a revocation it is left out with the other details. The report: the clinic's
+admin only (revenue per practitioner), audited with the clinic as the entity, and the receipts it reads are audited by
+`invoice` as well; a refusal is audited.
+
+| Risk | Measure |
+| --- | --- |
+| A booking names another clinic's service | Composite foreign key to `charge_item_definition (id, organization_id)`; the service checks the slot's clinic offers it, active, in the slot's mode (tested) |
+| The report shows a practitioner another's revenue | Admin only, in the clinic's scope; a practitioner is refused and audited (tested) |
+| The service a patient booked in a log | Handlers log through `httpx.InternalError` only; the id is opaque and no name reaches a log line |

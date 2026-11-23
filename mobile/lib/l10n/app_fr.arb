@@ -530,5 +530,6 @@
   "receiptNumber": "Reçu n° {number}",
   "receiptIssuedOn": "Émis le {date}",
   "receiptReversal": "Annulation d’un reçu antérieur",
-  "receiptLine": "{name} × {quantity}"
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Je choisirai sur place"
 }

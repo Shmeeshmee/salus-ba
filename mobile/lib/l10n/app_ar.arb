@@ -530,5 +530,6 @@
   "receiptNumber": "إيصال رقم {number}",
   "receiptIssuedOn": "صدر في {date}",
   "receiptReversal": "إلغاء إيصال سابق",
-  "receiptLine": "{name} × {quantity}"
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "سأختار في العيادة"
 }

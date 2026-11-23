@@ -348,3 +348,28 @@ func Minutes(hhmm string) (int, bool) {
 	}
 	return h*60 + m, true
 }
+
+// OfClinic returns the schedules of the clinic org, oldest first, read in its scope: the hours offered of the online
+// practice report (clinicstats, docs/plans/clinic-cms.md E), which authorizes the admin and audits the read. Not
+// audited here; nothing in a schedule is personal data.
+func (s *Service) OfClinic(ctx context.Context, org string) ([]Schedule, error) {
+	var all []Schedule
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		var err error
+		all, err = s.Repo.Listed(ctx)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("schedule: of clinic: %w", err)
+	}
+	out := make([]Schedule, 0, len(all))
+	for _, sc := range all {
+		if sc.OrganizationID == org { // not on row-level security alone
+			out = append(out, sc)
+		}
+	}
+	return out, nil
+}

@@ -486,6 +486,10 @@ class ApiClient {
           return PlatformRises.fromJson(value);
         case 'PlatformRisesRisesInner':
           return PlatformRisesRisesInner.fromJson(value);
+        case 'PracticeReport':
+          return PracticeReport.fromJson(value);
+        case 'PracticeReportRowsInner':
+          return PracticeReportRowsInner.fromJson(value);
         case 'PushDevice':
           return PushDevice.fromJson(value);
         case 'Questionnaire':

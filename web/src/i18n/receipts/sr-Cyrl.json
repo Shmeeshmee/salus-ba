@@ -73,5 +73,19 @@
   "report.receipts": "Рачуни",
   "report.quantity": "Количина",
   "report.amount": "Износ",
-  "report.csv": "Преузми CSV"
+  "report.csv": "Преузми CSV",
+  "practice.open": "Рад онлајн и у клиници",
+  "practice.title": "Рад онлајн и у клиници",
+  "practice.back": "Назад на извјештај о рачунима",
+  "practice.empty": "У овом периоду нема понуђених сати ни посјета.",
+  "practice.caption": "По доктору и врсти посјете",
+  "practice.practitioner": "Доктор",
+  "practice.mode": "Посјета",
+  "practice.hours": "Понуђени сати",
+  "practice.visits": "Одржане посјете",
+  "practice.amount": "Наплаћено",
+  "practice.video": "Видео",
+  "practice.former": "Бивши доктор",
+  "practice.loadFailed": "Извјештај се није могао учитати. Поново учитајте страницу и покушајте опет.",
+  "practice.inPerson": "У клиници"
 }

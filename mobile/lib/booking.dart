@@ -129,8 +129,9 @@ class Booking {
   /// Stops sharing history with the clinic; nothing when nothing is shared.
   Future<void> stopSharing(String clinicId) => apiCall(() => _history.revokeHistorySharing(clinicId));
 
-  Future<void> book(String slotId) =>
-      apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId)));
+  /// Books the slot, naming the price-list service [serviceId] the patient picked, or none (clinic-cms E).
+  Future<void> book(String slotId, {String? serviceId}) =>
+      apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId, serviceId: serviceId)));
 
   Future<void> cancel(String appointmentId) => apiCall(() => _appointments.cancelAppointment(appointmentId));
 

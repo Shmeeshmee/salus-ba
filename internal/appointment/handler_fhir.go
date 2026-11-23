@@ -46,7 +46,7 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 type resource struct {
 	ResourceType      string                `json:"resourceType"`
 	ID                string                `json:"id"`
-	Extension         []fhir.Extension      `json:"extension"`
+	Extension         []extension           `json:"extension"`
 	Status            Status                `json:"status"`
 	Start             string                `json:"start"`
 	End               string                `json:"end"`
@@ -56,6 +56,19 @@ type resource struct {
 	Slot              []fhir.Reference      `json:"slot,omitempty"`
 	Participant       []participant         `json:"participant"`
 }
+
+// extension is an Appointment's extension: the visit mode (a code) or the service the booking named (a reference).
+type extension struct {
+	ValueReference *fhir.Reference `json:"valueReference,omitempty"`
+	URL            string          `json:"url"`
+	ValueCode      string          `json:"valueCode,omitempty"`
+}
+
+// ExtensionService is the extension of an Appointment that names the price-list service the patient picked when
+// booking, a reference to its ChargeItemDefinition (api/fhir/StructureDefinition-appointment-service.json,
+// docs/plans/clinic-cms.md E). R4 Appointment.serviceType is a coded concept and the clinic's services have no code
+// system; absent when the booking named none.
+const ExtensionService = "https://salus.invalid/fhir/StructureDefinition/appointment-service"
 
 // participant is the patient, the practitioner or the practitioner role: the practitioner and the role accepted, the
 // patient as patientStatus says.
@@ -88,7 +101,10 @@ func toFHIR(s Seen) resource {
 	res := resource{
 		ResourceType: "Appointment", ID: a.ID, Status: a.Status, Meta: fhir.NewMeta(a.VersionID, a.LastUpdated),
 		Start: instant(a.Start), End: instant(a.End), Participant: []participant{{Status: patientStatus(a), Actor: patient}},
-		Extension: []fhir.Extension{{URL: slot.ExtensionVisitMode, ValueCode: string(visitMode(a.Mode))}},
+		Extension: []extension{{URL: slot.ExtensionVisitMode, ValueCode: string(visitMode(a.Mode))}},
+	}
+	if a.ServiceID != "" {
+		res.Extension = append(res.Extension, extension{URL: ExtensionService, ValueReference: &fhir.Reference{Reference: "ChargeItemDefinition/" + a.ServiceID}})
 	}
 	if s.PractitionerID != "" {
 		res.Participant = append(res.Participant, participant{Status: "accepted", Actor: fhir.Reference{Reference: "Practitioner/" + s.PractitionerID}})

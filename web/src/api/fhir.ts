@@ -27,6 +27,7 @@ export interface Extension {
   url: string
   valueBoolean?: boolean
   valueCode?: string
+  valueReference?: Reference
 }
 
 // Address is the clinic's location (docs/plans/analytics.md O1): the leaf region's ISO 3166-2:BA code as the state,

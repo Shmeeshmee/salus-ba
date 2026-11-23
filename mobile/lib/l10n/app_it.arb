@@ -530,5 +530,6 @@
   "receiptNumber": "Ricevuta n. {number}",
   "receiptIssuedOn": "Emessa il {date}",
   "receiptReversal": "Storno di una ricevuta precedente",
-  "receiptLine": "{name} × {quantity}"
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Sceglierò presso la struttura"
 }

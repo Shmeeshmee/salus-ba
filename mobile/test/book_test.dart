@@ -62,6 +62,12 @@ void answerAppointments(FakeApi api) {
   });
 }
 
+/// Placeholder services, not a real clinic's.
+const placeholderServices = [
+  {'id': 'd1', 'name': 'Placeholder exam', 'priceMinor': 5000, 'currency': 'BAM', 'durationMinutes': 30},
+  {'id': 'd2', 'name': 'Placeholder call', 'priceMinor': 2550, 'currency': 'BAM'},
+];
+
 int count(FakeApi api, String route) => api.calls.where((c) => c == route).length;
 
 void main() {
@@ -209,7 +215,7 @@ void main() {
     await tapButton(tester, 'Agree and book');
 
     expect(jsonDecode(h.api.last('POST /consents').body), {'organizationId': clinicId, 'kind': 'care'});
-    expect(jsonDecode(h.api.last('POST /appointments').body), {'slotId': slotId});
+    expect(jsonDecode(h.api.last('POST /appointments').body), {'slotId': slotId, 'serviceId': null});
     expect(h.api.calls.where((c) => c.startsWith('POST')).toList(), [
       'POST /appointments',
       'POST /consents',
@@ -386,15 +392,8 @@ void main() {
     expect(printed, isEmpty);
   });
 
-  // Placeholder services, not a real clinic's.
   testWidgets("shows the clinic's prices for the visit, to be paid at the clinic", (tester) async {
-    final h = await atBook(
-      tester,
-      services: [
-        {'id': 'd1', 'name': 'Placeholder exam', 'priceMinor': 5000, 'currency': 'BAM', 'durationMinutes': 30},
-        {'id': 'd2', 'name': 'Placeholder call', 'priceMinor': 2550, 'currency': 'BAM'},
-      ],
-    );
+    final h = await atBook(tester, services: placeholderServices);
 
     expect(find.text('Prices at this clinic'), findsOneWidget);
     expect(find.text('Placeholder exam'), findsOneWidget);
@@ -424,6 +423,34 @@ void main() {
 
     expect(find.text('Placeholder exam'), findsOneWidget);
     expect(h.api.last('GET /organizations/$clinicId/services').url.queryParameters['mode'], 'in-person');
+  });
+
+  // A booking may name a service (clinic-cms E): picked from the prices, or left to the clinic.
+  testWidgets('books with the service the patient picked', (tester) async {
+    final h = await atBook(tester, services: placeholderServices);
+    h.api.on('POST /appointments', (_) async => jsonResponse(201, booked(appointmentId)));
+    answerAppointments(h.api);
+
+    expect(tester.widget<ListTile>(find.widgetWithText(ListTile, 'I will choose at the clinic')).selected, isTrue);
+    await tapText(tester, 'Placeholder call');
+    expect(tester.widget<ListTile>(find.widgetWithText(ListTile, 'Placeholder call')).selected, isTrue);
+    await tapText(tester, 'Placeholder exam');
+    expect(tester.widget<ListTile>(find.widgetWithText(ListTile, 'Placeholder call')).selected, isFalse);
+    await tapButton(tester, 'Book');
+
+    expect(jsonDecode(h.api.last('POST /appointments').body), {'slotId': slotId, 'serviceId': 'd1'});
+  });
+
+  testWidgets('books without a service when the patient leaves it to the clinic', (tester) async {
+    final h = await atBook(tester, services: placeholderServices);
+    h.api.on('POST /appointments', (_) async => jsonResponse(201, booked(appointmentId)));
+    answerAppointments(h.api);
+
+    await tapText(tester, 'Placeholder exam');
+    await tapText(tester, 'I will choose at the clinic');
+    await tapButton(tester, 'Book');
+
+    expect(jsonDecode(h.api.last('POST /appointments').body), {'slotId': slotId, 'serviceId': null});
   });
 
   testWidgets('shows no prices for a clinic without a price list, or when they cannot be read', (tester) async {

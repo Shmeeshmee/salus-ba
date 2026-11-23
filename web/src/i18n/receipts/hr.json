@@ -73,5 +73,19 @@
   "report.receipts": "Računi",
   "report.quantity": "Količina",
   "report.amount": "Iznos",
-  "report.csv": "Preuzmi CSV"
+  "report.csv": "Preuzmi CSV",
+  "practice.open": "Rad online i u klinici",
+  "practice.title": "Rad online i u klinici",
+  "practice.back": "Natrag na izvješće o računima",
+  "practice.empty": "U ovom razdoblju nema ponuđenih sati ni posjeta.",
+  "practice.caption": "Po liječniku i vrsti posjeta",
+  "practice.practitioner": "Liječnik",
+  "practice.mode": "Posjet",
+  "practice.hours": "Ponuđeni sati",
+  "practice.visits": "Održani posjeti",
+  "practice.amount": "Naplaćeno",
+  "practice.video": "Video",
+  "practice.former": "Bivši liječnik",
+  "practice.loadFailed": "Izvješće se nije moglo učitati. Ponovno učitajte stranicu i pokušajte opet.",
+  "practice.inPerson": "U klinici"
 }

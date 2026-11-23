@@ -530,5 +530,6 @@
   "receiptNumber": "Beleg Nr. {number}",
   "receiptIssuedOn": "Ausgestellt am {date}",
   "receiptReversal": "Storno eines früheren Belegs",
-  "receiptLine": "{name} × {quantity}"
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Ich wähle in der Praxis"
 }

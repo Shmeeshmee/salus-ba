@@ -1217,7 +1217,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Appointment"}
         "400":
-          description: "`invalid_request`."
+          description: "`invalid_request`; `invalid_service`: the service named is not one its clinic offers, active, in the slot's visit mode."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5957,6 +5957,42 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/reports/practice:
+    get:
+      operationId: getPracticeReport
+      x-salus-package: cms-e
+      summary: The online practice report, per practitioner and visit mode
+      description: >-
+        Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer,
+        the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits
+        (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor
+        units. For the clinic's admin. Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: The report.
+          headers:
+            Cache-Control: {schema: {type: string, const: "private, no-store"}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PracticeReport"}
+        "400":
+          description: "`invalid_request`: a time missing or malformed, `to` not after `from`, or a range over ten years."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /me/receipts:
     get:
       operationId: listMyReceipts
@@ -6836,6 +6872,25 @@ components:
               name: {type: string}
               quantity: {type: integer}
               totalMinor: {type: integer, format: int64}
+    PracticeReport:
+      type: object
+      required: [from, to, currency, rows]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        rows:
+          type: array
+          description: By practitioner role, then visit mode; a role and mode with nothing offered, held or receipted is absent.
+          items:
+            type: object
+            required: [practitionerRole, visitMode, minutesOffered, visits, receiptedMinor]
+            properties:
+              practitionerRole: {type: string, format: uuid}
+              visitMode: {$ref: "#/components/schemas/VisitMode"}
+              minutesOffered: {type: integer, format: int64}
+              visits: {type: integer, format: int64}
+              receiptedMinor: {type: integer, format: int64}
     SubscriptionStatus:
       type: string
       enum: [trial, active, past_due, suspended, cancelled]
@@ -7633,6 +7688,13 @@ components:
           type: string
           format: uuid
           description: A free slot, as Slot?schedule=…&status=free gives it.
+        serviceId:
+          type: string
+          format: uuid
+          description: >-
+            Optional (package E of docs/plans/clinic-cms.md): a service of the slot's clinic's price list, active and
+            offered in the slot's visit mode, as GET /organizations/{id}/services gives them. Shown to the clinic and the
+            first line of the visit's receipt; nothing is charged in the app. Kept on a reschedule.
     SetAppointmentStatusRequest:
       type: object
       required: [status]
@@ -7660,6 +7722,10 @@ components:
         slotId:
           type: string
           format: uuid
+        serviceId:
+          type: string
+          format: uuid
+          description: The price-list service the booking named; absent for none (package E).
         start:
           type: string
           format: date-time

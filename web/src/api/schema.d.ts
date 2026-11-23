@@ -2773,6 +2773,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/reports/practice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The online practice report, per practitioner and visit mode
+         * @description Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+         */
+        get: operations["getPracticeReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/receipts": {
         parameters: {
             query?: never;
@@ -3103,6 +3123,25 @@ export interface components {
                 quantity: number;
                 /** Format: int64 */
                 totalMinor: number;
+            }[];
+        };
+        PracticeReport: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            currency: string;
+            /** @description By practitioner role, then visit mode; a role and mode with nothing offered, held or receipted is absent. */
+            rows: {
+                /** Format: uuid */
+                practitionerRole: string;
+                visitMode: components["schemas"]["VisitMode"];
+                /** Format: int64 */
+                minutesOffered: number;
+                /** Format: int64 */
+                visits: number;
+                /** Format: int64 */
+                receiptedMinor: number;
             }[];
         };
         /**
@@ -3661,6 +3700,11 @@ export interface components {
              * @description A free slot, as Slot?schedule=…&status=free gives it.
              */
             slotId: string;
+            /**
+             * Format: uuid
+             * @description Optional (package E of docs/plans/clinic-cms.md): a service of the slot's clinic's price list, active and offered in the slot's visit mode, as GET /organizations/{id}/services gives them. Shown to the clinic and the first line of the visit's receipt; nothing is charged in the app. Kept on a reschedule.
+             */
+            serviceId?: string;
         };
         SetAppointmentStatusRequest: {
             /** @enum {string} */
@@ -3676,6 +3720,11 @@ export interface components {
             practitionerRoleId: string;
             /** Format: uuid */
             slotId: string;
+            /**
+             * Format: uuid
+             * @description The price-list service the booking named; absent for none (package E).
+             */
+            serviceId?: string;
             /** Format: date-time */
             start: string;
             /** Format: date-time */
@@ -7141,7 +7190,7 @@ export interface operations {
                     "application/json": components["schemas"]["Appointment"];
                 };
             };
-            /** @description `invalid_request`. */
+            /** @description `invalid_request`; `invalid_service`: the service named is not one its clinic offers, active, in the slot's visit mode. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12310,6 +12359,42 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPracticeReport: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeReport"];
+                };
+            };
+            /** @description `invalid_request`: a time missing or malformed, `to` not after `from`, or a range over ten years. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
             500: components["responses"]["InternalError"];
         };
     };

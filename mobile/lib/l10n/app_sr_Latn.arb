@@ -530,5 +530,6 @@
   "receiptNumber": "Račun br. {number}",
   "receiptIssuedOn": "Izdato {date}",
   "receiptReversal": "Storno ranijeg računa",
-  "receiptLine": "{name} × {quantity}"
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Odabraću u ustanovi"
 }

@@ -530,5 +530,6 @@
   "receiptNumber": "Makbuz no. {number}",
   "receiptIssuedOn": "Düzenlenme tarihi: {date}",
   "receiptReversal": "Önceki bir makbuzun iptali",
-  "receiptLine": "{name} × {quantity}"
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Klinikte seçeceğim"
 }

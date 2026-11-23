@@ -24,7 +24,7 @@ func TestStatsRefresh_EveryAppointmentWriteEnqueuesItsClinicDay(t *testing.T) {
 		want    []string
 	}{
 		"a booking": {func() *fixture { return newFixture() }, func(ctx context.Context, f *fixture) error {
-			_, err := f.svc.Book(ctx, me, slotFree)
+			_, err := f.svc.Book(ctx, me, slotFree, "")
 			return err
 		}, []string{refresh(start)}},
 		"a cancellation": {func() *fixture { return cancelFixture(start) }, func(ctx context.Context, f *fixture) error {
