@@ -136,6 +136,22 @@ func (r *fakeRepository) Grant(ctx context.Context, kind consent.Kind, patientID
 	return c, nil
 }
 
+func (r *fakeRepository) GrantInPerson(ctx context.Context, patientID, organizationID, accountID string, at time.Time) (consent.Consent, error) {
+	r.seen(ctx, "GrantInPerson")
+	if r.err != nil {
+		return consent.Consent{}, r.err
+	}
+	for _, c := range r.consents {
+		if c.PatientID == patientID && c.OrganizationID == organizationID && c.Kind == consent.KindCare && c.Status == consent.StatusActive {
+			return consent.Consent{}, consent.ErrActive
+		}
+	}
+	c := consent.Consent{ID: newID, PatientID: patientID, OrganizationID: organizationID, Kind: consent.KindCare, Status: consent.StatusActive,
+		DateTime: at, LastUpdated: at, VersionID: 1, GivenInPerson: true, RecordedBy: accountID}
+	r.consents = append(r.consents, c)
+	return c, nil
+}
+
 func (r *fakeRepository) ByID(ctx context.Context, id string) (consent.Consent, error) {
 	r.seen(ctx, "ByID")
 	if r.err != nil {

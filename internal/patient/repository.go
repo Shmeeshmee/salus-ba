@@ -22,4 +22,11 @@ type Repository interface {
 	// Update replaces the fields of the profile of p.AccountID when its version is p.VersionID, and returns it
 	// with the next version; ErrConflict when no profile has that version.
 	Update(ctx context.Context, p Patient, at time.Time) (Patient, error)
+	// Register stores p as the profile of a patient without an account, registered by the clinic org (the scope set
+	// by SetClinic), last updated at, and returns it.
+	Register(ctx context.Context, p Patient, org string, at time.Time) (Patient, error)
+	// SearchClinic returns at most limit patients of the clinic org (registered by it or with its active care consent)
+	// matching q, by family and given name; for a practitioner's role roleID (empty for any) only those with an
+	// appointment with it.
+	SearchClinic(ctx context.Context, org, roleID string, q ClinicSearch, limit int32) ([]Patient, error)
 }

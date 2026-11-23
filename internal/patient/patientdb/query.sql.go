@@ -15,7 +15,7 @@ const createPatient = `-- name: CreatePatient :one
 INSERT INTO patient (account_id, given_name, family_name, birth_date, phone, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (account_id) DO NOTHING
-RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 `
 
 type CreatePatientParams struct {
@@ -28,14 +28,15 @@ type CreatePatientParams struct {
 }
 
 type CreatePatientRow struct {
-	ID         pgtype.UUID
-	UpdatedAt  pgtype.Timestamptz
-	AccountID  pgtype.UUID
-	VersionID  int32
-	BirthDate  pgtype.Date
-	GivenName  string
-	FamilyName string
-	Phone      pgtype.Text
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
 }
 
 // A second profile for the account inserts nothing (no row), so the transaction stays usable for the audit.
@@ -58,25 +59,27 @@ func (q *Queries) CreatePatient(ctx context.Context, arg CreatePatientParams) (C
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Phone,
+		&i.RegisteredByOrganizationID,
 	)
 	return i, err
 }
 
 const patientByAccount = `-- name: PatientByAccount :one
-SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient
 WHERE account_id = $1
 `
 
 type PatientByAccountRow struct {
-	ID         pgtype.UUID
-	UpdatedAt  pgtype.Timestamptz
-	AccountID  pgtype.UUID
-	VersionID  int32
-	BirthDate  pgtype.Date
-	GivenName  string
-	FamilyName string
-	Phone      pgtype.Text
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
 }
 
 func (q *Queries) PatientByAccount(ctx context.Context, accountID pgtype.UUID) (PatientByAccountRow, error) {
@@ -91,25 +94,27 @@ func (q *Queries) PatientByAccount(ctx context.Context, accountID pgtype.UUID) (
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Phone,
+		&i.RegisteredByOrganizationID,
 	)
 	return i, err
 }
 
 const patientByID = `-- name: PatientByID :one
-SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient
 WHERE id = $1
 `
 
 type PatientByIDRow struct {
-	ID         pgtype.UUID
-	UpdatedAt  pgtype.Timestamptz
-	AccountID  pgtype.UUID
-	VersionID  int32
-	BirthDate  pgtype.Date
-	GivenName  string
-	FamilyName string
-	Phone      pgtype.Text
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
 }
 
 func (q *Queries) PatientByID(ctx context.Context, id pgtype.UUID) (PatientByIDRow, error) {
@@ -124,8 +129,136 @@ func (q *Queries) PatientByID(ctx context.Context, id pgtype.UUID) (PatientByIDR
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Phone,
+		&i.RegisteredByOrganizationID,
 	)
 	return i, err
+}
+
+const registerPatient = `-- name: RegisterPatient :one
+INSERT INTO patient (registered_by_organization_id, given_name, family_name, birth_date, phone, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+`
+
+type RegisterPatientParams struct {
+	OrganizationID pgtype.UUID
+	GivenName      string
+	FamilyName     string
+	BirthDate      pgtype.Date
+	Phone          pgtype.Text
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type RegisterPatientRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// A patient without an account, registered by the clinic of the transaction's scope (docs/clinic-cms F2, W1).
+func (q *Queries) RegisterPatient(ctx context.Context, arg RegisterPatientParams) (RegisterPatientRow, error) {
+	row := q.db.QueryRow(ctx, registerPatient,
+		arg.OrganizationID,
+		arg.GivenName,
+		arg.FamilyName,
+		arg.BirthDate,
+		arg.Phone,
+		arg.UpdatedAt,
+	)
+	var i RegisterPatientRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.AccountID,
+		&i.VersionID,
+		&i.BirthDate,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Phone,
+		&i.RegisteredByOrganizationID,
+	)
+	return i, err
+}
+
+const searchClinicPatients = `-- name: SearchClinicPatients :many
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+FROM patient p
+WHERE (p.registered_by_organization_id = $1
+       OR EXISTS (SELECT 1 FROM consent c
+                  WHERE c.patient_id = p.id AND c.organization_id = $1 AND c.status = 'active'))
+  AND (p.given_name || ' ' || p.family_name ILIKE $2 OR p.family_name || ' ' || p.given_name ILIKE $2)
+  AND ($3::date IS NULL OR p.birth_date = $3::date)
+  AND ($4::uuid IS NULL
+       OR EXISTS (SELECT 1 FROM appointment a
+                  WHERE a.patient_id = p.id AND a.organization_id = $1
+                    AND a.practitioner_role_id = $4::uuid))
+ORDER BY p.family_name, p.given_name, p.id
+LIMIT $5
+`
+
+type SearchClinicPatientsParams struct {
+	OrganizationID     pgtype.UUID
+	Pattern            string
+	BirthDate          pgtype.Date
+	PractitionerRoleID pgtype.UUID
+	MaxRows            int32
+}
+
+type SearchClinicPatientsRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// The clinic's patients: those it registered and those with its active care consent, whose given or family name,
+// or both in either order, contain the pattern (already escaped for LIKE), on the birth date when given, and, for a
+// practitioner's role, with an appointment with that role. Row-level security limits the rows to the scope too.
+func (q *Queries) SearchClinicPatients(ctx context.Context, arg SearchClinicPatientsParams) ([]SearchClinicPatientsRow, error) {
+	rows, err := q.db.Query(ctx, searchClinicPatients,
+		arg.OrganizationID,
+		arg.Pattern,
+		arg.BirthDate,
+		arg.PractitionerRoleID,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchClinicPatientsRow
+	for rows.Next() {
+		var i SearchClinicPatientsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.AccountID,
+			&i.VersionID,
+			&i.BirthDate,
+			&i.GivenName,
+			&i.FamilyName,
+			&i.Phone,
+			&i.RegisteredByOrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updatePatient = `-- name: UpdatePatient :one
@@ -133,7 +266,7 @@ UPDATE patient
 SET given_name = $1, family_name = $2, birth_date = $3, phone = $4,
     version_id = version_id + 1, updated_at = $5
 WHERE account_id = $6 AND version_id = $7
-RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 `
 
 type UpdatePatientParams struct {
@@ -147,14 +280,15 @@ type UpdatePatientParams struct {
 }
 
 type UpdatePatientRow struct {
-	ID         pgtype.UUID
-	UpdatedAt  pgtype.Timestamptz
-	AccountID  pgtype.UUID
-	VersionID  int32
-	BirthDate  pgtype.Date
-	GivenName  string
-	FamilyName string
-	Phone      pgtype.Text
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
 }
 
 // Optimistic locking: only the current version changes.
@@ -178,6 +312,7 @@ func (q *Queries) UpdatePatient(ctx context.Context, arg UpdatePatientParams) (U
 		&i.GivenName,
 		&i.FamilyName,
 		&i.Phone,
+		&i.RegisteredByOrganizationID,
 	)
 	return i, err
 }

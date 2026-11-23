@@ -18,6 +18,10 @@ type Repository interface {
 	// ErrActive when one of the kind is active already, ErrClinicNotFound when the clinic does not exist (which
 	// aborts the transaction).
 	Grant(ctx context.Context, kind Kind, patientID, organizationID string, at time.Time) (Consent, error)
+	// GrantInPerson stores an active care consent of the patient with the clinic, given in person and recorded by the
+	// staff account, granted at, and returns it; ErrActive when one is active already, ErrNotFound when the patient is
+	// not one the clinic registered (which aborts the transaction).
+	GrantInPerson(ctx context.Context, patientID, organizationID, accountID string, at time.Time) (Consent, error)
 	// ByID returns the consent of any kind (an active history consent with the visits it lists now), or ErrNotFound (also for one outside the scope, or an id that is
 	// not a UUID).
 	ByID(ctx context.Context, id string) (Consent, error)

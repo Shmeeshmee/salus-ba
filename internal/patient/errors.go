@@ -18,4 +18,6 @@ var (
 	ErrInvalidBirthDate = errors.New("patient: invalid birth date")
 	// ErrInvalidPhone is returned for a phone number that is not E.164 (+ and 8 to 15 digits).
 	ErrInvalidPhone = errors.New("patient: invalid phone")
+	// ErrInvalidSearch is returned for a clinic search whose name has fewer than 2 characters.
+	ErrInvalidSearch = errors.New("patient: invalid search")
 )

@@ -50,11 +50,35 @@ func (fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) e
 // fakeRepository holds profiles by account and shows only the account set on the transaction, as row-level
 // security does.
 type fakeRepository struct {
-	err      error // returned by every read and write when set
-	profiles map[string]patient.Patient
-	account  string   // set by SetAccount
-	clinic   string   // set by SetClinic
-	calls    []string // the calls, "outside:" prefixed when made outside a transaction
+	err        error // returned by every read and write when set
+	profiles   map[string]patient.Patient
+	search     patient.ClinicSearch // what SearchClinic was asked
+	account    string               // set by SetAccount
+	clinic     string               // set by SetClinic
+	searchRole string               // the role SearchClinic was asked for
+	calls      []string             // the calls, "outside:" prefixed when made outside a transaction
+	found      []patient.Patient    // what SearchClinic gives
+}
+
+// registeredID is the id Register gives.
+const registeredID = "d8000000-0000-4000-8000-0000000000d8"
+
+func (r *fakeRepository) Register(ctx context.Context, p patient.Patient, org string, at time.Time) (patient.Patient, error) {
+	r.seen(ctx, "Register")
+	if r.err != nil {
+		return patient.Patient{}, r.err
+	}
+	p.ID, p.RegisteredBy, p.VersionID, p.LastUpdated = registeredID, org, 1, at
+	return p, nil
+}
+
+func (r *fakeRepository) SearchClinic(ctx context.Context, org, roleID string, q patient.ClinicSearch, _ int32) ([]patient.Patient, error) {
+	r.seen(ctx, "SearchClinic")
+	r.search, r.searchRole = q, roleID
+	if org != r.clinic {
+		return nil, errors.New("searched outside the clinic's scope")
+	}
+	return r.found, r.err
 }
 
 func newFakeRepository() *fakeRepository {
@@ -156,9 +180,10 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 
 // fakeConsents is consent.Service.State: the given state, whatever is asked.
 type fakeConsents struct {
-	err   error
-	args  []string
-	state access.Consent
+	err      error
+	args     []string
+	inPerson []any // RecordInPerson's caller, patient and whether in a transaction
+	state    access.Consent
 }
 
 func (f *fakeConsents) State(_ context.Context, patientID, organizationID string) (access.Consent, error) {

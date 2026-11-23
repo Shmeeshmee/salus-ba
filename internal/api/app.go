@@ -141,6 +141,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			patient.NewFHIRHandler(patients, patientReadCaller(accounts, roles), log).Routes,
+			patient.NewClinicHandler(patients, patientReadCaller(accounts, roles), log).Routes, // clinic-cms F2
 			consent.NewHandler(newSharing(consents, encounters, documents, roles, clinics), consentCaller(patients), log).Routes,
 			consent.NewFHIRHandler(consents, consentCaller(patients), log).Routes,
 			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
@@ -152,6 +153,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewActionsHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewLinkHandler(appointments, cfg.TrustedProxies, log).Routes,
 			appointment.NewNoShowHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
+			appointment.NewStaffHandler(appointments, appointmentCaller(accounts, patients), clock.System{}.Now, log).Routes, // clinic-cms F2
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log)},

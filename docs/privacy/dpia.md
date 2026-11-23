@@ -2578,3 +2578,29 @@ with none of the patient's data; refusals are audited with the receptionist as t
 | --- | --- |
 | A new route opens clinical content to the desk | The route test fails until the route is classified |
 | A receptionist tells a real patient from an unknown id | Refusals compared byte for byte with an unknown id's |
+
+### Package F2: patients registered by the clinic and bookings by staff
+
+**Processing added.** The clinic's admin and receptionists register a patient who has no Salus account (given and
+family name, birth date, optional phone: what the desk needs to recognise and call the patient, W2) and record, in the
+same transaction, the care consent the patient gave in person (`given_in_person`, `recorded_by_account_id`). Staff
+search the clinic's patients by name and birth date (those it registered and those with its active care consent; a
+practitioner only those with an appointment with their role), book a free slot for a patient with the clinic's active
+care consent (`booked_by_account_id`), cancel a visit and mark an in-person arrival. The desk's day lists the clinic's
+visits with each patient's name, birth date and phone, nothing clinical. Every search, read and write is audited with
+the staff account, refusals included; a search audits each patient it returns.
+
+**Notifications.** A patient without an account gets no e-mail, no push and, for now, no SMS: no reminder is scheduled
+for a booking staff make for them, and an appointment e-mail job finds no account and sends nothing. SMS reminders for
+them wait for a later package (a delivery without an account, under the clinic's SMS option).
+
+**Subject rights.** Without an account the patient cannot use the app; the clinic receives their requests in person
+and acts through its staff (as 3.0 recorded). Rectification of a registered profile by staff and revocation of the
+in-person consent by the clinic are not built yet (F2's deferred items in `docs/clinic-cms/PROGRESS.md`).
+
+| Risk | Measure |
+| --- | --- |
+| A search reveals another clinic's patients | The query names the caller's clinic and row-level security shows only its scope (`patient_registered_only_there`); tested against Postgres |
+| A wildcard search lists every patient | `%`, `_` and `\` in the name are taken literally; at least 2 characters; 50 rows at most |
+| An e-mail to nobody, or to the wrong account | A notice without an account sends nothing; no reminder is scheduled for a patient without an account |
+| A practitioner books or reads beyond their patients | A practitioner books only their own role's slots and finds only patients with an appointment with their role |

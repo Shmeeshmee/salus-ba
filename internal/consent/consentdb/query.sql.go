@@ -404,6 +404,53 @@ func (q *Queries) GrantHistoryConsent(ctx context.Context, arg GrantHistoryConse
 	return i, err
 }
 
+const grantInPersonConsent = `-- name: GrantInPersonConsent :one
+INSERT INTO consent (patient_id, organization_id, status, date_time, updated_at, given_in_person, recorded_by_account_id)
+VALUES ($1, $2, 'active', $3, $3, true, $4)
+ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
+`
+
+type GrantInPersonConsentParams struct {
+	PatientID           pgtype.UUID
+	OrganizationID      pgtype.UUID
+	DateTime            pgtype.Timestamptz
+	RecordedByAccountID pgtype.UUID
+}
+
+type GrantInPersonConsentRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
+// A care consent a clinic-registered patient gave in person, recorded by staff (docs/clinic-cms F2).
+func (q *Queries) GrantInPersonConsent(ctx context.Context, arg GrantInPersonConsentParams) (GrantInPersonConsentRow, error) {
+	row := q.db.QueryRow(ctx, grantInPersonConsent,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.DateTime,
+		arg.RecordedByAccountID,
+	)
+	var i GrantInPersonConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
 const grantTranscriptionConsent = `-- name: GrantTranscriptionConsent :one
 INSERT INTO transcription_consent (patient_id, organization_id, status, date_time, updated_at)
 VALUES ($1, $2, 'active', $3, $3)

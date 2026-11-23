@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -35,8 +36,10 @@ type Auditor interface {
 
 // Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope
 // (consent.Service).
+// and records the care consent a clinic-registered patient gave in person, in the caller's transaction.
 type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+	RecordInPerson(ctx context.Context, c consent.Caller, patientID string) (consent.Consent, error)
 }
 
 // Appointments gives the patient's appointments in a clinic, in the caller's transaction and scope (the
@@ -274,6 +277,8 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 		action = auditevent.ActionCreate
 	case auditevent.CodeUpdate:
 		action = auditevent.ActionUpdate
+	case auditevent.CodeSearchType:
+		action = auditevent.ActionExecute
 	}
 	purpose := auditevent.CodePATRQT
 	if !c.patient() {

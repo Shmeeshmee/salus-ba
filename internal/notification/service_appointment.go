@@ -101,8 +101,8 @@ func (s *Service) sendAppointment(ctx context.Context, e appointmentEmail, id, o
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
-	if e.applies != "" && n.Appointment.Status != e.applies {
-		return nil
+	if (e.applies != "" && n.Appointment.Status != e.applies) || n.AccountID == "" {
+		return nil // a patient the clinic registered has no account and gets no e-mail (docs/clinic-cms F2)
 	}
 	clinic, err := s.clinics.Read(ctx, organization.Caller{OrganizationID: org}, org)
 	if err != nil {
