@@ -16,7 +16,12 @@ const _submit = 'POST /questionnaire-responses/r1/submit';
 Map<String, Object?> _appointments() => bundle([appointment(appointmentId, _start, '2026-11-05T08:30:00Z')]);
 
 /// The patient's appointments with [responses] of the golden version, and the list opened.
-Future<Harness> _atAppointments(WidgetTester tester, List<Map<String, Object?>> responses, {DateTime? now}) async {
+Future<Harness> _atAppointments(
+  WidgetTester tester,
+  List<Map<String, Object?>> responses, {
+  DateTime? now,
+  Map<String, Object?>? version,
+}) async {
   final h = Harness(store: FakeTokenStore(token), now: now);
   h.api.answer('GET /auth/me', 200, account());
   answerDirectory(h.api);
@@ -26,7 +31,7 @@ Future<Harness> _atAppointments(WidgetTester tester, List<Map<String, Object?>> 
   });
   h.api.on(
     'GET /fhir/R4/QuestionnaireResponse',
-    (_) async => fhirResponse(200, bundle(responses, included: [everyType()])),
+    (_) async => fhirResponse(200, bundle(responses, included: [version ?? everyType()])),
   );
   await h.pump(tester);
   await tapOutlined(tester, 'My appointments');
@@ -34,8 +39,8 @@ Future<Harness> _atAppointments(WidgetTester tester, List<Map<String, Object?>> 
 }
 
 /// The questionnaire opened from its card.
-Future<Harness> _opened(WidgetTester tester, {Map<String, Object?>? r}) async {
-  final h = await _atAppointments(tester, [r ?? response('r1')]);
+Future<Harness> _opened(WidgetTester tester, {Map<String, Object?>? r, Map<String, Object?>? version}) async {
+  final h = await _atAppointments(tester, [r ?? response('r1')], version: version);
   await tapFound(tester, find.widgetWithText(FilledButton, 'Fill in'));
   return h;
 }
@@ -96,6 +101,25 @@ Future<void> _openSection(WidgetTester tester) async {
 List<String> _ancestorLabels(SemanticsNode node) => [for (var p = node.parent; p != null; p = p.parent) p.label];
 
 String _firstLine(String label) => label.split('\n').first;
+
+/// A number with a branch under 18 that joins back into the main question (SAL-43). Synthetic placeholders.
+Map<String, Object?> _branching() => questionnaire(
+  items: [
+    {'linkId': 'age', 'text': 'Placeholder whole number', 'type': 'integer'},
+    {
+      'linkId': 'branch',
+      'type': 'group',
+      'text': 'Placeholder section',
+      'enableWhen': [
+        {'question': 'age', 'operator': '<', 'answerInteger': 18},
+      ],
+      'item': [
+        {'linkId': 'young', 'text': 'Placeholder follow-up question', 'type': 'boolean'},
+      ],
+    },
+    {'linkId': 'main', 'text': 'Placeholder main question', 'type': 'string'},
+  ],
+);
 
 void main() {
   group('the card in my appointments', () {
@@ -262,6 +286,75 @@ void main() {
 
       await _tapIn(tester, 'smoker', 'No');
       expect(find.text('Placeholder single choice'), findsNothing);
+    });
+
+    testWidgets('a change that hides answers already given asks first; kept, nothing changes', (tester) async {
+      final h = await _opened(tester);
+      _answerSaves(h);
+      await _openSection(tester);
+      await _type(tester, 'name', 'Placeholder');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      final saves = _saves(h).length;
+
+      await _tapIn(tester, 'smoker', 'No');
+      expect(find.text('Change this answer?'), findsOneWidget);
+      expect(
+        find.text('This change skips 2 questions you already answered. Their answers will be removed.'),
+        findsOneWidget,
+      );
+      await tapFound(tester, find.widgetWithText(TextButton, 'Cancel'));
+
+      expect(_saves(h), hasLength(saves), reason: 'nothing is sent');
+      expect(find.text('Placeholder single choice'), findsOneWidget, reason: 'the answer is Yes again');
+      await _reveal(tester, _field('name'));
+      expect(find.descendant(of: _field('name'), matching: find.text('Placeholder')), findsOneWidget);
+    });
+
+    testWidgets('a change that hides answers, confirmed: only the path taken is sent', (tester) async {
+      final h = await _opened(tester);
+      _answerSaves(h);
+      await _openSection(tester);
+      await _type(tester, 'name', 'Placeholder');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      await _tapIn(tester, 'smoker', 'No');
+      await tapFound(tester, find.widgetWithText(TextButton, 'Change and remove'));
+
+      expect([for (final a in _saves(h).last['answers'] as List) a['linkId']], ['smoker']);
+      expect(find.text('Placeholder single choice'), findsNothing);
+
+      await _tapIn(tester, 'smoker', 'Yes');
+      expect(find.text('Change this answer?'), findsNothing, reason: 'nothing to discard');
+      await _tapIn(tester, 'freq', 'Placeholder option B');
+      await _reveal(tester, _field('name'));
+      expect(find.descendant(of: _field('name'), matching: find.text('Placeholder')), findsNothing);
+    });
+
+    testWidgets('a typed answer that hides a branch asks once typing pauses', (tester) async {
+      final h = await _opened(tester, version: _branching());
+      _answerSaves(h);
+      await _type(tester, 'age', '15');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      await _tapIn(tester, 'young', 'Yes');
+
+      await _type(tester, 'age', '');
+      expect(find.text('Placeholder follow-up question'), findsNothing, reason: 'hidden as it is typed');
+      await _type(tester, 'age', '25');
+      expect(find.text('Change this answer?'), findsNothing, reason: 'still typing');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('This change skips 1 question you already answered. Its answer will be removed.'),
+        findsOneWidget,
+      );
+      await tapFound(tester, find.widgetWithText(TextButton, 'Cancel'));
+
+      expect(find.descendant(of: _field('age'), matching: find.text('15')), findsOneWidget);
+      expect(find.text('Placeholder follow-up question'), findsOneWidget);
+      expect([for (final a in _saves(h).last['answers'] as List) a['linkId']], ['age', 'young']);
     });
 
     testWidgets('a choice saves at once; typing saves 2 s after it stops, not per keystroke', (tester) async {

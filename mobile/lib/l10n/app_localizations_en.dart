@@ -1993,4 +1993,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'You pay at the clinic. Nothing is charged in the app.';
+
+  @override
+  String get discardTitle => 'Change this answer?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'This change skips $n questions you already answered. Their answers will be removed.',
+      one:
+          'This change skips $n question you already answered. Its answer will be removed.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Change and remove';
 }

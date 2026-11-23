@@ -2023,4 +2023,23 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Sie zahlen in der Praxis. In der App wird nichts berechnet.';
+
+  @override
+  String get discardTitle => 'Diese Antwort ändern?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Durch diese Änderung entfallen $n Fragen, die Sie bereits beantwortet haben. Die Antworten werden entfernt.',
+      one:
+          'Durch diese Änderung entfällt $n Frage, die Sie bereits beantwortet haben. Die Antwort wird entfernt.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Ändern und entfernen';
 }

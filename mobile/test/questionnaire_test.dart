@@ -16,7 +16,7 @@ Item _question(String linkId, ItemType type, {Condition? when, bool required = f
   text: 'Placeholder question',
   type: type,
   required: required,
-  condition: when,
+  enableWhen: [?when],
   options: options ?? const [],
   repeats: false,
 );
@@ -25,9 +25,9 @@ Item _question(String linkId, ItemType type, {Condition? when, bool required = f
 /// boolean, and a chain of two (x1 on s2, in the section). Every conditional question is required. Synthetic.
 List<Item> conditional() => [
   _question('b', ItemType.boolean),
-  _question('b1', ItemType.string, when: const Condition('b', boolean: true), required: true),
+  _question('b1', ItemType.string, when: const Condition('b', Operator.equal, true), required: true),
   _question('c', ItemType.choice, options: const ['Option A', 'Option B']),
-  _question('c1', ItemType.string, when: const Condition('c', string: 'Option B'), required: true),
+  _question('c1', ItemType.string, when: const Condition('c', Operator.equal, 'Option B'), required: true),
   const Item(
     linkId: 'm',
     text: 'Placeholder question',
@@ -35,15 +35,15 @@ List<Item> conditional() => [
     repeats: true,
     options: ['Option A', 'Option B', 'Option C'],
   ),
-  _question('m1', ItemType.string, when: const Condition('m', string: 'Option B'), required: true),
+  _question('m1', ItemType.string, when: const Condition('m', Operator.equal, 'Option B'), required: true),
   Item(
     linkId: 'sec',
     text: 'Placeholder section',
     type: ItemType.group,
-    condition: const Condition('b', boolean: false),
+    enableWhen: const [Condition('b', Operator.equal, false)],
     items: [_question('s1', ItemType.string, required: true), _question('s2', ItemType.boolean)],
   ),
-  _question('x1', ItemType.string, when: const Condition('s2', boolean: true), required: true),
+  _question('x1', ItemType.string, when: const Condition('s2', Operator.equal, true), required: true),
 ];
 
 void main() {
@@ -251,11 +251,11 @@ void main() {
       expect((smoker.type, smoker.required, smoker.help), (ItemType.boolean, true, 'Placeholder help text'));
       expect(smoker.items, isEmpty, reason: 'the help item is the help text, not a child');
       final freq = v.items[2];
-      expect((freq.condition!.question, freq.condition!.boolean), ('smoker', true));
+      expect((freq.enableWhen.single.question, freq.enableWhen.single.answer), ('smoker', true));
       expect(freq.options, ['Placeholder option A', 'Placeholder option B']);
       final details = v.items[3];
       expect(
-        (details.type, details.help, details.condition!.string),
+        (details.type, details.help, details.enableWhen.single.answer),
         (ItemType.group, 'Placeholder section help', 'Placeholder option B'),
       );
       expect(
@@ -291,7 +291,7 @@ void main() {
         expect(freq.options, ['Placeholder option A', 'Placeholder option B']);
         expect(freq.label('Placeholder option B'), 'de: Placeholder option B');
         expect(v.items[3].items.first.text, 'de: Placeholder short answer');
-        expect(v.items[3].condition!.string, 'Placeholder option B');
+        expect(v.items[3].enableWhen.single.answer, 'Placeholder option B');
         expect(v.inLanguage('bs').items[2].label('Placeholder option B'), 'Placeholder option B');
       },
     );
@@ -364,6 +364,17 @@ void main() {
           ('b2', 'synthetic-letter.pdf', FileKind.document, 1200000),
         ],
       );
+    });
+
+    test('only the shown questions\' answers are sent: a hidden branch\'s answers are dropped', () {
+      final answers = <String, List<Object>>{
+        'b': [false],
+        'b1': ['Placeholder answer'],
+        'c': ['Option B'],
+        'c1': ['Placeholder answer'],
+        's1': ['Placeholder answer'],
+      };
+      expect([for (final a in toApi(conditional(), answers)) a.linkId], ['b', 'c', 'c1', 's1']);
     });
 
     test('files are never sent with the typed answers, and count as the answer of a required item', () {

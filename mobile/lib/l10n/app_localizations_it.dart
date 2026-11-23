@@ -2012,4 +2012,23 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Si paga presso la struttura. Nell\'app non viene addebitato nulla.';
+
+  @override
+  String get discardTitle => 'Modificare questa risposta?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Con questa modifica vengono saltate $n domande a cui ha già risposto. Le risposte verranno rimosse.',
+      one:
+          'Con questa modifica viene saltata $n domanda a cui ha già risposto. La risposta verrà rimossa.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Modifica e rimuovi';
 }

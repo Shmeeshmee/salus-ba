@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import 'booking.dart';
@@ -57,7 +58,11 @@ class QuestionnaireScreen extends StatefulWidget {
 
 class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   late Response _response = widget.response;
-  late Answers _answers = {...widget.response.answers};
+  // An answer to a hidden item is never kept (SAL-43): the server refuses it.
+  late Answers _answers = shownAnswers(_items, widget.response.answers);
+
+  /// The answers the server has: what a change the patient takes back returns to.
+  late Answers _kept = {..._answers};
   final _errors = <String, String>{};
   final _controllers = <String, TextEditingController>{};
   final _focus = <String, FocusNode>{};
@@ -195,18 +200,20 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   Future<void> _saveWhilePending() async {
     while (mounted && !_closed && _pending && !(_typing?.isActive ?? false)) {
-      if (!await _save()) return;
+      if (!await _discardHidden() || !await _save()) return;
     }
   }
 
   Future<bool> _save() async {
     final edits = _edits;
+    final sent = {..._answers};
     setState(() => _saving = _Saving.saving);
     try {
-      final r = await widget.booking.saveAnswers(_response.id, _response.versionId, toApi(_items, _answers));
+      final r = await widget.booking.saveAnswers(_response.id, _response.versionId, toApi(_items, sent));
       if (!mounted) return false;
       setState(() {
         _response = _withVersion(r.versionId);
+        _kept = sent;
         _savedEdits = edits;
         _saving = _Saving.saved;
       });
@@ -216,6 +223,55 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       return false;
     }
   }
+
+  /// A change that hides questions already answered asks first (SAL-43). Confirmed, their answers and files are
+  /// removed; declined, the answers go back to the ones the server has, and the branch shows again.
+  Future<bool> _discardHidden() async {
+    final hidden = discarded(_items, _all);
+    if (hidden.isEmpty) return true;
+    final confirmed = await _confirmDiscard(hidden.length) == true;
+    if (!mounted) return false;
+    if (!confirmed) {
+      setState(() {
+        for (final it in flatten(_items).where(_isTyped)) {
+          if (!listEquals(_answers[it.linkId], _kept[it.linkId])) {
+            _controllers[it.linkId]!.text = (_kept[it.linkId] ?? const []).join(', ');
+            _errors.remove(it.linkId);
+          }
+        }
+        _answers = {..._kept};
+        _savedEdits = _edits;
+      });
+      return false;
+    }
+    setState(() {
+      for (final id in hidden) {
+        _answers.remove(id);
+        _errors.remove(id);
+        _controllers[id]?.text = '';
+      }
+    });
+    try {
+      for (final f in hidden.expand(_uploads.of).where((f) => f.id != null).toList()) {
+        await _uploads.remove(f);
+      }
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _message = answersMessage(context.t, failure));
+    }
+    return mounted;
+  }
+
+  Future<bool?> _confirmDiscard(int n) => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(context.t.discardTitle),
+      content: Text(context.t.discardBody(n)),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.t.cancel)),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.t.discardConfirm)),
+      ],
+    ),
+  );
 
   Response _withVersion(int versionId) => Response(
     id: _response.id,
@@ -265,7 +321,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       if (!mounted) return;
       setState(() {
         _response = r;
-        _answers = {...r.answers};
+        _answers = shownAnswers(_items, r.answers);
+        _kept = {..._answers};
         _errors.clear();
         _savedEdits = _edits;
         _saving = _Saving.none;
