@@ -78,6 +78,8 @@ describe('clinic settings in the Organization', () => {
       region: '',
       city: '',
       cityName: '',
+      addressLine: '',
+      postalCode: '',
       contributes: true,
     })
   })
@@ -92,6 +94,8 @@ describe('clinic settings in the Organization', () => {
       region: '',
       city: '',
       cityName: '',
+      addressLine: '',
+      postalCode: '',
       contributes: true,
     })
   })
@@ -106,6 +110,8 @@ describe('clinic settings in the Organization', () => {
       region: '',
       city: '',
       cityName: '',
+      addressLine: '',
+      postalCode: '',
       contributes: true,
     })
 
@@ -159,7 +165,10 @@ describe("the clinic's location in the Organization", () => {
     }
     const s = settingsOf(org)
     expect([s.region, s.city, s.cityName, s.contributes]).toEqual(['BA-09', 'Q1270190', 'Centar', false])
-    expect(withSettings(base, s).address).toEqual(org.address)
+    expect(withSettings(base, s).address).toEqual([{ ...org.address![0], line: [], postalCode: '' }])
+    const street: Organization = { ...org, address: [{ ...org.address![0], line: ['Synthetic street 1'], postalCode: '71000' }] }
+    expect([settingsOf(street).addressLine, settingsOf(street).postalCode]).toEqual(['Synthetic street 1', '71000'])
+    expect(withSettings(base, settingsOf(street)).address).toEqual(street.address)
     expect(withSettings(base, { ...s, city: '' }).address).toBeUndefined()
   })
 })

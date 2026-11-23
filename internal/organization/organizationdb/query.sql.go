@@ -48,6 +48,32 @@ func (q *Queries) AppointmentSettings(ctx context.Context, organizationID pgtype
 	return i, err
 }
 
+const billingDetails = `-- name: BillingDetails :one
+SELECT legal_name, tax_id, vat_registered, billing_email
+FROM organization
+WHERE id = $1
+`
+
+type BillingDetailsRow struct {
+	LegalName     pgtype.Text
+	TaxID         pgtype.Text
+	VatRegistered bool
+	BillingEmail  pgtype.Text
+}
+
+// The clinic's details on Salus's invoices to it (docs/plans/clinic-cms.md, package D). Not personal data.
+func (q *Queries) BillingDetails(ctx context.Context, id pgtype.UUID) (BillingDetailsRow, error) {
+	row := q.db.QueryRow(ctx, billingDetails, id)
+	var i BillingDetailsRow
+	err := row.Scan(
+		&i.LegalName,
+		&i.TaxID,
+		&i.VatRegistered,
+		&i.BillingEmail,
+	)
+	return i, err
+}
+
 const chatSettings = `-- name: ChatSettings :one
 SELECT hours, response_time_hours, email_after_minutes
 FROM organization_chat_settings
@@ -70,7 +96,7 @@ func (q *Queries) ChatSettings(ctx context.Context, organizationID pgtype.UUID) 
 
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organization (name) VALUES ($1)
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 `
 
 type CreateOrganizationRow struct {
@@ -88,6 +114,8 @@ type CreateOrganizationRow struct {
 	LocationSince         pgtype.Timestamptz
 	AnalyticsContributes  bool
 	ContributesSince      pgtype.Timestamptz
+	AddressLine           pgtype.Text
+	PostalCode            pgtype.Text
 }
 
 // The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
@@ -109,6 +137,8 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.LocationSince,
 		&i.AnalyticsContributes,
 		&i.ContributesSince,
+		&i.AddressLine,
+		&i.PostalCode,
 	)
 	return i, err
 }
@@ -250,7 +280,7 @@ func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganization
 }
 
 const organizationByID = `-- name: OrganizationByID :one
-SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 FROM organization
 WHERE id = $1
 `
@@ -270,6 +300,8 @@ type OrganizationByIDRow struct {
 	LocationSince         pgtype.Timestamptz
 	AnalyticsContributes  bool
 	ContributesSince      pgtype.Timestamptz
+	AddressLine           pgtype.Text
+	PostalCode            pgtype.Text
 }
 
 func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (OrganizationByIDRow, error) {
@@ -290,6 +322,8 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.LocationSince,
 		&i.AnalyticsContributes,
 		&i.ContributesSince,
+		&i.AddressLine,
+		&i.PostalCode,
 	)
 	return i, err
 }
@@ -319,6 +353,34 @@ func (q *Queries) PutChatSettings(ctx context.Context, arg PutChatSettingsParams
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const setBillingDetails = `-- name: SetBillingDetails :execrows
+UPDATE organization
+SET legal_name = $1, tax_id = $2, vat_registered = $3, billing_email = $4
+WHERE id = $5
+`
+
+type SetBillingDetailsParams struct {
+	LegalName     pgtype.Text
+	TaxID         pgtype.Text
+	VatRegistered bool
+	BillingEmail  pgtype.Text
+	ID            pgtype.UUID
+}
+
+func (q *Queries) SetBillingDetails(ctx context.Context, arg SetBillingDetailsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBillingDetails,
+		arg.LegalName,
+		arg.TaxID,
+		arg.VatRegistered,
+		arg.BillingEmail,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateAppointmentSettings = `-- name: UpdateAppointmentSettings :one
@@ -371,9 +433,10 @@ UPDATE organization
 SET name = $1, listed = $2, time_zone = $3, default_language = $4, patient_transcript_copy = $5,
     region_id = $6, city_id = $7, location_since = $8,
     analytics_contributes = $9, contributes_since = $10,
-    version_id = version_id + 1, updated_at = $11
-WHERE id = $12 AND version_id = $13
-RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since
+    address_line = $11, postal_code = $12,
+    version_id = version_id + 1, updated_at = $13
+WHERE id = $14 AND version_id = $15
+RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 `
 
 type UpdateOrganizationParams struct {
@@ -387,6 +450,8 @@ type UpdateOrganizationParams struct {
 	LocationSince         pgtype.Timestamptz
 	AnalyticsContributes  bool
 	ContributesSince      pgtype.Timestamptz
+	AddressLine           pgtype.Text
+	PostalCode            pgtype.Text
 	UpdatedAt             pgtype.Timestamptz
 	ID                    pgtype.UUID
 	VersionID             int32
@@ -407,6 +472,8 @@ type UpdateOrganizationRow struct {
 	LocationSince         pgtype.Timestamptz
 	AnalyticsContributes  bool
 	ContributesSince      pgtype.Timestamptz
+	AddressLine           pgtype.Text
+	PostalCode            pgtype.Text
 }
 
 // Optimistic locking: only the current version changes.
@@ -422,6 +489,8 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		arg.LocationSince,
 		arg.AnalyticsContributes,
 		arg.ContributesSince,
+		arg.AddressLine,
+		arg.PostalCode,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.VersionID,
@@ -442,6 +511,8 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		&i.LocationSince,
 		&i.AnalyticsContributes,
 		&i.ContributesSince,
+		&i.AddressLine,
+		&i.PostalCode,
 	)
 	return i, err
 }

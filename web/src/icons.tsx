@@ -180,3 +180,12 @@ export function PaperclipIcon() {
     </svg>
   )
 }
+
+export function ReceiptIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M5 2.5h10v15l-2.5-1.5L10 17.5 7.5 16 5 17.5z" />
+      <path d="M8 7h4M8 10h4" />
+    </svg>
+  )
+}

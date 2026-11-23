@@ -175,7 +175,8 @@ describe('Builder: a draft', () => {
     expect(within(c).getByRole('button', { name: 'Add help text' })).toBeTruthy()
     expect(within(c).getByText('Show this only if')).toBeTruthy()
     expect((within(c).getByLabelText('Show this only if') as HTMLSelectElement).value).toBe('one')
-    expect((within(c).getByLabelText('is') as HTMLSelectElement).value).toBe('B')
+    expect((within(c).getByLabelText('Comparison') as HTMLSelectElement).value).toBe('=')
+    expect((within(c).getByLabelText('Answer') as HTMLSelectElement).value).toBe('B')
 
     fireEvent.click(within(c).getByRole('button', { name: 'Add help text' }))
     expect(within(c).getByLabelText('Help text')).toBeTruthy()
@@ -194,7 +195,7 @@ describe('Builder: a draft', () => {
     const c = card('Placeholder instructions')
     fireEvent.click(within(c).getByText('More options'))
 
-    expect(within(c).getByText('A condition needs a yes or no question or a choice question above this item.')).toBeTruthy()
+    expect(within(c).getByText('A condition needs a question above this item.')).toBeTruthy()
     expect(within(c).queryByRole('button', { name: 'Add condition' })).toBeNull()
     expect(within(c).queryByRole('button', { name: 'Add help text' })).toBeNull()
   })
@@ -442,7 +443,7 @@ describe('Builder: deleting', () => {
 
     fireEvent.click(within(card('Placeholder single')).getByRole('button', { name: 'Delete' }))
     const confirm = within(card('Placeholder single')).getByRole('alertdialog', { name: 'Delete this question?' })
-    expect(description(confirm)).toBe('1 item is shown only after an answer to it. Its condition will be removed.')
+    expect(description(confirm)).toBe('1 item is shown only after an answer to it. Its condition will be removed.Affected: Placeholder multiple.')
     expect(confirm.contains(document.activeElement)).toBe(true)
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
     expect(cards()).toContain('Placeholder single')
@@ -888,5 +889,112 @@ describe('Builder: leaving with unsaved changes', () => {
     await screen.findByLabelText('Title')
     act(() => navigate('/'))
     expect(location.pathname).toBe('/')
+  })
+})
+
+// The ticket's gynaecology example (SAL-43), with placeholder wording: a yes or no whose Yes asks two numbers, the
+// second branching again on < 18, then the main question everyone answers.
+function branching(): Questionnaire {
+  const yes = [{ question: 'had', operator: '=', answerBoolean: true }]
+  return draft({
+    item: [
+      { linkId: 'had', text: 'Placeholder had', type: 'boolean' },
+      { linkId: 'month', text: 'Placeholder month', type: 'integer', enableWhen: yes },
+      { linkId: 'age', text: 'Placeholder age', type: 'integer', enableWhen: yes },
+      { linkId: 'young', text: 'Placeholder young', type: 'string', enableWhen: [{ question: 'age', operator: '<', answerInteger: 18 }] },
+      { linkId: 'main', text: 'Placeholder main', type: 'string' },
+    ],
+  })
+}
+
+describe('Builder: branching (SAL-43)', () => {
+  it('indents the branches by depth and marks where they join', async () => {
+    renderBuilder({}, branching())
+    await screen.findByLabelText('Title')
+    expect(['Placeholder had', 'Placeholder month', 'Placeholder young', 'Placeholder main'].map((x) => card(x).style.getPropertyValue('--branch'))).toEqual(['0', '1', '2', '0'])
+    expect(within(card('Placeholder main')).getByText('Branches join here')).toBeTruthy()
+    expect(within(card('Placeholder age')).queryByText('Branches join here')).toBeNull()
+    expect(within(card('Placeholder month')).getByText('Conditional')).toBeTruthy()
+  })
+
+  it('asks a question on an answer from the question answered, at the end of its branch, and saves it as is', async () => {
+    const { requests } = renderBuilder({ 'PUT /questionnaires/q1': saved() }, branching())
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder had'))
+    const c = card('Placeholder had')
+    expect(within(c).getByText('If the answer is Yes')).toBeTruthy()
+    expect(c.querySelector('.branches')?.textContent).toContain('If the answer is Yes Placeholder month and Placeholder age')
+    fireEvent.click(within(c).getByRole('button', { name: 'Ask a question if the answer is No' }))
+    expect(cards()).toEqual(['Placeholder had', 'Placeholder month', 'Placeholder age', 'Placeholder young', 'Short answer', 'Placeholder main'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await vi.waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
+    const sent = (await saveBody(requests)).item
+    expect(sent[4].enableWhen).toEqual([{ question: 'had', operator: '=', answerBoolean: false }])
+    expect(sent[3].enableWhen).toEqual([{ question: 'age', operator: '<', answerInteger: 18 }])
+  })
+
+  it('offers the comparisons of the question type, and combines two conditions with any', async () => {
+    renderBuilder({}, branching())
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder young'))
+    const c = card('Placeholder young')
+    fireEvent.click(within(c).getByText('More options'))
+    const ops = within(c).getByLabelText('Comparison') as HTMLSelectElement
+    expect(Array.from(ops.options).map((o) => o.text)).toEqual(['is', 'is not', 'is more than', 'is at least', 'is less than', 'is at most', 'is answered', 'is not answered'])
+    expect((within(c).getByLabelText('Answer') as HTMLInputElement).value).toBe('18')
+
+    fireEvent.click(within(c).getByRole('button', { name: 'Add another condition' }))
+    fireEvent.change(within(c).getByLabelText('Show when'), { target: { value: 'any' } })
+    expect(within(c).getByLabelText('Or if')).toBeTruthy()
+  })
+
+  it('names the branches shown through a question in its editor', async () => {
+    renderBuilder({}, branching())
+    await screen.findByLabelText('Title')
+    fireEvent.click(toggle('Placeholder age'))
+    expect(within(card('Placeholder age')).getByText('Shown only through this question: Placeholder young. Check them after changing its type or options.')).toBeTruthy()
+  })
+})
+
+describe('Builder: preview (SAL-43)', () => {
+  async function preview() {
+    renderBuilder({}, branching())
+    await screen.findByLabelText('Title')
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    return screen.getByText('This is how patients see the questionnaire. Answers given here are not saved.').closest('.q-preview') as HTMLElement
+  }
+  const asked = (p: HTMLElement) => Array.from(p.querySelectorAll('.preview-items > li')).map((li) => li.querySelector('legend, label')?.textContent)
+
+  it('takes the Yes path through the branch, the nested branch on < 18, then the main question', async () => {
+    const p = await preview()
+    expect(asked(p)).toEqual(['Placeholder had', 'Placeholder main'])
+    fireEvent.click(within(p).getByLabelText('Yes'))
+    expect(asked(p)).toEqual(['Placeholder had', 'Placeholder month', 'Placeholder age', 'Placeholder main'])
+    fireEvent.change(within(p).getByLabelText('Placeholder age'), { target: { value: '17' } })
+    expect(asked(p)).toEqual(['Placeholder had', 'Placeholder month', 'Placeholder age', 'Placeholder young', 'Placeholder main'])
+  })
+
+  it('takes the No path straight to the main question', async () => {
+    const p = await preview()
+    fireEvent.click(within(p).getByLabelText('No'))
+    expect(asked(p)).toEqual(['Placeholder had', 'Placeholder main'])
+  })
+
+  it('warns before a changed answer discards the answers of a branch, and keeps them on Keep answer', async () => {
+    const p = await preview()
+    fireEvent.click(within(p).getByLabelText('Yes'))
+    fireEvent.change(within(p).getByLabelText('Placeholder month'), { target: { value: '3' } })
+    fireEvent.click(within(p).getByLabelText('No'))
+    const confirm = within(p).getByRole('alertdialog', { name: 'Change this answer?' })
+    expect(description(confirm)).toBe('1 answer already given will be discarded, because its question will no longer be asked.')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Keep answer' }))
+    expect((within(p).getByLabelText('Placeholder month') as HTMLInputElement).value).toBe('3')
+
+    fireEvent.click(within(p).getByLabelText('No'))
+    fireEvent.click(within(p).getByRole('button', { name: 'Change answer' }))
+    expect(asked(p)).toEqual(['Placeholder had', 'Placeholder main'])
+    fireEvent.click(within(p).getByLabelText('Yes'))
+    expect((within(p).getByLabelText('Placeholder month') as HTMLInputElement).value).toBe('')
   })
 })

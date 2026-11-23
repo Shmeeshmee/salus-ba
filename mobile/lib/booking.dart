@@ -129,8 +129,9 @@ class Booking {
   /// Stops sharing history with the clinic; nothing when nothing is shared.
   Future<void> stopSharing(String clinicId) => apiCall(() => _history.revokeHistorySharing(clinicId));
 
-  Future<void> book(String slotId) =>
-      apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId)));
+  /// Books the slot, naming the price-list service [serviceId] the patient picked, or none (clinic-cms E).
+  Future<void> book(String slotId, {String? serviceId}) =>
+      apiCall(() => _appointments.bookAppointment(api.BookAppointmentRequest(slotId: slotId, serviceId: serviceId)));
 
   Future<void> cancel(String appointmentId) => apiCall(() => _appointments.cancelAppointment(appointmentId));
 
@@ -218,6 +219,36 @@ class Booking {
       () => api.TerminologyApi(_client).getTermExplanations(api.TermLanguage.fromJson(language)!),
     );
     return {for (final e in list?.explanations ?? const <api.ExplainedTerm>[]) e.termId: e};
+  }
+
+  /// The services the listed clinic [clinicId] offers for a visit in [mode], with their prices, named in [language]
+  /// where the clinic translated them (docs/plans/clinic-cms.md, package B). Shown at booking, never charged.
+  Future<List<api.OfferedService>> offeredServices(String clinicId, api.VisitMode mode, String language) async {
+    final list = await apiCall(() => api.BillingApi(_client).listOfferedServices(clinicId, mode, language: language));
+    return list ?? const <api.OfferedService>[];
+  }
+
+  /// The patient's own receipts from every clinic, newest first (docs/plans/clinic-cms.md, package H).
+  Future<List<api.Receipt>> receipts() async {
+    final list = await apiCall(() => api.BillingApi(_client).listMyReceipts());
+    return list ?? const <api.Receipt>[];
+  }
+
+  /// The PDF of the patient's own receipt [id], as the clinic printed it.
+  Future<Uint8List> receiptPdf(String id) async {
+    final response = await apiCall(
+      () => _client.invokeAPI(
+        '/me/receipts/${Uri.encodeComponent(id)}/pdf',
+        'GET',
+        const [],
+        null,
+        {'Accept': 'application/pdf'},
+        {},
+        null,
+      ),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return response.bodyBytes;
   }
 
   /// The explained terms of the signed document whose Composition is [id], per field and line (SAL-13).

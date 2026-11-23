@@ -1,1 +1,1 @@
-Podsjetnik: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}}. u {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}.{{.MonthLocal}}. {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Potvrdite ili otkazite: {{.ActionLink}}
+Podsjetnik: {{.Clinic}}{{if .Address}} ({{.Address}}){{end}}, {{.Day}}.{{.Month}}.{{.Year}}. u {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}.{{.MonthLocal}}. {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Potvrdite ili otkazite: {{.ActionLink}}

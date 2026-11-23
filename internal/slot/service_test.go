@@ -229,7 +229,7 @@ func TestGenerate_GivesTheRulesSlotsAfterNowAndBefore28DaysAheadInTheClinicsZone
 	var want []slot.Period
 	add := func(month time.Month, day, hour, minute int) {
 		start := utc(month, day, hour, minute)
-		want = append(want, slot.Period{Start: start, End: start.Add(30 * time.Minute)})
+		want = append(want, slot.Period{Start: start, End: start.Add(30 * time.Minute), Mode: schedule.ModeVideo})
 	}
 	for _, monday := range []int{9, 16, 23, 30} {
 		add(11, monday, 7, 0)
@@ -427,5 +427,29 @@ func TestPurger_DeletesFreeSlotsThatEndedBeforeTheCutOff(t *testing.T) {
 	n, err := slot.NewPurger(f.repo).Purge(t.Context(), now)
 	if n != 5 || err != nil || !f.repo.after.Equal(now) || !slices.Equal(f.calls, []string{"outside:DeleteFreeEndedBefore"}) {
 		t.Errorf("Purge() = %d, %v after %v; want the repository's count for the cut-off", n, err, f.calls)
+	}
+}
+
+func TestGenerate_GivesEachSlotItsRulesMode(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	// Mondays 08:00 to 09:00 at the clinic, 09:00 to 10:00 by video.
+	f.schedules.schedules[0].SlotMinutes, f.schedules.schedules[0].Rules = 60, []schedule.Rule{
+		{Day: 1, Start: "08:00", End: "09:00", Mode: schedule.ModeInPerson}, {Day: 1, Start: "09:00", End: "10:00", Mode: schedule.ModeVideo},
+	}
+	if _, err := f.service(now).Generate(t.Context(), clinicA, scheduleA1); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.repo.inserted) != 8 || !slices.Equal(f.repo.inserted, f.repo.keep) {
+		t.Fatalf("inserted %v, kept %v; want the same 8 slots", f.repo.inserted, f.repo.keep)
+	}
+	for _, p := range f.repo.inserted {
+		want := schedule.ModeInPerson
+		if p.Start.UTC().Hour() == 8 { // 09:00 in Sarajevo
+			want = schedule.ModeVideo
+		}
+		if p.Mode != want {
+			t.Errorf("the slot at %v is %q, want %q", p.Start, p.Mode, want)
+		}
 	}
 }

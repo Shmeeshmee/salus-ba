@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +31,54 @@ func TestRun_StartsRiverAndStopsCleanly(t *testing.T) {
 		if !strings.Contains(logs, msg) {
 			t.Errorf("logs lack %s:\n%s", msg, logs)
 		}
+	}
+}
+
+// River's first connections, the notifier's listener among them (10 s inside River), can time out while Postgres is
+// slow to hand them out: start tries again, and gives up after its attempts with the last error.
+func TestStart_TriesAgainAfterAFailedStart(t *testing.T) {
+	timeout := errors.New("notifier.listenerConnect: timeout")
+	for _, tt := range []struct {
+		name      string
+		failures  int
+		wantCalls int
+		wantErr   bool
+	}{
+		{name: "at once", failures: 0, wantCalls: 1},
+		{name: "after two timeouts", failures: 2, wantCalls: 3},
+		{name: "never", failures: 5, wantCalls: startAttempts, wantErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			var logs bytes.Buffer
+			err := start(t.Context(), func(context.Context) error {
+				calls++
+				if calls <= tt.failures {
+					return timeout
+				}
+				return nil
+			}, time.Millisecond, slog.New(slog.NewJSONHandler(&logs, nil)))
+			if calls != tt.wantCalls || (err != nil) != tt.wantErr || (tt.wantErr && !errors.Is(err, timeout)) {
+				t.Errorf("start() = %v after %d calls, want error %v after %d", err, calls, tt.wantErr, tt.wantCalls)
+			}
+			if got := strings.Count(logs.String(), `"msg":"river did not start"`); got != min(tt.failures, startAttempts) {
+				t.Errorf("%d warnings, want one per failed attempt:\n%s", got, logs.String())
+			}
+		})
+	}
+}
+
+// A start the stop signal ends while it waits to try again returns at once.
+func TestStart_StopsWaitingWhenTheContextEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	calls := 0
+	err := start(ctx, func(context.Context) error {
+		calls++
+		cancel()
+		return errors.New("notifier.listenerConnect: timeout")
+	}, time.Hour, slog.New(slog.DiscardHandler))
+	if calls != 1 || !errors.Is(err, context.Canceled) {
+		t.Errorf("start() = %v after %d calls, want context.Canceled after 1", err, calls)
 	}
 }
 

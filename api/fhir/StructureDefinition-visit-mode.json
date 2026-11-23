@@ -1,0 +1,47 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "visit-mode",
+  "url": "https://salus.invalid/fhir/StructureDefinition/visit-mode",
+  "version": "0.1.0",
+  "name": "VisitMode",
+  "title": "Visit mode",
+  "status": "active",
+  "date": "2026-11-21",
+  "publisher": "Salus",
+  "description": "How the patient attends a slot or an appointment: at the clinic (in-person) or by video. FHIR R4 has no element for it; a video appointment has the meaning of an R5 Appointment with a virtualService, an in-person one of an Appointment without (ADR 0016).",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    { "type": "element", "expression": "Slot" },
+    { "type": "element", "expression": "Appointment" }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "In-person or video",
+        "definition": "How the patient attends: at the clinic or by video.",
+        "min": 0,
+        "max": "1"
+      },
+      { "id": "Extension.extension", "path": "Extension.extension", "max": "0" },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/visit-mode"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [{ "code": "code" }],
+        "binding": { "strength": "required", "valueSet": "https://salus.invalid/fhir/ValueSet/visit-mode" }
+      }
+    ]
+  }
+}

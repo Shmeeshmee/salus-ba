@@ -137,6 +137,21 @@ void main() {
     expect(find.text(joinHint), findsOneWidget, reason: 'only the booked appointment whose window opens later');
   });
 
+  testWidgets('a visit at the clinic says so and never offers Join, also inside the window', (tester) async {
+    await atAppointments(
+      tester,
+      found: bundle([
+        appointment('clinic-now', '2026-11-04T09:10:00Z', '2026-11-04T09:40:00Z', mode: 'in-person'),
+        appointment('clinic-later', '2026-11-06T09:00:00Z', '2026-11-06T09:30:00Z', mode: 'in-person'),
+        appointment('video-now', '2026-11-04T09:05:00Z', '2026-11-04T09:35:00Z'),
+      ]),
+    );
+
+    expect(find.text('At the clinic'), findsNWidgets(2));
+    expect(joinButtons(), findsOneWidget, reason: 'the video appointment only');
+    expect(find.text(joinHint), findsNothing);
+  });
+
   testWidgets('Join appears when the window opens while the list is open', (tester) async {
     final h = await atAppointments(
       tester,

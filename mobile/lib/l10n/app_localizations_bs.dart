@@ -2005,4 +2005,77 @@ class AppLocalizationsBs extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja.';
+
+  @override
+  String get visitModeQuestion => 'Kako želite obaviti termin?';
+
+  @override
+  String get visitModeVideo => 'Putem videa';
+
+  @override
+  String get visitModeInPerson => 'U klinici';
+
+  @override
+  String get pricesHeading => 'Cijene u ovoj ustanovi';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
+
+  @override
+  String get discardTitle => 'Promijeniti ovaj odgovor?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Ovom promjenom preskače se $n pitanja na koja ste već odgovorili. Ti odgovori bit će uklonjeni.',
+      few:
+          'Ovom promjenom preskaču se $n pitanja na koja ste već odgovorili. Ti odgovori bit će uklonjeni.',
+      one:
+          'Ovom promjenom preskače se $n pitanje na koje ste već odgovorili. Taj odgovor bit će uklonjen.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Promijeni i ukloni';
+
+  @override
+  String get myReceipts => 'Moji računi';
+
+  @override
+  String get receiptsIntro =>
+      'Računi koje su vam klinike izdale za usluge koje ste platili u klinici. Klinike čuvaju račune onoliko dugo koliko to propisuje zakon o fiskalizaciji.';
+
+  @override
+  String get noReceipts => 'Još nemate računa.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Račun br. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Izdato $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno ranijeg računa';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Odabrat ću u ustanovi';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovo pošaljite.';
+  }
 }

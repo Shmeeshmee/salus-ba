@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -37,7 +38,7 @@ func NewScheduler(pool *pgxpool.Pool, platform bool, log *slog.Logger) (*river.C
 func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.PeriodicSchedule, platform bool) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{}, nil)
-	addEmailWorkers(workers, nil)
+	addEmailWorkers(workers, nil, nil)
 	addChatWorkers(workers, nil)
 	addReminderWorkers(workers, nil)
 	addWebhookWorkers(workers, nil)
@@ -64,6 +65,11 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			// Also when it starts leading: a deploy near a month's end must not wait for the next day.
 			river.NewPeriodicJob(dailyAt{hour: chatPartitionsHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return communication.PartitionsArgs{}, nil
+			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			// The clinics' monthly invoices and what they owe (package D of docs/plans/clinic-cms.md): daily, an invoice
+			// is issued once per clinic and month.
+			river.NewPeriodicJob(dailyAt{hour: subscriptionHour}, func() (river.JobArgs, *river.InsertOpts) {
+				return subscription.MonthlyArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
 		}, trendsPeriodics(platform, clock.System{})...),
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing

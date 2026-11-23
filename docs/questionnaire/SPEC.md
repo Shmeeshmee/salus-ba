@@ -8,7 +8,7 @@ the end.
 
 A clinic keeps a library of questionnaires. Practitioners and admins build them in the web app with a
 drag-and-drop builder: sections, instructions and questions of a small set of types, each question optionally
-required, with help text and one condition that shows it only after a given earlier answer. A questionnaire is
+required, with help text and conditions on earlier answers that branch the flow and join it again (SAL-43). A questionnaire is
 published before it is used, and a published one never changes: editing it makes a new version. A practitioner
 role can have a default questionnaire, requested from the patient with every booking with that role, and the
 appointment's practitioner can add another to a single appointment. The patient fills it in on mobile before
@@ -85,14 +85,29 @@ nine were answered on 2026-11-06 (§3).
   (instructions), `string`, `text`, `boolean`, `choice` (one answer), `choice` with `repeats: true` (several
   answers), `integer`, `decimal`, `date`. Per item: `linkId`, `text`, `type`, `required` (questions only),
   `repeats` (choice only), `answerOption` (choice only: `valueString`, the clinic's own wording, so no code is
-  invented), help text, and at most one `enableWhen`. Sections are top level only and hold questions and
-  instructions, not other sections. A draft may keep a section without items; publishing refuses it (FHIR
+  invented), help text, and `enableWhen` with `enableBehavior`. Sections hold questions, instructions and other
+  sections: a branch is a section (or a question) carrying the condition, and the flow joins back at the next item
+  without one, so no jump extension is needed (SAL-43, docs/clinic-cms package Q1). The builder adds sections at the
+  top level only and builds a branch within a branch from conditional questions (package Q2). A draft may keep a section without items; publishing refuses it (FHIR
   `que-1`: 422 `invalid_questionnaire`, the section's `linkId` in `linkIds`). Help text is the R4 core way: a child `display` item with the core
   extension `http://hl7.org/fhir/StructureDefinition/questionnaire-itemControl`, `http://hl7.org/fhir/questionnaire-item-control`
-  `help`. `enableWhen`: `question` an earlier `boolean` or `choice` item (earlier in document order),
-  `operator` `=`, `answerBoolean` or `answerString` (one of that item's options); for a choice with repeats,
-  true when any of its answers matches. An item whose question is hidden is hidden too (R4: treated as not
-  answered). A `group` may carry the condition, which hides the whole section. **Reserved:** `attachment` (D1) is
+  `help`. `enableWhen` is the FHIR R4 list: each condition names an earlier question (earlier in document order, so
+  no loop is possible), an `operator` of `exists`, `=`, `!=`, `>`, `<`, `>=`, `<=`, and the one `answer[x]` of that
+  question's type (`answerBoolean`, `answerString` one of a choice's options, `answerInteger`, `answerDecimal`,
+  `answerDate`). The operators that fit: yes or no and choice `=` and `!=` (and "any of" as several `=` with
+  `enableBehavior` `any`, FHIR having no `in`); numbers all six comparisons; a date `<` (before), `>` (after) and `=`
+  (on) in the builder, while the server also takes `!=`, `>=` and `<=` on a date (FHIR allows them; a questionnaire
+  written through the API with one opens in the builder with that condition marked to change); every question but a
+  file upload `exists` (`answerBoolean` true: answered); a condition on a file upload is
+  refused (its files are outside the answers). With two or more conditions `enableBehavior` (`all` or `any`) is
+  required; without a condition it is refused. **Evaluation:** an item is shown when its section is and its
+  conditions hold; a hidden question counts as unanswered (R4); every operator except `exists` is false on an
+  unanswered or hidden question, `!=` included (R4 leaves this open, R5 states it); `=` on a choice with repeats holds
+  when any of its answers matches and `!=` when none does. The server (`internal/questionnaireresponse`), the
+  builder's preview (`web/src/enableWhen.ts`) and the patient app (`mobile/lib/enable_when.dart`) run the same
+  vectors, `test/testdata/enablewhen/`, as tests. **Legacy:** the JSON API still accepts the single object of before
+  (`question` with `answerBoolean` or `answerString`, operator `=`) on input, so published questionnaires keep
+  working unchanged; it answers and the builder writes the FHIR list only. **Reserved:** `attachment` (D1) is
   declared in the model as an item type with its answer value (`valueAttachment`), and refused by the service
   (422 `invalid_questionnaire`) until the attachments feature enables it; the builder does not offer it, and the
   OpenAPI enum does not list it yet. Nothing in the model, the storage or the API assumes the list of types is
@@ -107,9 +122,15 @@ nine were answered on 2026-11-06 (§3).
   version keeps the `linkId` of every item it carries over, and the service refuses (422
   `invalid_questionnaire`) a new version that gives an existing `linkId` another type (single and multiple choice count as different types);
   the builder gives an
-  item a new `linkId` when its type changes. An `enableWhen` that points at a missing, later or non-boolean,
-  non-choice item, or at an answer that is not one of its options, is refused the same way; the builder removes
-  a condition when the question it depends on is deleted, and says so first.
+  item a new `linkId` when its type changes. Broken logic is refused the same way, on every save and so on publish,
+  naming the item: a condition on a missing or later question, an answer that is not one of a choice's options
+  any more, an operator or a value that does not fit the question's type. The builder warns before a question
+  others depend on is deleted or changed, naming the items shown only through it.
+- **Answers on the path taken (SAL-43).** On submit the server evaluates the conditions itself and refuses a
+  response that still holds answers to hidden items (422 `answer_not_enabled`, their `linkId`s), so a submitted
+  response holds only the path taken; the files of hidden file uploads are removed on submit. The patient app saves
+  only the shown questions' answers, asks before a changed answer discards answers already given, and on
+  `answer_not_enabled` names the questions and saves the shown answers again.
 - **Canonical url.** `https://salus.invalid/fhir/Questionnaire/<series_id>`, `version` the version number as
   a string, on the `salus.invalid` placeholder base like the existing definitions (needs the real domain
   before production, booking SPEC §7). `QuestionnaireResponse.questionnaire` is `<url>|<version>`.
@@ -139,8 +160,9 @@ nine were answered on 2026-11-06 (§3).
   job has not yet deleted the response), `past_due`, `consent_required`; 412 on a stale version; 422 `answers_invalid` with the
   offending `linkIds`. `POST /questionnaire-responses/{id}/submit` (`If-Match`) checks the saved answers in full:
   every enabled required question answered (422 `answers_invalid` with the `linkIds` otherwise), with the same
-  409s as the save; it removes the
-  answers of hidden items, sets `completed` and `authored_at`, and is final: no later save, no amendment. The
+  409s as the save; it refuses a response that still holds answers of hidden items (422 `answer_not_enabled`,
+  SAL-43), removes the files of hidden file uploads, sets `completed` and `authored_at`, and is final: no later save,
+  no amendment. The
   mobile app saves when the patient leaves a field and 2 seconds after they stop typing, not on each keystroke.
   Due before the appointment starts; after `due_at`, an unsubmitted response is closed and its answers are
   never shown to the practitioner (staff see its status, "Not submitted before the appointment", W34).
@@ -238,8 +260,11 @@ Put to the owner in the draft and answered on 2026-11-06. §2 is written on thes
   every booking with it, and the appointment's practitioner adds one to a single appointment. Admins set any
   role's default and do not add to single appointments.
 - **D4 Question types.** As recommended: group, display, string, text, boolean, choice, choice with repeats,
-  integer, decimal, date; required and help text; one `enableWhen` per item on an earlier boolean or choice
-  answer, operator `=`; sections one level deep.
+  integer, decimal, date; required and help text. Logic, amended by SAL-43 (2026-11-23): FHIR R4 `enableWhen` with
+  several conditions and `enableBehavior` `all` or `any`, the operators `exists`, `=`, `!=`, `>`, `<`, `>=`, `<=` as
+  "Item model" says, on any earlier question; sections nest, a branch is a section or question carrying the
+  condition and the flow joins at the next unconditional item. Before: one `enableWhen` per item, operator `=`, on an
+  earlier boolean or choice; sections one level deep.
 - **D5 Patient flow.** As recommended: saved on the server as they go, submitted once, read-only after; due
   before the start; the practitioner sees no answers until submitted.
 - **D6 Notifications.** As recommended: no separate e-mail; the booking confirmation and the 24-hour reminder
@@ -287,7 +312,7 @@ versions recorded in `PROGRESS.md`, and only the builder's drag-and-drop module 
 | `questionnaire_response` | `appointment_id`, `patient_id`, `practitioner_role_id`, `organization_id` | Which appointment the questionnaire prepares, whose it is and who reads it; copied once for RLS and the purger |
 | `questionnaire_response` | `questionnaire_id`, `series_id`, `source` | Which version was asked, so the answers can be read against its items, and whether it came with the role's default or was added |
 | `questionnaire_response` | `status`, `authored_at` | Whether and when the patient submitted, so the practitioner sees only submitted answers |
-| `questionnaire_response` | `answers` | The patient's answers: the purpose of the feature. Only the items the clinic asked; hidden items' answers removed on submit |
+| `questionnaire_response` | `answers` | The patient's answers: the purpose of the feature. Only the items the clinic asked; a response holding hidden items' answers is refused on submit (SAL-43) |
 | `questionnaire_response` | `due_at` | The appointment's start, copied once: after it the response is closed, and an unsubmitted one is deleted by the purger, which may read only this table |
 | `questionnaire_response` | `version_id`, timestamps | Optimistic locking of saves; `meta.lastUpdated` |
 | `questionnaire`, `questionnaire_default` | none | Clinic documents and a role setting; no patient data, no author (who changed what is in the audit) |
@@ -313,9 +338,9 @@ gains a line that questionnaires add no processor, and the SES entry gains the E
 ## 6. Out of scope
 
 File and video uploads (D1), `open-choice`, scores and calculated items, units and `Quantity` answers,
-conditions on more than one answer or other operators, nested sections, amending a submitted response,
+amending a submitted response,
 questionnaires on the web for patients, patient-initiated questionnaires, questionnaires outside an
-appointment, a separate questionnaire e-mail, push notifications, a preview in the builder, copying a
+appointment, a separate questionnaire e-mail, push notifications, copying a
 questionnaire between clinics, importing or exporting `Questionnaire` JSON, FHIR writes, SDC features beyond the
 `help` item control, `Provenance` (answers are the patient's own; the first practitioner-authored clinical
 write brings it), localisation (before production, as for the rest of the patient app).
@@ -340,7 +365,6 @@ write brings it), localisation (before production, as for the rest of the patien
     completed one; a purger for the object store;
   - mobile camera, photo library and file pickers, with permission text in a copy review;
   - `processors.md` (none while self-hosted; the hosting provider's object store once chosen) and DPIA notes.
-- **A preview in the builder.** The questionnaire as the patient will see it, conditions working.
 - **Amending a submitted response**, if clinics ask for it: R4 `amended`, with the history kept.
 - **Export and erasure.** `Patient/$everything` (subject-rights feature) includes the patient's responses and
   the versions they reference.

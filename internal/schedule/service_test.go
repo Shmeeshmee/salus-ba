@@ -236,7 +236,9 @@ func TestSaveAvailability_CreatesTheScheduleSortedEnqueuesItsSlotsAndAuditsIt(t 
 
 	got, err := f.svc.SaveAvailability(t.Context(), practitionerA1, roleA1, weekdays, 0)
 
-	want := []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00"}, {Day: 1, Start: "12:00", End: "13:00"}, {Day: 3, Start: "13:00", End: "17:00"}}
+	// A rule without a mode is a video one (docs/plans/clinic-cms.md: package A lets the edit name it).
+	want := []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00", Mode: schedule.ModeVideo}, {Day: 1, Start: "12:00", End: "13:00", Mode: schedule.ModeVideo},
+		{Day: 3, Start: "13:00", End: "17:00", Mode: schedule.ModeVideo}}
 	if err != nil || got.ID == "" || got.OrganizationID != clinicA || got.PractitionerRoleID != roleA1 || got.SlotMinutes != 30 ||
 		got.VersionID != 1 || !slices.Equal(got.Rules, want) {
 		t.Fatalf("SaveAvailability() = %+v, %v; want role A1's new schedule at version 1 with the rules sorted", got, err)
@@ -342,6 +344,9 @@ func TestSaveAvailability_RejectsAnInvalidLengthOrRuleBeforeAnyAccess(t *testing
 		{name: "a sign", in: rules(schedule.Rule{Day: 1, Start: "+9:00", End: "10:00"}), want: schedule.ErrInvalidAvailability},
 		{name: "overlap", in: rules(schedule.Rule{Day: 2, Start: "09:00", End: "11:00"}, schedule.Rule{Day: 2, Start: "10:30", End: "12:00"}), want: schedule.ErrInvalidAvailability},
 		{name: "contained", in: rules(schedule.Rule{Day: 2, Start: "10:00", End: "10:30"}, schedule.Rule{Day: 2, Start: "09:00", End: "12:00"}), want: schedule.ErrInvalidAvailability},
+		{name: "unknown mode", in: rules(schedule.Rule{Day: 1, Start: "09:00", End: "10:00", Mode: "phone"}), want: schedule.ErrInvalidAvailability},
+		{name: "modes overlap", in: rules(schedule.Rule{Day: 2, Start: "09:00", End: "11:00", Mode: schedule.ModeVideo},
+			schedule.Rule{Day: 2, Start: "10:00", End: "12:00", Mode: schedule.ModeInPerson}), want: schedule.ErrInvalidAvailability},
 	}
 	for _, tt := range tests {
 		f := newFixture()
@@ -350,8 +355,9 @@ func TestSaveAvailability_RejectsAnInvalidLengthOrRuleBeforeAnyAccess(t *testing
 			t.Errorf("%s: SaveAvailability() = %v after %v with %d events; want %v and nothing accessed", tt.name, err, f.calls, len(f.audit.events), tt.want)
 		}
 	}
-	// Valid: no rules at all, the bounds of the length, a day to the last minute.
-	for _, in := range []schedule.Availability{{SlotMinutes: 5}, {SlotMinutes: 240}, rules(schedule.Rule{Day: 7, Start: "00:00", End: "23:59"})} {
+	// Valid: no rules at all, the bounds of the length, a day to the last minute, an in-person rule beside a video one.
+	for _, in := range []schedule.Availability{{SlotMinutes: 5}, {SlotMinutes: 240}, rules(schedule.Rule{Day: 7, Start: "00:00", End: "23:59"}),
+		rules(schedule.Rule{Day: 1, Start: "08:00", End: "12:00", Mode: schedule.ModeInPerson}, schedule.Rule{Day: 1, Start: "12:00", End: "13:00", Mode: schedule.ModeVideo})} {
 		if _, err := newFixture().svc.SaveAvailability(t.Context(), adminA, roleA1, in, 0); err != nil {
 			t.Errorf("SaveAvailability(%+v) = %v, want it saved", in, err)
 		}
@@ -472,5 +478,28 @@ func TestLookup_ReadsTheScheduleInItsClinicUnlocked(t *testing.T) {
 	f.repo.leak, f.repo.err = false, errors.New("synthetic failure")
 	if _, err := f.svc.Lookup(t.Context(), clinicA, scheduleA2); err == nil || errors.Is(err, schedule.ErrNotFound) {
 		t.Errorf("Lookup() = %v, want the repository's error", err)
+	}
+}
+
+// The online practice report reads the clinic's schedules for the hours offered, in its scope (clinic-cms E).
+func TestOfClinic_GivesTheClinicsSchedulesInItsScope(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	got, err := f.svc.OfClinic(t.Context(), clinicA)
+	if err != nil || len(got) == 0 || !slices.Equal(f.calls, []string{"SetOrganization", "Listed"}) {
+		t.Fatalf("OfClinic() = %d, %v after %v; want clinic A's in its scope", len(got), err, f.calls)
+	}
+	for _, s := range got {
+		if s.OrganizationID != clinicA {
+			t.Errorf("OfClinic() gave %s of clinic %s, want clinic A's only", s.ID, s.OrganizationID)
+		}
+	}
+	f.repo.leak = true
+	if got, _ := f.svc.OfClinic(t.Context(), clinicA); slices.ContainsFunc(got, func(s schedule.Schedule) bool { return s.OrganizationID != clinicA }) {
+		t.Error("OfClinic() with the scope leaking gave another clinic's, want them dropped")
+	}
+	f.repo.leak, f.repo.err = false, errors.New("synthetic failure")
+	if _, err := f.svc.OfClinic(t.Context(), clinicA); err == nil {
+		t.Error("OfClinic() error = nil, want the repository's")
 	}
 }

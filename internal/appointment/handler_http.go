@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
 
@@ -17,7 +18,7 @@ const maxBody = 1 << 10
 
 // Appointments is what the handler calls (Service).
 type Appointments interface {
-	Book(ctx context.Context, c Caller, slotID string) (Appointment, error)
+	Book(ctx context.Context, c Caller, slotID, serviceID string) (Appointment, error)
 	Cancel(ctx context.Context, c Caller, id string) (Appointment, error)
 	SetStatus(ctx context.Context, c Caller, id string, status Status) (Appointment, error)
 	Changes(ctx context.Context, c Caller, id string) ([]Change, error)
@@ -48,27 +49,29 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 
 // appointmentJSON is the Appointment schema of api/openapi.yaml: no patient, no canceller.
 type appointmentJSON struct {
-	Start              time.Time  `json:"start"`
-	End                time.Time  `json:"end"`
-	CancelledAt        *time.Time `json:"cancelledAt,omitempty"`
-	ConfirmedAt        *time.Time `json:"confirmedAt,omitempty"`
-	ID                 string     `json:"id"`
-	OrganizationID     string     `json:"organizationId"`
-	PractitionerRoleID string     `json:"practitionerRoleId"`
-	SlotID             string     `json:"slotId"`
-	Status             Status     `json:"status"`
-	Reason             Reason     `json:"cancellationReason,omitempty"`
-	ConfirmedVia       Via        `json:"confirmedVia,omitempty"`
-	BookedVia          BookedVia  `json:"bookedVia"`
-	VersionID          int32      `json:"versionId"`
-	RescheduleCount    int32      `json:"rescheduleCount"`
+	Start              time.Time          `json:"start"`
+	End                time.Time          `json:"end"`
+	CancelledAt        *time.Time         `json:"cancelledAt,omitempty"`
+	ConfirmedAt        *time.Time         `json:"confirmedAt,omitempty"`
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organizationId"`
+	PractitionerRoleID string             `json:"practitionerRoleId"`
+	SlotID             string             `json:"slotId"`
+	ServiceID          string             `json:"serviceId,omitempty"`
+	Status             Status             `json:"status"`
+	Reason             Reason             `json:"cancellationReason,omitempty"`
+	ConfirmedVia       Via                `json:"confirmedVia,omitempty"`
+	BookedVia          BookedVia          `json:"bookedVia"`
+	Mode               schedule.VisitMode `json:"visitMode"`
+	VersionID          int32              `json:"versionId"`
+	RescheduleCount    int32              `json:"rescheduleCount"`
 }
 
 func toJSON(a Appointment) appointmentJSON {
 	out := appointmentJSON{
 		Start: a.Start.UTC(), End: a.End.UTC(), ID: a.ID, OrganizationID: a.OrganizationID, PractitionerRoleID: a.PractitionerRoleID,
-		SlotID: a.SlotID, Status: a.Status, Reason: a.Reason, VersionID: a.VersionID,
-		ConfirmedVia: a.ConfirmedVia, BookedVia: bookedVia(a.BookedVia), RescheduleCount: a.RescheduleCount,
+		SlotID: a.SlotID, ServiceID: a.ServiceID, Status: a.Status, Reason: a.Reason, VersionID: a.VersionID,
+		ConfirmedVia: a.ConfirmedVia, BookedVia: bookedVia(a.BookedVia), Mode: visitMode(a.Mode), RescheduleCount: a.RescheduleCount,
 	}
 	if !a.CancelledAt.IsZero() {
 		at := a.CancelledAt.UTC()
@@ -138,7 +141,8 @@ func (h *HTTPHandler) book(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		SlotID string `json:"slotId"`
+		SlotID    string `json:"slotId"`
+		ServiceID string `json:"serviceId"` // optional: the price-list service picked (docs/plans/clinic-cms.md, E)
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -147,7 +151,7 @@ func (h *HTTPHandler) book(w http.ResponseWriter, r *http.Request) {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	out, err := h.svc.Book(r.Context(), c, req.SlotID)
+	out, err := h.svc.Book(r.Context(), c, req.SlotID, req.ServiceID)
 	h.answer(w, r, http.StatusCreated, out, err)
 }
 
@@ -229,6 +233,7 @@ var errorCodes = []struct {
 	{ErrClosed, "appointment_closed", http.StatusConflict},
 	{ErrNotStarted, "appointment_not_started", http.StatusConflict},
 	{ErrInvalidStatus, "invalid_status", http.StatusBadRequest},
+	{ErrInvalidService, "invalid_service", http.StatusBadRequest},
 	{ErrRescheduleWindowClosed, "reschedule_window_closed", http.StatusConflict},
 	{ErrRescheduleLimit, "reschedule_limit", http.StatusConflict},
 	{ErrNotReschedulable, "not_reschedulable", http.StatusConflict},

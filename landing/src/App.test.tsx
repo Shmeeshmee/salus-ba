@@ -16,8 +16,8 @@ describe('App', () => {
     render(<App />)
 
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(headings[0]).toBe('One platform. Two apps. No waiting room.')
-    expect(headings.at(-1)).toBe('Bring your clinic online.')
+    expect(headings[0]).toBe('Everything the clinic runs on, in one system.')
+    expect(headings.at(-1)).toBe('See your clinic on Salus.')
     expect(screen.getByRole('contentinfo')).toBeTruthy()
   })
 })

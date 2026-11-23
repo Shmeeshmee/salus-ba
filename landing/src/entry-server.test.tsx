@@ -4,6 +4,7 @@ import { hydrateRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 import template from '../index.html?raw'
 import { App } from './App'
+import { abroad } from './content/abroad'
 import { demo } from './content/demo'
 import { product } from './content/features'
 import { pricing } from './content/pricing'
@@ -19,8 +20,15 @@ const text = (selector: string) => [...page.querySelectorAll(selector)].map((el)
 
 describe('prerendered page', () => {
   it('contains the headline and every section heading, readable without JavaScript', () => {
-    expect(text('h1')).toEqual(['Your doctor, one call away.'])
-    expect(text('h2')).toEqual([product.heading, howItWorks.heading, standards.heading, pricing.heading, demo.heading])
+    expect(text('h1')).toEqual(['Your clinic, in person and online.'])
+    expect(text('h2')).toEqual([
+      product.heading,
+      howItWorks.heading,
+      abroad.heading,
+      standards.heading,
+      pricing.heading,
+      demo.heading,
+    ])
     expect(page.getElementById('root')?.textContent).toContain(product.features[0].body)
   })
 

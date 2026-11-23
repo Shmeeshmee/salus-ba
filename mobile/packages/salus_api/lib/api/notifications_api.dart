@@ -18,7 +18,7 @@ class NotificationsApi {
 
   /// The patient's reminder channels, quiet hours and time zone
   ///
-  /// Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33 (404 until then).
+  /// Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> getNotificationSettingsWithHttpInfo({
@@ -50,7 +50,7 @@ class NotificationsApi {
 
   /// The patient's reminder channels, quiet hours and time zone
   ///
-  /// Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33 (404 until then).
+  /// Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33.
   Future<NotificationSettings?> getNotificationSettings({
     Future<void>? abortTrigger,
   }) async {
@@ -75,7 +75,7 @@ class NotificationsApi {
 
   /// The admin's clinic's SMS usage per month
   ///
-  /// Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+  /// Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -118,7 +118,7 @@ class NotificationsApi {
 
   /// The admin's clinic's SMS usage per month
   ///
-  /// Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+  /// Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33.
   ///
   /// Parameters:
   ///
@@ -153,7 +153,7 @@ class NotificationsApi {
 
   /// Replace the patient's reminder channels, quiet hours and time zone
   ///
-  /// SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+  /// SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -198,7 +198,7 @@ class NotificationsApi {
 
   /// Replace the patient's reminder channels, quiet hours and time zone
   ///
-  /// SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+  /// SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33.
   ///
   /// Parameters:
   ///

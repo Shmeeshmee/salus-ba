@@ -13,11 +13,12 @@ import (
 
 // stubStats is the handler's service: fixed answers, and the caller and query it was asked with.
 type stubStats struct {
-	err     error
-	caller  clinicstats.Caller
-	appts   clinicstats.AppointmentQuery
-	diags   clinicstats.DiagnosisQuery
-	figures clinicstats.AppointmentFigures
+	err      error
+	caller   clinicstats.Caller
+	appts    clinicstats.AppointmentQuery
+	diags    clinicstats.DiagnosisQuery
+	practice clinicstats.PracticeQuery
+	figures  clinicstats.AppointmentFigures
 }
 
 func (s *stubStats) Appointments(_ context.Context, c clinicstats.Caller, q clinicstats.AppointmentQuery) (clinicstats.AppointmentFigures, error) {

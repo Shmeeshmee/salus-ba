@@ -43,7 +43,7 @@ func TestQuestionnaireRequest_AndACancellationOfTheAppointmentDoNotInterleave(t 
 	c := seedClinic(t, owner, 1, 48*time.Hour)
 	b := newBooking(t, app)
 	pract := appointment.Caller{AccountID: c.practitionerAccount, OrganizationID: inviteClinic, PractitionerID: c.practitioner}
-	booked, err := b.appointments.Book(t.Context(), appointment.Caller{AccountID: c.accounts[0], PatientID: c.patients[0]}, c.slots[0])
+	booked, err := b.appointments.Book(t.Context(), appointment.Caller{AccountID: c.accounts[0], PatientID: c.patients[0]}, c.slots[0], "")
 	if err != nil {
 		t.Fatalf("Book() = %v", err)
 	}

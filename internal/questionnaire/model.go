@@ -5,7 +5,11 @@
 // scopes every query to the caller's clinic and row-level security shows no other. It holds no patient data.
 package questionnaire
 
-import "time"
+import (
+	"bytes"
+	"encoding/json"
+	"time"
+)
 
 // Status is Questionnaire.status (FHIR value set publication-status).
 type Status string
@@ -100,10 +104,13 @@ const (
 
 // Item is one Questionnaire.item, stored as the JSON below in questionnaire.items.
 type Item struct {
-	EnableWhen *Condition `json:"enableWhen,omitempty"`
-	LinkID     string     `json:"linkId"` // opaque and random, made by the builder
-	Text       string     `json:"text"`
-	Type       ItemType   `json:"type"`
+	// EnableWhen are the item's conditions (FHIR R4 enableWhen): the item is shown only while they hold, all
+	// of them or any one, as EnableBehavior says. A branch is a section carrying them.
+	EnableWhen     Conditions `json:"enableWhen,omitempty"`
+	EnableBehavior Behavior   `json:"enableBehavior,omitempty"` // all or any; required with two conditions or more
+	LinkID         string     `json:"linkId"`                   // opaque and random, made by the builder
+	Text           string     `json:"text"`
+	Type           ItemType   `json:"type"`
 	// Help is the help text: in FHIR a child display item with the questionnaire-itemControl "help".
 	Help     string     `json:"help,omitempty"`
 	Options  []Option   `json:"answerOption,omitempty"` // choice only
@@ -120,12 +127,63 @@ type Option struct {
 	Value string `json:"valueString"`
 }
 
-// Condition is an item's one enableWhen: shown only when the earlier boolean or choice item Question was
-// answered Boolean (a boolean item) or String (one of a choice item's options). The operator is always "=".
+// Condition is one Questionnaire.item.enableWhen (FHIR R4): the earlier question Question compared with Operator
+// to the one answer[x] of the question's type. exists takes answerBoolean: true for answered, false for not.
 type Condition struct {
-	Boolean  *bool  `json:"answerBoolean,omitempty"`
-	Question string `json:"question"`
-	String   string `json:"answerString,omitempty"`
+	Boolean  *bool       `json:"answerBoolean,omitempty"`
+	Integer  *int32      `json:"answerInteger,omitempty"`
+	Question string      `json:"question"`
+	Operator Operator    `json:"operator"`
+	Decimal  json.Number `json:"answerDecimal,omitempty"` // as written, so no digit is lost
+	String   string      `json:"answerString,omitempty"`  // one of a choice's options
+	Date     string      `json:"answerDate,omitempty"`    // YYYY-MM-DD
+}
+
+// Operator is Questionnaire.item.enableWhen.operator (FHIR value set questionnaire-enable-operator).
+type Operator string
+
+// The operators.
+const (
+	OpExists       Operator = "exists"
+	OpEqual        Operator = "="
+	OpNotEqual     Operator = "!="
+	OpGreater      Operator = ">"
+	OpLess         Operator = "<"
+	OpGreaterEqual Operator = ">="
+	OpLessEqual    Operator = "<="
+)
+
+// Behavior is Questionnaire.item.enableBehavior: whether all conditions must hold or any one.
+type Behavior string
+
+// The behaviors.
+const (
+	BehaviorAll Behavior = "all"
+	BehaviorAny Behavior = "any"
+)
+
+// Conditions are an item's enableWhen. They decode from the FHIR array and from the single object items were
+// stored and sent as before branching (docs/clinic-cms, Q1): {question, answerBoolean | answerString}, whose
+// operator is always "=".
+type Conditions []Condition
+
+// UnmarshalJSON reads the array, or the earlier single object as one "=" condition. Like the API's requests,
+// it refuses a field it does not know.
+func (cs *Conditions) UnmarshalJSON(b []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if t := bytes.TrimSpace(b); len(t) == 0 || t[0] != '{' {
+		return dec.Decode((*[]Condition)(cs))
+	}
+	var one Condition
+	if err := dec.Decode(&one); err != nil {
+		return err
+	}
+	if one.Operator == "" {
+		one.Operator = OpEqual
+	}
+	*cs = Conditions{one}
+	return nil
 }
 
 // Filter narrows a search to a series (Questionnaire?url=…), a version and a status; zero values match all.

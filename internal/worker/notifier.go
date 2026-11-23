@@ -17,6 +17,8 @@ import (
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/subscription"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/push"
@@ -43,6 +45,7 @@ type Notifier struct {
 	WebBaseURL    string
 	PatientAppURL string
 	LinkURL       string
+	Seller        subscription.Seller // on the membership invoices' PDF (config.LoadSeller)
 }
 
 // NewNotifier returns the River client cmd/notifier runs: it works the email queue with the invite_email and
@@ -60,7 +63,9 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	clk := clock.System{}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
+	// The places name the clinic's city in the address an in-person visit's e-mail gives (docs/plans/clinic-cms.md).
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk,
+		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool)))
 	// Issuing a token and reading an account's e-mail need only the repository, the audit, the transaction
 	// and the clock.
 	accounts := auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})
@@ -86,7 +91,7 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	}, clk)
 
 	workers := river.NewWorkers()
-	addEmailWorkers(workers, mail)
+	addEmailWorkers(workers, mail, newInvoiceMail(pool, audit, tx, clinics, mail, n.Seller))
 	addChatWorkers(workers, chat)
 	addReminderWorkers(workers, mail)
 	cfg := workConfig(log, emailQueue, workers)
@@ -97,8 +102,9 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 
 // addEmailWorkers registers the email queue's jobs; the scheduler registers them with a nil mail, like
 // addDefaultWorkers.
-func addEmailWorkers(workers *river.Workers, mail *notification.Service) {
+func addEmailWorkers(workers *river.Workers, mail *notification.Service, memberships *subscription.Service) {
 	river.AddWorker(workers, &inviteEmailWorker{mail: mail})
+	river.AddWorker(workers, &invoiceEmailWorker{memberships: memberships})
 	river.AddWorker(workers, &appointmentEmailWorker[appointment.BookedEmailArgs]{send: func(ctx context.Context, a appointment.BookedEmailArgs) error {
 		return mail.SendAppointmentBooked(ctx, a.AppointmentID, a.OrganizationID)
 	}})

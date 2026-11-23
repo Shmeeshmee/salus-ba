@@ -1,0 +1,5 @@
+Salus-Mitgliedschaftsrechnung Nr. {{.Number}}
+
+Im Anhang finden Sie die Salus-Mitgliedschaftsrechnung Nr. {{.Number}} für {{.Clinic}} als PDF.
+
+Die Rechnung und die Zahlungshinweise finden Sie auch auf der Seite Mitgliedschaft in Salus. Die Zahlung erfolgt per Banküberweisung mit der Rechnungsnummer als Verwendungszweck.

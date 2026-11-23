@@ -40,7 +40,7 @@ func (s *stubAvailability) SaveAvailability(_ context.Context, c schedule.Caller
 func serve(t *testing.T, svc *stubAvailability, signedIn bool, log *bytes.Buffer, method, ifMatch, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	h := schedule.NewHTTPHandler(svc, func(context.Context) (schedule.Caller, bool, error) { return practitionerA1, signedIn, nil },
-		slog.New(slog.NewTextHandler(log, nil)))
+		slog.New(slog.NewTextHandler(log, &slog.HandlerOptions{ReplaceAttr: withoutTime})))
 	mux := http.NewServeMux()
 	h.Routes(mux)
 	req := httptest.NewRequestWithContext(t.Context(), method, "/practitioner-roles/"+roleA1+"/availability", strings.NewReader(body))
@@ -52,16 +52,25 @@ func serve(t *testing.T, svc *stubAvailability, signedIn bool, log *bytes.Buffer
 	return rec
 }
 
+// withoutTime leaves the record's own time out of the log, so a check of the logged values never matches the clock
+// (08:09:00 holds "09:00").
+func withoutTime(groups []string, a slog.Attr) slog.Attr {
+	if len(groups) == 0 && a.Key == slog.TimeKey {
+		return slog.Attr{}
+	}
+	return a
+}
+
 const mondays = `{"slotMinutes":30,"availability":[{"day":1,"start":"09:00","end":"12:00"}]}`
 
 var savedA1 = schedule.Schedule{ID: "a5000000-0000-4000-8000-0000000000a1", OrganizationID: clinicA, PractitionerRoleID: roleA1, SlotMinutes: 30,
-	VersionID: 2, Rules: []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00"}}, LastUpdated: now}
+	VersionID: 2, Rules: []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00", Mode: schedule.ModeVideo}}, LastUpdated: now}
 
 func TestHTTPHandler_GivesTheAvailabilityWithItsVersion(t *testing.T) {
 	svc := &stubAvailability{out: savedA1}
 	rec := serve(t, svc, true, &bytes.Buffer{}, http.MethodGet, "", "")
 
-	want := `{"id":"` + savedA1.ID + `","practitionerRoleId":"` + roleA1 + `","availability":[{"start":"09:00","end":"12:00","day":1}],"slotMinutes":30,"versionId":2}` + "\n"
+	want := `{"id":"` + savedA1.ID + `","practitionerRoleId":"` + roleA1 + `","availability":[{"start":"09:00","end":"12:00","mode":"video","day":1}],"slotMinutes":30,"versionId":2}` + "\n"
 	if rec.Code != http.StatusOK || rec.Body.String() != want || rec.Header().Get("ETag") != `W/"2"` {
 		t.Errorf("GET = %d %s ETag %q, want 200 %s ETag W/\"2\"", rec.Code, rec.Body, rec.Header().Get("ETag"), want)
 	}
@@ -159,7 +168,7 @@ func TestHTTPHandler_SendsAFixedErrorAndLogsNoAvailability(t *testing.T) {
 		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "synthetic") {
 			t.Errorf("%s with a failing service = %d %s, want 500 with a fixed message", method, rec.Code, rec.Body)
 		}
-		if logs.Len() == 0 || strings.Contains(logs.String(), "09:00") {
+		if logs.Len() == 0 || strings.Contains(logs.String(), "09:00") || strings.Contains(logs.String(), "12:00") {
 			t.Errorf("log = %q, want the error logged without the availability", logs.String())
 		}
 	}
@@ -173,5 +182,23 @@ func TestHTTPHandler_SendsAFixedErrorAndLogsNoAvailability(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/practitioner-roles/"+roleA1+"/availability", nil))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("GET when the caller cannot be resolved = %d, want 500", rec.Code)
+	}
+}
+
+func TestHTTPHandler_TakesEachRulesModeAndLeavesOneWithoutToTheService(t *testing.T) {
+	svc := &stubAvailability{out: savedA1}
+	body := `{"slotMinutes":30,"availability":[{"day":1,"start":"09:00","end":"12:00","mode":"in-person"},` +
+		`{"day":2,"start":"09:00","end":"12:00","mode":"video"},{"day":3,"start":"09:00","end":"12:00"}]}`
+	rec := serve(t, svc, true, &bytes.Buffer{}, http.MethodPut, `W/"1"`, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body)
+	}
+	want := []schedule.Rule{
+		{Day: 1, Start: "09:00", End: "12:00", Mode: schedule.ModeInPerson},
+		{Day: 2, Start: "09:00", End: "12:00", Mode: schedule.ModeVideo},
+		{Day: 3, Start: "09:00", End: "12:00"},
+	}
+	if !slices.Equal(svc.in.Rules, want) {
+		t.Fatalf("rules = %+v, want %+v", svc.in.Rules, want)
 	}
 }

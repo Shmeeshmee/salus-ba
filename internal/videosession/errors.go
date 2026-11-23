@@ -5,7 +5,7 @@ import "errors"
 // The errors of the videosession domain. Their text carries no id, room, identity, token or name.
 var (
 	// ErrNotFound is returned when the caller is not a participant of the appointment, or there is no such
-	// appointment: its existence is not disclosed.
+	// appointment: its existence is not disclosed. Also for a join of an in-person visit, which has no call.
 	ErrNotFound = errors.New("videosession: not found")
 	// ErrConsentRequired is returned when the patient's consent with the clinic is not active.
 	ErrConsentRequired = errors.New("videosession: consent required")

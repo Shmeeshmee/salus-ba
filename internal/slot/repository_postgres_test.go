@@ -246,10 +246,14 @@ func TestSearch_GivesTheFreeSlotsOfListedClinicsInTheRange(t *testing.T) {
 	addSlot(t, owner, scheduleA1, clinicA, monday.Add(2*time.Hour), slot.StatusBusy)
 	addSlot(t, owner, scheduleA1, clinicA, monday.Add(3*time.Hour), slot.StatusFree) // at the end of the range
 	addSlot(t, owner, scheduleB, clinicB, monday.Add(time.Hour), slot.StatusFree)    // unlisted
+	if _, err := owner.Exec(t.Context(), `UPDATE slot SET visit_mode = 'in-person' WHERE id = $1`, first); err != nil {
+		t.Fatal(err)
+	}
 	svc := newService(app, monday)
 
 	got, err := svc.Search(t.Context(), scheduleA1, monday, monday.Add(3*time.Hour))
-	if err != nil || len(got) != 1 || got[0].ID != first || got[0].Status != slot.StatusFree || got[0].OrganizationID != clinicA {
+	if err != nil || len(got) != 1 || got[0].ID != first || got[0].Status != slot.StatusFree || got[0].OrganizationID != clinicA ||
+		got[0].Mode != schedule.ModeInPerson {
 		t.Errorf("Search(A1) = %+v, %v; want the free 10:00 slot only", got, err)
 	}
 	if got, err := svc.Search(t.Context(), scheduleB, monday, monday.Add(3*time.Hour)); err != nil || len(got) != 0 {
@@ -298,5 +302,48 @@ func TestBookable_GivesAFreeSlotOfAListedClinicWithItsRole(t *testing.T) {
 		if _, err := svc.Bookable(t.Context(), id); !errors.Is(err, slot.ErrUnavailable) {
 			t.Errorf("Bookable(%s) = %v, want ErrUnavailable", name, err)
 		}
+	}
+}
+
+func TestGenerate_ARuleThatChangesItsModeReplacesItsFreeSlotsAndKeepsABusyOne(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	if _, err := newService(app, monday).Generate(t.Context(), clinicA, scheduleA1); err != nil { // 8 video slots
+		t.Fatal(err)
+	}
+	booked := monday.Add(7*24*time.Hour + 2*time.Hour) // next Monday 11:00
+	if _, err := owner.Exec(t.Context(), `UPDATE slot SET status = 'busy' WHERE schedule_id = $1 AND lower(period) = $2`, scheduleA1, booked); err != nil {
+		t.Fatal(err)
+	}
+	inPerson := seeded()
+	inPerson[0].Rules = []schedule.Rule{{Day: 1, Start: "10:00", End: "12:00", Mode: schedule.ModeInPerson}}
+
+	got, err := newService(app, monday, inPerson...).Generate(t.Context(), clinicA, scheduleA1)
+	if err != nil || got.Deleted != 7 || got.Inserted != 7 {
+		t.Fatalf("Generate() = %+v, %v; want the 7 free video slots replaced", got, err)
+	}
+	rows, err := owner.Query(t.Context(), `SELECT lower(period), status, visit_mode FROM slot WHERE schedule_id = $1`, scheduleA1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var start time.Time
+		var status, mode string
+		if err := rows.Scan(&start, &status, &mode); err != nil {
+			t.Fatal(err)
+		}
+		n++
+		if want := start.Equal(booked); (status == "busy") != want || (mode == "video") != want {
+			t.Errorf("the slot at %v is %s and %s; want only the booked one busy and video", start, status, mode)
+		}
+	}
+	if err := rows.Err(); err != nil || n != 8 {
+		t.Fatalf("%d slots, %v; want 8", n, err)
+	}
+	if again, err := newService(app, monday, inPerson...).Generate(t.Context(), clinicA, scheduleA1); err != nil || again.Inserted != 0 || again.Deleted != 0 {
+		t.Errorf("a re-run = %+v, %v; want nothing inserted or deleted", again, err)
 	}
 }

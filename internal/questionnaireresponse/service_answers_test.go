@@ -377,7 +377,7 @@ func TestSubmit_CompletesTheResponseAtTheClocksTimeOnce(t *testing.T) {
 func conditional() []questionnaire.Item {
 	yes, no := true, false
 	on := func(it questionnaire.Item, q string, b *bool, s string) questionnaire.Item {
-		it.EnableWhen, it.Required = &questionnaire.Condition{Question: q, Boolean: b, String: s}, true
+		it.EnableWhen, it.Required = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: q, Boolean: b, String: s}}, true
 		return it
 	}
 	choice := question("c", questionnaire.ItemChoice)
@@ -398,7 +398,7 @@ func conditional() []questionnaire.Item {
 }
 
 // Submit checks every enabled required question is answered, naming the missing ones in document order; a
-// hidden question is not required, and the answers of hidden items are removed.
+// hidden question is not required, and an answer to a hidden item is refused (docs/clinic-cms, Q1).
 func TestSubmit_EvaluatesTheConditions(t *testing.T) {
 	v := str("Placeholder")
 	tests := []struct {
@@ -406,6 +406,7 @@ func TestSubmit_EvaluatesTheConditions(t *testing.T) {
 		in      []questionnaireresponse.Answer
 		missing []string
 		kept    []string
+		hidden  []string
 	}{
 		{name: "a boolean shows its question", in: []questionnaireresponse.Answer{answer("b", boolean(true))}, missing: []string{"b1"}},
 		{name: "a boolean's question answered", in: []questionnaireresponse.Answer{answer("b", boolean(true)), answer("b1", v)}, kept: []string{"b", "b1"}},
@@ -414,16 +415,19 @@ func TestSubmit_EvaluatesTheConditions(t *testing.T) {
 		{name: "the chain answered", in: []questionnaireresponse.Answer{answer("b", boolean(false)), answer("s1", v), answer("s2", boolean(true)), answer("x1", v)},
 			kept: []string{"b", "s1", "s2", "x1"}},
 		{name: "the chain off", in: []questionnaireresponse.Answer{answer("b", boolean(false)), answer("s1", v), answer("s2", boolean(false)), answer("x1", v)},
-			kept: []string{"b", "s1", "s2"}},
+			hidden: []string{"x1"}},
 		{name: "a hidden section hides its items and the chain", in: []questionnaireresponse.Answer{answer("b", boolean(true)), answer("b1", v), answer("s1", v), answer("s2", boolean(true)), answer("x1", v)},
-			kept: []string{"b", "b1"}},
+			hidden: []string{"s1", "s2", "x1"}},
 		{name: "a single choice shows its question", in: []questionnaireresponse.Answer{answer("b", boolean(true)), answer("b1", v), answer("c", str("Option B"))}, missing: []string{"c1"}},
 		{name: "a single choice hides its question", in: []questionnaireresponse.Answer{answer("b", boolean(true)), answer("b1", v), answer("c", str("Option A")), answer("c1", v)},
-			kept: []string{"b", "b1", "c"}},
+			hidden: []string{"c1"}},
 		{name: "any of several choices shows its question", in: []questionnaireresponse.Answer{answer("b", boolean(true)), answer("b1", v), answer("m", str("Option A"), str("Option B"))}, missing: []string{"m1"}},
 		{name: "several choices without it hide it", in: []questionnaireresponse.Answer{answer("b", boolean(true)), answer("b1", v), answer("m", str("Option A"), str("Option C")), answer("m1", v)},
-			kept: []string{"b", "b1", "m"}},
-		{name: "an unanswered question hides its own", in: []questionnaireresponse.Answer{answer("c1", v), answer("m1", v), answer("b1", v)}},
+			hidden: []string{"m1"}},
+		{name: "an unanswered question hides its own", in: []questionnaireresponse.Answer{answer("c1", v), answer("m1", v), answer("b1", v)},
+			hidden: []string{"b1", "c1", "m1"}},
+		{name: "the chain off, its answer left out", in: []questionnaireresponse.Answer{answer("b", boolean(false)), answer("s1", v), answer("s2", boolean(false))},
+			kept: []string{"b", "s1", "s2"}},
 		{name: "the missing ones in document order", in: []questionnaireresponse.Answer{answer("m", str("Option B")), answer("c", str("Option B")), answer("b", boolean(false))},
 			missing: []string{"c1", "m1", "s1"}},
 	}
@@ -436,7 +440,13 @@ func TestSubmit_EvaluatesTheConditions(t *testing.T) {
 		got, err := f.svc.Submit(t.Context(), me, id, 3)
 
 		var invalid *questionnaireresponse.AnswersError
+		var refused *questionnaireresponse.NotEnabledError
 		switch {
+		case tt.hidden != nil && (!errors.As(err, &refused) || !slices.Equal(refused.LinkIDs, tt.hidden)):
+			t.Errorf("%s: Submit() = %v, want the hidden %v refused", tt.name, err, tt.hidden)
+		case tt.hidden != nil && f.repo.responses[0].Status != questionnaireresponse.StatusInProgress:
+			t.Errorf("%s: stored %+v, want it in progress", tt.name, f.repo.responses[0])
+		case tt.hidden != nil:
 		case tt.missing != nil && (!errors.As(err, &invalid) || !slices.Equal(invalid.LinkIDs, tt.missing)):
 			t.Errorf("%s: Submit() = %v (%+v), want the missing %v", tt.name, err, invalid, tt.missing)
 		case tt.missing != nil && f.repo.responses[0].Status != questionnaireresponse.StatusInProgress:
@@ -531,7 +541,7 @@ func withAttachments() []questionnaire.Item {
 	f := question("f", questionnaire.ItemAttachment)
 	f.Required, f.Accept, f.MaxFiles = true, []questionnaire.FileKind{questionnaire.FilePhoto}, 3
 	h := f
-	h.LinkID, h.EnableWhen = "h", &questionnaire.Condition{Question: "b", Boolean: &yes}
+	h.LinkID, h.EnableWhen = "h", questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b", Boolean: &yes}}
 	return []questionnaire.Item{question("b", questionnaire.ItemBoolean), f, h}
 }
 

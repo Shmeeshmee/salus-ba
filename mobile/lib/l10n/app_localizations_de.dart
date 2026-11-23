@@ -2007,4 +2007,75 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Dieser Termin ist nicht mehr für Sie reserviert. Sie bleiben auf der Warteliste.';
+
+  @override
+  String get visitModeQuestion => 'Wie möchten Sie den Termin wahrnehmen?';
+
+  @override
+  String get visitModeVideo => 'Per Video';
+
+  @override
+  String get visitModeInPerson => 'In der Klinik';
+
+  @override
+  String get pricesHeading => 'Preise dieser Praxis';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Sie zahlen in der Praxis. In der App wird nichts berechnet.';
+
+  @override
+  String get discardTitle => 'Diese Antwort ändern?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Durch diese Änderung entfallen $n Fragen, die Sie bereits beantwortet haben. Die Antworten werden entfernt.',
+      one:
+          'Durch diese Änderung entfällt $n Frage, die Sie bereits beantwortet haben. Die Antwort wird entfernt.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Ändern und entfernen';
+
+  @override
+  String get myReceipts => 'Meine Rechnungen';
+
+  @override
+  String get receiptsIntro =>
+      'Die Belege, die Ihnen Kliniken für in der Klinik bezahlte Leistungen ausgestellt haben. Kliniken bewahren Belege so lange auf, wie es das Fiskalisierungsgesetz verlangt.';
+
+  @override
+  String get noReceipts => 'Sie haben noch keine Belege.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Beleg Nr. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Ausgestellt am $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno eines früheren Belegs';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Ich wähle in der Praxis';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: $items. Prüfen Sie Ihre Antworten und senden Sie sie erneut.';
+  }
 }

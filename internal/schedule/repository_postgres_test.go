@@ -125,7 +125,7 @@ func TestPostgres_CreatesOncePerRoleAndUpdatesTheCurrentVersionOnly(t *testing.T
 	seed(t, owner)
 	repo := schedule.NewPostgresRepository(app)
 	clinic := func(ctx context.Context) error { return repo.SetOrganization(ctx, clinicA) }
-	rules := []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00"}, {Day: 5, Start: "14:00", End: "15:30"}}
+	rules := []schedule.Rule{{Day: 1, Start: "09:00", End: "12:00", Mode: schedule.ModeInPerson}, {Day: 5, Start: "14:00", End: "15:30", Mode: schedule.ModeVideo}}
 	at := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
 
 	var created, updated schedule.Schedule

@@ -515,5 +515,22 @@
   "waitlistWithdrawn": "Napustili ste listu čekanja.",
   "waitlistOff": "Ova ustanova nema listu čekanja.",
   "waitlistTooMany": "Već ste pet puta na listi čekanja ove ustanove. Prvo napustite jednu od prijava.",
-  "waitlistOfferExpired": "Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja."
+  "waitlistOfferExpired": "Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja.",
+  "visitModeQuestion": "Kako želite obaviti termin?",
+  "visitModeVideo": "Putem videa",
+  "visitModeInPerson": "U klinici",
+  "pricesHeading": "Cijene u ovoj ustanovi",
+  "pricesPaidAtClinic": "Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.",
+  "discardTitle": "Promijeniti ovaj odgovor?",
+  "discardBody": "{n, plural, one{Ovom promjenom preskače se {n} pitanje na koje ste već odgovorili. Taj odgovor bit će uklonjen.} few{Ovom promjenom preskaču se {n} pitanja na koja ste već odgovorili. Ti odgovori bit će uklonjeni.} other{Ovom promjenom preskače se {n} pitanja na koja ste već odgovorili. Ti odgovori bit će uklonjeni.}}",
+  "discardConfirm": "Promijeni i ukloni",
+  "myReceipts": "Moji računi",
+  "receiptsIntro": "Računi koje su vam klinike izdale za usluge koje ste platili u klinici. Klinike čuvaju račune onoliko dugo koliko to propisuje zakon o fiskalizaciji.",
+  "noReceipts": "Još nemate računa.",
+  "receiptNumber": "Račun br. {number}",
+  "receiptIssuedOn": "Izdato {date}",
+  "receiptReversal": "Storno ranijeg računa",
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Odabrat ću u ustanovi",
+  "answersNotEnabled": "Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: {items}. Provjerite odgovore i ponovo pošaljite."
 }

@@ -101,6 +101,9 @@ type Ports struct {
 	Roles    Roles
 	Jobs     Jobs
 	Stats    StatsQueue // every write; not needed by a Service that only reads
+	// Services gives the services a clinic offers in a mode, for a booking that names one (service_service.go): needed
+	// only by the api's Service.
+	Services Services
 	// Prices gives a booking's price and Payments takes it (service_purchase.go): no price exists before the payments
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices
@@ -148,10 +151,11 @@ func NewService(p Ports) *Service {
 // the patient's scope with the slot's clinic set, the clinic is checked listed and the patient's consent with
 // it active, the slot is held, the appointment stored, the confirmation and the request of the role's default
 // questionnaire (questionnaire_default_request) enqueued, its reminders scheduled (service_reminder.go), and the
-// booking audited. ErrForbidden to staff, ErrProfileRequired
-// without a profile, ErrSlotUnavailable for a slot that is not free and ahead or a time the practitioner is
-// booked at, ErrConsentRequired without an active consent; each refusal is audited.
-func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointment, error) {
+// booking audited. serviceID names the price-list service the patient picked, empty for none (service_service.go).
+// ErrForbidden to staff, ErrProfileRequired without a profile, ErrSlotUnavailable for a slot that is not free and
+// ahead or a time the practitioner is booked at, ErrInvalidService for a service the clinic does not offer in the
+// slot's mode, ErrConsentRequired without an active consent; each refusal is audited.
+func (s *Service) Book(ctx context.Context, c Caller, slotID, serviceID string) (Appointment, error) {
 	switch {
 	case !c.patient():
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrForbidden)
@@ -166,6 +170,11 @@ func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointmen
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
 	}
+	if offered, err := s.offers(ctx, b, serviceID); err != nil {
+		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
+	} else if !offered {
+		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrInvalidService)
+	}
 	// Paid before the booking's transaction, refunded when the booking then fails (ADR 0015 "pkg/payments"). The key
 	// is the patient's and the slot's until the payments epic gives a booking a request id of its own.
 	receipt, err := s.purchase(ctx, c, b, "booking:"+c.PatientID+":"+b.ID)
@@ -175,7 +184,7 @@ func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointmen
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: book: %w", err)
 	}
-	out, err := s.bookSlot(ctx, c, b, now)
+	out, err := s.bookSlot(ctx, c, b, serviceID, now)
 	if err != nil {
 		// Not cut short by the request's end: a charge must not stay without its booking.
 		if rerr := s.refund(context.WithoutCancel(ctx), receipt); rerr != nil {
@@ -187,12 +196,12 @@ func (s *Service) Book(ctx context.Context, c Caller, slotID string) (Appointmen
 }
 
 // bookSlot books the slot b for c in one transaction, audited; each refusal is audited in a transaction of its own.
-func (s *Service) bookSlot(ctx context.Context, c Caller, b slot.Bookable, now time.Time) (Appointment, error) {
+func (s *Service) bookSlot(ctx context.Context, c Caller, b slot.Bookable, serviceID string, now time.Time) (Appointment, error) {
 	var out Appointment
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		if out, refused, err = s.book(ctx, c, b, now); err != nil || refused != nil {
+		if out, refused, err = s.book(ctx, c, b, serviceID, now); err != nil || refused != nil {
 			return err
 		}
 		return s.record(ctx, c, auditevent.CodeCreate, "Appointment", out.ID, auditevent.OutcomeSuccess)
@@ -209,8 +218,8 @@ func (s *Service) bookSlot(ctx context.Context, c Caller, b slot.Bookable, now t
 	return out, nil
 }
 
-// book checks and books the slot b in the transaction in ctx, or gives the refusal.
-func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.Time) (out Appointment, refused, err error) {
+// book checks and books the slot b, naming the service serviceID, in the transaction in ctx, or gives the refusal.
+func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, serviceID string, now time.Time) (out Appointment, refused, err error) {
 	if err := s.Repo.SetPatient(ctx, c.PatientID); err != nil {
 		return Appointment{}, nil, err
 	}
@@ -231,14 +240,15 @@ func (s *Service) book(ctx context.Context, c Caller, b slot.Bookable, now time.
 	if !consent.Active {
 		return Appointment{}, ErrConsentRequired, nil
 	}
-	if _, err := s.Slots.Hold(ctx, b.OrganizationID, b.ID); errors.Is(err, slot.ErrUnavailable) {
+	held, err := s.Slots.Hold(ctx, b.OrganizationID, b.ID)
+	if errors.Is(err, slot.ErrUnavailable) {
 		return Appointment{}, ErrSlotUnavailable, nil
 	} else if err != nil {
 		return Appointment{}, nil, err
 	}
 	out, err = s.Repo.Create(ctx, Appointment{
 		PatientID: c.PatientID, PractitionerRoleID: b.PractitionerRoleID, OrganizationID: b.OrganizationID, SlotID: b.ID,
-		Start: b.Start, End: b.End, Created: now, BookedVia: BookedDirect,
+		Start: b.Start, End: b.End, Created: now, BookedVia: BookedDirect, Mode: held.Mode, ServiceID: serviceID,
 	})
 	if err != nil {
 		return Appointment{}, nil, err

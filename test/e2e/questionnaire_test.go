@@ -20,9 +20,10 @@ const questionnaireOutstanding = "There is a questionnaire to fill in before you
 // TestQuestionnaire_TheRoleDefaultIsFilledInAndReadByThePractitioner: the practitioner publishes a questionnaire
 // of every type with one condition and makes it their role's default; a patient books, and the confirmation says a
 // questionnaire is outstanding without naming it; the default request appears; the practitioner sees it exists but
-// no answers; the patient saves, saves again (hiding the conditional question) and submits; the practitioner's FHIR
-// search brings the completed response with its version, the answers nested under their section and the hidden
-// question's answer gone.
+// no answers; the patient saves, saves again (hiding the conditional question but keeping its answer), is refused on
+// submit (answer_not_enabled, SAL-43), saves the shown answers only and submits; the practitioner's FHIR search
+// brings the completed response with its version, the answers nested under their section and the hidden question's
+// answer gone.
 func TestQuestionnaire_TheRoleDefaultIsFilledInAndReadByThePractitioner(t *testing.T) {
 	clinic, intake := newClinicWithDefault(t)
 	p := newPatientWithProfile(t)
@@ -41,16 +42,21 @@ func TestQuestionnaire_TheRoleDefaultIsFilledInAndReadByThePractitioner(t *testi
 		newAnswer("q-bool", map[string]any{"valueBoolean": true}),
 		newAnswer("q-str", map[string]any{"valueString": "Placeholder short answer"}),
 	})
-	version = p.saveAnswers(r.at(version), []answer{
-		newAnswer("q-bool", map[string]any{"valueBoolean": false}), // hides q-str, whose saved answer the submit removes
-		newAnswer("q-str", map[string]any{"valueString": "Placeholder short answer"}),
+	shown := []answer{
+		newAnswer("q-bool", map[string]any{"valueBoolean": false}), // hides q-str
 		newAnswer("q-text", map[string]any{"valueString": "Placeholder longer answer"}),
 		newAnswer("q-single", map[string]any{"valueString": "Placeholder option B"}),
 		newAnswer("q-multi", map[string]any{"valueString": "Placeholder option A"}, map[string]any{"valueString": "Placeholder option C"}),
 		newAnswer("q-int", map[string]any{"valueInteger": 42}),
 		newAnswer("q-dec", map[string]any{"valueDecimal": 36.6}),
 		newAnswer("q-date", map[string]any{"valueDate": "2026-01-15"}),
-	})
+	}
+	stale := append([]answer{shown[0], newAnswer("q-str", map[string]any{"valueString": "Placeholder short answer"})}, shown[1:]...)
+	version = p.saveAnswers(r.at(version), stale)
+	if status, code := p.refusalWith(ifMatch(version), http.MethodPost, "/questionnaire-responses/"+r.ID+"/submit"); status != http.StatusUnprocessableEntity || code != "answer_not_enabled" {
+		t.Fatalf("the submit with the hidden q-str's answer saved = %d %s, want 422 answer_not_enabled", status, code)
+	}
+	version = p.saveAnswers(r.at(version), shown)
 	p.mustWith(ifMatch(version), http.StatusOK, http.MethodPost, "/questionnaire-responses/"+r.ID+"/submit", nil, nil)
 
 	got := practitionerSearch(t, clinic, appt)

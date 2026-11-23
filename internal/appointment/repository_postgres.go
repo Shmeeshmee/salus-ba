@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/appointment/appointmentdb"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
@@ -47,13 +48,17 @@ func (r *postgresRepository) SetNotice(ctx context.Context, id string) error {
 }
 
 func (r *postgresRepository) Create(ctx context.Context, a Appointment) (Appointment, error) {
-	var p, role, org, sl pgtype.UUID
+	var p, role, org, sl, service pgtype.UUID
 	if p.Scan(a.PatientID) != nil || role.Scan(a.PractitionerRoleID) != nil || org.Scan(a.OrganizationID) != nil || sl.Scan(a.SlotID) != nil {
 		return Appointment{}, errors.New("appointment: an id is not a UUID")
+	}
+	if a.ServiceID != "" && service.Scan(a.ServiceID) != nil {
+		return Appointment{}, errors.New("appointment: the service id is not a UUID")
 	}
 	row, err := r.q(ctx).CreateAppointment(ctx, appointmentdb.CreateAppointmentParams{
 		PatientID: p, PractitionerRoleID: role, OrganizationID: org, SlotID: sl,
 		StartAt: ts(a.Start), EndAt: ts(a.End), CreatedAt: ts(a.Created), BookedVia: string(bookedVia(a.BookedVia)),
+		VisitMode: string(visitMode(a.Mode)), ServiceID: service,
 	})
 	var pgErr *pgconn.PgError
 	switch {
@@ -172,8 +177,19 @@ func toAppointment(row appointmentdb.AppointmentByIDRow) Appointment {
 	if row.ConfirmedAt.Valid {
 		a.ConfirmedAt, a.ConfirmedVia = row.ConfirmedAt.Time, Via(row.ConfirmedVia.String)
 	}
-	a.RescheduleCount, a.BookedVia = int32(row.RescheduleCount), BookedVia(row.BookedVia)
+	if row.ServiceID.Valid {
+		a.ServiceID = row.ServiceID.String()
+	}
+	a.RescheduleCount, a.BookedVia, a.Mode = int32(row.RescheduleCount), BookedVia(row.BookedVia), schedule.VisitMode(row.VisitMode)
 	return a
+}
+
+// visitMode is m, or video when unset.
+func visitMode(m schedule.VisitMode) schedule.VisitMode {
+	if m == "" {
+		return schedule.ModeVideo
+	}
+	return m
 }
 
 // bookedVia is v, or BookedDirect when unset.
@@ -846,6 +862,24 @@ func (r *postgresRepository) NoShowsSince(ctx context.Context, org string, patie
 	out := make(map[string]int, len(rows))
 	for _, row := range rows {
 		out[row.PatientID.String()] = int(row.Noshows)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Visits(ctx context.Context, org string, from, to time.Time) ([]Visit, error) {
+	var id pgtype.UUID
+	if id.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).ClinicVisits(ctx, appointmentdb.ClinicVisitsParams{OrganizationID: id, FromAt: ts(from), ToAt: ts(to)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Visit, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Visit{
+			ID: row.ID.String(), PractitionerRoleID: row.PractitionerRoleID.String(), Mode: schedule.VisitMode(row.VisitMode), Status: Status(row.Status),
+		})
 	}
 	return out, nil
 }

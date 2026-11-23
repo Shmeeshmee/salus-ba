@@ -3,6 +3,7 @@ package questionnaire_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -73,9 +74,7 @@ func equalItem(a, b questionnaire.Item) bool {
 	return a.LinkID == b.LinkID && a.Text == b.Text && a.Type == b.Type && a.Help == b.Help && a.Required == b.Required &&
 		a.Repeats == b.Repeats && slices.Equal(a.Options, b.Options) && slices.EqualFunc(a.Items, b.Items, equalItem) &&
 		slices.Equal(a.Accept, b.Accept) && a.MaxFiles == b.MaxFiles &&
-		((a.EnableWhen == nil) == (b.EnableWhen == nil)) &&
-		(a.EnableWhen == nil || (a.EnableWhen.Question == b.EnableWhen.Question && a.EnableWhen.String == b.EnableWhen.String &&
-			(a.EnableWhen.Boolean == nil) == (b.EnableWhen.Boolean == nil) && (a.EnableWhen.Boolean == nil || *a.EnableWhen.Boolean == *b.EnableWhen.Boolean)))
+		reflect.DeepEqual(a.EnableWhen, b.EnableWhen) && a.EnableBehavior == b.EnableBehavior
 }
 
 func TestPostgres_ReadsSeeOnlyTheClinicSet(t *testing.T) {
@@ -146,7 +145,7 @@ func TestPostgres_RunsTheLifecycle(t *testing.T) {
 	tree := []questionnaire.Item{
 		{LinkID: "b", Text: "Placeholder", Type: questionnaire.ItemBoolean},
 		{LinkID: "s", Text: "Placeholder section", Type: questionnaire.ItemGroup, Help: "Placeholder help",
-			EnableWhen: &questionnaire.Condition{Question: "b", Boolean: &no},
+			EnableWhen: questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b", Boolean: &no}},
 			Items: []questionnaire.Item{{LinkID: "c", Text: "Placeholder", Type: questionnaire.ItemChoice, Repeats: true, Required: true,
 				Options: []questionnaire.Option{{Value: "One"}, {Value: "Two"}}}}},
 		{LinkID: "a", Text: "Placeholder file upload", Type: questionnaire.ItemAttachment, Required: true,

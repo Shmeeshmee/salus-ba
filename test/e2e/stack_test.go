@@ -110,6 +110,15 @@ func (a *api) refusal(method, path string, body any) (int, string) {
 	return status, e.Error
 }
 
+// refusalWith is refusal with extra request headers, such as If-Match, and no body.
+func (a *api) refusalWith(header http.Header, method, path string) (int, string) {
+	a.t.Helper()
+	status, raw := a.send(header, method, path, nil)
+	var e struct{ Error string }
+	_ = json.Unmarshal(raw, &e)
+	return status, e.Error
+}
+
 // mustWith is must with extra request headers, such as If-Match.
 func (a *api) mustWith(header http.Header, want int, method, path string, body, out any) {
 	a.t.Helper()

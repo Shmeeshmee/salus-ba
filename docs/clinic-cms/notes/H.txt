@@ -1,0 +1,5 @@
+Package H. Migration: 00063.
+- From C's report: lines are read back by name today because there is no position column; the PDF's labels are a Go
+  map in internal/invoice/service_pdf.go; the fake fiscal engine keeps its state in memory.
+- The retry is for a receipt in `failed` after `GiveUp`; reuse the existing job.
+- From the wave 1 review: issuing a receipt has no idempotency key. Add one (an Idempotency-Key header from the dialog), so a double click or a retried request issues one receipt.

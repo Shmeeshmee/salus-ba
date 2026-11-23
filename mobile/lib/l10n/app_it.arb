@@ -515,5 +515,22 @@
   "waitlistWithdrawn": "È uscito dalla lista d'attesa.",
   "waitlistOff": "Questa struttura non ha una lista d'attesa.",
   "waitlistTooMany": "È già iscritto cinque volte alla lista d'attesa di questa struttura. Prima ne lasci una.",
-  "waitlistOfferExpired": "Questo orario non è più riservato a lei. Resta nella lista d'attesa."
+  "waitlistOfferExpired": "Questo orario non è più riservato a lei. Resta nella lista d'attesa.",
+  "visitModeQuestion": "Come desidera svolgere l'appuntamento?",
+  "visitModeVideo": "In video",
+  "visitModeInPerson": "In clinica",
+  "pricesHeading": "Prezzi di questa struttura",
+  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla.",
+  "discardTitle": "Modificare questa risposta?",
+  "discardBody": "{n, plural, one{Con questa modifica viene saltata {n} domanda a cui ha già risposto. La risposta verrà rimossa.} other{Con questa modifica vengono saltate {n} domande a cui ha già risposto. Le risposte verranno rimosse.}}",
+  "discardConfirm": "Modifica e rimuovi",
+  "myReceipts": "Le mie ricevute",
+  "receiptsIntro": "Le ricevute che le cliniche ti hanno rilasciato per i servizi pagati in clinica. Le cliniche conservano le ricevute per il tempo richiesto dalla legge fiscale.",
+  "noReceipts": "Non hai ancora ricevute.",
+  "receiptNumber": "Ricevuta n. {number}",
+  "receiptIssuedOn": "Emessa il {date}",
+  "receiptReversal": "Storno di una ricevuta precedente",
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Sceglierò presso la struttura",
+  "answersNotEnabled": "Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: {items}. Controlli le risposte e invii di nuovo."
 }

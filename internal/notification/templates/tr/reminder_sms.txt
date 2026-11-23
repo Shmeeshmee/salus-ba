@@ -1,1 +1,1 @@
-Hatirlatma: {{.Clinic}}, {{.Day}}.{{.Month}}.{{.Year}} saat {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}.{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Onaylayin veya iptal edin: {{.ActionLink}}
+Hatirlatma: {{.Clinic}}{{if .Address}} ({{.Address}}){{end}}, {{.Day}}.{{.Month}}.{{.Year}} saat {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}.{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Onaylayin veya iptal edin: {{.ActionLink}}

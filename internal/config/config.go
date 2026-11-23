@@ -30,6 +30,8 @@ type Config struct {
 	// FHIRBaseURL is the FHIR API's absolute public base, https://…/fhir/R4, for the links and fullUrls of
 	// a search's Bundle (FHIR_BASE_URL; the api requires it).
 	FHIRBaseURL string
+	// Seller is who issues the membership invoices (LoadSeller), for their PDF in the api and the notifier.
+	Seller Seller
 	// TOTPKey seals TOTP secrets (TOTP_KEY, base64, 32 bytes; or the file TOTP_KEY_FILE names, as production
 	// mounts it from the encrypted volume: keySetting).
 	TOTPKey []byte
@@ -56,6 +58,7 @@ func Load() (Config, error) {
 		PatientAppURL:       os.Getenv("PATIENT_APP_URL"),
 		AppointmentLinkURL:  os.Getenv("APPOINTMENT_LINK_URL"),
 		FHIRBaseURL:         os.Getenv("FHIR_BASE_URL"),
+		Seller:              LoadSeller(),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("config: DATABASE_URL is required")

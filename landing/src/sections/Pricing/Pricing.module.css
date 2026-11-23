@@ -25,6 +25,10 @@
 
 .amount {
   margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 4px;
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 48px;
@@ -32,6 +36,7 @@
 }
 
 .unit {
+  white-space: nowrap;
   font-size: 18px;
   font-weight: 500;
   color: var(--color-text-muted);
@@ -39,6 +44,19 @@
 
 .body {
   margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.notes {
+  margin-top: 24px;
+  display: grid;
+  gap: 6px;
+}
+
+.note {
+  margin: 0;
   font-size: 15px;
   line-height: 1.55;
   color: var(--color-text-muted);

@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 func checkEvents(t *testing.T, name string, audit *fakeAuditor, want ...auditevent.AuditEvent) {
@@ -21,7 +22,7 @@ func checkEvents(t *testing.T, name string, audit *fakeAuditor, want ...auditeve
 
 func TestBook_HoldsTheSlotStoresTheAppointmentEnqueuesItsEmailsAndAuditsIt(t *testing.T) {
 	f := newFixture()
-	got, err := f.svc.Book(t.Context(), me, slotFree)
+	got, err := f.svc.Book(t.Context(), me, slotFree, "")
 	want := appointment.Appointment{
 		ID: newID, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, SlotID: slotFree,
 		Start: start, End: start.Add(30 * time.Minute), Created: now, LastUpdated: now, Status: appointment.StatusBooked, VersionID: 1,
@@ -72,7 +73,7 @@ func TestBook_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 		for k, v := range tt.consents {
 			f.consents.state[k] = v
 		}
-		_, err := f.svc.Book(t.Context(), tt.caller, tt.slot)
+		_, err := f.svc.Book(t.Context(), tt.caller, tt.slot, "")
 		if !errors.Is(err, tt.want) {
 			t.Errorf("%s: Book() error = %v, want %v", tt.name, err, tt.want)
 		}
@@ -94,12 +95,26 @@ func TestBook_FailsOnABackendErrorWithoutLeakingItsInputs(t *testing.T) {
 	} {
 		f := newFixture()
 		breakIt(f)
-		_, err := f.svc.Book(t.Context(), me, slotFree)
+		_, err := f.svc.Book(t.Context(), me, slotFree, "")
 		if !errors.Is(err, errBackend) || strings.Contains(err.Error(), patientA) || strings.Contains(err.Error(), slotFree) {
 			t.Errorf("%s: Book() error = %v, want the backend's error without ids", name, err)
 		}
 		if len(f.jobs.enqueued) != 0 || len(f.audit.events) != 0 {
 			t.Errorf("%s: enqueued %v, audited %v after the rollback; want nothing", name, f.jobs.enqueued, f.audit.events)
 		}
+	}
+}
+
+// An appointment is in the mode of the slot it holds, as the slot says inside the booking's transaction
+// (docs/plans/clinic-cms.md, ADR 0016).
+func TestBook_TheAppointmentTakesTheModeOfItsSlot(t *testing.T) {
+	f := newFixture()
+	b := f.slots.bookable[slotFree]
+	b.Mode = schedule.ModeInPerson
+	f.slots.bookable[slotFree] = b
+
+	got, err := f.svc.Book(t.Context(), me, slotFree, "")
+	if err != nil || got.Mode != schedule.ModeInPerson {
+		t.Errorf("Book() = mode %q, %v; want in-person", got.Mode, err)
 	}
 }

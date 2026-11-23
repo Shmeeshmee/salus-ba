@@ -19,6 +19,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -81,6 +82,7 @@ var (
 	pastB = appointment.Seen{Appointment: appointment.Appointment{
 		ID: apptB, PatientID: patientB, PractitionerRoleID: roleA1, OrganizationID: clinicA, Status: appointment.StatusBooked,
 		Start: now.Add(-2 * time.Hour), End: now.Add(-90 * time.Minute), VersionID: 1, LastUpdated: now.Add(-24 * time.Hour),
+		Mode: schedule.ModeInPerson,
 	}, Patient: appointment.Name{Given: "Bo", Family: "Sample"}, PractitionerID: practA1, Level: access.Name}
 )
 
@@ -252,4 +254,15 @@ func TestHandlerRead_ThePatientParticipantFollowsTheConfirmation(t *testing.T) {
 			t.Errorf("%s: participants %v, want the patient %s and the others accepted", tt.name, got, tt.want)
 		}
 	}
+}
+
+// A booking that named a service carries it as a reference to the price list's ChargeItemDefinition (clinic-cms E).
+func TestHandlerRead_SendsTheServiceTheBookingNamed(t *testing.T) {
+	withService := fullA
+	withService.Appointment.ServiceID = serviceVideo
+	rec := getAppt(t, &stubReader{out: []appointment.Seen{withService}}, as(pract), &bytes.Buffer{}, "/fhir/R4/Appointment/"+apptA)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "appointment_service.json", rec.Body.Bytes())
 }

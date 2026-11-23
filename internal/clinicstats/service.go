@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // maxRange is the longest range a query may span: ten years of local days.
@@ -25,6 +26,13 @@ type Ports struct {
 	Repo  Repository
 	Audit Auditor
 	Tx    Transactor
+	// The online practice report's sources (service_practice.go, docs/plans/clinic-cms.md E): needed only by a Service
+	// that serves it.
+	Clock     clock.Clock
+	Clinics   PracticeClinics
+	Schedules PracticeSchedules
+	Visits    PracticeVisits
+	Receipts  PracticeReceipts
 }
 
 // Service reads a clinic's figures for its staff (rules C1 to C3, docs/plans/analytics.md §4): only their own

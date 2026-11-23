@@ -1,5 +1,6 @@
 import type { AnswerValue, Bundle, Questionnaire, QuestionnaireResponse, QuestionnaireResponseItem } from './api/fhir'
-import { find, isChoice, isQuestion, type Condition, type Item, type Kind } from './builder'
+import { all, find, isChoice, isQuestion, type Item, type Kind } from './builder'
+import { enabled as enabledOf, type Answer, type Answers } from './enableWhen'
 import { formatCalendarDate, formatDate, formatNumber, formatTime } from './i18n/format'
 import type { Language } from './i18n/languages'
 import type { useT } from './i18n/useT'
@@ -40,41 +41,46 @@ function flatten(items: QuestionnaireResponseItem[], out: Map<string, AnswerValu
   return out
 }
 
-function matches(c: Condition, values: AnswerValue[]): boolean {
-  return values.some((v) => (typeof c.answer === 'boolean' ? v.valueBoolean === c.answer : v.valueString === c.answer))
+function valueOf(v: AnswerValue): Answer | undefined {
+  return v.valueBoolean ?? v.valueInteger ?? v.valueDecimal ?? v.valueDate ?? v.valueString
 }
 
-// answered lists the enabled questions of the version by section, with the response's answers. An item is
-// enabled when its section is, and its condition's question is enabled and answered as the condition says
-// (any answer of a choice with repeats); instructions and hidden items are left out, as on submit.
+// answersOf is the response's answers as the evaluator takes them: a multiple choice's as its list.
+function answersOf(items: Item[], answers: Map<string, AnswerValue[]>): Answers {
+  const out: Answers = {}
+  for (const it of all(items)) {
+    const values = answers.get(it.linkId) ?? []
+    out[it.linkId] = it.kind === 'multiple' ? values.flatMap((v) => v.valueString ?? []) : values[0] && valueOf(values[0])
+  }
+  return out
+}
+
+// answered lists the enabled questions of the version by section, with the response's answers, enabled as
+// enableWhen.ts decides; instructions and hidden items are left out, as on submit.
 export function answered(items: Item[], response: QuestionnaireResponseItem[] = []): Block[] {
   const answers = flatten(response, new Map())
-  const index = new Map<string, { item: Item; section?: Item }>()
-  for (const it of items) {
-    index.set(it.linkId, { item: it })
-    for (const child of it.items) index.set(child.linkId, { item: child, section: it })
-  }
-  // Conditions point at earlier items only (the service refuses anything else), so this ends.
-  const enabled = (linkId: string): boolean => {
-    const at = index.get(linkId)
-    if (!at || (at.section && !enabled(at.section.linkId))) return false
-    const c = at.item.condition
-    return !c || (enabled(c.question) && matches(c, answers.get(c.question) ?? []))
-  }
+  const on = enabledOf(items, answersOf(items, answers))
+  const enabled = (linkId: string) => on.has(linkId)
   const question = (it: Item): Question => ({ linkId: it.linkId, text: it.text, kind: it.kind, values: answers.get(it.linkId) ?? [] })
 
+  // A block is one section's run of questions; a branch inside a section is its own block, and the section's
+  // questions after it, where the branch joins, start a block of the section again (sections nest, SAL-43).
   const blocks: Block[] = []
-  for (const it of items) {
-    if (!enabled(it.linkId)) continue
-    if (it.kind === 'group') {
-      const questions = it.items.filter((c) => isQuestion(c.kind) && enabled(c.linkId)).map(question)
-      if (questions.length > 0) blocks.push({ section: it.text, questions })
-    } else if (isQuestion(it.kind)) {
-      const last = blocks.at(-1)
-      if (last && last.section === undefined) last.questions.push(question(it))
-      else blocks.push({ questions: [question(it)] })
+  let owner: string | undefined
+  const add = (q: Item, group?: Item) => {
+    const last = blocks.at(-1)
+    if (last && owner === group?.linkId) last.questions.push(question(q))
+    else blocks.push(group ? { section: group.text, questions: [question(q)] } : { questions: [question(q)] })
+    owner = group?.linkId
+  }
+  const walk = (list: Item[], group?: Item) => {
+    for (const it of list) {
+      if (!enabled(it.linkId)) continue
+      if (it.kind === 'group') walk(it.items, it)
+      else if (isQuestion(it.kind)) add(it, group)
     }
   }
+  walk(items)
   return blocks
 }
 

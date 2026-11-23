@@ -1,10 +1,11 @@
-import type { Questionnaire, QuestionnaireItem } from './api/fhir'
+import type { EnableWhen, Questionnaire, QuestionnaireItem } from './api/fhir'
 import type { components } from './api/schema'
-import { all, fileKinds, isChoice, isQuestion, type Condition, type FileKind, type Item, type Kind } from './builder'
+import { all, fileKinds, isChoice, isQuestion, type Behavior, type Condition, type FileKind, type Item, type Kind, type Operator } from './builder'
 import { languageNames } from './language'
 
 type JSONQuestionnaire = components['schemas']['Questionnaire']
 type JSONItem = components['schemas']['QuestionnaireItem']
+type JSONEnableWhen = NonNullable<JSONItem['enableWhen']>[number]
 export type SaveRequest = components['schemas']['SaveQuestionnaireRequest']
 export type Status = Questionnaire['status']
 
@@ -82,9 +83,18 @@ function kindOf(type: string, repeats?: boolean): Kind {
   return type as Kind
 }
 
-function conditionOf(c?: { question: string; answerBoolean?: boolean; answerString?: string }): Condition | undefined {
-  if (!c) return undefined
-  return { question: c.question, answer: c.answerBoolean ?? c.answerString ?? '' }
+const operators: Operator[] = ['exists', '=', '!=', '>', '<', '>=', '<=']
+
+function conditionOf(c: EnableWhen | JSONEnableWhen): Condition {
+  const operator = operators.includes(c.operator as Operator) ? (c.operator as Operator) : '='
+  return { question: c.question, operator, answer: c.answerBoolean ?? c.answerInteger ?? c.answerDecimal ?? c.answerDate ?? c.answerString ?? '' }
+}
+
+// logicOf reads an item's conditions, FHIR R4 enableWhen and enableBehavior, from the FHIR read or the JSON API.
+function logicOf(list: (EnableWhen | JSONEnableWhen)[] = [], behavior?: Behavior): Partial<Item> {
+  if (list.length === 0) return {}
+  const enableWhen = list.map(conditionOf)
+  return list.length > 1 ? { enableWhen, enableBehavior: behavior ?? 'all' } : { enableWhen }
 }
 
 function item(linkId: string, kind: Kind, text: string, rest: Partial<Item>): Item {
@@ -97,7 +107,7 @@ function fromFHIRItem(f: FHIRItem): Item {
     required: f.required ?? false,
     help: children.find(isHelp)?.text ?? '',
     options: (f.answerOption ?? []).map((o) => o.valueString),
-    condition: conditionOf(f.enableWhen?.[0]),
+    ...logicOf(f.enableWhen, f.enableBehavior),
     items: children.filter((c) => !isHelp(c)).map(fromFHIRItem),
     ...filesOfFHIR(f),
   })
@@ -166,7 +176,7 @@ function fromJSONItem(j: JSONItem): Item {
     required: j.required ?? false,
     help: j.help ?? '',
     options: (j.answerOption ?? []).map((o) => o.valueString),
-    condition: conditionOf(j.enableWhen),
+    ...logicOf(j.enableWhen, j.enableBehavior),
     items: (j.item ?? []).map(fromJSONItem),
     ...(j.type === 'attachment' ? { accept: ordered(j.accept ?? []), maxFiles: j.maxFiles ?? 1 } : {}),
   })
@@ -188,7 +198,7 @@ export function fromJSON(q: JSONQuestionnaire): Version {
   }
 }
 
-function toJSONItem(it: Item): JSONItem {
+function toJSONItem(it: Item, questionOf: (id: string) => Item | undefined): JSONItem {
   const out: JSONItem = { linkId: it.linkId, text: it.text, type: isChoice(it.kind) ? 'choice' : (it.kind as JSONItem['type']) }
   if (isQuestion(it.kind) && it.required) out.required = true
   if (it.kind === 'multiple') out.repeats = true
@@ -199,12 +209,28 @@ function toJSONItem(it: Item): JSONItem {
     // A blank field is NaN, which JSON writes as null; left out, the API names the item (422) instead of a 400.
     if (Number.isFinite(it.maxFiles)) out.maxFiles = it.maxFiles
   }
-  if (it.condition) {
-    const { question, answer } = it.condition
-    out.enableWhen = typeof answer === 'boolean' ? { question, answerBoolean: answer } : { question, answerString: answer }
-  }
-  if (it.kind === 'group') out.item = it.items.map(toJSONItem)
+  Object.assign(out, logicRequest(it, questionOf))
+  if (it.kind === 'group') out.item = it.items.map((x) => toJSONItem(x, questionOf))
   return out
+}
+
+// answerOf is a condition as FHIR enableWhen, its value in the answer[x] of the question's type.
+function answerOf(c: Condition, on?: Item): JSONEnableWhen {
+  const out: JSONEnableWhen = { question: c.question, operator: c.operator }
+  const a = c.answer
+  if (typeof a === 'boolean') out.answerBoolean = a
+  else if (typeof a === 'number') out[on?.kind === 'decimal' ? 'answerDecimal' : 'answerInteger'] = a
+  else if (on?.kind === 'date') out.answerDate = a
+  else out.answerString = a
+  return out
+}
+
+// logicRequest writes an item's conditions as FHIR R4 enableWhen, with enableBehavior when there are several.
+function logicRequest(it: Item, questionOf: (id: string) => Item | undefined): Partial<JSONItem> {
+  const list = it.enableWhen ?? []
+  if (list.length === 0) return {}
+  const enableWhen = list.map((x) => answerOf(x, questionOf(x.question)))
+  return list.length > 1 ? { enableWhen, enableBehavior: it.enableBehavior ?? 'all' } : { enableWhen }
 }
 
 const filled = (s?: string) => s !== undefined && s.trim() !== ''
@@ -234,7 +260,8 @@ function translationRequest(t: Translation, description: string, items: Item[]):
 // toRequest is the body of a create or a save; with a language, also the original language and every
 // translation (an empty list removes them).
 export function toRequest(title: string, description: string, items: Item[], language?: ContentLanguage, translations: Translation[] = []): SaveRequest {
-  const body: SaveRequest = { title, item: items.map(toJSONItem) }
+  const questionOf = (id: string) => all(items).find((x) => x.linkId === id)
+  const body: SaveRequest = { title, item: items.map((x) => toJSONItem(x, questionOf)) }
   if (description.trim() !== '') body.description = description
   if (language === undefined) return body
   return { ...body, language, translations: translations.map((t) => translationRequest(t, description, items)) }

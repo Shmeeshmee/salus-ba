@@ -2003,6 +2003,79 @@ class AppLocalizationsSr extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Овај термин више није резервисан за вас. Остајете на листи чекања.';
+
+  @override
+  String get visitModeQuestion => 'Како желите да обавите термин?';
+
+  @override
+  String get visitModeVideo => 'Путем видеа';
+
+  @override
+  String get visitModeInPerson => 'У клиници';
+
+  @override
+  String get pricesHeading => 'Цијене у овој установи';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Плаћате у установи. У апликацији се ништа не наплаћује.';
+
+  @override
+  String get discardTitle => 'Промијенити овај одговор?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Овом промјеном прескаче се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      few:
+          'Овом промјеном прескачу се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      one:
+          'Овом промјеном прескаче се $n питање на које сте већ одговорили. Тај одговор ће бити уклоњен.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Промијени и уклони';
+
+  @override
+  String get myReceipts => 'Моји рачуни';
+
+  @override
+  String get receiptsIntro =>
+      'Рачуни које су вам клинике издале за услуге које сте платили у клиници. Клинике чувају рачуне онолико дуго колико то прописује закон о фискализацији.';
+
+  @override
+  String get noReceipts => 'Још немате рачуна.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Рачун бр. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Издато $date';
+  }
+
+  @override
+  String get receiptReversal => 'Сторно ранијег рачуна';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Одабраћу у установи';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
+  }
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4003,6 +4076,79 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   @override
   String get waitlistOfferExpired =>
       'Овај термин више није резервисан за вас. Остајете на листи чекања.';
+
+  @override
+  String get visitModeQuestion => 'Како желите да обавите термин?';
+
+  @override
+  String get visitModeVideo => 'Путем видеа';
+
+  @override
+  String get visitModeInPerson => 'У клиници';
+
+  @override
+  String get pricesHeading => 'Цијене у овој установи';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Плаћате у установи. У апликацији се ништа не наплаћује.';
+
+  @override
+  String get discardTitle => 'Промијенити овај одговор?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Овом промјеном прескаче се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      few:
+          'Овом промјеном прескачу се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      one:
+          'Овом промјеном прескаче се $n питање на које сте већ одговорили. Тај одговор ће бити уклоњен.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Промијени и уклони';
+
+  @override
+  String get myReceipts => 'Моји рачуни';
+
+  @override
+  String get receiptsIntro =>
+      'Рачуни које су вам клинике издале за услуге које сте платили у клиници. Клинике чувају рачуне онолико дуго колико то прописује закон о фискализацији.';
+
+  @override
+  String get noReceipts => 'Још немате рачуна.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Рачун бр. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Издато $date';
+  }
+
+  @override
+  String get receiptReversal => 'Сторно ранијег рачуна';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Одабраћу у установи';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
+  }
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6005,4 +6151,77 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   @override
   String get waitlistOfferExpired =>
       'Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja.';
+
+  @override
+  String get visitModeQuestion => 'Kako želite da obavite termin?';
+
+  @override
+  String get visitModeVideo => 'Putem videa';
+
+  @override
+  String get visitModeInPerson => 'U klinici';
+
+  @override
+  String get pricesHeading => 'Cijene u ovoj ustanovi';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
+
+  @override
+  String get discardTitle => 'Promijeniti ovaj odgovor?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Ovom promjenom preskače se $n pitanja na koja ste već odgovorili. Ti odgovori će biti uklonjeni.',
+      few:
+          'Ovom promjenom preskaču se $n pitanja na koja ste već odgovorili. Ti odgovori će biti uklonjeni.',
+      one:
+          'Ovom promjenom preskače se $n pitanje na koje ste već odgovorili. Taj odgovor će biti uklonjen.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Promijeni i ukloni';
+
+  @override
+  String get myReceipts => 'Moji računi';
+
+  @override
+  String get receiptsIntro =>
+      'Računi koje su vam klinike izdale za usluge koje ste platili u klinici. Klinike čuvaju račune onoliko dugo koliko to propisuje zakon o fiskalizaciji.';
+
+  @override
+  String get noReceipts => 'Još nemate računa.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Račun br. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Izdato $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno ranijeg računa';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Odabraću u ustanovi';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovo pošaljite.';
+  }
 }

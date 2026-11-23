@@ -1,0 +1,13 @@
+{
+  "invoice": "Račun br. {number}",
+  "item": "Članarina {from} do {to}, aktivni liječnici",
+  "transfer": "Uplata na račun {account}, poziv na broj {number}.",
+  "issued": "Izdano",
+  "due": "Rok plaćanja",
+  "paid": "Plaćeno",
+  "taxId": "JIB",
+  "buyer": "Kupac",
+  "items": "Stavke",
+  "total": "Ukupno",
+  "payment": "Plaćanje"
+}

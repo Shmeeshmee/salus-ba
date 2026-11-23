@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // Slots of role A1 in clinic A for the reschedule's tests.
@@ -175,5 +176,41 @@ func TestReschedule_ADatabaseFailureIsNotARefusal(t *testing.T) {
 	}
 	if len(f.audit.events) != 0 {
 		t.Errorf("audited %v, want nothing (rolled back)", f.audit.events)
+	}
+}
+
+// A reschedule keeps the appointment's visit mode (docs/plans/clinic-cms.md, ADR 0016): a slot of the other mode is
+// refused, one of its own mode taken.
+func TestReschedule_KeepsTheVisitModeAndRefusesASlotOfTheOtherMode(t *testing.T) {
+	for _, tc := range []struct {
+		want       error
+		name       string
+		mode, slot schedule.VisitMode
+	}{
+		{name: "in person to in person", mode: schedule.ModeInPerson, slot: schedule.ModeInPerson},
+		{name: "in person to video", mode: schedule.ModeInPerson, slot: schedule.ModeVideo, want: appointment.ErrNotReschedulable},
+		{name: "video to in person", mode: schedule.ModeVideo, slot: schedule.ModeInPerson, want: appointment.ErrNotReschedulable},
+		{name: "before the clinic system to in person", slot: schedule.ModeInPerson, want: appointment.ErrNotReschedulable},
+		{name: "before the clinic system to video", slot: schedule.ModeVideo},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := booked(apptA, patientA, roleA1, clinicA, start)
+			a.Mode = tc.mode
+			f := rescheduleFixture(a)
+			f.repo.appts[0].Mode = tc.mode
+			later := f.slots.bookable[slotLater]
+			later.Mode = tc.slot
+			f.slots.bookable[slotLater] = later
+			got, err := f.svc.Reschedule(t.Context(), me, apptA, slotLater)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("Reschedule() = %v, want %v", err, tc.want)
+			}
+			if tc.want != nil && (len(f.slots.held) != 0 || f.repo.appts[0].SlotID != a.SlotID) {
+				t.Errorf("held %v, slot %s; want nothing held and the appointment unchanged", f.slots.held, f.repo.appts[0].SlotID)
+			}
+			if tc.want == nil && (got.SlotID != slotLater || got.Mode != tc.mode) {
+				t.Errorf("Reschedule() = %+v, want it at the new slot in its own mode", got)
+			}
+		})
 	}
 }

@@ -1,0 +1,5 @@
+Package B (price list). Migration placeholder, only if you need one: 00061.
+- Fill step 0's `chargeitemdefinition` skeleton and its routes: /clinic/services, PUT /clinic/services/{id},
+  GET /organizations/{id}/services (only for listed clinics).
+- VAT is `vat_rate_bp`, null for exempt.
+- Prices are shown at booking and never charged: `appointment.Prices` stays nil.

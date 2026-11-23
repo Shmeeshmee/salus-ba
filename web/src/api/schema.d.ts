@@ -2416,12 +2416,12 @@ export interface paths {
         };
         /**
          * The patient's reminder channels, quiet hours and time zone
-         * @description Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33 (404 until then).
+         * @description Push and e-mail on and SMS off, quiet hours 22:00 to 08:00 and no zone (the clinic's is used) until the patient changes them. Patients only. Built in SAL-33.
          */
         get: operations["getNotificationSettings"];
         /**
          * Replace the patient's reminder channels, quiet hours and time zone
-         * @description SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33 (404 until then).
+         * @description SMS on needs a phone in the profile, and reaches the patient only at clinics that offer it. Omit `quiet_hours` for none. `time_zone` is the device's IANA zone, sent by the app. Built in SAL-33.
          */
         put: operations["setNotificationSettings"];
         post?: never;
@@ -2440,7 +2440,7 @@ export interface paths {
         };
         /**
          * The admin's clinic's SMS usage per month
-         * @description Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33 (404 until then).
+         * @description Messages and parts sent per calendar month (UTC), oldest first. Built in SAL-33.
          */
         get: operations["getSmsUsage"];
         put?: never;
@@ -2605,10 +2605,633 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's price list
+         * @description Every service of the caller's clinic, active or not, by name, with its translations. For the clinic's staff. Built in package B of docs/plans/clinic-cms.md. Not personal data; not audited.
+         */
+        get: operations["listClinicServices"];
+        put?: never;
+        /**
+         * Add a service to the clinic's price list
+         * @description By the clinic's admin. Prices are shown to patients at booking and paid at the clinic, never charged in the app. Built in package B. Audited, also when refused.
+         */
+        post: operations["createClinicService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/services/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a service of the clinic's price list
+         * @description By the clinic's admin, at the version of If-Match. A change never changes an issued receipt, whose lines are copied at issue. A service is never deleted: `active` false takes it off the list. Built in package B. Audited, also when refused.
+         */
+        put: operations["updateClinicService"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{id}/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The services a listed clinic offers, with their prices, for booking
+         * @description The active services of a listed clinic offered in `mode`, by name, each in `language` where the clinic translated it and in the clinic's language otherwise. Public, as the directory is; anyone else's clinic gets 404. Built in package B.
+         */
+        get: operations["listOfferedServices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's receipts issued in a period
+         * @description Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
+         */
+        get: operations["listClinicReceipts"];
+        put?: never;
+        /**
+         * Issue a receipt for a visit or on its own
+         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+         */
+        post: operations["issueReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A receipt of the clinic
+         * @description For the clinic's admin and the practitioner who issued it. Audited.
+         */
+        get: operations["getClinicReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/receipts/{id}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reverse an issued receipt
+         * @description Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Audited, also when refused.
+         */
+        post: operations["reverseReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/receipts/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a receipt whose fiscal report failed once more
+         * @description Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited, also when refused.
+         */
+        post: operations["retryReceiptReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/receipts/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A receipt as a PDF on the clinic's letterhead
+         * @description The clinic's name, legal name, tax id and address, the lines, totals, the fiscal code and its QR. For the staff who may see the receipt; a patient downloads their own at /me/receipts/{id}/pdf. Audited.
+         */
+        get: operations["getClinicReceiptPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/reports/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's receipts summed for a day or a period, for its accountant
+         * @description Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.
+         */
+        get: operations["getReceiptsReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/reports/practice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The online practice report, per practitioner and visit mode
+         * @description Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+         */
+        get: operations["getPracticeReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own receipts, from every clinic
+         * @description Newest first. Audited.
+         */
+        get: operations["listMyReceipts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/receipts/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own receipt as a PDF
+         * @description The same document as the clinic's. Audited.
+         */
+        get: operations["getMyReceiptPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's membership
+         * @description Its plan, status and current period; the admin's banner reads `status` and `pastDueSince`. For the clinic's admin. Built in package D of docs/plans/clinic-cms.md. Not personal data.
+         */
+        get: operations["getClinicSubscription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/subscription/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Salus's monthly invoices to the clinic
+         * @description Newest first. For the clinic's admin. Built in package D.
+         */
+        get: operations["listSubscriptionInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/subscription/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A membership invoice as a PDF
+         * @description Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+         */
+        get: operations["getSubscriptionInvoicePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/billing-details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's billing details
+         * @description Its legal name, tax id (JIB or IDB), VAT registration and the e-mail Salus's invoices go to. For the clinic's admin. Built in package D. Not personal data.
+         */
+        get: operations["getBillingDetails"];
+        /**
+         * Replace the clinic's billing details
+         * @description By the clinic's admin. Built in package D. Audited, also when refused.
+         */
+        put: operations["setBillingDetails"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description How the patient attends: at the clinic or by video (ADR 0016). In FHIR, the visit-mode extension of Slot and Appointment.
+         * @enum {string}
+         */
+        VisitMode: "in-person" | "video";
+        /** @description A service of the clinic's price list (FHIR ChargeItemDefinition). Not personal data. */
+        Service: {
+            /** Format: uuid */
+            id: string;
+            /** @description In the clinic's language. */
+            name: string;
+            /** @description The clinic's own code; absent for none. */
+            code?: string;
+            /**
+             * Format: int64
+             * @description In the currency's minor unit.
+             */
+            priceMinor: number;
+            /** @example BAM */
+            currency: string;
+            /**
+             * Format: int32
+             * @description Absent for the slot's length.
+             */
+            durationMinutes?: number;
+            /**
+             * Format: int32
+             * @description Basis points (1700 is 17 %); absent for exempt.
+             */
+            vatRateBp?: number;
+            modes: components["schemas"]["VisitMode"][];
+            active: boolean;
+            translations: components["schemas"]["ServiceTranslation"][];
+            /** Format: int32 */
+            versionId: number;
+        };
+        ServiceTranslation: {
+            /** @description A BCP 47 tag of the language enum. */
+            language: string;
+            name: string;
+        };
+        SaveServiceRequest: {
+            name: string;
+            code?: string;
+            /** Format: int64 */
+            priceMinor: number;
+            /** @default BAM */
+            currency: string;
+            /** Format: int32 */
+            durationMinutes?: number;
+            /** Format: int32 */
+            vatRateBp?: number;
+            modes: components["schemas"]["VisitMode"][];
+            active: boolean;
+            translations: components["schemas"]["ServiceTranslation"][];
+        };
+        /** @description A service as a patient sees it at booking. Paid at the clinic. */
+        OfferedService: {
+            /** Format: uuid */
+            id: string;
+            /** @description In the language asked for where translated. */
+            name: string;
+            /** Format: int64 */
+            priceMinor: number;
+            currency: string;
+            /** Format: int32 */
+            durationMinutes?: number;
+        };
+        /**
+         * @description A receipt to a person, or an invoice to a company.
+         * @enum {string}
+         */
+        ReceiptKind: "receipt" | "invoice";
+        /** @enum {string} */
+        PaymentMethod: "cash" | "card" | "transfer";
+        /**
+         * @description Its report to the tax authority: `pending` until the job fiscalizes it, `failed` when the job gave up (the report is retried), `fiscalized` once, for good.
+         * @enum {string}
+         */
+        FiscalStatus: "pending" | "fiscalized" | "failed";
+        ReceiptLine: {
+            /**
+             * Format: uuid
+             * @description The price list's service; absent for an item off it.
+             */
+            serviceId?: string;
+            /** @description As on the price list at issue. Lines are in the order they were entered. */
+            name: string;
+            /**
+             * Format: int32
+             * @description Negative on a reversal.
+             */
+            quantity: number;
+            /** Format: int64 */
+            unitPriceMinor: number;
+            /** Format: int64 */
+            discountMinor: number;
+            /**
+             * Format: int32
+             * @description Absent for exempt.
+             */
+            vatRateBp?: number;
+            /** Format: int64 */
+            totalMinor: number;
+        };
+        /** @description An issued receipt or invoice (FHIR Invoice). Health data when it names a patient: it shows what they paid for, at which clinic. It never changes once issued, except its fiscal status. */
+        Receipt: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["ReceiptKind"];
+            /**
+             * Format: int64
+             * @description In the clinic's sequence.
+             */
+            number: number;
+            /** Format: date-time */
+            issuedAt: string;
+            /**
+             * Format: uuid
+             * @description Absent unless to a patient.
+             */
+            patientId?: string;
+            /** @description Absent unless to a company. */
+            companyName?: string;
+            companyTaxId?: string;
+            /**
+             * Format: uuid
+             * @description The visit; absent for a receipt on its own.
+             */
+            appointmentId?: string;
+            /**
+             * Format: uuid
+             * @description The receipt it reverses; absent unless a reversal.
+             */
+            reversesId?: string;
+            /**
+             * Format: uuid
+             * @description The receipt that reverses it; absent unless reversed.
+             */
+            reversedById?: string;
+            paymentMethod: components["schemas"]["PaymentMethod"];
+            /** Format: int64 */
+            totalMinor: number;
+            currency: string;
+            fiscalStatus: components["schemas"]["FiscalStatus"];
+            /** @description The tax authority's identifier; absent until fiscalized. */
+            fiscalId?: string;
+            /** @description The verification code printed on it; absent until fiscalized. */
+            fiscalCode?: string;
+            /** Format: date-time */
+            fiscalizedAt?: string;
+            lines: components["schemas"]["ReceiptLine"][];
+        };
+        ReceiptPick: {
+            /** Format: uuid */
+            serviceId: string;
+            /** Format: int32 */
+            quantity: number;
+            /**
+             * Format: int64
+             * @default 0
+             */
+            discountMinor: number;
+        };
+        /** @description To a patient, a company or neither (an anonymous cash sale); for a visit or on its own. */
+        IssueReceiptRequest: {
+            kind: components["schemas"]["ReceiptKind"];
+            /** Format: uuid */
+            patientId?: string;
+            companyName?: string;
+            companyTaxId?: string;
+            /** Format: uuid */
+            appointmentId?: string;
+            paymentMethod: components["schemas"]["PaymentMethod"];
+            lines: components["schemas"]["ReceiptPick"][];
+        };
+        ReverseReceiptRequest: {
+            paymentMethod: components["schemas"]["PaymentMethod"];
+        };
+        ReceiptsReport: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** @description Receipts issued */
+            count: number;
+            /** Format: int64 */
+            totalMinor: number;
+            currency: string;
+            byPaymentMethod: {
+                paymentMethod: components["schemas"]["PaymentMethod"];
+                count: number;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+            byService: {
+                /** Format: uuid */
+                serviceId?: string;
+                name: string;
+                quantity: number;
+                /** Format: int64 */
+                totalMinor: number;
+            }[];
+        };
+        PracticeReport: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            currency: string;
+            /** @description By practitioner role, then visit mode; a role and mode with nothing offered, held or receipted is absent. */
+            rows: {
+                /** Format: uuid */
+                practitionerRole: string;
+                visitMode: components["schemas"]["VisitMode"];
+                /** Format: int64 */
+                minutesOffered: number;
+                /** Format: int64 */
+                visits: number;
+                /** Format: int64 */
+                receiptedMinor: number;
+            }[];
+        };
+        /**
+         * @description Moves only forward. `past_due`: a banner for the admin from 14 days; `suspended` from 30: new bookings stop, care never does.
+         * @enum {string}
+         */
+        SubscriptionStatus: "trial" | "active" | "past_due" | "suspended" | "cancelled";
+        /** @description The clinic's membership. Not personal data. */
+        Subscription: {
+            /** @example basic */
+            planCode: string;
+            planName: string;
+            /**
+             * Format: int64
+             * @description Per active practitioner per month.
+             */
+            pricePerSeatMinor: number;
+            currency: string;
+            status: components["schemas"]["SubscriptionStatus"];
+            /** Format: date-time */
+            trialEndsAt?: string;
+            /** Format: date-time */
+            currentPeriodStart?: string;
+            /** Format: date-time */
+            currentPeriodEnd?: string;
+            /**
+             * Format: date-time
+             * @description The due date of the oldest open invoice past due; absent for none.
+             */
+            pastDueSince?: string;
+        };
+        /** @enum {string} */
+        SubscriptionInvoiceStatus: "open" | "paid" | "void";
+        SubscriptionInvoice: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: date */
+            periodStart: string;
+            /**
+             * Format: date
+             * @description Exclusive.
+             */
+            periodEnd: string;
+            /**
+             * Format: int32
+             * @description Active practitioner roles on the 1st.
+             */
+            seats: number;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: date-time */
+            dueAt: string;
+            /** Format: date-time */
+            paidAt?: string;
+            status: components["schemas"]["SubscriptionInvoiceStatus"];
+        };
+        /** @description The clinic's details on Salus's invoices to it. Not personal data. */
+        BillingDetails: {
+            legalName?: string;
+            /** @description The JIB (13 digits) or IDB (12). */
+            taxId?: string;
+            vatRegistered: boolean;
+            /** Format: email */
+            billingEmail?: string;
+        };
         LoginRequest: {
             email: string;
             password: string;
@@ -3035,6 +3658,8 @@ export interface components {
              * @example 12:00
              */
             end: string;
+            /** @description The visit mode of the rule's slots; always in a response, `video` for every rule made before the clinic system. A PUT may name it (x-salus-package cms-a); a rule that names none is a video rule. The slots generated from the rule carry it, and an appointment keeps the mode of the slot it was booked in. */
+            mode?: components["schemas"]["VisitMode"];
         };
         Availability: {
             /**
@@ -3095,6 +3720,11 @@ export interface components {
              * @description A free slot, as Slot?schedule=…&status=free gives it.
              */
             slotId: string;
+            /**
+             * Format: uuid
+             * @description Optional (package E of docs/plans/clinic-cms.md): a service of the slot's clinic's price list, active and offered in the slot's visit mode, as GET /organizations/{id}/services gives them. Shown to the clinic and the first line of the visit's receipt; nothing is charged in the app. Kept on a reschedule.
+             */
+            serviceId?: string;
         };
         SetAppointmentStatusRequest: {
             /** @enum {string} */
@@ -3110,6 +3740,11 @@ export interface components {
             practitionerRoleId: string;
             /** Format: uuid */
             slotId: string;
+            /**
+             * Format: uuid
+             * @description The price-list service the booking named; absent for none (package E).
+             */
+            serviceId?: string;
             /** Format: date-time */
             start: string;
             /** Format: date-time */
@@ -3141,6 +3776,8 @@ export interface components {
              * @enum {string}
              */
             bookedVia: "direct" | "waitlist";
+            /** @description Its slot's at booking; never changes. */
+            visitMode: components["schemas"]["VisitMode"];
             /**
              * Format: int32
              * @description How often the patient moved it.
@@ -3160,7 +3797,7 @@ export interface components {
             /** @description The draft's translations, all of them: one per language, none in the original language. A translation may be incomplete while the version is a draft; publishing refuses it until complete. Absent keeps the draft's. */
             translations?: components["schemas"]["QuestionnaireTranslation"][];
         };
-        /** @description One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and instructions. Single and multiple choice are both `choice`; `repeats` tells them apart. */
+        /** @description One item, as FHIR Questionnaire.item. Sections (`group`) hold questions, instructions and other sections: a branch is a section carrying the condition, and the flow joins back at the next item without one. Single and multiple choice are both `choice`; `repeats` tells them apart. */
         QuestionnaireItem: {
             /** @description Opaque and random, unique within the questionnaire, kept by later versions. */
             linkId: string;
@@ -3185,12 +3822,24 @@ export interface components {
             answerOption?: {
                 valueString: string;
             }[];
-            /** @description Shown only when the earlier item `question`, a boolean or a choice, is answered `answerBoolean` or `answerString` (one of its options); a choice with repeats when any answer matches. */
+            /** @description FHIR R4 enableWhen: shown only while these conditions on earlier questions hold, all of them or any one (`enableBehavior`, required with two or more). Each takes the one answer[x] of its question's type: `answerBoolean` (yes/no), `answerString` (one of a choice's options), `answerInteger`, `answerDecimal`, `answerDate`. `=` and `!=` fit every type but string and text; `>`, `>=`, `<`, `<=` fit integer, decimal and date; `exists` fits every question and takes `answerBoolean` (true: answered). A choice with repeats meets `=` when any answer matches and `!=` when none does; every operator but `exists` is false on an unanswered or hidden question. The single object of before (`question` with `answerBoolean` or `answerString`, operator `=`) is still accepted. */
             enableWhen?: {
                 question: string;
+                /** @enum {string} */
+                operator: "exists" | "=" | "!=" | ">" | "<" | ">=" | "<=";
                 answerBoolean?: boolean;
                 answerString?: string;
-            };
+                /** Format: int32 */
+                answerInteger?: number;
+                answerDecimal?: number;
+                /** Format: date */
+                answerDate?: string;
+            }[];
+            /**
+             * @description How several conditions combine; required with two or more.
+             * @enum {string}
+             */
+            enableBehavior?: "all" | "any";
             /** @description A section's questions and instructions. */
             item?: components["schemas"]["QuestionnaireItem"][];
         };
@@ -3358,8 +4007,8 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed";
-            /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed";
+            /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
             language?: components["schemas"]["Language"];
@@ -4905,7 +5554,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). */
+        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). `answer_not_enabled`, on submit: a saved answer is to an item its conditions hide on the answers given (a response holds only the path taken); `linkIds` names those items in document order, and the patient saves the answers without them. */
         AnswersInvalid: {
             headers: {
                 [name: string]: unknown;
@@ -6561,7 +7210,7 @@ export interface operations {
                     "application/json": components["schemas"]["Appointment"];
                 };
             };
-            /** @description `invalid_request`. */
+            /** @description `invalid_request`; `invalid_service`: the service named is not one its clinic offers, active, in the slot's visit mode. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11286,6 +11935,748 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicServices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The price list. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createClinicService: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description The service stored. */
+            201: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description `invalid_request`: unreadable or a field unknown; `invalid_service`: a blank name, a negative price, an unknown mode, or a VAT rate out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateClinicService: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description The service stored. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_service`, as for a new service; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such service of the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listOfferedServices: {
+        parameters: {
+            query: {
+                mode: components["schemas"]["VisitMode"];
+                /** @description A BCP 47 tag of the language enum. */
+                language?: string;
+            };
+            header?: never;
+            path: {
+                /** @description The clinic's id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The services. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfferedService"][];
+                };
+            };
+            /** @description `invalid_request`: no or an unknown mode, or an unknown language. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such listed clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicReceipts: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipts. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"][];
+                };
+            };
+            /** @description `invalid_request`: a time missing, or `to` not after `from`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    issueReceipt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description A UUID the client makes once per receipt it means to issue. Unique per clinic. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueReceiptRequest"];
+            };
+        };
+        responses: {
+            /** @description The receipt issued. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            /** @description `invalid_request`: unreadable, a field unknown, or an `Idempotency-Key` that is no UUID; `invalid_receipt`: no lines, a patient and a company together, a service not on the clinic's active price list, or an `Idempotency-Key` another account issued with. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: neither the clinic's admin nor the practitioner of the visit; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: not staff of a clinic, or no such visit of the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `billing_details_missing`: the clinic's legal name, tax id or address is missing; a receipt names its seller. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such receipt the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    reverseReceipt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReverseReceiptRequest"];
+            };
+        };
+        responses: {
+            /** @description The reversing receipt. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            /** @description `invalid_request`: unreadable, or an unknown payment method. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such receipt of the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `already_reversed`: the receipt was reversed already, or is itself a reversal. `fiscal_report_failed`: the receipt's fiscal report failed, so a reversal of it could not be reported either. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    retryReceiptReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt as it is, still `failed` until its report runs. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such receipt of the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `fiscal_report_not_failed`: the receipt is pending (its report is still running) or fiscalized. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicReceiptPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such receipt the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getReceiptsReport: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptsReport"];
+                    "text/csv": string;
+                };
+            };
+            /** @description `invalid_request`: a time missing, or `to` not after `from`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPracticeReport: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeReport"];
+                };
+            };
+            /** @description `invalid_request`: a time missing or malformed, `to` not after `from`, or a range over ten years. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyReceipts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipts. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; `profile_required`: no patient profile yet. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMyReceiptPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such receipt of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The membership. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listSubscriptionInvoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invoices. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionInvoice"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSubscriptionInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such invoice of the clinic, or no clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getBillingDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The billing details. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingDetails"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    setBillingDetails: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingDetails"];
+            };
+        };
+        responses: {
+            /** @description The billing details stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingDetails"];
+                };
+            };
+            /** @description `invalid_request`: unreadable, a field unknown, or a tax id that is not 12 or 13 digits. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
             500: components["responses"]["InternalError"];
         };

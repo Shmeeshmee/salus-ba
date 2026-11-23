@@ -27,6 +27,7 @@ export interface Extension {
   url: string
   valueBoolean?: boolean
   valueCode?: string
+  valueReference?: Reference
 }
 
 // Address is the clinic's location (docs/plans/analytics.md O1): the leaf region's ISO 3166-2:BA code as the state,
@@ -34,6 +35,8 @@ export interface Extension {
 export interface Address {
   state: string
   city?: string
+  line?: string[]
+  postalCode?: string
   extension: Extension[]
 }
 
@@ -89,6 +92,18 @@ export interface Appointment {
   start: string
   end: string
   participant: { status: string; actor: Reference }[]
+  extension?: Extension[]
+}
+
+// EnableWhen is Questionnaire.item.enableWhen with the answer types the builder uses.
+export interface EnableWhen {
+  question: string
+  operator: string
+  answerBoolean?: boolean
+  answerString?: string
+  answerInteger?: number
+  answerDecimal?: number
+  answerDate?: string
 }
 
 export interface QuestionnaireItem {
@@ -98,7 +113,8 @@ export interface QuestionnaireItem {
   required?: boolean
   repeats?: boolean
   answerOption?: { valueString: string }[]
-  enableWhen?: { question: string; operator: string; answerBoolean?: boolean; answerString?: string }[]
+  enableWhen?: EnableWhen[]
+  enableBehavior?: 'all' | 'any'
   extension?: { url: string; valueCodeableConcept?: CodeableConcept; valueCode?: string; valueInteger?: number }[]
   item?: QuestionnaireItem[]
 }
@@ -195,6 +211,9 @@ export type ClinicSettings = {
   region: string
   city: string
   cityName: string
+  // addressLine and postalCode are where patients come for an in-person visit; only a clinic with a city has them.
+  addressLine: string
+  postalCode: string
   contributes: boolean
 }
 
@@ -210,6 +229,8 @@ export function settingsOf(org: Organization): ClinicSettings {
     region: org.address?.[0]?.state ?? '',
     city: org.address?.[0]?.extension.find((e) => e.url === cityURL)?.valueCode ?? '',
     cityName: org.address?.[0]?.city ?? '',
+    addressLine: org.address?.[0]?.line?.[0] ?? '',
+    postalCode: org.address?.[0]?.postalCode ?? '',
     contributes: ext(contributesURL)?.valueBoolean ?? true,
   }
 }
@@ -228,7 +249,20 @@ export function withSettings(org: Organization, s: ClinicSettings): Organization
       { url: transcriptCopyURL, valueBoolean: s.transcriptCopy },
       { url: contributesURL, valueBoolean: s.contributes },
     ],
-    address: s.city ? [{ state: s.region, city: s.cityName, extension: [{ url: cityURL, valueCode: s.city }] }] : org.address,
+    address: s.city ? [address(s)] : org.address,
+  }
+}
+
+// address is the clinic's address as an update sends it: the location, and the line and the postal code, each empty to
+// clear it.
+function address(s: ClinicSettings): Address {
+  const line = s.addressLine.trim()
+  return {
+    state: s.region,
+    city: s.cityName,
+    line: line ? [line] : [],
+    postalCode: s.postalCode.trim(),
+    extension: [{ url: cityURL, valueCode: s.city }],
   }
 }
 

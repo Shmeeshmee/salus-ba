@@ -17,6 +17,7 @@ class Appointment {
     required this.organizationId,
     required this.practitionerRoleId,
     required this.slotId,
+    this.serviceId,
     required this.start,
     required this.end,
     required this.status,
@@ -25,6 +26,7 @@ class Appointment {
     this.confirmedAt,
     this.confirmedVia,
     required this.bookedVia,
+    required this.visitMode,
     required this.rescheduleCount,
     required this.versionId,
   });
@@ -36,6 +38,15 @@ class Appointment {
   String practitionerRoleId;
 
   String slotId;
+
+  /// The price-list service the booking named; absent for none (package E).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? serviceId;
 
   DateTime start;
 
@@ -70,6 +81,9 @@ class Appointment {
   /// A free slot of the directory, or an offer of the waitlist.
   AppointmentBookedViaEnum bookedVia;
 
+  /// Its slot's at booking; never changes.
+  VisitMode visitMode;
+
   /// How often the patient moved it.
   ///
   /// Minimum value: 0
@@ -85,6 +99,7 @@ class Appointment {
           other.organizationId == organizationId &&
           other.practitionerRoleId == practitionerRoleId &&
           other.slotId == slotId &&
+          other.serviceId == serviceId &&
           other.start == start &&
           other.end == end &&
           other.status == status &&
@@ -93,6 +108,7 @@ class Appointment {
           other.confirmedAt == confirmedAt &&
           other.confirmedVia == confirmedVia &&
           other.bookedVia == bookedVia &&
+          other.visitMode == visitMode &&
           other.rescheduleCount == rescheduleCount &&
           other.versionId == versionId;
 
@@ -103,6 +119,7 @@ class Appointment {
       (organizationId.hashCode) +
       (practitionerRoleId.hashCode) +
       (slotId.hashCode) +
+      (serviceId == null ? 0 : serviceId!.hashCode) +
       (start.hashCode) +
       (end.hashCode) +
       (status.hashCode) +
@@ -111,12 +128,13 @@ class Appointment {
       (confirmedAt == null ? 0 : confirmedAt!.hashCode) +
       (confirmedVia == null ? 0 : confirmedVia!.hashCode) +
       (bookedVia.hashCode) +
+      (visitMode.hashCode) +
       (rescheduleCount.hashCode) +
       (versionId.hashCode);
 
   @override
   String toString() =>
-      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, rescheduleCount=$rescheduleCount, versionId=$versionId]';
+      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, serviceId=$serviceId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -124,6 +142,11 @@ class Appointment {
     json[r'organizationId'] = this.organizationId;
     json[r'practitionerRoleId'] = this.practitionerRoleId;
     json[r'slotId'] = this.slotId;
+    if (this.serviceId != null) {
+      json[r'serviceId'] = this.serviceId;
+    } else {
+      json[r'serviceId'] = null;
+    }
     json[r'start'] = this.start.toUtc().toIso8601String();
     json[r'end'] = this.end.toUtc().toIso8601String();
     json[r'status'] = this.status;
@@ -148,6 +171,7 @@ class Appointment {
       json[r'confirmedVia'] = null;
     }
     json[r'bookedVia'] = this.bookedVia;
+    json[r'visitMode'] = this.visitMode;
     json[r'rescheduleCount'] = this.rescheduleCount;
     json[r'versionId'] = this.versionId;
     return json;
@@ -196,6 +220,10 @@ class Appointment {
             'Required key "Appointment[bookedVia]" is missing from JSON.');
         assert(json[r'bookedVia'] != null,
             'Required key "Appointment[bookedVia]" has a null value in JSON.');
+        assert(json.containsKey(r'visitMode'),
+            'Required key "Appointment[visitMode]" is missing from JSON.');
+        assert(json[r'visitMode'] != null,
+            'Required key "Appointment[visitMode]" has a null value in JSON.');
         assert(json.containsKey(r'rescheduleCount'),
             'Required key "Appointment[rescheduleCount]" is missing from JSON.');
         assert(json[r'rescheduleCount'] != null,
@@ -213,6 +241,7 @@ class Appointment {
         practitionerRoleId:
             mapValueOfType<String>(json, r'practitionerRoleId')!,
         slotId: mapValueOfType<String>(json, r'slotId')!,
+        serviceId: mapValueOfType<String>(json, r'serviceId'),
         start: mapDateTime(json, r'start', r'')!,
         end: mapDateTime(json, r'end', r'')!,
         status: AppointmentStatusEnum.fromJson(json[r'status'])!,
@@ -223,6 +252,7 @@ class Appointment {
         confirmedVia:
             AppointmentConfirmedViaEnum.fromJson(json[r'confirmedVia']),
         bookedVia: AppointmentBookedViaEnum.fromJson(json[r'bookedVia'])!,
+        visitMode: VisitMode.fromJson(json[r'visitMode'])!,
         rescheduleCount: mapValueOfType<int>(json, r'rescheduleCount')!,
         versionId: mapValueOfType<int>(json, r'versionId')!,
       );
@@ -289,6 +319,7 @@ class Appointment {
     'end',
     'status',
     'bookedVia',
+    'visitMode',
     'rescheduleCount',
     'versionId',
   };

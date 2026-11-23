@@ -4,7 +4,11 @@
 // public directory sees the free slots of listed clinics.
 package slot
 
-import "time"
+import (
+	"time"
+
+	"github.com/Shmeeshmee/salus/internal/schedule"
+)
 
 // Status is FHIR SlotStatus, the three the product uses.
 type Status string
@@ -20,6 +24,7 @@ const (
 type Period struct {
 	Start time.Time
 	End   time.Time
+	Mode  schedule.VisitMode // its rule's: in-person or video
 }
 
 // Slot is a bookable time of one schedule.

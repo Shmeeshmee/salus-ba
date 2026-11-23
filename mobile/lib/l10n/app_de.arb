@@ -515,5 +515,22 @@
   "waitlistWithdrawn": "Sie haben die Warteliste verlassen.",
   "waitlistOff": "Diese Praxis hat keine Warteliste.",
   "waitlistTooMany": "Sie stehen bereits fünfmal auf der Warteliste dieser Praxis. Verlassen Sie zuerst einen Eintrag.",
-  "waitlistOfferExpired": "Dieser Termin ist nicht mehr für Sie reserviert. Sie bleiben auf der Warteliste."
+  "waitlistOfferExpired": "Dieser Termin ist nicht mehr für Sie reserviert. Sie bleiben auf der Warteliste.",
+  "visitModeQuestion": "Wie möchten Sie den Termin wahrnehmen?",
+  "visitModeVideo": "Per Video",
+  "visitModeInPerson": "In der Klinik",
+  "pricesHeading": "Preise dieser Praxis",
+  "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet.",
+  "discardTitle": "Diese Antwort ändern?",
+  "discardBody": "{n, plural, one{Durch diese Änderung entfällt {n} Frage, die Sie bereits beantwortet haben. Die Antwort wird entfernt.} other{Durch diese Änderung entfallen {n} Fragen, die Sie bereits beantwortet haben. Die Antworten werden entfernt.}}",
+  "discardConfirm": "Ändern und entfernen",
+  "myReceipts": "Meine Rechnungen",
+  "receiptsIntro": "Die Belege, die Ihnen Kliniken für in der Klinik bezahlte Leistungen ausgestellt haben. Kliniken bewahren Belege so lange auf, wie es das Fiskalisierungsgesetz verlangt.",
+  "noReceipts": "Sie haben noch keine Belege.",
+  "receiptNumber": "Beleg Nr. {number}",
+  "receiptIssuedOn": "Ausgestellt am {date}",
+  "receiptReversal": "Storno eines früheren Belegs",
+  "receiptLine": "{name} × {quantity}",
+  "serviceAtClinic": "Ich wähle in der Praxis",
+  "answersNotEnabled": "Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: {items}. Prüfen Sie Ihre Antworten und senden Sie sie erneut."
 }

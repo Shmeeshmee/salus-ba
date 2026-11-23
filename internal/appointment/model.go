@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // Status is Appointment.status, the four the product uses.
@@ -48,13 +49,15 @@ type Appointment struct {
 	PractitionerRoleID string // the practitioner role participant
 	OrganizationID     string // the clinic
 	SlotID             string // Appointment.slot
+	ServiceID          string // the price-list service named at booking; empty for none (docs/plans/clinic-cms.md, E)
 	CancelledBy        string // the account that cancelled; empty for none or a job
 	Status             Status
-	Reason             Reason    // Appointment.cancelationReason; empty unless cancelled
-	ConfirmedVia       Via       // ViaApp or ViaLink once confirmed; empty while unconfirmed
-	BookedVia          BookedVia // how it was booked: directly or through a waitlist offer
-	VersionID          int32     // meta.versionId
-	RescheduleCount    int32     // how often the patient moved it
+	Reason             Reason             // Appointment.cancelationReason; empty unless cancelled
+	ConfirmedVia       Via                // ViaApp or ViaLink once confirmed; empty while unconfirmed
+	BookedVia          BookedVia          // how it was booked: directly or through a waitlist offer
+	Mode               schedule.VisitMode // in-person or video: its slot's at booking, never changed (ADR 0016)
+	VersionID          int32              // meta.versionId
+	RescheduleCount    int32              // how often the patient moved it
 }
 
 // Via is how a change of an appointment was made: in the patient's app, through a one-time link of a reminder, by
@@ -284,6 +287,15 @@ type Booked struct {
 	BookedVia          BookedVia
 }
 
+// Visit is an appointment as the online practice report counts it (clinicstats, docs/plans/clinic-cms.md, E): whose,
+// in which mode, and its status. Opaque ids only, no patient.
+type Visit struct {
+	ID                 string
+	PractitionerRoleID string
+	Mode               schedule.VisitMode
+	Status             Status
+}
+
 // Start is an appointment as a build gets it: the patient only as a pseudonym under the build's key
 // (docs/plans/analytics.md §3).
 type Start struct {
@@ -342,6 +354,7 @@ type ReminderNotice struct {
 	OrganizationID string
 	PatientID      string
 	AccountID      string
+	Mode           schedule.VisitMode // in-person or video: an in-person visit's reminder says where to come
 }
 
 // ReminderArgs is the appointment_reminder job on the notifier's push queue, scheduled at the reminder's due time and

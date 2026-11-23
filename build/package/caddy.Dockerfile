@@ -17,7 +17,7 @@ FROM caddy:2.11.9-builder@sha256:1b828679ae08622c534d8e83ed80c6c25d343202f0586fe
 RUN xcaddy build --with github.com/mholt/caddy-l4@v0.1.2 --with golang.org/x/net/html@v0.62.0 \
     && setcap cap_net_bind_service=+ep /usr/bin/caddy
 
-FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+FROM caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
 RUN addgroup -S -g 10001 caddy \
     && adduser -S -D -H -h /data -s /sbin/nologin -u 10001 -G caddy caddy \
     && chown -R caddy:caddy /data /config

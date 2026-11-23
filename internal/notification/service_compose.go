@@ -127,7 +127,7 @@ func (s *Service) composeEmail(ctx context.Context, agent string, d Delivery, n 
 	if err != nil {
 		return outgoing{}, err
 	}
-	data := letter{Clinic: st.clinic.Name, Link: s.patientAppURL + "/appointments"}
+	data := whereToCome(letter{Clinic: st.clinic.Name, Link: s.patientAppURL + "/appointments"}, n.Mode, st.clinic)
 	if data.When, err = l.when(st.there, st.clinic.TimeZone); err != nil {
 		return outgoing{}, err
 	}
@@ -165,10 +165,10 @@ func (s *Service) composeSMS(ctx context.Context, agent string, d Delivery, n ap
 	if err != nil {
 		return outgoing{}, err
 	}
-	data := letter{
+	data := whereToCome(letter{
 		Clinic: st.clinic.Name, ActionLink: link, Zone: st.clinic.TimeZone,
 		Day: st.there.Format("02"), Month: st.there.Format("01"), Year: st.there.Year(), Time: st.there.Format("15:04"),
-	}
+	}, n.Mode, st.clinic)
 	if !st.local.IsZero() {
 		data.ZoneLocal, data.DayLocal, data.MonthLocal, data.TimeLocal = st.localZone, st.local.Format("02"), st.local.Format("01"), st.local.Format("15:04")
 	}

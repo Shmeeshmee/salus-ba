@@ -83,6 +83,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{},
 		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool))) // the location's check and city name
+	prices := priceList(pool, audit, tx, clinics) // the price list's routes and the receipts' prices (clinic-cms B, C)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, People: practitioners,
@@ -99,14 +100,15 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
 	appointmentPorts := appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
-		Consents: consents, Slots: slots, Patients: patients, Clinics: clinics, Roles: roles,
+		Consents: consents, Slots: slots, Patients: patients, Clinics: bookableClinics{Service: clinics, memberships: memberships(pool, audit, tx)}, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
 		// A booking schedules its reminders by the clinic's offsets, a cancellation cancels them (SAL-33); the patient's
 		// confirmation, rescheduling and one-time links (SAL-34) read the same rules, and count the link lookups in Redis
 		// under an HMAC of the address.
 		Reminders: appointment.NewPostgresReminderRepository(pool), Rules: appointmentRules(pool, audit, tx),
 		SelfService: appointment.NewPostgresSelfServiceRepository(pool), Limiter: appointment.NewRedisLinkLimiter(rdb), LinkKey: cfg.RateLimitKey,
-		NoShows: appointment.NewPostgresNoShowRepository(pool), // SAL-36: the no-show's correction and the repeat no-show flag
+		NoShows:  appointment.NewPostgresNoShowRepository(pool), // SAL-36: the no-show's correction and the repeat no-show flag
+		Services: prices,                                        // a booking may name a service of the price list (clinic-cms E)
 	}
 	waitlistPorts(&appointmentPorts, pool, audit, tx, jobs, clinics, slots) // SAL-35
 	appointments := appointment.NewService(appointmentPorts)
@@ -152,7 +154,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewNoShowHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log)}, platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log)},
+			[]func(*http.ServeMux){invoiceRoutes(invoicePorts{pool: pool, audit: audit, tx: tx, jobs: jobs, clinics: clinics, appointments: appointments, consents: consents, care: appointment.NewFacts(appointmentRepo), prices: prices, accounts: accounts, patients: patients}, log)}, // receipts (clinic-cms C)
+			subscriptionRoutes(pool, audit, tx, accounts, clinics, cfg.Seller, log), // membership (clinic-cms D)
+			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})
@@ -538,9 +543,10 @@ func patientReadCaller(accounts *auth.Service, roles *practitionerrole.Service) 
 
 // clinicStatsRoutes are the clinic's own statistics' (SAL-20), read on pool (salus_app) in the caller's clinic.
 func clinicStatsRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor,
-	caller func(ctx context.Context) (clinicstats.Caller, bool, error), log *slog.Logger,
+	caller func(ctx context.Context) (clinicstats.Caller, bool, error), log *slog.Logger, practice practiceSources,
 ) func(*http.ServeMux) {
-	svc := clinicstats.NewService(clinicstats.Ports{Repo: clinicstats.NewPostgresRepository(pool), Audit: audit, Tx: tx})
+	ports := clinicstats.Ports{Repo: clinicstats.NewPostgresRepository(pool), Audit: audit, Tx: tx}
+	svc := clinicstats.NewService(practicePorts(ports, pool, audit, tx, practice)) // with the online practice report (clinic-cms E)
 	return clinicstats.NewHTTPHandler(svc, caller, log).Routes
 }
 

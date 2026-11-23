@@ -22,7 +22,8 @@ class QuestionnaireItem {
     this.maxFiles,
     this.help,
     this.answerOption = const [],
-    this.enableWhen,
+    this.enableWhen = const [],
+    this.enableBehavior,
     this.item = const [],
   });
 
@@ -79,13 +80,11 @@ class QuestionnaireItem {
   /// Choice only, each value different.
   List<QuestionnaireItemAnswerOptionInner> answerOption;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  QuestionnaireItemEnableWhen? enableWhen;
+  /// FHIR R4 enableWhen: shown only while these conditions on earlier questions hold, all of them or any one (`enableBehavior`, required with two or more). Each takes the one answer[x] of its question's type: `answerBoolean` (yes/no), `answerString` (one of a choice's options), `answerInteger`, `answerDecimal`, `answerDate`. `=` and `!=` fit every type but string and text; `>`, `>=`, `<`, `<=` fit integer, decimal and date; `exists` fits every question and takes `answerBoolean` (true: answered). A choice with repeats meets `=` when any answer matches and `!=` when none does; every operator but `exists` is false on an unanswered or hidden question. The single object of before (`question` with `answerBoolean` or `answerString`, operator `=`) is still accepted.
+  List<QuestionnaireItemEnableWhenInner> enableWhen;
+
+  /// How several conditions combine; required with two or more.
+  QuestionnaireItemEnableBehaviorEnum? enableBehavior;
 
   /// A section's questions and instructions.
   List<QuestionnaireItem> item;
@@ -103,7 +102,8 @@ class QuestionnaireItem {
           other.maxFiles == maxFiles &&
           other.help == help &&
           _deepEquality.equals(other.answerOption, answerOption) &&
-          other.enableWhen == enableWhen &&
+          _deepEquality.equals(other.enableWhen, enableWhen) &&
+          other.enableBehavior == enableBehavior &&
           _deepEquality.equals(other.item, item);
 
   @override
@@ -118,12 +118,13 @@ class QuestionnaireItem {
       (maxFiles == null ? 0 : maxFiles!.hashCode) +
       (help == null ? 0 : help!.hashCode) +
       (answerOption.hashCode) +
-      (enableWhen == null ? 0 : enableWhen!.hashCode) +
+      (enableWhen.hashCode) +
+      (enableBehavior == null ? 0 : enableBehavior!.hashCode) +
       (item.hashCode);
 
   @override
   String toString() =>
-      'QuestionnaireItem[linkId=$linkId, text=$text, type=$type, required_=$required_, repeats=$repeats, accept=$accept, maxFiles=$maxFiles, help=$help, answerOption=$answerOption, enableWhen=$enableWhen, item=$item]';
+      'QuestionnaireItem[linkId=$linkId, text=$text, type=$type, required_=$required_, repeats=$repeats, accept=$accept, maxFiles=$maxFiles, help=$help, answerOption=$answerOption, enableWhen=$enableWhen, enableBehavior=$enableBehavior, item=$item]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -152,10 +153,11 @@ class QuestionnaireItem {
       json[r'help'] = null;
     }
     json[r'answerOption'] = this.answerOption;
-    if (this.enableWhen != null) {
-      json[r'enableWhen'] = this.enableWhen;
+    json[r'enableWhen'] = this.enableWhen;
+    if (this.enableBehavior != null) {
+      json[r'enableBehavior'] = this.enableBehavior;
     } else {
-      json[r'enableWhen'] = null;
+      json[r'enableBehavior'] = null;
     }
     json[r'item'] = this.item;
     return json;
@@ -199,7 +201,10 @@ class QuestionnaireItem {
         help: mapValueOfType<String>(json, r'help'),
         answerOption: QuestionnaireItemAnswerOptionInner.listFromJson(
             json[r'answerOption']),
-        enableWhen: QuestionnaireItemEnableWhen.fromJson(json[r'enableWhen']),
+        enableWhen:
+            QuestionnaireItemEnableWhenInner.listFromJson(json[r'enableWhen']),
+        enableBehavior: QuestionnaireItemEnableBehaviorEnum.fromJson(
+            json[r'enableBehavior']),
         item: QuestionnaireItem.listFromJson(json[r'item']),
       );
     }
@@ -454,4 +459,89 @@ class QuestionnaireItemAcceptEnumTypeTransformer {
 
   /// The singleton instance of this transformer.
   static QuestionnaireItemAcceptEnumTypeTransformer? _instance;
+}
+
+/// How several conditions combine; required with two or more.
+enum QuestionnaireItemEnableBehaviorEnum {
+  all._(r'all'),
+  any._(r'any'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const QuestionnaireItemEnableBehaviorEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [QuestionnaireItemEnableBehaviorEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static QuestionnaireItemEnableBehaviorEnum? fromJson(dynamic value) =>
+      QuestionnaireItemEnableBehaviorEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [QuestionnaireItemEnableBehaviorEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<QuestionnaireItemEnableBehaviorEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <QuestionnaireItemEnableBehaviorEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = QuestionnaireItemEnableBehaviorEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [QuestionnaireItemEnableBehaviorEnum] to String,
+/// and [decode] dynamic data back to [QuestionnaireItemEnableBehaviorEnum].
+class QuestionnaireItemEnableBehaviorEnumTypeTransformer {
+  factory QuestionnaireItemEnableBehaviorEnumTypeTransformer() => _instance ??=
+      const QuestionnaireItemEnableBehaviorEnumTypeTransformer._();
+
+  const QuestionnaireItemEnableBehaviorEnumTypeTransformer._();
+
+  String encode(QuestionnaireItemEnableBehaviorEnum data) => data._value;
+
+  /// Returns the instance of [QuestionnaireItemEnableBehaviorEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  QuestionnaireItemEnableBehaviorEnum? decode(dynamic data,
+      {bool allowNull = true}) {
+    if (data is QuestionnaireItemEnableBehaviorEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'all':
+          return QuestionnaireItemEnableBehaviorEnum.all;
+        case r'any':
+          return QuestionnaireItemEnableBehaviorEnum.any;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static QuestionnaireItemEnableBehaviorEnumTypeTransformer? _instance;
 }

@@ -1,0 +1,37 @@
+{
+  "name": "The ticket's example: yes asks the month and the age (and one more under 18), then everyone joins the main questions",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "abortion", "text": "Have you had an abortion?", "type": "boolean"},
+      {"linkId": "abortion-yes", "text": "About the abortion", "type": "group",
+        "enableWhen": [{"question": "abortion", "operator": "=", "answerBoolean": true}],
+        "item": [
+          {"linkId": "abortion-month", "text": "In which month of pregnancy?", "type": "integer"},
+          {"linkId": "abortion-age", "text": "How old were you?", "type": "integer"},
+          {"linkId": "abortion-under-18", "text": "Placeholder: an extra question under 18", "type": "text",
+            "enableWhen": [{"question": "abortion-age", "operator": "<", "answerInteger": 18}]}
+        ]},
+      {"linkId": "main", "text": "Main questions", "type": "group",
+        "item": [
+          {"linkId": "main-1", "text": "Placeholder main question", "type": "string"},
+          {"linkId": "main-2", "text": "Placeholder main yes/no", "type": "boolean"}
+        ]}
+    ]
+  },
+  "cases": [
+    {"name": "not answered yet", "answers": {},
+      "enabled": ["abortion", "main", "main-1", "main-2"]},
+    {"name": "no: straight to the main questions", "answers": {"abortion": [{"valueBoolean": false}]},
+      "enabled": ["abortion", "main", "main-1", "main-2"]},
+    {"name": "yes: the month and the age, then the main questions",
+      "answers": {"abortion": [{"valueBoolean": true}], "abortion-month": [{"valueInteger": 3}], "abortion-age": [{"valueInteger": 25}]},
+      "enabled": ["abortion", "abortion-yes", "abortion-month", "abortion-age", "main", "main-1", "main-2"]},
+    {"name": "yes at 17: the extra question too",
+      "answers": {"abortion": [{"valueBoolean": true}], "abortion-month": [{"valueInteger": 3}], "abortion-age": [{"valueInteger": 17}]},
+      "enabled": ["abortion", "abortion-yes", "abortion-month", "abortion-age", "abortion-under-18", "main", "main-1", "main-2"]},
+    {"name": "changed from yes to no: the branch's answers count as none",
+      "answers": {"abortion": [{"valueBoolean": false}], "abortion-month": [{"valueInteger": 3}], "abortion-age": [{"valueInteger": 17}], "abortion-under-18": [{"valueString": "Placeholder"}]},
+      "enabled": ["abortion", "main", "main-1", "main-2"]}
+  ]
+}

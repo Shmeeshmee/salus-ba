@@ -1,0 +1,3 @@
+Package Q1. Ticket SAL-43 (read the whole description). Migration, only if you need one: 00065.
+Q2 (web) and Q3 (mobile) are being built in parallel against FHIR enableWhen alone: do not change the wire shape of
+a questionnaire beyond what FHIR R4 defines, and write the shared vectors early.

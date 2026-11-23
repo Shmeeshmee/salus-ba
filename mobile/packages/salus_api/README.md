@@ -102,6 +102,25 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**register**](doc//AuthApi.md#register) | **POST** /auth/register | Register a patient account
 *AuthApi* | [**updateMe**](doc//AuthApi.md#updateme) | **PATCH** /auth/me | Choose the account's language
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
+*BillingApi* | [**createClinicService**](doc//BillingApi.md#createclinicservice) | **POST** /clinic/services | Add a service to the clinic's price list
+*BillingApi* | [**getBillingDetails**](doc//BillingApi.md#getbillingdetails) | **GET** /clinic/billing-details | The clinic's billing details
+*BillingApi* | [**getClinicReceipt**](doc//BillingApi.md#getclinicreceipt) | **GET** /clinic/receipts/{id} | A receipt of the clinic
+*BillingApi* | [**getClinicReceiptPdf**](doc//BillingApi.md#getclinicreceiptpdf) | **GET** /clinic/receipts/{id}/pdf | A receipt as a PDF on the clinic's letterhead
+*BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
+*BillingApi* | [**getMyReceiptPdf**](doc//BillingApi.md#getmyreceiptpdf) | **GET** /me/receipts/{id}/pdf | The patient's own receipt as a PDF
+*BillingApi* | [**getPracticeReport**](doc//BillingApi.md#getpracticereport) | **GET** /clinic/reports/practice | The online practice report, per practitioner and visit mode
+*BillingApi* | [**getReceiptsReport**](doc//BillingApi.md#getreceiptsreport) | **GET** /clinic/reports/receipts | The clinic's receipts summed for a day or a period, for its accountant
+*BillingApi* | [**getSubscriptionInvoicePdf**](doc//BillingApi.md#getsubscriptioninvoicepdf) | **GET** /clinic/subscription/invoices/{id}/pdf | A membership invoice as a PDF
+*BillingApi* | [**issueReceipt**](doc//BillingApi.md#issuereceipt) | **POST** /clinic/receipts | Issue a receipt for a visit or on its own
+*BillingApi* | [**listClinicReceipts**](doc//BillingApi.md#listclinicreceipts) | **GET** /clinic/receipts | The clinic's receipts issued in a period
+*BillingApi* | [**listClinicServices**](doc//BillingApi.md#listclinicservices) | **GET** /clinic/services | The clinic's price list
+*BillingApi* | [**listMyReceipts**](doc//BillingApi.md#listmyreceipts) | **GET** /me/receipts | The patient's own receipts, from every clinic
+*BillingApi* | [**listOfferedServices**](doc//BillingApi.md#listofferedservices) | **GET** /organizations/{id}/services | The services a listed clinic offers, with their prices, for booking
+*BillingApi* | [**listSubscriptionInvoices**](doc//BillingApi.md#listsubscriptioninvoices) | **GET** /clinic/subscription/invoices | Salus's monthly invoices to the clinic
+*BillingApi* | [**retryReceiptReport**](doc//BillingApi.md#retryreceiptreport) | **POST** /clinic/receipts/{id}/retry | Report a receipt whose fiscal report failed once more
+*BillingApi* | [**reverseReceipt**](doc//BillingApi.md#reversereceipt) | **POST** /clinic/receipts/{id}/reverse | Reverse an issued receipt
+*BillingApi* | [**setBillingDetails**](doc//BillingApi.md#setbillingdetails) | **PUT** /clinic/billing-details | Replace the clinic's billing details
+*BillingApi* | [**updateClinicService**](doc//BillingApi.md#updateclinicservice) | **PUT** /clinic/services/{id} | Change a service of the clinic's price list
 *ChatApi* | [**addConversationParticipant**](doc//ChatApi.md#addconversationparticipant) | **POST** /conversations/{id}/participants | Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
 *ChatApi* | [**createWebhook**](doc//ChatApi.md#createwebhook) | **POST** /clinic/webhooks | Add a webhook endpoint; its secret is shown in this answer only
 *ChatApi* | [**decideChatInvitation**](doc//ChatApi.md#decidechatinvitation) | **POST** /me/chat-invitations/{id}/decision | Grant or decline an invitation (SAL-28)
@@ -239,6 +258,7 @@ Class | Method | HTTP request | Description
  - [AppointmentSettings](doc//AppointmentSettings.md)
  - [Availability](doc//Availability.md)
  - [AvailabilityRule](doc//AvailabilityRule.md)
+ - [BillingDetails](doc//BillingDetails.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
  - [ChatAttachment](doc//ChatAttachment.md)
@@ -314,6 +334,7 @@ Class | Method | HTTP request | Description
  - [Error](doc//Error.md)
  - [ExplainedTerm](doc//ExplainedTerm.md)
  - [ExplainedTermList](doc//ExplainedTermList.md)
+ - [FiscalStatus](doc//FiscalStatus.md)
  - [GenerateDraftRequest](doc//GenerateDraftRequest.md)
  - [GrantConsentRequest](doc//GrantConsentRequest.md)
  - [HistoryClinic](doc//HistoryClinic.md)
@@ -327,6 +348,7 @@ Class | Method | HTTP request | Description
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
+ - [IssueReceiptRequest](doc//IssueReceiptRequest.md)
  - [KeyedError](doc//KeyedError.md)
  - [Language](doc//Language.md)
  - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
@@ -343,9 +365,11 @@ Class | Method | HTTP request | Description
  - [NoShowFlagsFlagsInner](doc//NoShowFlagsFlagsInner.md)
  - [NotificationChannels](doc//NotificationChannels.md)
  - [NotificationSettings](doc//NotificationSettings.md)
+ - [OfferedService](doc//OfferedService.md)
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
+ - [PaymentMethod](doc//PaymentMethod.md)
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)
  - [PlaceList](doc//PlaceList.md)
@@ -356,20 +380,30 @@ Class | Method | HTTP request | Description
  - [PlatformMonths](doc//PlatformMonths.md)
  - [PlatformRises](doc//PlatformRises.md)
  - [PlatformRisesRisesInner](doc//PlatformRisesRisesInner.md)
+ - [PracticeReport](doc//PracticeReport.md)
+ - [PracticeReportRowsInner](doc//PracticeReportRowsInner.md)
  - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
  - [QuestionnaireItemAnswerOptionInner](doc//QuestionnaireItemAnswerOptionInner.md)
- - [QuestionnaireItemEnableWhen](doc//QuestionnaireItemEnableWhen.md)
+ - [QuestionnaireItemEnableWhenInner](doc//QuestionnaireItemEnableWhenInner.md)
  - [QuestionnaireItemTranslation](doc//QuestionnaireItemTranslation.md)
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
  - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)
  - [QuietHours](doc//QuietHours.md)
  - [ReadPosition](doc//ReadPosition.md)
+ - [Receipt](doc//Receipt.md)
+ - [ReceiptKind](doc//ReceiptKind.md)
+ - [ReceiptLine](doc//ReceiptLine.md)
+ - [ReceiptPick](doc//ReceiptPick.md)
+ - [ReceiptsReport](doc//ReceiptsReport.md)
+ - [ReceiptsReportByPaymentMethodInner](doc//ReceiptsReportByPaymentMethodInner.md)
+ - [ReceiptsReportByServiceInner](doc//ReceiptsReportByServiceInner.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
  - [RescheduleAppointmentRequest](doc//RescheduleAppointmentRequest.md)
+ - [ReverseReceiptRequest](doc//ReverseReceiptRequest.md)
  - [Review](doc//Review.md)
  - [ReviewDecision](doc//ReviewDecision.md)
  - [ReviewStatus](doc//ReviewStatus.md)
@@ -379,9 +413,12 @@ Class | Method | HTTP request | Description
  - [SaveDocumentTemplateRequest](doc//SaveDocumentTemplateRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
  - [SaveQuestionnaireRequest](doc//SaveQuestionnaireRequest.md)
+ - [SaveServiceRequest](doc//SaveServiceRequest.md)
  - [SendAck](doc//SendAck.md)
  - [SendAckFrame](doc//SendAckFrame.md)
  - [SendMessageRequest](doc//SendMessageRequest.md)
+ - [Service](doc//Service.md)
+ - [ServiceTranslation](doc//ServiceTranslation.md)
  - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
  - [SetHistorySharingRequest](doc//SetHistorySharingRequest.md)
  - [SetRoleQuestionnaireRequest](doc//SetRoleQuestionnaireRequest.md)
@@ -395,6 +432,10 @@ Class | Method | HTTP request | Description
  - [SpecialtyList](doc//SpecialtyList.md)
  - [StartQuestionnaireRequest](doc//StartQuestionnaireRequest.md)
  - [Status](doc//Status.md)
+ - [Subscription](doc//Subscription.md)
+ - [SubscriptionInvoice](doc//SubscriptionInvoice.md)
+ - [SubscriptionInvoiceStatus](doc//SubscriptionInvoiceStatus.md)
+ - [SubscriptionStatus](doc//SubscriptionStatus.md)
  - [SuggestionEvent](doc//SuggestionEvent.md)
  - [SuggestionMessage](doc//SuggestionMessage.md)
  - [SuggestionStatus](doc//SuggestionStatus.md)
@@ -426,6 +467,7 @@ Class | Method | HTTP request | Description
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
+ - [VisitMode](doc//VisitMode.md)
  - [WaitlistEntry](doc//WaitlistEntry.md)
  - [WaitlistEntryList](doc//WaitlistEntryList.md)
  - [WaitlistOffer](doc//WaitlistOffer.md)

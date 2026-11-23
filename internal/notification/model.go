@@ -16,9 +16,17 @@ import (
 
 // Message is one plain-text e-mail.
 type Message struct {
-	To      string
-	Subject string
-	Body    string
+	Attachment *Attachment // sent as multipart/mixed after the text; a pointer keeps Message comparable
+	To         string
+	Subject    string
+	Body       string
+}
+
+// Attachment is a file sent with a message: the membership invoice's PDF (docs/plans/clinic-cms.md, package I).
+type Attachment struct {
+	Name        string // the file name, ASCII
+	ContentType string
+	Data        []byte
 }
 
 // SMTPSecurity is how the SMTP sender secures its connection (SMTP_TLS, ADR 0011).

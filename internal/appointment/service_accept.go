@@ -151,14 +151,15 @@ func (s *Service) bookOffer(ctx context.Context, c Caller, o Offer, now time.Tim
 	if refused, err := s.mayBook(ctx, c.PatientID, org); refused != nil || err != nil {
 		return Appointment{}, refused, err
 	}
-	if _, err := s.Offered.TakeOffered(ctx, org, o.SlotID); errors.Is(err, slot.ErrUnavailable) {
+	taken, err := s.Offered.TakeOffered(ctx, org, o.SlotID)
+	if errors.Is(err, slot.ErrUnavailable) {
 		return Appointment{}, ErrSlotUnavailable, nil
 	} else if err != nil {
 		return Appointment{}, nil, err
 	}
 	out, err = s.Repo.Create(ctx, Appointment{
 		PatientID: c.PatientID, PractitionerRoleID: o.PractitionerRoleID, OrganizationID: org, SlotID: o.SlotID,
-		Start: o.Start, End: o.End, Created: now, BookedVia: BookedWaitlist,
+		Start: o.Start, End: o.End, Created: now, BookedVia: BookedWaitlist, Mode: taken.Mode,
 	})
 	if err != nil {
 		return Appointment{}, nil, err

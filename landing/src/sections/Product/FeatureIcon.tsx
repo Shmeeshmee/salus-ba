@@ -7,6 +7,12 @@ type FeatureIconProps = {
 }
 
 const PATHS: Record<IconName, ReactNode> = {
+  receipt: (
+    <>
+      <path d="M7 2.5h14v23l-2.33-1.5-2.34 1.5-2.33-1.5-2.33 1.5-2.34-1.5L7 25.5z" />
+      <path d="M11 8.5h6M11 12.5h6M11 17h3" />
+    </>
+  ),
   webApp: (
     <>
       <rect x="3" y="5" width="22" height="15" rx="2.5" />
