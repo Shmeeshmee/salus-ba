@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,9 @@ import (
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
+
+// uuidText is a UUID in its text form, as the receipt dialog's Idempotency-Key.
+var uuidText = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // maxBody is the largest request body read: a receipt of some hundred lines.
 const maxBody = 64 << 10
@@ -25,6 +29,7 @@ type Receipts interface {
 	Read(ctx context.Context, c Caller, id string) (Invoice, error)
 	List(ctx context.Context, c Caller, p Period) ([]Invoice, error)
 	Reverse(ctx context.Context, c Caller, id string, method PaymentMethod) (Invoice, error)
+	Retry(ctx context.Context, c Caller, id string) (Invoice, error)
 	PDF(ctx context.Context, c Caller, id string) ([]byte, error)
 	Mine(ctx context.Context, c Caller) ([]Invoice, error)
 	Report(ctx context.Context, c Caller, p Period) (Report, error)
@@ -48,6 +53,7 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /clinic/receipts", h.staff(h.issue))
 	mux.HandleFunc("GET /clinic/receipts/{id}", h.staff(h.read))
 	mux.HandleFunc("POST /clinic/receipts/{id}/reverse", h.staff(h.reverse))
+	mux.HandleFunc("POST /clinic/receipts/{id}/retry", h.staff(h.retry))
 	mux.HandleFunc("GET /clinic/receipts/{id}/pdf", h.staff(h.pdf))
 	mux.HandleFunc("GET /clinic/reports/receipts", h.staff(h.report))
 	mux.HandleFunc("GET /me/receipts", h.mine)
@@ -159,14 +165,19 @@ func (h *HTTPHandler) list(w http.ResponseWriter, r *http.Request, c Caller) {
 	httpx.JSON(w, http.StatusOK, listJSON(list))
 }
 
-// issue answers POST /clinic/receipts.
+// issue answers POST /clinic/receipts. An Idempotency-Key header, when sent, is a UUID.
 func (h *HTTPHandler) issue(w http.ResponseWriter, r *http.Request, c Caller) {
+	key := r.Header.Get("Idempotency-Key")
+	if key != "" && !uuidText.MatchString(key) {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
 	var in issueJSON
 	if !decodeJSON(w, r, &in) {
 		return
 	}
 	d := Draft{
-		PatientID: in.PatientID, CompanyName: strings.TrimSpace(in.CompanyName), CompanyTaxID: in.CompanyTaxID,
+		IdempotencyKey: key, PatientID: in.PatientID, CompanyName: strings.TrimSpace(in.CompanyName), CompanyTaxID: in.CompanyTaxID,
 		AppointmentID: in.AppointmentID, Kind: in.Kind, PaymentMethod: in.PaymentMethod,
 	}
 	for _, p := range in.Lines {
@@ -206,6 +217,15 @@ func (h *HTTPHandler) reverse(w http.ResponseWriter, r *http.Request, c Caller) 
 		return
 	}
 	httpx.JSON(w, http.StatusCreated, toJSON(inv))
+}
+
+// retry answers POST /clinic/receipts/{id}/retry: 202, the receipt as it is until its report runs.
+func (h *HTTPHandler) retry(w http.ResponseWriter, r *http.Request, c Caller) {
+	inv, err := h.svc.Retry(r.Context(), c, r.PathValue("id"))
+	if h.failed(w, r, err) {
+		return
+	}
+	httpx.JSON(w, http.StatusAccepted, toJSON(inv))
 }
 
 // pdf answers GET /clinic/receipts/{id}/pdf.
@@ -267,25 +287,27 @@ func reportJSON(rep Report) map[string]any {
 	}
 }
 
-// writeCSV writes the report for a spreadsheet: a header of codes, then the total, a row per payment method and a
-// row per service, amounts in the currency's minor unit. A name that a spreadsheet would read as a formula is
-// quoted with an apostrophe.
+// writeCSV writes the report for the clinic's accountant: a header in the clinic's language, then the total, a row
+// per payment method and a row per service, amounts as decimals with a point (106.70). A name that a spreadsheet
+// would read as a formula is quoted with an apostrophe.
 func writeCSV(w io.Writer, rep Report) error {
+	l := labelsOf(rep.Language)
 	cw := csv.NewWriter(w)
 	n := func(v int64) string { return strconv.FormatInt(v, 10) }
+	amount := labels{}.money // a decimal point, whatever the language
 	rows := [][]string{
-		{"section", "key", "name", "count", "quantity", "total_minor", "currency"},
-		{"total", "", "", n(int64(rep.Count)), "", n(rep.TotalMinor), rep.Currency},
+		{l.get("csv_section"), l.get("csv_key"), l.get("csv_name"), l.get("csv_count"), l.get("csv_quantity"), l.get("csv_total"), l.get("csv_currency")},
+		{l.get("csv_row_total"), "", "", n(int64(rep.Count)), "", amount(rep.TotalMinor), rep.Currency},
 	}
 	for _, m := range rep.ByPaymentMethod {
-		rows = append(rows, []string{"payment_method", string(m.PaymentMethod), "", n(int64(m.Count)), "", n(m.TotalMinor), rep.Currency})
+		rows = append(rows, []string{l.get("csv_row_payment_method"), string(m.PaymentMethod), l.method(m.PaymentMethod), n(int64(m.Count)), "", amount(m.TotalMinor), rep.Currency})
 	}
 	for _, s := range rep.ByService {
 		name := s.Name
 		if name != "" && strings.ContainsAny(name[:1], "=+-@\t\r") {
 			name = "'" + name
 		}
-		rows = append(rows, []string{"service", s.ChargeItemDefinitionID, name, "", n(s.Quantity), n(s.TotalMinor), rep.Currency})
+		rows = append(rows, []string{l.get("csv_row_service"), s.ChargeItemDefinitionID, name, "", n(s.Quantity), amount(s.TotalMinor), rep.Currency})
 	}
 	if err := cw.WriteAll(rows); err != nil {
 		return err
@@ -379,6 +401,7 @@ var errorCodes = []struct {
 	{ErrInvalid, "invalid_receipt", http.StatusBadRequest},
 	{ErrAlreadyReversed, "already_reversed", http.StatusConflict},
 	{ErrReportFailed, "fiscal_report_failed", http.StatusConflict},
+	{ErrNotFailed, "fiscal_report_not_failed", http.StatusConflict},
 	{ErrSellerIncomplete, "billing_details_missing", http.StatusConflict},
 }
 

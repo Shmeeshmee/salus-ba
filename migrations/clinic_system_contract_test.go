@@ -106,9 +106,9 @@ func seedBilling(t *testing.T, owner *pgxpool.Pool) ([2]patientRow, billingRows)
 	return p, b
 }
 
-// addLine is the insert of one line of the service to a receipt.
-const addLine = `INSERT INTO invoice_line (invoice_id, charge_item_definition_id, name, quantity, unit_price_minor, total_minor)
-	VALUES ($1, $2, 'Placeholder exam', 1, 5000, 5000)`
+// addLine is the insert of the first line (position 0, migration 00063) of the service to a receipt.
+const addLine = `INSERT INTO invoice_line (invoice_id, position, charge_item_definition_id, name, quantity, unit_price_minor, total_minor)
+	VALUES ($1, 0, $2, 'Placeholder exam', 1, 5000, 5000)`
 
 // issue runs the receipt's insert and adds its line of the service in the same transaction, as the owner, and returns
 // the receipt's id.

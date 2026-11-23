@@ -55,7 +55,17 @@ function List({ api, zone, start }: { api: ApiClient; zone: string; start: Perio
       {state.name === 'loaded' && state.value.length > 0 && (
         <ol className="rows" aria-label={t('receipts.title')}>
           {state.value.map((r) => (
-            <Row key={r.id} api={api} receipt={r} zone={zone} onChanged={reload} />
+            <Row
+              key={r.id}
+              api={api}
+              receipt={r}
+              zone={zone}
+              onChanged={reload}
+              onRetried={() => {
+                setNotice(t('receipts.retried', { number: r.number }))
+                reload()
+              }}
+            />
           ))}
         </ol>
       )}
@@ -74,7 +84,9 @@ function List({ api, zone, start }: { api: ApiClient; zone: string; start: Perio
   )
 }
 
-function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Receipt; zone: string; onChanged: () => void }) {
+type RowProps = { api: ApiClient; receipt: Receipt; zone: string; onChanged: () => void; onRetried: () => void }
+
+function Row({ api, receipt: r, zone, onChanged, onRetried }: RowProps) {
   const t = useT()
   const f = useFormat()
   const { language } = useLanguage()
@@ -103,6 +115,16 @@ function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Re
     else setError(t(res.code === 'already_reversed' ? 'receipts.alreadyReversed' : 'receipts.reverseFailed'))
   }
 
+  // A receipt whose report failed is reported again by the same job (clinic-cms H).
+  async function retry() {
+    setBusy(true)
+    setError(undefined)
+    const res = await attempt(api.POST('/clinic/receipts/{id}/retry', { params: { path: { id: r.id } } }))
+    setBusy(false)
+    if (res.ok) onRetried()
+    else setError(t(res.code === 'fiscal_report_not_failed' ? 'receipts.notFailed' : 'receipts.retryFailed'))
+  }
+
   return (
     <li>
       <span className="stack">
@@ -122,6 +144,11 @@ function Row({ api, receipt: r, zone, onChanged }: { api: ApiClient; receipt: Re
         <a href={receiptPdfURL(r.id)} target="_blank" rel="noreferrer">
           {t('receipts.pdf')}
         </a>
+        {r.fiscalStatus === 'failed' && (
+          <button type="button" disabled={busy} onClick={retry}>
+            {t('receipts.retry')}
+          </button>
+        )}
         {/* A receipt whose report failed is not reversed: its reversal could not be reported either. */}
         {!r.reversesId && !r.reversedById && r.fiscalStatus !== 'failed' && !asking && (
           <button type="button" className="danger" ref={reverseButton} disabled={busy} onClick={() => setAsking(true)}>

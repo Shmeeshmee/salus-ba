@@ -523,5 +523,12 @@
   "pricesPaidAtClinic": "Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.",
   "discardTitle": "Bu yanıt değiştirilsin mi?",
   "discardBody": "{n, plural, one{Bu değişiklikle daha önce yanıtladığınız {n} soru atlanacak. Yanıtı silinecek.} other{Bu değişiklikle daha önce yanıtladığınız {n} soru atlanacak. Yanıtları silinecek.}}",
-  "discardConfirm": "Değiştir ve sil"
+  "discardConfirm": "Değiştir ve sil",
+  "myReceipts": "Makbuzlarım",
+  "receiptsIntro": "Kliniklerin, klinikte ödediğiniz hizmetler için size düzenlediği makbuzlar. Klinikler makbuzları mali mevzuatın gerektirdiği süre boyunca saklar.",
+  "noReceipts": "Henüz makbuzunuz yok.",
+  "receiptNumber": "Makbuz no. {number}",
+  "receiptIssuedOn": "Düzenlenme tarihi: {date}",
+  "receiptReversal": "Önceki bir makbuzun iptali",
+  "receiptLine": "{name} × {quantity}"
 }

@@ -5718,13 +5718,20 @@ paths:
         By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from
         the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by
         a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is
-        a reversal. Audited, also when refused.
+        a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the
+        same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double
+        click or a retried request issues one receipt.
       tags: [billing]
       security:
         - sessionCookie: []
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CSRF"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: A UUID the client makes once per receipt it means to issue. Unique per clinic.
+          schema: {type: string, format: uuid}
       requestBody:
         required: true
         content:
@@ -5737,7 +5744,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Receipt"}
         "400":
-          description: "`invalid_request`: unreadable or a field unknown; `invalid_receipt`: no lines, a patient and a company together, or a service not on the clinic's active price list."
+          description: "`invalid_request`: unreadable, a field unknown, or an `Idempotency-Key` that is no UUID; `invalid_receipt`: no lines, a patient and a company together, a service not on the clinic's active price list, or an `Idempotency-Key` another account issued with."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5838,6 +5845,44 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/receipts/{id}/retry:
+    post:
+      operationId: retryReceiptReport
+      x-salus-package: cms-h
+      summary: Report a receipt whose fiscal report failed once more
+      description: >-
+        Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts
+        it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited,
+        also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "202":
+          description: The receipt as it is, still `failed` until its report runs.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Receipt"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such receipt of the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`fiscal_report_not_failed`: the receipt is pending (its report is still running) or fiscalized."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/receipts/{id}/pdf:
     get:
       operationId: getClinicReceiptPdf
@@ -5894,7 +5939,11 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/ReceiptsReport"}
             text/csv:
-              schema: {type: string}
+              schema:
+                type: string
+                description: >-
+                  A header in the clinic's language, then the total, a row per payment method and a row per service;
+                  amounts as decimals with a point (106.70), not minor units (package H).
         "400":
           description: "`invalid_request`: a time missing, or `to` not after `from`."
           content:
@@ -6661,7 +6710,7 @@ components:
       required: [name, quantity, unitPriceMinor, discountMinor, totalMinor]
       properties:
         serviceId: {type: string, format: uuid, description: The price list's service; absent for an item off it.}
-        name: {type: string, description: As on the price list at issue.}
+        name: {type: string, description: As on the price list at issue. Lines are in the order they were entered.}
         quantity: {type: integer, format: int32, description: Negative on a reversal.}
         unitPriceMinor: {type: integer, format: int64}
         discountMinor: {type: integer, format: int64}
@@ -8061,6 +8110,7 @@ components:
             - billing_details_missing
             - fiscal_report_failed
             - answer_not_enabled
+            - fiscal_report_not_failed
         linkIds:
           type: array
           items: {type: string}

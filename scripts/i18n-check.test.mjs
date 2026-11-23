@@ -139,3 +139,18 @@ test("checks the one-time link's page in the ten patient languages against en.js
   assert.match(got, /link\/ja\.json: not a language of this app/);
   assert.match(got, /link\/ar\.json: missing/);
 });
+
+test("checks the receipt PDF's labels in the five staff languages against en.json", () => {
+  const files = {};
+  for (const lang of ['bs', 'hr', 'sr-Latn', 'sr-Cyrl', 'en']) {
+    files[`internal/invoice/templates/pdf/${lang}.json`] = { receipt: 'Receipt no. {number}', total: 'Total' };
+  }
+  assert.deepEqual(problems(files), []);
+  files['internal/invoice/templates/pdf/hr.json'] = { receipt: 'Račun br. {broj}', total: 'Ukupno' };
+  files['internal/invoice/templates/pdf/de.json'] = { receipt: 'Beleg {number}', total: 'Summe' };
+  delete files['internal/invoice/templates/pdf/bs.json'];
+  const got = problems(files).join('\n');
+  assert.match(got, /pdf\/hr\.json: receipt: placeholders broj, want number/);
+  assert.match(got, /pdf\/de\.json: not a language of this app/);
+  assert.match(got, /pdf\/bs\.json: missing/);
+});

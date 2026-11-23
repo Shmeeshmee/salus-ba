@@ -276,3 +276,35 @@ func TestReadListAndMine_ShowOnlyWhatTheCallerMaySee(t *testing.T) {
 		t.Errorf("staff's Mine() = %v, want ErrForbidden", err)
 	}
 }
+
+// A draft issued twice with the same idempotency key (a double click, a retried request) issues one receipt: the
+// second answer is the first receipt, read and audited as a read. A key issued by another account is refused.
+func TestIssue_WithTheSameIdempotencyKeyIssuesOneReceipt(t *testing.T) {
+	f := newFixture(theSeller)
+	d := draft()
+	d.IdempotencyKey = "e1000000-0000-4000-8000-0000000000e1"
+	first, err := f.svc.Issue(t.Context(), adminC, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := f.svc.Issue(t.Context(), adminC, d)
+	if err != nil || again.ID != first.ID || again.Number != first.Number {
+		t.Errorf("the second Issue() = %+v, %v; want the first receipt", again, err)
+	}
+	if len(f.repo.invoices) != 1 || len(f.jobs.enqueued) != 1 {
+		t.Errorf("stored %d receipts and enqueued %d reports, want one each", len(f.repo.invoices), len(f.jobs.enqueued))
+	}
+	if e := f.audit.last(); e.Subtype.Code != auditevent.CodeRead || e.EntityReference != "Invoice/"+first.ID {
+		t.Errorf("audit = %+v, want the receipt's read", e)
+	}
+	if _, err := f.svc.Issue(t.Context(), doctorC, d); !errors.Is(err, invoice.ErrInvalid) {
+		t.Errorf("the key from another account = %v, want ErrInvalid", err)
+	}
+	d.IdempotencyKey = "e2000000-0000-4000-8000-0000000000e2"
+	if other, err := f.svc.Issue(t.Context(), adminC, d); err != nil || other.Number != 2 {
+		t.Errorf("another key = number %d, %v; want a second receipt", other.Number, err)
+	}
+	if f.repo.invoices[0].IdempotencyKey != "e1000000-0000-4000-8000-0000000000e1" {
+		t.Errorf("stored key = %q", f.repo.invoices[0].IdempotencyKey)
+	}
+}

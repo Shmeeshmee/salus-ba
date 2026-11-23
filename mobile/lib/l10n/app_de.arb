@@ -523,5 +523,12 @@
   "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet.",
   "discardTitle": "Diese Antwort ändern?",
   "discardBody": "{n, plural, one{Durch diese Änderung entfällt {n} Frage, die Sie bereits beantwortet haben. Die Antwort wird entfernt.} other{Durch diese Änderung entfallen {n} Fragen, die Sie bereits beantwortet haben. Die Antworten werden entfernt.}}",
-  "discardConfirm": "Ändern und entfernen"
+  "discardConfirm": "Ändern und entfernen",
+  "myReceipts": "Meine Rechnungen",
+  "receiptsIntro": "Die Belege, die Ihnen Kliniken für in der Klinik bezahlte Leistungen ausgestellt haben. Kliniken bewahren Belege so lange auf, wie es das Fiskalisierungsgesetz verlangt.",
+  "noReceipts": "Sie haben noch keine Belege.",
+  "receiptNumber": "Beleg Nr. {number}",
+  "receiptIssuedOn": "Ausgestellt am {date}",
+  "receiptReversal": "Storno eines früheren Belegs",
+  "receiptLine": "{name} × {quantity}"
 }

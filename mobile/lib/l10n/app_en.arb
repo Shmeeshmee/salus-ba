@@ -2644,5 +2644,51 @@
   "discardConfirm": "Change and remove",
   "@discardConfirm": {
     "description": "SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides."
+  },
+  "myReceipts": "My receipts",
+  "@myReceipts": {
+    "description": "Clinic system, package H: home button and screen title of the patient's receipts."
+  },
+  "receiptsIntro": "The receipts clinics issued to you for the services you paid for at the clinic. Clinics keep receipts for as long as the fiscal law requires.",
+  "@receiptsIntro": {
+    "description": "[legal] Clinic system, package H: above the patient's receipts; receipts are kept as the fiscal law requires. Draft, waiting for the owner."
+  },
+  "noReceipts": "You have no receipts yet.",
+  "@noReceipts": {
+    "description": "Clinic system, package H: the patient has no receipts."
+  },
+  "receiptNumber": "Receipt no. {number}",
+  "@receiptNumber": {
+    "description": "Clinic system, package H: a receipt's heading and PDF file name; the clinic's receipt number.",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "receiptIssuedOn": "Issued on {date}",
+  "@receiptIssuedOn": {
+    "description": "Clinic system, package H: when the receipt was issued; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptReversal": "Reversal of an earlier receipt",
+  "@receiptReversal": {
+    "description": "Clinic system, package H: the receipt reverses (cancels) an earlier one."
+  },
+  "receiptLine": "{name} × {quantity}",
+  "@receiptLine": {
+    "description": "Clinic system, package H: one line of a receipt: the service as on the clinic's price list, and the quantity (negative on a reversal).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "quantity": {
+        "type": "int"
+      }
+    }
   }
 }

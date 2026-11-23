@@ -227,6 +227,29 @@ class Booking {
     return list ?? const <api.OfferedService>[];
   }
 
+  /// The patient's own receipts from every clinic, newest first (docs/plans/clinic-cms.md, package H).
+  Future<List<api.Receipt>> receipts() async {
+    final list = await apiCall(() => api.BillingApi(_client).listMyReceipts());
+    return list ?? const <api.Receipt>[];
+  }
+
+  /// The PDF of the patient's own receipt [id], as the clinic printed it.
+  Future<Uint8List> receiptPdf(String id) async {
+    final response = await apiCall(
+      () => _client.invokeAPI(
+        '/me/receipts/${Uri.encodeComponent(id)}/pdf',
+        'GET',
+        const [],
+        null,
+        {'Accept': 'application/pdf'},
+        {},
+        null,
+      ),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return response.bodyBytes;
+  }
+
   /// The explained terms of the signed document whose Composition is [id], per field and line (SAL-13).
   Future<api.DocumentTerms?> documentTerms(String id) => apiCall(() => api.DocumentsApi(_client).getDocumentTerms(id));
 

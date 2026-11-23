@@ -2408,6 +2408,28 @@ and the fiscal data, and a company's name on an invoice.
 
 Every issue, reversal, read, list, report and PDF writes an `AuditEvent` in its transaction, a refusal one of its own.
 
+### Package H: receipts follow-ups (migration 00063)
+
+**Processing added.** A receipt's lines keep the order they were entered (`invoice_line.position`); the PDF's labels and
+the accountant's CSV headers come from catalogs in the five staff languages; the clinic's admin reports a receipt whose
+fiscal report failed once more (`POST /clinic/receipts/{id}/retry`, the same `invoice_fiscalize` job); the receipt
+dialog sends an `Idempotency-Key` (`invoice.idempotency_key`), so a request repeated issues one receipt; the patient
+sees their receipts and saves or shares a receipt's PDF in the app (`GET /me/receipts`, `/me/receipts/{id}/pdf`, built
+in package C). Lawful basis as in package C.
+
+**Personal data added.** None. The idempotency key is a random UUID the browser makes, unique per clinic and kept with
+its receipt (as long as the receipt, by the receipt's retention rule); the position is a line's index. The patient's
+screen shows what `GET /me/receipts` already returned (number, date, lines, total, a reversal), not the clinic's or
+anyone else's data; the PDF goes to the device's share sheet only when the patient asks.
+
+| Risk | Measure |
+| --- | --- |
+| A double click or a lost answer issues two receipts to one patient | One key per receipt in the dialog; the service looks the key up before and again after taking the clinic's number (the sequence row is locked), so two requests with one key issue one receipt; a unique index on (clinic, key) holds it in the schema |
+| Another staff member reads a receipt by replaying a key | A key issued by another account is refused (`invalid_receipt`); a replay is audited as a read of the receipt |
+| A retry reports a receipt twice | Only a `failed` receipt is retried; the job locks the receipt and skips a fiscalized one, and reports the same reference |
+
+The retry writes an `AuditEvent` (update of the receipt), a refusal one of its own; a replayed issue writes a read.
+
 ### Package D: the clinic's membership (migration 00061)
 
 **Processing added.** A clinic's plan, trial and status; Salus's monthly invoice to the clinic (its seats, the count of

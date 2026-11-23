@@ -17,6 +17,9 @@ type Repository interface {
 	ByID(ctx context.Context, id string) (Invoice, error)
 	// Locked is ByID with the receipt locked until the transaction ends, without ReversedByID.
 	Locked(ctx context.Context, id string) (Invoice, error)
+	// ByIdempotencyKey returns the clinic org's receipt issued with the key, with its lines, or ErrNotFound (also for
+	// a key that is no UUID).
+	ByIdempotencyKey(ctx context.Context, org, key string) (Invoice, error)
 	// Issued returns the clinic org's receipts issued in the period, newest first, with their lines.
 	Issued(ctx context.Context, org string, p Period) ([]Invoice, error)
 	// OfPatient returns the patient's receipts, newest first, with their lines.
@@ -24,7 +27,7 @@ type Repository interface {
 	// NextNumber returns the clinic org's next receipt number and keeps its sequence locked until the transaction
 	// ends: a transaction that rolls back gives the number back.
 	NextNumber(ctx context.Context, org string) (int64, error)
-	// Insert stores the receipt and its lines as pending and returns it with their ids. ErrAlreadyReversed for a
+	// Insert stores the receipt and its lines, in their order, as pending and returns it with their ids. ErrAlreadyReversed for a
 	// second reversal of one receipt; ErrInvalid for a line the clinic's price list does not hold.
 	Insert(ctx context.Context, inv Invoice) (Invoice, error)
 	// SetFiscalized stores the authority's answer on a pending or failed receipt.

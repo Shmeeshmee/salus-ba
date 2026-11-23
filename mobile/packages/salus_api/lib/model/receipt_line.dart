@@ -31,7 +31,7 @@ class ReceiptLine {
   ///
   String? serviceId;
 
-  /// As on the price list at issue.
+  /// As on the price list at issue. Lines are in the order they were entered.
   String name;
 
   /// Negative on a reversal.
