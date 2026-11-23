@@ -2555,3 +2555,28 @@ F1, F2, O1, O2, X1 and X2 fill them, and each of those adds its own block here. 
 | A forged "who did it" | `appointment_guard_staff` and `consent_guard_in_person`: the booking and recording account is staff of the row's clinic, in its scope; a patient never marks an arrival |
 | A sent quote changed | No `UPDATE` grant; `quote_line_guard_insert` adds lines only in the quote's own transaction, from its clinic's price list |
 | Signup enumerates e-mails | `POST /signup` answers 202 whatever the address (O1, tested); rate limited |
+
+### Package O1: clinic signup and setup wizard (migration 00068)
+
+**Processing added.** Anyone may sign a clinic up (W3): `POST /signup` stores the admin's e-mail, the clinic's name and
+a staff language in `clinic_signup` with the hash of a verification token, and the notifier sends the verification
+e-mail (the existing SMTP relay of `docs/privacy/processors.md`: the address, the clinic's name and a link; nothing
+else). The token travels in the link's fragment, is issued anew for each e-mail and is never stored. On verification
+the API creates the clinic unlisted, invites its admin and starts the trial, through the same service path as
+`salusctl create-clinic`; the operator lists the clinic in the public directory (`salusctl signup approve`).
+`clinic_setup_step` holds the setup wizard's progress (which steps are done or skipped): not personal data.
+
+- **Lawful basis**: steps at the request of the clinic before a contract (Art. 6(1)(b)). No health data.
+- **Minimisation**: the e-mail is the admin's future login and the clinic's name is the clinic's; nothing else is
+  asked. `salusctl signup list` prints opaque ids and dates only.
+- **Retention**: an unverified signup is deleted 30 days after it was made (`clinic_signup` rule, its purger as
+  `salus_retention`); a verified one stays with its clinic as the record of its request.
+- **Database**: `salus_app` may insert a clinic only in that clinic's own scope (`organization_clinic`'s check), so a
+  signup cannot write into another clinic.
+
+| Risk | Measure |
+| --- | --- |
+| Signup enumerates e-mails | `POST /signup` answers 202 for every valid request; every request is a new signup (tested) |
+| Mass signups or e-mail bombing | 5 signups an hour per client address, 3 a day per e-mail, 20 verifications an hour per address (Redis, HMAC-named keys); 429 beyond |
+| A leaked verification link | 72 hours; replaced by each new e-mail; used once (`FOR UPDATE`, `verified_at IS NULL`) |
+| A self-signed-up clinic shown to patients before review | Created unlisted; only the operator lists it (`organization_guard_signup_listed` refuses its admin), tested |

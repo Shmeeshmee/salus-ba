@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
+	"github.com/Shmeeshmee/salus/internal/signup"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/trends"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -68,5 +69,6 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store, policy 
 		"waitlist_offer":           appointment.NewWaitlistOfferPurger(waitlist),
 		"appointment_reminder":     appointment.NewReminderPurger(appointment.NewPostgresReminderRepository(retentionPool)),
 		"notification_delivery":    notification.NewDeliveryPurger(notification.NewPostgresDeliveryRepository(retentionPool)),
+		"clinic_signup":            signup.NewPurger(signup.NewPostgresRepository(retentionPool)), // unverified ones (clinic-cms O1)
 	}, audit, clock.System{})
 }

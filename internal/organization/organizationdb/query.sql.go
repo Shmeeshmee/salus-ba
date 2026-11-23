@@ -95,9 +95,14 @@ func (q *Queries) ChatSettings(ctx context.Context, organizationID pgtype.UUID) 
 }
 
 const createOrganization = `-- name: CreateOrganization :one
-INSERT INTO organization (name) VALUES ($1)
+INSERT INTO organization (id, name) VALUES ($1, $2)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 `
+
+type CreateOrganizationParams struct {
+	ID   pgtype.UUID
+	Name string
+}
 
 type CreateOrganizationRow struct {
 	ID                    pgtype.UUID
@@ -118,9 +123,9 @@ type CreateOrganizationRow struct {
 	PostalCode            pgtype.Text
 }
 
-// The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
-func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOrganizationRow, error) {
-	row := q.db.QueryRow(ctx, createOrganization, name)
+// salusctl create-clinic (as the owner) and a verified signup (as salus_app, in the new clinic's scope: 00068).
+func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (CreateOrganizationRow, error) {
+	row := q.db.QueryRow(ctx, createOrganization, arg.ID, arg.Name)
 	var i CreateOrganizationRow
 	err := row.Scan(
 		&i.ID,
@@ -229,6 +234,20 @@ func (q *Queries) ListLocationsForStats(ctx context.Context) ([]ListLocationsFor
 	return items, nil
 }
 
+const listOrganization = `-- name: ListOrganization :execrows
+UPDATE organization SET listed = true, version_id = version_id + 1, updated_at = now()
+WHERE id = $1 AND NOT listed
+`
+
+// salusctl signup approve (as the owner): the clinic appears in the public directory.
+func (q *Queries) ListOrganization(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, listOrganization, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listedOrganizations = `-- name: ListedOrganizations :many
 SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
 FROM organization
@@ -277,6 +296,17 @@ func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganization
 		return nil, err
 	}
 	return items, nil
+}
+
+const newOrganizationID = `-- name: NewOrganizationID :one
+SELECT gen_random_uuid()::uuid
+`
+
+func (q *Queries) NewOrganizationID(ctx context.Context) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, newOrganizationID)
+	var column_1 pgtype.UUID
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const organizationByID = `-- name: OrganizationByID :one

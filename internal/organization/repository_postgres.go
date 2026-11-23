@@ -92,12 +92,30 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	return toOrganization(organizationdb.OrganizationByIDRow(row)), nil
 }
 
+// Create sets the new clinic's scope on the transaction in ctx before it inserts the clinic: salus_app may insert
+// only the clinic of its scope (00068).
 func (r *postgresRepository) Create(ctx context.Context, name string) (Organization, error) {
-	row, err := r.q(ctx).CreateOrganization(ctx, name)
+	id, err := r.q(ctx).NewOrganizationID(ctx)
+	if err != nil {
+		return Organization{}, err
+	}
+	if err := r.SetOrganization(ctx, id.String()); err != nil {
+		return Organization{}, err
+	}
+	row, err := r.q(ctx).CreateOrganization(ctx, organizationdb.CreateOrganizationParams{ID: id, Name: name})
 	if err != nil {
 		return Organization{}, err
 	}
 	return toOrganization(organizationdb.OrganizationByIDRow(row)), nil
+}
+
+func (r *postgresRepository) List(ctx context.Context, id string) (bool, error) {
+	var u pgtype.UUID
+	if err := u.Scan(id); err != nil {
+		return false, nil
+	}
+	n, err := r.q(ctx).ListOrganization(ctx, u)
+	return n == 1, err
 }
 
 func toOrganization(row organizationdb.OrganizationByIDRow) Organization {

@@ -57,3 +57,29 @@ type Caller struct {
 	OrganizationID string
 	Admin          bool
 }
+
+// Created is a clinic created by CreateClinic: the clinic, its admin's invite and whether its trial started (none while
+// the owner has not set the default plan).
+type Created struct {
+	OrganizationID string
+	InviteID       string
+	Trial          bool
+}
+
+// Verification is what the verification e-mail needs: the address, the clinic's name, the language and the token of
+// the link, issued anew for each e-mail.
+type Verification struct {
+	Email      string
+	ClinicName string
+	Language   string
+	Token      string
+}
+
+// EmailArgs is the signup_email job, on the notifier's "email" queue: the verification e-mail of a signup. Its argument
+// is an opaque id only; the job loads the rest.
+type EmailArgs struct {
+	SignupID string `json:"signup_id"`
+}
+
+// Kind names the job in river_job.
+func (EmailArgs) Kind() string { return "signup_email" }

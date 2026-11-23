@@ -131,12 +131,18 @@ func TestSetOrganization_NeedsATransaction(t *testing.T) {
 	}
 }
 
-// Clinics are created by the operator command, which connects as the owner; salus_app may not (migrations).
+// The operator command creates a clinic as the owner. Create sets the new clinic's scope, so it needs a transaction
+// (00068: a verified signup creates its clinic as salus_app, TestCreate_AsTheAppInTheNewClinicsScopeUnlisted).
 func TestCreate_StoresAnActiveClinicAtVersionOne(t *testing.T) {
 	t.Parallel()
 	owner := pgtest.NewDatabase(t)
 
-	got, err := organization.NewPostgresRepository(owner).Create(t.Context(), "Synthetic clinic C")
+	var got organization.Organization
+	err := postgres.NewTransactor(owner).WithTx(t.Context(), func(ctx context.Context) error {
+		var err error
+		got, err = organization.NewPostgresRepository(owner).Create(ctx, "Synthetic clinic C")
+		return err
+	})
 
 	if err != nil || got.ID == "" || got.Name != "Synthetic clinic C" || got.VersionID != 1 || !got.Active || got.DefaultLanguage != "bs" || got.LastUpdated.IsZero() {
 		t.Errorf("Create() = %+v, %v; want the new clinic at version 1, in Bosnian", got, err)

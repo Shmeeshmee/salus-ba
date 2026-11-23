@@ -17,6 +17,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/signup"
 	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -91,7 +92,9 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	}, clk)
 
 	workers := river.NewWorkers()
-	addEmailWorkers(workers, mail, newInvoiceMail(pool, audit, tx, clinics, mail, n.Seller))
+	// Issuing a signup's verification token needs only the repository, the transaction and the clock.
+	signups := signup.NewService(signup.Ports{Repo: signup.NewPostgresRepository(pool), Tx: tx, Clock: clk})
+	addEmailWorkers(workers, mail, newInvoiceMail(pool, audit, tx, clinics, mail, n.Seller), signups)
 	addChatWorkers(workers, chat)
 	addReminderWorkers(workers, mail)
 	cfg := workConfig(log, emailQueue, workers)
@@ -102,8 +105,9 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 
 // addEmailWorkers registers the email queue's jobs; the scheduler registers them with a nil mail, like
 // addDefaultWorkers.
-func addEmailWorkers(workers *river.Workers, mail *notification.Service, memberships *subscription.Service) {
+func addEmailWorkers(workers *river.Workers, mail *notification.Service, memberships *subscription.Service, signups *signup.Service) {
 	river.AddWorker(workers, &inviteEmailWorker{mail: mail})
+	river.AddWorker(workers, &signupEmailWorker{mail: mail, signups: signups})
 	river.AddWorker(workers, &invoiceEmailWorker{memberships: memberships})
 	river.AddWorker(workers, &appointmentEmailWorker[appointment.BookedEmailArgs]{send: func(ctx context.Context, a appointment.BookedEmailArgs) error {
 		return mail.SendAppointmentBooked(ctx, a.AppointmentID, a.OrganizationID)
@@ -136,6 +140,29 @@ func (w *appointmentEmailWorker[T]) Work(ctx context.Context, job *river.Job[T])
 	err := w.send(ctx, job.Args)
 	if errors.Is(err, appointment.ErrNotFound) || errors.Is(err, notification.ErrRecipientNotASCII) {
 		return river.JobCancel(err)
+	}
+	return err
+}
+
+// signupEmailWorker sends a clinic signup's verification e-mail (docs/clinic-cms, O1). A retry issues a new token, so
+// only the newest link works.
+type signupEmailWorker struct {
+	river.WorkerDefaults[signup.EmailArgs]
+	mail    *notification.Service
+	signups *signup.Service
+}
+
+func (w *signupEmailWorker) Work(ctx context.Context, job *river.Job[signup.EmailArgs]) error {
+	v, err := w.signups.IssueVerification(ctx, job.Args.SignupID)
+	if errors.Is(err, signup.ErrInvalidToken) {
+		return river.JobCancel(err) // verified or unknown: nothing to send, now or on a retry
+	}
+	if err != nil {
+		return err
+	}
+	err = w.mail.SendSignupVerification(ctx, v.Email, v.ClinicName, v.Language, v.Token)
+	if errors.Is(err, notification.ErrRecipientNotASCII) {
+		return river.JobCancel(err) // an address SMTP cannot carry: a retry fails the same way
 	}
 	return err
 }

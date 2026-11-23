@@ -1,0 +1,8 @@
+Subject: Confirm your clinic's sign-up to Salus
+
+You asked to sign Synthetic clinic up to Salus.
+
+To confirm your e-mail address, open this link:
+https://app.example.test/signup/verify#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+After you confirm, we will send you an invitation to set up the clinic's admin account. The link expires 72 hours after the sign-up. If you did not sign up, you can ignore this e-mail.

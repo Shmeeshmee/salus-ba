@@ -39,6 +39,8 @@ export default defineConfig({
       '/patients': apiUrl, // a patient's history and pre-visit summary (SAL-40); no screen is under it
       '/clinic/': apiUrl, // the admin's clinic settings, SMS usage and no-show flags (SAL-32, SAL-33, SAL-36); /clinic itself is a screen
       '^/waitlist/.+$': apiUrl, // removing an entry of the waitlist (SAL-35); /waitlist itself is a screen of the app
+      // A clinic's sign-up (clinic-cms O1): /signup and /signup/verify are screens of the app; only their writes go to the API.
+      '/signup': { target: apiUrl, bypass: (req) => (req.method === 'GET' ? '/index.html' : undefined) },
     },
   },
   test: {

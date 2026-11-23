@@ -12,6 +12,7 @@
 //	salusctl conditions unconfirmed                               the backfilled diagnoses nobody confirmed (SAL-19)
 //	salusctl trends build <2026-10 | 2026-Q3 | 2026-W44>          a missed build of the platform figures (SAL-21)
 //	salusctl subscription plan|start-trial|mark-paid|status ...   the clinics' membership (subscription.go)
+//	salusctl signup list|approve <organization-id>                the clinics that signed themselves up (signup.go)
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
@@ -33,6 +34,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/signup"
 	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/internal/trends"
@@ -41,7 +43,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status | signup list|approve"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -63,6 +65,7 @@ type services struct {
 	conditions *condition.Service
 	trends     *trends.Builder // nil while ANALYTICS_PLATFORM_ENABLED is off
 	members    *subscription.Service
+	signups    *signup.Service // create-clinic's one path, and the signups' approval
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
@@ -97,6 +100,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		// The owner's operations need no clinic's time zone and no seats: the worker issues the invoices.
 		members: subscription.NewService(subscription.Ports{Repo: subscription.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}}),
 	}
+	s.signups = signup.NewService(signup.Ports{
+		Repo: signup.NewPostgresRepository(pool), Tx: tx, Clock: clock.System{}, Clinics: s.clinics, Admins: s.accounts, Trials: s.members,
+	})
 	if cfg.Analytics.PlatformEnabled {
 		s.trends = worker.NewTrendsBuilder(pool, pool, cfg.Analytics.MinCount, auditevent.AgentOperator)
 	}
@@ -113,6 +119,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return s.trendsCommand(ctx, args[1:], stdout)
 	case "subscription":
 		return s.subscriptionCommand(ctx, args[1:], stdout)
+	case "signup":
+		return s.signupCommand(ctx, args[1:], stdout)
 	case "term-reviewer":
 		return s.termReviewer(ctx, args[1:], stdout)
 	case "reset-mfa":
@@ -129,8 +137,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 }
 
-// createClinic creates the clinic and its first admin's invite in one transaction; the notifier sends the
-// invite e-mail.
+// createClinic creates the clinic, its first admin's invite and its trial in one transaction, through the one path a
+// verified signup takes too (signup.Service.CreateClinic); the notifier sends the invite e-mail.
 func (s services) createClinic(ctx context.Context, args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("create-clinic", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -139,27 +147,15 @@ func (s services) createClinic(ctx context.Context, args []string, stdout io.Wri
 	if err := flags.Parse(args); err != nil || *name == "" || *email == "" {
 		return errors.New(usage)
 	}
-	var clinic organization.Organization
-	var inv auth.Invite
-	trial := "started"
-	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
-		var err error
-		if clinic, err = s.clinics.Create(ctx, *name); err != nil {
-			return err
-		}
-		if inv, err = s.accounts.InviteAdmin(ctx, clinic.ID, *email); err != nil {
-			return err
-		}
-		// The 30-day trial starts with the clinic; none while the owner has not set the default plan.
-		if _, err = s.members.StartTrial(ctx, clinic.ID); errors.Is(err, subscription.ErrNoPlan) {
-			trial, err = "none: set the plan "+subscription.DefaultPlan+", then run subscription start-trial", nil
-		}
-		return err
-	})
+	created, err := s.signups.CreateClinic(ctx, *name, *email)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "organization %s\ninvite %s\ntrial %s\n", clinic.ID, inv.ID, trial)
+	trial := "started"
+	if !created.Trial {
+		trial = "none: set the plan " + subscription.DefaultPlan + ", then run subscription start-trial"
+	}
+	_, err = fmt.Fprintf(stdout, "organization %s\ninvite %s\ntrial %s\n", created.OrganizationID, created.InviteID, trial)
 	return err
 }
 
