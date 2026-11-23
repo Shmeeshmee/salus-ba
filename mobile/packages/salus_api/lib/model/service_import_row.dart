@@ -21,6 +21,7 @@ class ServiceImportRow {
   /// The row's line in the file
   int line;
 
+  /// The service the row would store; absent for a row with errors.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
@@ -152,6 +153,8 @@ class ServiceImportRow {
 
 enum ServiceImportRowErrorsEnum {
   nameMissing._(r'name_missing'),
+  nameInvalid._(r'name_invalid'),
+  codeInvalid._(r'code_invalid'),
   priceInvalid._(r'price_invalid'),
   durationInvalid._(r'duration_invalid'),
   vatInvalid._(r'vat_invalid'),
@@ -222,6 +225,10 @@ class ServiceImportRowErrorsEnumTypeTransformer {
       switch (data) {
         case r'name_missing':
           return ServiceImportRowErrorsEnum.nameMissing;
+        case r'name_invalid':
+          return ServiceImportRowErrorsEnum.nameInvalid;
+        case r'code_invalid':
+          return ServiceImportRowErrorsEnum.codeInvalid;
         case r'price_invalid':
           return ServiceImportRowErrorsEnum.priceInvalid;
         case r'duration_invalid':

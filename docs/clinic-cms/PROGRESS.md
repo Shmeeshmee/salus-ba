@@ -28,6 +28,7 @@ writes under its own heading here.
 | O1 | not started (wave 3, after 3.0) | |
 | O1 | done 2026-11-23 | `cms(O1)` on `wt/cms/O1` |
 | O2 | not started (wave 3, after 3.0) | |
+| O2 | import done 2026-11-23; the clinic data export deferred to a follow-up package | `cms(O2)` on `wt/cms/O2` |
 | X1 | not started (wave 3, after 3.0) | |
 | X2 | not started (wave 3, after 3.0) | |
 | O3 | hold (after F2) | |
@@ -1256,7 +1257,63 @@ every write.
 
 ## O2: price list import and the clinic data export
 
-Not started.
+Status: the import is done, 2026-11-23, on `wt/cms/O2`, one commit `cms(O2)`. **The clinic data export is not built**
+(see "Deferred"). No migration: 00069 stays unused by the import; the export needs it.
+
+**Built.**
+
+- **`pkg/xlsx`** (new, standard library only: `archive/zip` and `encoding/xml`, about 200 lines with its limits). Reads
+  the first sheet of a workbook (through `xl/workbook.xml` and its relationships, not by assuming `sheet1.xml`) as text:
+  shared strings, rich text runs, inline strings, formula results, numbers as written. Each part is read up to 16 MiB
+  inflated (a zip bomb stops there), rows up to 10000. No dependency added: excelize would bring a large module tree for
+  what the import needs, and the reader is small and tested.
+- **`chargeitemdefinition.Import`** (`service_import.go`). A CSV (UTF-8, a BOM allowed; the delimiter the header line uses
+  most of `;`, `,` and tab) or an XLSX file (told by its zip signature). A header row names the columns, in English or the
+  staff languages (`name`/`naziv`/`назив`, `code`/`šifra`, `price`/`cijena`/`cena`, `duration`/`trajanje`, `vat`/`pdv`,
+  `modes`/`način`); name and price are required, others optional, unknown columns ignored, a column named twice refused.
+  Per row: the codes `name_missing`, `name_invalid`, `code_invalid`, `price_invalid` (a decimal with a point or a comma,
+  at most two decimals, a trailing `KM`/`BAM` allowed), `duration_invalid` (5 to 480), `vat_invalid` (0 to 100, `%`
+  allowed; empty is exempt), `mode_invalid` (`in-person`/`uživo`/`video`/`online`..., separated by spaces, commas,
+  slashes or bars; empty is in-person), `duplicate` (a name or code, case ignored, already on the clinic's list or on an
+  earlier row). Blank rows are skipped; the line is the file's. With `save`, all rows are created in one transaction,
+  each audited as a create, or none when any row has an error. Admin only (others refused and audited as the other
+  writes are). `ErrInvalidImport` for a file it cannot read, no header with name and price, no rows, or more than 1000.
+- **`POST /clinic/services/import`** (`handler_import.go`): the multipart part `file`, at most 2 MiB (`413 too_large`),
+  `save` a boolean; `400 invalid_import`; a row with errors comes back without its `service`, so every `service` sent is a
+  valid `SaveServiceRequest`. OpenAPI: the row error enum gains `name_invalid` and `code_invalid`; `make gen-clients`.
+- **Web.** `PriceListImport.tsx`: choose a file, the preview (every service with price, duration, VAT and modes, or the
+  line with what is wrong), "Import N services" only when no row has an error, then the list reloads with "N services
+  imported." `PriceList.tsx`: the "Import from a file" button; its line of details moved to `serviceDetails.ts` to be
+  shared. Strings in `prices` for the five staff languages.
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| XLSX | Read with the standard library (`pkg/xlsx`), no excelize |
+| An import adds | New services only, active; a name or code already on the list is a `duplicate`, never an update |
+| Empty modes cell | In-person (a clinic's existing list rarely has the column) |
+| CSV encoding | UTF-8 only; a Windows-1250 export from Excel is refused as unreadable (`invalid_import`); the XLSX path has no such problem |
+| Over-long name or code | Two codes added to the contract's enum (`name_invalid`, `code_invalid`) instead of calling them `name_missing` |
+| Translations | Not imported (no column); added per service afterwards |
+
+**Test first.** `pkg/xlsx`, the service and the handler tests were written and run red (undefined) before the code; the
+web tests of `PriceListImport` were written before the component, the `PriceList` import test with its wiring.
+
+**Checks** (compose project `salus-cms-o2`): the full set (`make gen-clients`, `lint`, `test`, `archcheck`,
+`web-lint`, `web-typecheck`, `web-test` 1206, `web-build`, `mobile-analyze`, `mobile-test` 671) passes; `make cover`
+90.9% total (`chargeitemdefinition` 95%, `pkg/xlsx` 84.7%); `make i18n-check` inside lint. Not run: `make e2e` (not in
+O2's sets), `make fhir-validate` (no golden file changed). Not walked in a browser: the session had no browser tool;
+the integration session walks the import at desktop width and 390 px.
+
+**Deferred.** The clinic data export (`POST /clinic/export`, `GET /clinic/export/{id}`, `/archive`; web
+`ClinicExport.tsx` and its link in `ClinicSettings.tsx`): its table (status, object key, expiry; migration 00069,
+ownership, retention), the River job that builds the archive (price list, staff, appointments and receipts as CSV, each
+patient's record as a FHIR Bundle, each read audited), the encrypted archive in the object store, the audited download and
+its expiry, and the DPIA block. It did not fit the session's budget next to the import, and it is a package of its own
+size; the routes stay as 3.0 declared them (not served).
+
+**Copy waiting for the owner:** the new `prices.import*` and `prices.imported` strings in `web/src/i18n/prices/`.
 
 ## X1: treatment quotes
 
