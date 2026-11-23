@@ -1993,4 +1993,32 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'You pay at the clinic. Nothing is charged in the app.';
+
+  @override
+  String get myReceipts => 'My receipts';
+
+  @override
+  String get receiptsIntro =>
+      'The receipts clinics issued to you for the services you paid for at the clinic. Clinics keep receipts for as long as the fiscal law requires.';
+
+  @override
+  String get noReceipts => 'You have no receipts yet.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Receipt no. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Issued on $date';
+  }
+
+  @override
+  String get receiptReversal => 'Reversal of an earlier receipt';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
 }

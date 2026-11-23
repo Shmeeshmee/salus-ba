@@ -520,5 +520,12 @@
   "visitModeVideo": "In video",
   "visitModeInPerson": "In clinica",
   "pricesHeading": "Prezzi di questa struttura",
-  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla."
+  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla.",
+  "myReceipts": "Le mie ricevute",
+  "receiptsIntro": "Le ricevute che le cliniche ti hanno rilasciato per i servizi pagati in clinica. Le cliniche conservano le ricevute per il tempo richiesto dalla legge fiscale.",
+  "noReceipts": "Non hai ancora ricevute.",
+  "receiptNumber": "Ricevuta n. {number}",
+  "receiptIssuedOn": "Emessa il {date}",
+  "receiptReversal": "Storno di una ricevuta precedente",
+  "receiptLine": "{name} × {quantity}"
 }

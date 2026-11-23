@@ -520,5 +520,12 @@
   "visitModeVideo": "En vidéo",
   "visitModeInPerson": "À la clinique",
   "pricesHeading": "Tarifs de cet établissement",
-  "pricesPaidAtClinic": "Vous payez sur place. Rien n'est facturé dans l'application."
+  "pricesPaidAtClinic": "Vous payez sur place. Rien n'est facturé dans l'application.",
+  "myReceipts": "Mes reçus",
+  "receiptsIntro": "Les reçus que les cliniques vous ont délivrés pour les prestations payées à la clinique. Les cliniques conservent les reçus aussi longtemps que la loi fiscale l’exige.",
+  "noReceipts": "Vous n’avez pas encore de reçus.",
+  "receiptNumber": "Reçu n° {number}",
+  "receiptIssuedOn": "Émis le {date}",
+  "receiptReversal": "Annulation d’un reçu antérieur",
+  "receiptLine": "{name} × {quantity}"
 }

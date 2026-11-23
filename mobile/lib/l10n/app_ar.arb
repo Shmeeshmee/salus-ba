@@ -520,5 +520,12 @@
   "visitModeVideo": "عبر الفيديو",
   "visitModeInPerson": "في العيادة",
   "pricesHeading": "الأسعار في هذه العيادة",
-  "pricesPaidAtClinic": "تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق."
+  "pricesPaidAtClinic": "تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق.",
+  "myReceipts": "إيصالاتي",
+  "receiptsIntro": "الإيصالات التي أصدرتها لك العيادات عن الخدمات التي دفعت ثمنها في العيادة. تحتفظ العيادات بالإيصالات طوال المدة التي يفرضها قانون الفوترة الضريبية.",
+  "noReceipts": "لا توجد لديك إيصالات بعد.",
+  "receiptNumber": "إيصال رقم {number}",
+  "receiptIssuedOn": "صدر في {date}",
+  "receiptReversal": "إلغاء إيصال سابق",
+  "receiptLine": "{name} × {quantity}"
 }

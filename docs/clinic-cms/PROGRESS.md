@@ -359,6 +359,66 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 
 ## H: receipts follow-ups
 
+Status: built, 2026-11-23, on `wt/cms/H`. Migration `00063`. No pull request: the wave's integration opens it.
+
+Built:
+
+- **Line order.** `invoice_line.position` (`00063`, the existing lines numbered by name, the order they were read in,
+  with the no-update trigger disabled for that one statement); `InvoiceLines` reads by position; `Insert` writes each
+  line's index. Tested against Postgres through `ByID`, `Locked` and `Issued` (the report and the PDF read those).
+- **PDF labels in catalogs.** `internal/invoice/templates/pdf/<language>.json` in the five staff languages (embedded,
+  ICU with `{number}` and `{reversed}`), replacing the Go map in `service_pdf.go`; `scripts/i18n-check.mjs` checks them
+  against `en.json` (`checkFlat`, shared with the one-time link's page; a test in `i18n-check.test.mjs`). A company's
+  invoice is "Račun br." in Croatian, "Faktura" in Bosnian and Serbian (tested).
+- **Retry of a failed report.** `Service.Retry` (`service_retry.go`), `POST /clinic/receipts/{id}/retry` (202, the
+  receipt as it is), admin only, `failed` only (409 `fiscal_report_not_failed`, new code), enqueues the same
+  `invoice_fiscalize` job; audited as an update, refusals too. Web: "Report again" on a failed receipt in `Receipts.tsx`.
+- **Idempotency key.** `invoice.idempotency_key` (uuid, unique per clinic where set). `POST /clinic/receipts` takes an
+  optional `Idempotency-Key` header (a UUID, else 400 `invalid_request`); the service answers the receipt already issued
+  with that key (201, audited as a read) and looks again after `NextNumber` locks the clinic's sequence, so two
+  concurrent requests with one key issue one receipt (the loser rolls back, giving its number back, and answers the
+  winner's). A key issued by another account is `invalid_receipt`. `ReceiptDialog.tsx` makes one key per dialog
+  (`crypto.randomUUID()`) and sends it with every attempt.
+- **The accountant's CSV.** Headers, section names and payment methods in the clinic's default language (from the same
+  catalogs, `csv_*` keys; `Report.Language` from `Clinics`), amounts as decimals with a point (`106.70`).
+- **Mobile.** `receipts_screen.dart` ("My receipts" on the home screen): the patient's receipts, newest first, with
+  number, date (Europe/Sarajevo: a receipt carries no zone), lines, total, a reversal marked, and the PDF to save or
+  share (`Booking.receipts`, `Booking.receiptPdf`). Seven strings in the eleven ARB files; `receiptsIntro` is `legal`.
+- `docs/privacy/dpia.md`: package H's part. `ownership.yaml` and the retention rules unchanged (no new table; the new
+  columns live and go with their rows).
+
+Decisions and readings:
+
+- Any `failed` receipt may be retried, rejected ones too: the status does not say why it failed, and a rejected one
+  rejected again stays failed (the job ends). A pending one is refused (its job is still running).
+- The CSV's amounts use a decimal point in every language, the CSV a comma separator (RFC 4180): unambiguous for any
+  spreadsheet import. A semicolon CSV with decimal commas for a Bosnian Excel is the owner's call.
+- The CSV's labels sit in the PDF catalog files (one catalog for the receipt's printed words), not in a second
+  directory.
+- The idempotency key is kept on the receipt (Postgres), not in Redis: it must hold as long as a retry may come and
+  never be the only copy of anything; it adds no personal data.
+- The catalog is read once into a package-level value from the embedded files (as the link page's are read in its
+  constructor); it never changes after.
+- TDD: the repository, service and handler tests, the mobile tests and the i18n-check test were written before the
+  code; the Go, web and i18n-check ones were not run red before the code was written (they were run once, green, after
+  both); the mobile tests were seen failing first.
+
+- `migrations/clinic_system_contract_test.go`'s `addLine` writes `position` 0: the column has no default (a line's
+  index is the repository's to give, and a default would hide a forgotten one).
+
+Checks (2026-11-23, compose project `salus-cms-h`): `make lint` (with `make i18n-check`) passed after one fix (field
+alignment in a new test); `make archcheck` passed; `make cover` passed on its rerun (90.8% total, `invoice` 88.2%): its
+first run failed in `internal/schedule`'s `TestHTTPHandler_SendsAFixedErrorAndLogsNoAvailability`, which checks that a
+log line does not contain "09:00" and failed because the log's own timestamp was 08:09:00 (a wall-clock flake, not
+this package's); `make gen-clients` run after the contract change; `make web-lint`, `make web-typecheck`,
+`make web-test` (1111 tests), `make web-build`, `make mobile-analyze`, `make mobile-test` passed. Not run: `make e2e`
+(not in H's check sets), `make fhir-validate` (no golden FHIR file changed), the browser walk.
+
+Deferred: a migration test of `00063`'s numbering of lines issued before it (the dev databases hold none from
+production; covered by reading the SQL); the browser walk of "Report again" and the mobile screen on a device (see
+the report); the drawn QR (package G).
+
+
 ## I: membership invoice document and the suspended listing
 
 ## L: landing page

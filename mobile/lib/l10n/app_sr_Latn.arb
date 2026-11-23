@@ -520,5 +520,12 @@
   "visitModeVideo": "Putem videa",
   "visitModeInPerson": "U klinici",
   "pricesHeading": "Cijene u ovoj ustanovi",
-  "pricesPaidAtClinic": "Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje."
+  "pricesPaidAtClinic": "Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.",
+  "myReceipts": "Moji računi",
+  "receiptsIntro": "Računi koje su vam klinike izdale za usluge koje ste platili u klinici. Klinike čuvaju račune onoliko dugo koliko to propisuje zakon o fiskalizaciji.",
+  "noReceipts": "Još nemate računa.",
+  "receiptNumber": "Račun br. {number}",
+  "receiptIssuedOn": "Izdato {date}",
+  "receiptReversal": "Storno ranijeg računa",
+  "receiptLine": "{name} × {quantity}"
 }

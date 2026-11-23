@@ -35,6 +35,8 @@ export function ReceiptDialog({ api, appointmentId, onIssued, onClose }: Props) 
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  // One key for every attempt of this receipt: a double click or a retry after a lost answer issues it once.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const { state } = useLoad(async () => {
     const res = await attempt(api.GET('/clinic/services'))
     if (!res.ok) throw new Error('services')
@@ -56,6 +58,7 @@ export function ReceiptDialog({ api, appointmentId, onIssued, onClose }: Props) 
     setError(undefined)
     const res = await attempt(
       api.POST('/clinic/receipts', {
+        params: { header: { 'Idempotency-Key': idempotencyKey } },
         body: {
           kind: buyer === 'company' ? 'invoice' : 'receipt',
           paymentMethod: method,

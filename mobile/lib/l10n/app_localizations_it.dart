@@ -2012,4 +2012,32 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Si paga presso la struttura. Nell\'app non viene addebitato nulla.';
+
+  @override
+  String get myReceipts => 'Le mie ricevute';
+
+  @override
+  String get receiptsIntro =>
+      'Le ricevute che le cliniche ti hanno rilasciato per i servizi pagati in clinica. Le cliniche conservano le ricevute per il tempo richiesto dalla legge fiscale.';
+
+  @override
+  String get noReceipts => 'Non hai ancora ricevute.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Ricevuta n. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Emessa il $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno di una ricevuta precedente';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
 }

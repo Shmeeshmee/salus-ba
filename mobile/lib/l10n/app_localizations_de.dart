@@ -2023,4 +2023,32 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Sie zahlen in der Praxis. In der App wird nichts berechnet.';
+
+  @override
+  String get myReceipts => 'Meine Rechnungen';
+
+  @override
+  String get receiptsIntro =>
+      'Die Belege, die Ihnen Kliniken für in der Klinik bezahlte Leistungen ausgestellt haben. Kliniken bewahren Belege so lange auf, wie es das Fiskalisierungsgesetz verlangt.';
+
+  @override
+  String get noReceipts => 'Sie haben noch keine Belege.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Beleg Nr. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Ausgestellt am $date';
+  }
+
+  @override
+  String get receiptReversal => 'Storno eines früheren Belegs';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
 }

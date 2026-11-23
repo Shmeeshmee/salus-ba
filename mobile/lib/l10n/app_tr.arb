@@ -520,5 +520,12 @@
   "visitModeVideo": "Görüntülü",
   "visitModeInPerson": "Klinikte",
   "pricesHeading": "Bu klinikteki fiyatlar",
-  "pricesPaidAtClinic": "Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz."
+  "pricesPaidAtClinic": "Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.",
+  "myReceipts": "Makbuzlarım",
+  "receiptsIntro": "Kliniklerin, klinikte ödediğiniz hizmetler için size düzenlediği makbuzlar. Klinikler makbuzları mali mevzuatın gerektirdiği süre boyunca saklar.",
+  "noReceipts": "Henüz makbuzunuz yok.",
+  "receiptNumber": "Makbuz no. {number}",
+  "receiptIssuedOn": "Düzenlenme tarihi: {date}",
+  "receiptReversal": "Önceki bir makbuzun iptali",
+  "receiptLine": "{name} × {quantity}"
 }

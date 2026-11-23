@@ -115,6 +115,7 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**listMyReceipts**](doc//BillingApi.md#listmyreceipts) | **GET** /me/receipts | The patient's own receipts, from every clinic
 *BillingApi* | [**listOfferedServices**](doc//BillingApi.md#listofferedservices) | **GET** /organizations/{id}/services | The services a listed clinic offers, with their prices, for booking
 *BillingApi* | [**listSubscriptionInvoices**](doc//BillingApi.md#listsubscriptioninvoices) | **GET** /clinic/subscription/invoices | Salus's monthly invoices to the clinic
+*BillingApi* | [**retryReceiptReport**](doc//BillingApi.md#retryreceiptreport) | **POST** /clinic/receipts/{id}/retry | Report a receipt whose fiscal report failed once more
 *BillingApi* | [**reverseReceipt**](doc//BillingApi.md#reversereceipt) | **POST** /clinic/receipts/{id}/reverse | Reverse an issued receipt
 *BillingApi* | [**setBillingDetails**](doc//BillingApi.md#setbillingdetails) | **PUT** /clinic/billing-details | Replace the clinic's billing details
 *BillingApi* | [**updateClinicService**](doc//BillingApi.md#updateclinicservice) | **PUT** /clinic/services/{id} | Change a service of the clinic's price list

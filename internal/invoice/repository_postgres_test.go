@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -349,5 +350,94 @@ func TestRiverJobs_EnqueueTheReportInTheTransactionWithOnlyTheTwoIDs(t *testing.
 func TestFiscalizeArgs_IsTheInvoiceFiscalizeJob(t *testing.T) {
 	if got := (invoice.FiscalizeArgs{InvoiceID: "i", OrganizationID: "o"}).Kind(); got != "invoice_fiscalize" {
 		t.Errorf("Kind() = %q, want invoice_fiscalize", got)
+	}
+}
+
+// Lines come back in the order they were entered, not by name, however the receipt is read.
+func TestRepository_KeepsTheLinesInTheirOrder(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo, tr := invoice.NewPostgresRepository(app), postgres.NewTransactor(app)
+	inv := receipt(patA)
+	inv.Lines[0], inv.Lines[1] = inv.Lines[1], inv.Lines[0] // "Placeholder item" before "Placeholder examination"
+	inv.Lines = append(inv.Lines, invoice.Line{Name: "A placeholder last", Quantity: 1, UnitPriceMinor: 100, TotalMinor: 100})
+	inv.TotalMinor += 100
+	stored, err := issue(t, tr, repo, inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Placeholder item", "Placeholder examination", "A placeholder last"}
+	names := func(list []invoice.Invoice) []string {
+		var out []string
+		for _, l := range list[0].Lines {
+			out = append(out, l.Name)
+		}
+		return out
+	}
+	err = in(t, tr, repo, clinicA, "", func(ctx context.Context) error {
+		one, err := repo.ByID(ctx, stored.ID)
+		if err != nil {
+			return err
+		}
+		locked, err := repo.Locked(ctx, stored.ID)
+		if err != nil {
+			return err
+		}
+		issued, err := repo.Issued(ctx, clinicA, invoice.Period{From: at.Add(-time.Hour), To: at.Add(time.Hour)})
+		if err != nil {
+			return err
+		}
+		for name, got := range map[string][]string{
+			"ByID": names([]invoice.Invoice{one}), "Locked": names([]invoice.Invoice{locked}), "Issued": names(issued),
+		} {
+			if !slices.Equal(got, want) {
+				t.Errorf("%s lines = %v, want %v", name, got, want)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A receipt issued with an idempotency key is found by it in its own clinic only; a second receipt with the same key
+// in the same clinic is refused by the schema.
+func TestRepository_FindsAReceiptByItsIdempotencyKey(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo, tr := invoice.NewPostgresRepository(app), postgres.NewTransactor(app)
+	const key = "e1000000-0000-4000-8000-0000000000e1"
+	inv := receipt(patA)
+	inv.IdempotencyKey = key
+	stored, err := issue(t, tr, repo, inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got invoice.Invoice
+	if err := in(t, tr, repo, clinicA, "", func(ctx context.Context) error {
+		got, err = repo.ByIdempotencyKey(ctx, clinicA, key)
+		return err
+	}); err != nil || got.ID != stored.ID || len(got.Lines) != 2 {
+		t.Errorf("ByIdempotencyKey() = %+v, %v; want the stored receipt", got, err)
+	}
+	for name, k := range map[string]string{"another key": "e2000000-0000-4000-8000-0000000000e2", "no UUID": "x"} {
+		if err := in(t, tr, repo, clinicA, "", func(ctx context.Context) error {
+			_, err := repo.ByIdempotencyKey(ctx, clinicA, k)
+			return err
+		}); !errors.Is(err, invoice.ErrNotFound) {
+			t.Errorf("ByIdempotencyKey(%s) = %v, want ErrNotFound", name, err)
+		}
+	}
+	if err := in(t, tr, repo, clinicB, "", func(ctx context.Context) error {
+		_, err := repo.ByIdempotencyKey(ctx, clinicA, key)
+		return err
+	}); !errors.Is(err, invoice.ErrNotFound) {
+		t.Errorf("ByIdempotencyKey() from another clinic = %v, want ErrNotFound", err)
+	}
+	if _, err := issue(t, tr, repo, inv); err == nil {
+		t.Error("a second receipt with the same key was stored")
 	}
 }

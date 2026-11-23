@@ -2684,7 +2684,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a receipt for a visit or on its own
-         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
+         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
          */
         post: operations["issueReceipt"];
         delete?: never;
@@ -2727,6 +2727,26 @@ export interface paths {
          * @description Issues the receipt that reverses it (its lines negated), once; it is reported like any receipt. By the clinic's admin. Audited, also when refused.
          */
         post: operations["reverseReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/receipts/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a receipt whose fiscal report failed once more
+         * @description Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited, also when refused.
+         */
+        post: operations["retryReceiptReport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2967,7 +2987,7 @@ export interface components {
              * @description The price list's service; absent for an item off it.
              */
             serviceId?: string;
-            /** @description As on the price list at issue. */
+            /** @description As on the price list at issue. Lines are in the order they were entered. */
             name: string;
             /**
              * Format: int32
@@ -3906,7 +3926,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "fiscal_report_not_failed";
             /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -12056,6 +12076,8 @@ export interface operations {
             header?: {
                 /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
                 "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description A UUID the client makes once per receipt it means to issue. Unique per clinic. */
+                "Idempotency-Key"?: string;
             };
             path?: never;
             cookie?: never;
@@ -12075,7 +12097,7 @@ export interface operations {
                     "application/json": components["schemas"]["Receipt"];
                 };
             };
-            /** @description `invalid_request`: unreadable or a field unknown; `invalid_receipt`: no lines, a patient and a company together, or a service not on the clinic's active price list. */
+            /** @description `invalid_request`: unreadable, a field unknown, or an `Idempotency-Key` that is no UUID; `invalid_receipt`: no lines, a patient and a company together, a service not on the clinic's active price list, or an `Idempotency-Key` another account issued with. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12197,6 +12219,52 @@ export interface operations {
                 };
             };
             /** @description `already_reversed`: the receipt was reversed already, or is itself a reversal. `fiscal_report_failed`: the receipt's fiscal report failed, so a reversal of it could not be reported either. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    retryReceiptReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt as it is, still `failed` until its report runs. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such receipt of the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `fiscal_report_not_failed`: the receipt is pending (its report is still running) or fiscalized. */
             409: {
                 headers: {
                     [name: string]: unknown;

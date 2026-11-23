@@ -114,13 +114,18 @@ func (s *Service) Mine(ctx context.Context, c Caller) ([]Invoice, error) {
 
 // Report sums the clinic's receipts issued in the period for its accountant, to its admin
 // (GET /clinic/reports/receipts): the count and total, by payment method and by service, reversals included with
-// their negative amounts. It is computed from the receipts List returns, so it always equals them.
+// their negative amounts. It is computed from the receipts List returns, so it always equals them. It carries the
+// clinic's default language for the CSV's headers.
 func (s *Service) Report(ctx context.Context, c Caller, p Period) (Report, error) {
 	list, err := s.List(ctx, c, p)
 	if err != nil {
 		return Report{}, err
 	}
-	r := Report{Period: p, Currency: "BAM", Count: len(list)}
+	clinic, err := s.p.Clinics.Clinic(ctx, c.OrganizationID) // outside the list's transaction: its own scope
+	if err != nil {
+		return Report{}, fmt.Errorf("invoice: report: %w", err)
+	}
+	r := Report{Period: p, Currency: "BAM", Language: clinic.DefaultLanguage, Count: len(list)}
 	methods := map[PaymentMethod]*MethodTotal{}
 	type key struct{ id, name string }
 	services := map[key]*ServiceTotal{}

@@ -2058,4 +2058,32 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق.';
+
+  @override
+  String get myReceipts => 'إيصالاتي';
+
+  @override
+  String get receiptsIntro =>
+      'الإيصالات التي أصدرتها لك العيادات عن الخدمات التي دفعت ثمنها في العيادة. تحتفظ العيادات بالإيصالات طوال المدة التي يفرضها قانون الفوترة الضريبية.';
+
+  @override
+  String get noReceipts => 'لا توجد لديك إيصالات بعد.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'إيصال رقم $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'صدر في $date';
+  }
+
+  @override
+  String get receiptReversal => 'إلغاء إيصال سابق';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
 }

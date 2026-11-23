@@ -7,7 +7,9 @@
 //   mobile: mobile/lib/l10n/app_<language>.arb against app_en.arb ("@" keys are metadata); app_sr.arb (the
 //           base gen-l10n needs for the script variants) is the same text as app_sr_Cyrl.arb;
 //   e-mail: internal/notification/templates/<language>/ against en/: the same files, the same {{…}} fields;
-//   link:   internal/appointment/templates/link/<language>.json against en.json, in the ten patient languages, as web's.
+//   link:   internal/appointment/templates/link/<language>.json against en.json, in the ten patient languages, as web's;
+//   pdf:    internal/invoice/templates/pdf/<language>.json (the receipt's labels) against en.json, in the five staff
+//           languages, as web's.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
@@ -31,7 +33,8 @@ export function check(root, parse) {
   checkWeb(root, parse, report);
   checkMobile(root, parse, report);
   checkEmail(root, report);
-  checkLink(root, parse, report);
+  checkFlat(join(root, 'internal', 'appointment', 'templates', 'link'), ALL, parse, report);
+  checkFlat(join(root, 'internal', 'invoice', 'templates', 'pdf'), STAFF, parse, report);
   return out;
 }
 
@@ -78,16 +81,15 @@ function readCatalog(file, report) {
   return { file, messages };
 }
 
-// checkLink checks the one-time link's page (internal/appointment/templates/link/<language>.json, SAL-34) in the ten
-// patient languages against en.json, as the web's catalogs.
-function checkLink(root, parse, report) {
-  const dir = join(root, 'internal', 'appointment', 'templates', 'link');
+// checkFlat checks a directory of web-style catalogs, <language>.json, in the languages langs against en.json: the
+// one-time link's page (internal/appointment/templates/link, SAL-34) and the receipt's PDF (internal/invoice/templates/pdf).
+function checkFlat(dir, langs, parse, report) {
   if (!existsSync(join(dir, 'en.json'))) return;
   for (const f of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
-    if (!ALL.includes(f.slice(0, -'.json'.length))) report(join(dir, f), 'not a language of this app');
+    if (!langs.includes(f.slice(0, -'.json'.length))) report(join(dir, f), 'not a language of this app');
   }
   const read = (lang) => readCatalog(join(dir, `${lang}.json`), report);
-  compare(read('en'), ALL.filter((l) => l !== 'en').map((l) => [l, read(l)]), parse, report, false);
+  compare(read('en'), langs.filter((l) => l !== 'en').map((l) => [l, read(l)]), parse, report, false);
 }
 
 function checkMobile(root, parse, report) {

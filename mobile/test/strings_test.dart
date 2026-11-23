@@ -88,6 +88,7 @@ void main() {
     bool legal(String key) => ((en['@$key'] as Map?)?['description'] as String? ?? '').startsWith('[legal]');
     for (final key in [
       'consentIntro',
+      'receiptsIntro',
       'whatIsSharedBody',
       'whoSeesItBody',
       'whatForBody',

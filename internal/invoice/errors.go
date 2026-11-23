@@ -16,6 +16,9 @@ var (
 	// ErrReportFailed is returned for a reversal of a receipt whose fiscal report failed: the reversal names the
 	// receipt's fiscal number, so it could never be reported either.
 	ErrReportFailed = errors.New("invoice: the receipt's fiscal report failed")
+	// ErrNotFailed is returned for a retry of a receipt whose fiscal report did not fail: a pending one is still being
+	// reported, a fiscalized one never is again.
+	ErrNotFailed = errors.New("invoice: the receipt's fiscal report did not fail")
 	// ErrSellerIncomplete is returned for a receipt of a clinic whose legal name, tax id or address is missing: a
 	// receipt names its seller.
 	ErrSellerIncomplete = errors.New("invoice: the clinic's billing details are incomplete")
