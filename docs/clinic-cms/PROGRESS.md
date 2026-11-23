@@ -24,6 +24,7 @@ writes under its own heading here.
 | F1 | not started (wave 3, after 3.0) | |
 | F2 | done 2026-11-23, partly (see its Deferred) | `cms(F2)` on `wt/cms/F2` |
 | F3 | not started (wave 3, after 3.0) | |
+| F3 | done 2026-11-23 | `cms(F3)` on `wt/cms/F3` |
 | O1 | not started (wave 3, after 3.0) | |
 | O2 | not started (wave 3, after 3.0) | |
 | X1 | not started (wave 3, after 3.0) | |
@@ -1081,7 +1082,92 @@ changed), `make e2e` (not in F2's check set).
 
 ## F3: the front desk screen
 
-Not started.
+Status: done, 2026-11-23, on `wt/cms/F3`, one commit `cms(F3)`. Web only, built against 3.0's generated client with a
+fake API in the tests; no Go, no migration (`00066`-`00071` untouched). The integration wires it to F1 and F2.
+
+**Built.**
+
+- `/desk` (`Desk.tsx`) for the clinic's admin and its receptionists (`App.tsx`: the route and a "Front desk" link first
+  in the menu for those two roles; a practitioner gets neither). Today's visits from `GET /clinic/desk/today` (no
+  `date`: the server's today in the clinic's zone), grouped by practitioner in the server's order, each with its time,
+  the patient's name, birth date and phone (W2), the visit type, the booked service's name (`serviceName`) and the
+  status; a role the clinic no longer has shows as "Former practitioner".
+- `DeskCheckIn.tsx`: "Arrived" on a booked in-person visit only, `POST /clinic/appointments/{id}/arrive`; the row then
+  shows "Arrived HH:MM" from the answer's `arrivedAt`, without reloading the day. `not_in_person`,
+  `appointment_closed` and anything else each have their message.
+- "Issue receipt" on every booked, arrived or fulfilled row opens package C's `ReceiptDialog` unchanged, with the
+  visit's `appointmentId` and the booked service (package E's `appointment.serviceId`) as the first line.
+- `DeskWalkIn.tsx`: a dialog that picks or registers the patient (`PatientPicker.tsx`), then a practitioner, one of
+  today's free in-person times (FHIR `Schedule?actor=PractitionerRole/…`, then
+  `Slot?schedule=…&status=free&start=ge<now>&start=lt<end of the clinic's day>`) and a service (active, offered at the
+  clinic, or none), and books with `POST /clinic/appointments`. `slot_unavailable` reads the times again;
+  `consent_required`, `invalid_service` and anything else each have their message.
+- `PatientPicker.tsx`: search by name (from two letters) and an optional birth date (`GET /clinic/patients`); register
+  a patient without an account (`POST /clinic/patients`: given and family name, birth date, optional phone, and the
+  checkbox that the patient gave their care consent in person, which the button needs; `consentGivenInPerson: true`).
+- The `desk` catalogs in the five staff languages (the consent line tagged `legal`); a `DeskIcon`; the desk's own
+  block at the end of `app.css`.
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| A walk-in's times | Today's free in-person slots only, from now: a walk-in is at the desk. Booking a later visit for a patient is the calendar's or F2's API, not this dialog |
+| Which day | Today only, as the plan's route says; the API's `date` is not used |
+| The check-in button | Labelled "Arrived" as the plan says; the status tag reads "Arrived HH:MM". In bs, hr and sr "Prijavi dolazak" / "Dolazak u HH:MM" (gender-neutral) |
+| Receipt on which rows | Booked, arrived and fulfilled; not on a cancelled visit or a no-show (as `AppointmentDetail`) |
+| Phone on the row | Shown (W2 lists it for the desk), plain text |
+| Free slots | Read through the FHIR directory search, as the mobile app does; there is no staff slot route in the contract |
+
+**Test first.** `Desk.test.tsx`, `DeskWalkIn.test.tsx`, `PatientPicker.test.tsx` and the App route test were written
+and run red (no such modules) before the code. `catalog.test.ts`'s list of areas gained `desk` on purpose.
+
+**Walk.** No browser tool in this session and no F2 backend (its routes refuse), so the screen was walked with
+Playwright (the `playwright` compose service, `--no-deps`) against `make web-build`'s output with the API faked by
+route interception, at 1280 px and 390 px: the day, a check-in, the walk-in's picker with the registration form, the
+booking step. No horizontal overflow at either width. The run fixed the row layout (the tag after the name, the actions
+below on a phone) and the walk-in dialog's spacing; the date and phone inputs of the picker are styled in the desk's
+block (the global input rule has no `date` or `tel`, so `ReceiptPeriod`'s date inputs are unstyled too: left alone).
+The throwaway script and screenshots are not committed.
+
+**Checks** (compose project `salus-cms-f3`): `make lint`, `make test`, `make archcheck`, `make web-lint` (1 warning, in
+`analytics/ClinicView.tsx`, not this package's), `make web-typecheck`, `make web-test` (78 files, 1231 tests),
+`make web-build`: pass. Not run: `make e2e` (the desk's routes are F2's and refuse until it lands; the e2e journey is
+the integration's, below).
+
+**For the integration session** (F1 and F2 are not wired here; everything below is what the fakes assume):
+
+- `GET /clinic/desk/today` answers `DeskDay` with `visits` ordered by practitioner, then start; each `DeskVisit` carries
+  the full `Appointment` (with `visitMode`, `status`, `arrivedAt`, `serviceId`) and `patient` (`ClinicPatient`), and
+  `serviceName` when the booking named a service. 200 for admin and reception, 403 `forbidden` for a practitioner.
+- `POST /clinic/appointments/{id}/arrive` answers 200 with the `Appointment`, `status: arrived` and `arrivedAt` set;
+  409 `not_in_person` for video, 409 `appointment_closed` when not booked; no `If-Match` is sent (none is in the
+  contract).
+- `GET /clinic/patients?name=…[&birthDate=…]` answers a `ClinicPatient[]` (200, `[]` for none), for reception too.
+  `POST /clinic/patients` answers 201 `ClinicPatient`; the body omits `phone` when empty; refusals `invalid_name`,
+  `invalid_birth_date`, `invalid_phone` (400) are shown by code.
+- `POST /clinic/appointments` with `{patientId, slotId, serviceId?}` answers 201 `Appointment`; refusals
+  `slot_unavailable` (409), `consent_required` (403), `invalid_service` (400) are shown by code. A patient the desk just
+  registered must be bookable at once (the in-person consent counts as the clinic's active care consent).
+- Free times: the walk-in reads FHIR `Schedule?actor=PractitionerRole/<id>` and `Slot?schedule=…&status=free&start=ge…&
+  start=lt…`, which the CapabilityStatement documents as the public directory's: **an unlisted clinic (or one O1 has
+  not approved yet) has no schedules there**, so its desk would show no free time. Check it, and if so, F2 or the
+  integration opens these two searches to the clinic's own staff (or adds a staff slot read) and the CapabilityStatement
+  says so. The slot's visit mode is read from the `visit-mode` extension.
+- Receipts by a receptionist: `POST /clinic/receipts` says "by the clinic's admin or the practitioner of the visit (the
+  reception role waits for Q1)", and `GET /clinic/services` (the dialog's price list) may be admin- and
+  practitioner-only too. F1 must let the reception role issue a visit's receipt and read the price list, or the desk's
+  "Issue receipt" is refused for a receptionist.
+- The desk also reads `GET /fhir/R4/Organization/<id>` (time zone) and `PractitionerRole?organization=…&_include=…`
+  (names): F1 must let a receptionist read both.
+- The menu: F3 adds only the "Front desk" link (admin and reception); F1 decides the rest of a receptionist's menu in
+  `App.tsx` (today a receptionist sees every staff link). Merge the two `Navigation` changes by hand.
+- An e2e journey (`test/e2e`): admin invites a receptionist (F1); the receptionist registers a walk-in, books today's
+  in-person slot, checks the patient in, and the admin (or the receptionist, after F1) issues the receipt from the
+  desk. Not written here: it needs F1 and F2 to pass.
+
+**Copy waiting for the owner:** every string in `web/src/i18n/desk/en.json` (55 keys), in particular the consent line
+"The patient gave the clinic their consent to care, in person." (`legal`) and its translations.
 
 ## O1: clinic signup and setup wizard
 
