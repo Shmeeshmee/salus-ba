@@ -532,5 +532,11 @@
   "receiptReversal": "Storno eines früheren Belegs",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Ich wähle in der Praxis",
-  "answersNotEnabled": "Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: {items}. Prüfen Sie Ihre Antworten und senden Sie sie erneut."
+  "answersNotEnabled": "Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: {items}. Prüfen Sie Ihre Antworten und senden Sie sie erneut.",
+  "clinicLanguageFilter": "Gesprochene Sprache",
+  "anyLanguage": "Jede Sprache",
+  "noClinicsSpeak": "Noch keine eingetragene Klinik spricht diese Sprache.",
+  "welcomesInternational": "Empfängt Patientinnen und Patienten aus dem Ausland",
+  "languagesSpoken": "Gesprochene Sprachen: {languages}",
+  "clinicServices": "Leistungen und Preise"
 }

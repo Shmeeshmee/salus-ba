@@ -2076,6 +2076,27 @@ class AppLocalizationsSr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
   }
+
+  @override
+  String get clinicLanguageFilter => 'Језик који се говори';
+
+  @override
+  String get anyLanguage => 'Било који језик';
+
+  @override
+  String get noClinicsSpeak =>
+      'Ниједна клиника на списку још не говори овај језик.';
+
+  @override
+  String get welcomesInternational => 'Прима пацијенте из иностранства';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Језици који се говоре: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Услуге и цијене';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4149,6 +4170,27 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String answersNotEnabled(String items) {
     return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
   }
+
+  @override
+  String get clinicLanguageFilter => 'Језик који се говори';
+
+  @override
+  String get anyLanguage => 'Било који језик';
+
+  @override
+  String get noClinicsSpeak =>
+      'Ниједна клиника на списку још не говори овај језик.';
+
+  @override
+  String get welcomesInternational => 'Прима пацијенте из иностранства';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Језици који се говоре: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Услуге и цијене';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6224,4 +6266,25 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String answersNotEnabled(String items) {
     return 'Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovo pošaljite.';
   }
+
+  @override
+  String get clinicLanguageFilter => 'Jezik koji se govori';
+
+  @override
+  String get anyLanguage => 'Bilo koji jezik';
+
+  @override
+  String get noClinicsSpeak =>
+      'Nijedna klinika na spisku još ne govori ovaj jezik.';
+
+  @override
+  String get welcomesInternational => 'Prima pacijente iz inostranstva';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Jezici koji se govore: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Usluge i cijene';
 }

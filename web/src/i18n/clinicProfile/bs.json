@@ -1,0 +1,18 @@
+{
+  "title": "Profil za pacijente iz inostranstva",
+  "intro": "Pacijenti ovo vide u aplikaciji uz vaše usluge i cijene.",
+  "loadFailed": "Profil nije moguće učitati. Ponovo učitajte stranicu.",
+  "languages": "Jezici koje vaše osoblje govori",
+  "welcomes": "Primamo pacijente iz inostranstva",
+  "description": "Opis",
+  "descriptionHint": "Nekoliko rečenica na zadanom jeziku klinike. Najviše 2000 znakova.",
+  "translations": "Prijevodi opisa",
+  "descriptionIn": "Opis na jeziku: {language}",
+  "translationsNeedDescription": "Napišite opis prije njegovih prijevoda.",
+  "conflict": "Neko drugi je promijenio profil. Ponovo učitajte stranicu da vidite promjenu; ono što ste unijeli ostaje u obrascu.",
+  "invalid": "Opis i svaki prijevod neka budu kraći od 2000 znakova.",
+  "saveFailed": "Profil nije moguće sačuvati. Pokušajte ponovo.",
+  "saved": "Profil je sačuvan.",
+  "save": "Sačuvaj profil",
+  "saving": "Čuvanje…"
+}

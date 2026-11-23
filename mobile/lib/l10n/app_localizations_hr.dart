@@ -2081,4 +2081,25 @@ class AppLocalizationsHr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Ta se pitanja više ne postavljaju pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovno pošaljite.';
   }
+
+  @override
+  String get clinicLanguageFilter => 'Jezik kojim se govori';
+
+  @override
+  String get anyLanguage => 'Bilo koji jezik';
+
+  @override
+  String get noClinicsSpeak =>
+      'Nijedna klinika na popisu još ne govori ovim jezikom.';
+
+  @override
+  String get welcomesInternational => 'Prima pacijente iz inozemstva';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Jezici kojima se govori: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Usluge i cijene';
 }

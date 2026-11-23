@@ -532,5 +532,11 @@
   "receiptReversal": "Önceki bir makbuzun iptali",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Klinikte seçeceğim",
-  "answersNotEnabled": "Bu sorular artık sorulmuyor, bu yüzden yanıtları kaldırıldı: {items}. Yanıtlarınızı kontrol edip yeniden gönderin."
+  "answersNotEnabled": "Bu sorular artık sorulmuyor, bu yüzden yanıtları kaldırıldı: {items}. Yanıtlarınızı kontrol edip yeniden gönderin.",
+  "clinicLanguageFilter": "Konuşulan dil",
+  "anyLanguage": "Herhangi bir dil",
+  "noClinicsSpeak": "Bu dili konuşan listelenmiş bir klinik henüz yok.",
+  "welcomesInternational": "Yurt dışından gelen hastaları kabul eder",
+  "languagesSpoken": "Konuşulan diller: {languages}",
+  "clinicServices": "Hizmetler ve fiyatlar"
 }

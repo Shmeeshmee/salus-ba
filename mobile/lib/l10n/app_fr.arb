@@ -532,5 +532,11 @@
   "receiptReversal": "Annulation d’un reçu antérieur",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Je choisirai sur place",
-  "answersNotEnabled": "Ces questions ne sont plus posées, leurs réponses ont donc été supprimées : {items}. Vérifiez vos réponses et envoyez-les à nouveau."
+  "answersNotEnabled": "Ces questions ne sont plus posées, leurs réponses ont donc été supprimées : {items}. Vérifiez vos réponses et envoyez-les à nouveau.",
+  "clinicLanguageFilter": "Langue parlée",
+  "anyLanguage": "Toutes les langues",
+  "noClinicsSpeak": "Aucune clinique répertoriée ne parle encore cette langue.",
+  "welcomesInternational": "Accueille les patients venant de l’étranger",
+  "languagesSpoken": "Langues parlées : {languages}",
+  "clinicServices": "Services et tarifs"
 }

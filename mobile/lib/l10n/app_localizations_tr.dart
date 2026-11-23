@@ -2052,4 +2052,26 @@ class AppLocalizationsTr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Bu sorular artık sorulmuyor, bu yüzden yanıtları kaldırıldı: $items. Yanıtlarınızı kontrol edip yeniden gönderin.';
   }
+
+  @override
+  String get clinicLanguageFilter => 'Konuşulan dil';
+
+  @override
+  String get anyLanguage => 'Herhangi bir dil';
+
+  @override
+  String get noClinicsSpeak =>
+      'Bu dili konuşan listelenmiş bir klinik henüz yok.';
+
+  @override
+  String get welcomesInternational =>
+      'Yurt dışından gelen hastaları kabul eder';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Konuşulan diller: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Hizmetler ve fiyatlar';
 }

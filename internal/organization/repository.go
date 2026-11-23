@@ -19,6 +19,13 @@ type Repository interface {
 	// Update sets the name, listing, time zone and default language of the clinic o.ID at version o.VersionID, moving it to the
 	// next version, last updated at at; or returns ErrConflict when that version is not the current one.
 	Update(ctx context.Context, o Organization, at time.Time) (Organization, error)
+	// ListedSpeaking returns the listed clinics the scope shows whose staff speak language, by name.
+	ListedSpeaking(ctx context.Context, language string) ([]Organization, error)
+	// ProfileOf returns the profile of the clinic id at its version, or ErrNotFound for one the scope does not show.
+	ProfileOf(ctx context.Context, id string) (Profile, error)
+	// PutProfile replaces the profile of the clinic id at version p.VersionID, moving the clinic to the next version,
+	// last updated at at; or returns ErrConflict when that version is not the current one.
+	PutProfile(ctx context.Context, id string, p Profile, at time.Time) (Profile, error)
 	// Create stores a new active clinic and returns it. Only the owner may (the operator command).
 	Create(ctx context.Context, name string) (Organization, error)
 }

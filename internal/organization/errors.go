@@ -36,3 +36,8 @@ var (
 // ErrInvalidBillingDetails is returned for billing details with a tax id that is not 12 or 13 digits, an e-mail that
 // is not an address, or a legal name that is too long.
 var ErrInvalidBillingDetails = errors.New("organization: invalid billing details")
+
+// ErrInvalidProfile is returned for a clinic profile with a language that is not of the language enum or given twice,
+// a description or translation over 2000 characters, a blank translation, a translation given twice, or translations
+// of no description; and for a directory search by a language that is not of the enum.
+var ErrInvalidProfile = errors.New("organization: invalid profile")

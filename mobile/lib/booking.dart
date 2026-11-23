@@ -207,7 +207,8 @@ class Booking {
   /// The bytes of the patient's clean file [binaryId] and its content type, to hand to the device (SAL-39).
   Future<(Uint8List, String)> file(String binaryId) async {
     final response = await apiCall(
-      () => _client.invokeAPI('/binaries/${Uri.encodeComponent(binaryId)}/content', 'GET', const [], null, {}, {}, null),
+      () =>
+          _client.invokeAPI('/binaries/${Uri.encodeComponent(binaryId)}/content', 'GET', const [], null, {}, {}, null),
     );
     if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
     return (response.bodyBytes, response.headers['content-type'] ?? 'application/octet-stream');
@@ -226,6 +227,14 @@ class Booking {
   Future<List<api.OfferedService>> offeredServices(String clinicId, api.VisitMode mode, String language) async {
     final list = await apiCall(() => api.BillingApi(_client).listOfferedServices(clinicId, mode, language: language));
     return list ?? const <api.OfferedService>[];
+  }
+
+  /// The listed clinic [clinicId]'s profile for patients abroad (docs/clinic-cms, package X2): the languages its staff
+  /// speak, its description with every translation, whether it welcomes patients from abroad.
+  Future<api.ClinicProfile> clinicProfile(String clinicId) async {
+    final got = await apiCall(() => api.DirectoryApi(_client).getOrganizationProfile(clinicId));
+    if (got == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return got;
   }
 
   /// The patient's own receipts from every clinic, newest first (docs/plans/clinic-cms.md, package H).

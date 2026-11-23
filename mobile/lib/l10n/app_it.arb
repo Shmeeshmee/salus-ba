@@ -532,5 +532,11 @@
   "receiptReversal": "Storno di una ricevuta precedente",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Sceglierò presso la struttura",
-  "answersNotEnabled": "Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: {items}. Controlli le risposte e invii di nuovo."
+  "answersNotEnabled": "Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: {items}. Controlli le risposte e invii di nuovo.",
+  "clinicLanguageFilter": "Lingua parlata",
+  "anyLanguage": "Qualsiasi lingua",
+  "noClinicsSpeak": "Nessuna clinica elencata parla ancora questa lingua.",
+  "welcomesInternational": "Accoglie pazienti dall’estero",
+  "languagesSpoken": "Lingue parlate: {languages}",
+  "clinicServices": "Servizi e prezzi"
 }

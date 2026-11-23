@@ -532,5 +532,11 @@
   "receiptReversal": "Сторно ранијег рачуна",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Одабраћу у установи",
-  "answersNotEnabled": "Ова питања се више не постављају, па су њихови одговори уклоњени: {items}. Провјерите одговоре и поново пошаљите."
+  "answersNotEnabled": "Ова питања се више не постављају, па су њихови одговори уклоњени: {items}. Провјерите одговоре и поново пошаљите.",
+  "clinicLanguageFilter": "Језик који се говори",
+  "anyLanguage": "Било који језик",
+  "noClinicsSpeak": "Ниједна клиника на списку још не говори овај језик.",
+  "welcomesInternational": "Прима пацијенте из иностранства",
+  "languagesSpoken": "Језици који се говоре: {languages}",
+  "clinicServices": "Услуге и цијене"
 }

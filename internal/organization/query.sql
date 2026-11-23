@@ -82,3 +82,38 @@ WHERE id = @id;
 UPDATE organization
 SET legal_name = @legal_name, tax_id = @tax_id, vat_registered = @vat_registered, billing_email = @billing_email
 WHERE id = @id;
+
+-- name: ListedOrganizationsSpeaking :many
+-- Organization?listed=true&language=: the listed clinics whose staff speak the language (package X2 of
+-- docs/clinic-cms); row-level security shows only listed clinics in the directory scope.
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
+FROM organization
+WHERE listed AND @language::text = ANY (languages)
+ORDER BY name, id;
+
+-- name: OrganizationProfile :one
+-- The clinic's profile for patients abroad (X2), at the organization's version. Not personal data.
+SELECT version_id, languages, profile_description, welcomes_international
+FROM organization
+WHERE id = @id;
+
+-- name: OrganizationProfileTranslations :many
+SELECT language, description
+FROM organization_profile_translation
+WHERE organization_id = @organization_id
+ORDER BY language; -- the enum's order
+
+-- name: UpdateOrganizationProfile :one
+-- Optimistic locking, as UpdateOrganization: only the current version changes.
+UPDATE organization
+SET languages = @languages, profile_description = @profile_description, welcomes_international = @welcomes_international,
+    version_id = version_id + 1, updated_at = @updated_at
+WHERE id = @id AND version_id = @version_id
+RETURNING version_id;
+
+-- name: DeleteOrganizationProfileTranslations :exec
+DELETE FROM organization_profile_translation WHERE organization_id = @organization_id;
+
+-- name: InsertOrganizationProfileTranslation :exec
+INSERT INTO organization_profile_translation (organization_id, language, description)
+VALUES (@organization_id, @language, @description);

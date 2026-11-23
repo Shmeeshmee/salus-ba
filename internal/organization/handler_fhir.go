@@ -34,6 +34,7 @@ type Clinics interface {
 	Read(ctx context.Context, c Caller, id string) (Organization, error)
 	Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error)
 	ListListed(ctx context.Context) ([]Organization, error)
+	ListListedSpeaking(ctx context.Context, language string) ([]Organization, error)
 }
 
 // Handler serves the Organization read, update and search of the FHIR API (api/fhir/CapabilityStatement.json).
@@ -110,15 +111,32 @@ func toDirectory(o Organization) resource {
 	}
 }
 
-// search answers Organization?listed=true, the public directory, for anyone, signed in or not.
+// search answers Organization?listed=true, the public directory, for anyone, signed in or not; with language= (one
+// tag of the language enum), only the clinics whose staff speak it (package X2 of docs/clinic-cms).
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	q, err := url.ParseQuery(r.URL.RawQuery)
-	if err != nil || len(q) != 1 || len(q["listed"]) != 1 || q.Get("listed") != "true" {
-		fhir.WriteError(w, http.StatusBadRequest, "not-supported", "Search with listed=true only.")
+	language, filtered := q["language"]
+	params := 1
+	if filtered {
+		params = 2
+	}
+	if err != nil || len(q) != params || len(q["listed"]) != 1 || q.Get("listed") != "true" || (filtered && (len(language) != 1 || language[0] == "")) {
+		fhir.WriteError(w, http.StatusBadRequest, "not-supported", "Search with listed=true and at most one language.")
 		return
 	}
-	all, err := h.svc.ListListed(r.Context())
-	if err != nil {
+	var all []Organization
+	self := h.base + "/Organization?listed=true"
+	if filtered {
+		all, err = h.svc.ListListedSpeaking(r.Context(), language[0])
+		self += "&language=" + url.QueryEscape(language[0])
+	} else {
+		all, err = h.svc.ListListed(r.Context())
+	}
+	switch {
+	case errors.Is(err, ErrInvalidProfile):
+		fhir.WriteError(w, http.StatusBadRequest, "value", "The language must be one of bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr.")
+		return
+	case err != nil:
 		fhir.InternalError(w, r, h.log, err)
 		return
 	}
@@ -126,7 +144,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	for _, o := range all {
 		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/Organization/" + o.ID, Resource: toDirectory(o)})
 	}
-	fhir.Write(w, http.StatusOK, fhir.NewSearchset(h.base+"/Organization?listed=true", matches, nil))
+	fhir.Write(w, http.StatusOK, fhir.NewSearchset(self, matches, nil))
 }
 
 func (h *Handler) read(w http.ResponseWriter, r *http.Request) {

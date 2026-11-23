@@ -2078,4 +2078,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: $items. Prüfen Sie Ihre Antworten und senden Sie sie erneut.';
   }
+
+  @override
+  String get clinicLanguageFilter => 'Gesprochene Sprache';
+
+  @override
+  String get anyLanguage => 'Jede Sprache';
+
+  @override
+  String get noClinicsSpeak =>
+      'Noch keine eingetragene Klinik spricht diese Sprache.';
+
+  @override
+  String get welcomesInternational =>
+      'Empfängt Patientinnen und Patienten aus dem Ausland';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Gesprochene Sprachen: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Leistungen und Preise';
 }
