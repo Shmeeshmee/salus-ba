@@ -83,6 +83,9 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	if foreignKeyViolation(err) {
 		return Organization{}, ErrInvalidLocation
 	}
+	if notApproved(err) {
+		return Organization{}, ErrNotApproved
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Organization{}, ErrConflict
 	}
@@ -93,7 +96,7 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 }
 
 // Create sets the new clinic's scope on the transaction in ctx before it inserts the clinic: salus_app may insert
-// only the clinic of its scope (00068).
+// only the clinic of its scope (00066).
 func (r *postgresRepository) Create(ctx context.Context, name string) (Organization, error) {
 	id, err := r.q(ctx).NewOrganizationID(ctx)
 	if err != nil {
@@ -349,6 +352,13 @@ func (r *postgresRepository) PutAppointmentSettings(ctx context.Context, org str
 
 // foreignKeyViolation reports whether err is Postgres refusing a location that is not a city of a leaf region
 // (organization_region_fkey, organization_city_fkey).
+// notApproved reports whether err is 00066's organization_guard_signup_listed: a signed-up clinic listed before the
+// operator's approval (a check violation raised by the trigger, which names no constraint).
+func notApproved(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23514" && pgErr.ConstraintName == ""
+}
+
 func foreignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23503"

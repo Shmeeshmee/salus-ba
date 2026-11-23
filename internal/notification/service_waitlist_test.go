@@ -223,3 +223,14 @@ func TestSendDelivery_TheOffersSendsAreAuditedAsTheirOwn(t *testing.T) {
 		t.Errorf("the offer read as %v, want waitlist_offer_email", offers.asked)
 	}
 }
+
+// A patient the clinic registered has no account (docs/clinic-cms W1): no channel reaches them, so no offer is made to
+// them, and no account's settings are read.
+func TestReach_APatientWithoutAnAccountIsNotReachable(t *testing.T) {
+	f, _ := offerFixture(offerMade, "en")
+	before := len(f.audit.events)
+	got, err := f.svc.Reach(t.Context(), "waitlist_slot_freed", remindClin, "", offerMade)
+	if err != nil || got.Reachable || got.Quiet || len(f.audit.events) != before {
+		t.Errorf("Reach(no account) = %+v, %v with %d new events; want unreachable, nothing read", got, err, len(f.audit.events)-before)
+	}
+}

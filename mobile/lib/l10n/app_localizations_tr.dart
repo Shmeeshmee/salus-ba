@@ -2073,4 +2073,26 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get quoteExpired => 'Süresi doldu';
+
+  @override
+  String get clinicLanguageFilter => 'Konuşulan dil';
+
+  @override
+  String get anyLanguage => 'Herhangi bir dil';
+
+  @override
+  String get noClinicsSpeak =>
+      'Bu dili konuşan listelenmiş bir klinik henüz yok.';
+
+  @override
+  String get welcomesInternational =>
+      'Yurt dışından gelen hastaları kabul eder';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Konuşulan diller: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Hizmetler ve fiyatlar';
 }

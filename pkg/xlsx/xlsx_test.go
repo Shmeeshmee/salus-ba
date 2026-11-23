@@ -4,7 +4,9 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/pkg/xlsx"
@@ -101,5 +103,21 @@ func TestRows_RefusesWhatIsNotAWorkbook(t *testing.T) {
 		if _, err := xlsx.Rows(data); !errors.Is(err, xlsx.ErrNotWorkbook) {
 			t.Errorf("%s: Rows() = %v, want ErrNotWorkbook", name, err)
 		}
+	}
+}
+
+// A small sheet of cells in the last column (XFD) would expand to 16384 cells a row: the cells a sheet may expand to are
+// capped, so a few kilobytes of XML cannot take gigabytes of memory.
+func TestRows_RefusesASheetThatExpandsPastTheCellLimit(t *testing.T) {
+	t.Parallel()
+	var sheet strings.Builder
+	sheet.WriteString(`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`)
+	for r := 1; r <= 100; r++ {
+		fmt.Fprintf(&sheet, `<row r="%d"><c r="XFD%d" t="inlineStr"><is><t>x</t></is></c></row>`, r, r)
+	}
+	sheet.WriteString(`</sheetData></worksheet>`)
+	data := book(t, map[string]string{"xl/workbook.xml": workbook, "xl/_rels/workbook.xml.rels": rels, "xl/worksheets/sheet2.xml": sheet.String()})
+	if _, err := xlsx.Rows(data); !errors.Is(err, xlsx.ErrTooLarge) {
+		t.Errorf("Rows() of 100 rows reaching column XFD = %v, want ErrTooLarge", err)
 	}
 }

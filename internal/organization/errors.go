@@ -11,6 +11,9 @@ var (
 	ErrForbidden = errors.New("organization: forbidden")
 	// ErrConflict is returned for an update of a version that is not the current one.
 	ErrConflict = errors.New("organization: version conflict")
+	// ErrNotApproved is returned when a signed-up clinic's admin lists it before the operator approved the signup
+	// (00066).
+	ErrNotApproved = errors.New("organization: listed only after the operator's approval")
 	// ErrInvalidName is returned for a name that is blank or longer than 200 characters.
 	ErrInvalidName = errors.New("organization: invalid name")
 	// ErrInvalidTimeZone is returned for a time zone that is not an IANA zone name.

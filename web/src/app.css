@@ -88,7 +88,7 @@ a { color: var(--color-brand); }
 form { display: grid; gap: 16px; }
 .field { display: grid; gap: 6px; }
 .field label, legend { font-size: 14px; font-weight: 600; }
-input[type='email'], input[type='password'], input[type='number'], input[type='time'], input[type='text'], input:not([type]), select, textarea {
+input[type='email'], input[type='password'], input[type='number'], input[type='time'], input[type='date'], input[type='tel'], input[type='text'], input:not([type]), select, textarea {
   width: 100%;
   font: inherit;
   color: inherit;
@@ -669,12 +669,3 @@ p.hint.join { margin-bottom: 20px; }
 .patient-picker .toolbar { margin-bottom: 0; }
 .desk-dialog { display: grid; gap: 14px; align-content: start; }
 .desk-dialog h2 { margin: 0; }
-.patient-picker input[type='date'], .patient-picker input[type='tel'] {
-  width: 100%;
-  font: inherit;
-  color: inherit;
-  padding: 10px 12px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-}

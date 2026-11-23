@@ -2098,4 +2098,26 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get quoteExpired => 'Expiré';
+
+  @override
+  String get clinicLanguageFilter => 'Langue parlée';
+
+  @override
+  String get anyLanguage => 'Toutes les langues';
+
+  @override
+  String get noClinicsSpeak =>
+      'Aucune clinique répertoriée ne parle encore cette langue.';
+
+  @override
+  String get welcomesInternational =>
+      'Accueille les patients venant de l’étranger';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Langues parlées : $languages';
+  }
+
+  @override
+  String get clinicServices => 'Services et tarifs';
 }

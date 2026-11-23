@@ -2684,7 +2684,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a receipt for a visit or on its own
-         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+         * @description By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
          */
         post: operations["issueReceipt"];
         delete?: never;
@@ -2702,7 +2702,7 @@ export interface paths {
         };
         /**
          * A receipt of the clinic
-         * @description For the clinic's admin and the practitioner who issued it. Audited.
+         * @description For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
          */
         get: operations["getClinicReceipt"];
         put?: never;
@@ -2972,7 +2972,7 @@ export interface paths {
         put?: never;
         /**
          * Book a visit for a patient
-         * @description Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+         * @description Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service of its own price list (active, offered in the slot's mode); the appointment records who booked it. The slot is read in the clinic's own scope, listed or not; a clinic whose membership is suspended or cancelled books nothing (`slot_unavailable`). For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
          */
         post: operations["bookForPatient"];
         delete?: never;
@@ -3110,7 +3110,7 @@ export interface paths {
         };
         /**
          * The setup wizard's progress
-         * @description Each step open, done or skipped. For the clinic's staff. Built in package O1. Not personal data; not audited.
+         * @description Each step open, done or skipped. For the clinic's admin only (a practitioner or a receptionist is refused). Built in package O1. Not personal data; not audited.
          */
         get: operations["getClinicSetup"];
         /**
@@ -3136,7 +3136,7 @@ export interface paths {
         put?: never;
         /**
          * Import a price list from a file
-         * @description A CSV or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
+         * @description A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
          */
         post: operations["importClinicServices"];
         delete?: never;
@@ -13368,7 +13368,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such patient or slot the caller may see. */
+            /** @description `not_found`: no such patient the caller may see. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13377,7 +13377,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `slot_unavailable`: the slot was taken or held. */
+            /** @description `slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13718,6 +13718,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
             500: components["responses"]["InternalError"];
         };
@@ -13758,6 +13759,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

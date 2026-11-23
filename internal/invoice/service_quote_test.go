@@ -53,6 +53,24 @@ func TestSendQuote_PricesTheLinesForThirtyDaysAndEnqueuesTheEmail(t *testing.T) 
 	}
 }
 
+// A patient the clinic registered has no account (docs/clinic-cms W1): their quote is stored and audited, and no e-mail
+// is enqueued for it.
+func TestSendQuote_EnqueuesNoEmailForAPatientWithoutAnAccount(t *testing.T) {
+	f := newFixture(theSeller)
+	d := quoteDraft()
+	d.AppointmentID, d.PatientID = registeredVisit, "patient-registered"
+	got, err := f.svc.SendQuote(t.Context(), adminC, d)
+	if err != nil || got.ID == "" || got.PatientID != "patient-registered" {
+		t.Fatalf("SendQuote() = %+v, %v; want the quote", got, err)
+	}
+	if len(f.jobs.emails) != 0 {
+		t.Errorf("e-mails = %v, want none", f.jobs.emails)
+	}
+	if e := f.audit.last(); e.EntityReference != "Quote/"+got.ID || e.Outcome != auditevent.OutcomeSuccess {
+		t.Errorf("audit = %+v, want the quote's create", e)
+	}
+}
+
 // A quote is no receipt: it takes no number from the clinic's receipt sequence and enqueues no fiscal report, and the
 // receipt that follows still gets number 1.
 func TestSendQuote_TakesNoReceiptNumberAndEnqueuesNoFiscalReport(t *testing.T) {

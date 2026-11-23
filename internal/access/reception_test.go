@@ -55,38 +55,3 @@ func TestReception_EveryClinicalRuleRefusesAReceptionist(t *testing.T) {
 		})
 	}
 }
-
-// Desk is the desk's view of a patient (name, birth date, phone, the appointments with their service and visit
-// type): the clinic's receptionist and admin with an active care consent, or, after a revocation, while the patient
-// has an appointment that started before it (as Profile's Name); nobody else, and never another clinic's staff.
-func TestDesk_GivesTheClinicsFrontDeskThePatientWithAConsentOrAPastVisit(t *testing.T) {
-	t.Parallel()
-	viewersForDesk := map[string]access.Viewer{"receptionist": receptionist, "admin": viewers["admin"]}
-	for vn, v := range viewersForDesk {
-		eachForReception(func(key string, f access.Facts) {
-			want := f.Clinic == clinicA && (f.Consent.Active || (f.Consent.RevokedAt.Equal(revokedAt) && hasPast(f)))
-			if got := access.Desk(v, f); got != want {
-				t.Errorf("Desk(%s, %s) = %v, want %v", vn, key, got, want)
-			}
-		})
-	}
-	for _, vn := range []string{"patient", "other patient", "practitioner"} {
-		eachForReception(func(key string, f access.Facts) {
-			if access.Desk(viewers[vn], f) {
-				t.Errorf("Desk(%s, %s) = true, want false: the desk's view is the front desk's", vn, key)
-			}
-		})
-	}
-	if access.Desk(access.Viewer{Role: access.RoleReception}, access.Facts{Patient: patientA, Consent: access.Consent{Active: true}}) {
-		t.Error("Desk() without a clinic = true, want false")
-	}
-}
-
-func hasPast(f access.Facts) bool {
-	for _, a := range f.Visits {
-		if a.Start.Before(f.Consent.RevokedAt) {
-			return true
-		}
-	}
-	return false
-}

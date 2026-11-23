@@ -224,7 +224,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin and the practitioner who issued it. Audited.
+  /// For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -261,7 +261,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin and the practitioner who issued it. Audited.
+  /// For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
   ///
   /// Parameters:
   ///
@@ -788,7 +788,7 @@ class BillingApi {
 
   /// Import a price list from a file
   ///
-  /// A CSV or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
+  /// A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -851,7 +851,7 @@ class BillingApi {
 
   /// Import a price list from a file
   ///
-  /// A CSV or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
+  /// A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
   ///
   /// Parameters:
   ///
@@ -891,7 +891,7 @@ class BillingApi {
 
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+  /// By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -943,7 +943,7 @@ class BillingApi {
 
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+  /// By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
   ///
   /// Parameters:
   ///

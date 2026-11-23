@@ -25,7 +25,7 @@ RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_l
 SELECT gen_random_uuid()::uuid;
 
 -- name: CreateOrganization :one
--- salusctl create-clinic (as the owner) and a verified signup (as salus_app, in the new clinic's scope: 00068).
+-- salusctl create-clinic (as the owner) and a verified signup (as salus_app, in the new clinic's scope: 00066).
 INSERT INTO organization (id, name) VALUES (@id, @name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code;
 

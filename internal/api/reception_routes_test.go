@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/yaml.v3"
 
 	"github.com/Shmeeshmee/salus/internal/api"
@@ -68,12 +69,15 @@ var receptionRoutes = map[string]receptionClass{
 	"GET /clinic/subscription/invoices/{id}/pdf": refused, "GET /clinic/billing-details": refused,
 	"PUT /clinic/billing-details": refused, "GET /clinic/setup": refused, "PUT /clinic/setup": refused,
 	"POST /clinic/services/import": refused, "POST /clinic/export": refused, "GET /clinic/export/{id}": refused,
-	"GET /clinic/export/{id}/archive": refused, "GET /clinic/profile": refused, "PUT /clinic/profile": refused,
+	"GET /clinic/export/{id}/archive": refused, "PUT /clinic/profile": refused,
+	// The clinic's profile for patients abroad: public data (GET /organizations/{id}/profile), read by any staff (X2).
+	"GET /clinic/profile": desk,
 
-	// Receipts: the admin's and the visit's practitioner's (opening them to the desk is left to the integration).
-	"GET /clinic/receipts": refused, "POST /clinic/receipts": refused, "GET /clinic/receipts/{id}": refused,
-	"POST /clinic/receipts/{id}/reverse": refused, "POST /clinic/receipts/{id}/retry": refused,
-	"GET /clinic/receipts/{id}/pdf": refused, "GET /clinic/reports/receipts": refused,
+	// Receipts (W2): the desk issues, reads and prints the receipts it issued; the list of all of them, a reversal, a
+	// retried report and the reports stay the admin's.
+	"POST /clinic/receipts": desk, "GET /clinic/receipts/{id}": desk, "GET /clinic/receipts/{id}/pdf": desk,
+	"GET /clinic/receipts": refused, "POST /clinic/receipts/{id}/reverse": refused,
+	"POST /clinic/receipts/{id}/retry": refused, "GET /clinic/reports/receipts": refused,
 	"GET /clinic/reports/practice": refused,
 
 	// Quotes: a practitioner's treatment plan.
@@ -149,17 +153,12 @@ var receptionRoutes = map[string]receptionClass{
 	"GET /me/quotes": stranger, "GET /me/quotes/{id}/pdf": stranger,
 }
 
-// notServedYet are the wave 3 routes in the contract that their packages (F2, O1, O2, X1, X2) have not mounted yet:
-// they answer the router's own 404. When a package mounts one, the test fails until it is taken off this list, and
-// the route is then held to its class above.
+// notServedYet are the routes in the contract that are not mounted: the staff move (deferred to wave 4) and the clinic
+// data export (O2, deferred). They answer the router's own 404. When one is mounted, the test fails until it is taken
+// off this list, and the route is then held to its class above.
 var notServedYet = []string{
-	"GET /clinic/patients", "POST /clinic/patients", "POST /clinic/appointments",
-	"POST /clinic/appointments/{id}/reschedule", "POST /clinic/appointments/{id}/cancel",
-	"POST /clinic/appointments/{id}/arrive", "GET /clinic/desk/today",
-	"POST /signup", "POST /signup/verify", "GET /clinic/setup", "PUT /clinic/setup",
-	"POST /clinic/services/import", "POST /clinic/export", "GET /clinic/export/{id}", "GET /clinic/export/{id}/archive",
-	"GET /clinic/quotes", "POST /clinic/quotes", "GET /clinic/quotes/{id}", "GET /me/quotes", "GET /me/quotes/{id}/pdf",
-	"GET /clinic/profile", "PUT /clinic/profile", "GET /organizations/{id}/profile",
+	"POST /clinic/appointments/{id}/reschedule",
+	"POST /clinic/export", "GET /clinic/export/{id}", "GET /clinic/export/{id}/archive",
 }
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.
@@ -221,8 +220,9 @@ func TestReceptionRoutes_EveryRouteOfTheContractIsClassified(t *testing.T) {
 // and a booked visit.
 type reception struct {
 	directory
-	receptionist, stranger             *client // stranger: a signed-in account with no patient profile
-	visit, patientID, receptionAccount string
+	owner                                       *pgxpool.Pool
+	receptionist, stranger                      *client // stranger: a signed-in account with no patient profile
+	visit, patientID, receptionAccount, receipt string  // receipt: one the receptionist issued for the visit
 }
 
 func newReception(t *testing.T) (reception, func(string, ...any) int) {
@@ -237,7 +237,7 @@ func newReception(t *testing.T) (reception, func(string, ...any) int) {
 		t.Fatalf("New() error = %v", err)
 	}
 	t.Cleanup(app.Close)
-	r := reception{directory: newDirectory(t, app.Handler, owner), receptionist: &client{t: t, h: app.Handler}}
+	r := reception{directory: newDirectory(t, app.Handler, owner), owner: owner, receptionist: &client{t: t, h: app.Handler}}
 	r.visit = bookedVisit(t, r.directory, owner)
 	if rec := r.admin.do(http.MethodPost, "/invites", `{"email":"Rea@example.test","role":"reception"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("POST /invites for a receptionist = %d %s", rec.Code, rec.Body)
@@ -258,7 +258,24 @@ func newReception(t *testing.T) (reception, func(string, ...any) int) {
 		Scan(&r.patientID, &r.receptionAccount); err != nil {
 		t.Fatal(err)
 	}
+	r.receipt = deskReceipt(t, r, exec)
 	return r, count
+}
+
+// deskReceipt gives the clinic its billing details and address and a service, and has the receptionist issue a receipt
+// for the visit; it returns the receipt's id.
+func deskReceipt(t *testing.T, r reception, exec func(string, ...any)) string {
+	t.Helper()
+	exec(`UPDATE organization SET legal_name = 'Synthetic clinic d.o.o.', tax_id = '4200000000001', region_id = 'BA-09',
+		city_id = 'Q1270190', location_since = now(), address_line = 'Synthetic street 1' WHERE id = $1`, inviteClinic)
+	exam := saveService(t, r.directory, `{"name":"Synthetic exam","priceMinor":5000,"modes":["in-person"],"active":true,"translations":[]}`)
+	rec := r.receptionist.do(http.MethodPost, "/clinic/receipts", `{"kind":"receipt","appointmentId":"`+r.visit+`","paymentMethod":"cash","lines":[{"serviceId":"`+exam+`","quantity":1}]}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST /clinic/receipts as the receptionist = %d %s", rec.Code, rec.Body)
+	}
+	var out struct{ ID string }
+	decode(t, rec, &out)
+	return out.ID
 }
 
 const unknownID = "0f000000-0000-4000-8000-0000000000f0"
@@ -279,18 +296,19 @@ var receptionQueries = map[string]string{
 	"/terminology/search":            "q=synthetic",
 }
 
-// receptionPath fills route's parameters and its query. The patient's appointment and profile are the clinic's own
-// (real) or ids that do not exist; the clinic and its practitioner's role, which the public directory lists, are
+// receptionPath fills route's parameters and its query. The patient's appointment and profile, and the desk's receipt,
+// are the clinic's own (real) or ids that do not exist; the clinic and its practitioner's role, which the public directory lists, are
 // always the clinic's own; every other id does not exist.
 func receptionPath(r reception, route string, real bool) string {
-	visit, patient := r.visit, r.patientID
+	visit, patient, receipt := r.visit, r.patientID, r.receipt
 	if !real {
-		visit, patient = unknownID, unknownID
+		visit, patient, receipt = unknownID, unknownID, unknownID
 	}
 	path := route
 	for prefix, id := range map[string]string{
 		"/appointments/{id}": visit, "/clinic/appointments/{id}": visit, "/patients/{id}": patient,
 		"/practitioner-roles/{id}": r.roleID, "/organizations/{id}": inviteClinic, "/history-sharing/{organizationId}": inviteClinic,
+		"/clinic/receipts/{id}": receipt,
 	} {
 		if strings.HasPrefix(path, prefix) {
 			path = strings.Replace(path, prefix[strings.LastIndex(prefix, "{"):], id, 1)
@@ -327,7 +345,7 @@ func TestReceptionRoutes_AReceptionistReachesTheDeskAndIsRefusedEverythingElse(t
 		}
 		method, route, _ := strings.Cut(op, " ")
 		r.receptionist.ifMatch = ""
-		if method == http.MethodPatch {
+		if method == http.MethodPatch || method == http.MethodPut {
 			r.receptionist.ifMatch = `W/"1"` // past the precondition, to the access check
 		}
 		rec := r.receptionist.do(method, receptionPath(r, route, true), "")

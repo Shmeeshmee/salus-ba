@@ -99,7 +99,7 @@ class AppointmentsApi {
 
   /// Book a visit for a patient
   ///
-  /// Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+  /// Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service of its own price list (active, offered in the slot's mode); the appointment records who booked it. The slot is read in the clinic's own scope, listed or not; a clinic whose membership is suspended or cancelled books nothing (`slot_unavailable`). For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -144,7 +144,7 @@ class AppointmentsApi {
 
   /// Book a visit for a patient
   ///
-  /// Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+  /// Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service of its own price list (active, offered in the slot's mode); the appointment records who booked it. The slot is read in the clinic's own scope, listed or not; a clinic whose membership is suspended or cancelled books nothing (`slot_unavailable`). For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
   ///
   /// Parameters:
   ///

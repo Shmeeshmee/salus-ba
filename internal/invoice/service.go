@@ -35,10 +35,12 @@ type Clinics interface {
 }
 
 // Visits gives a visit of the scoped clinic and its practitioner, in the caller's transaction, unaudited
-// (appointment.Service): the receipt's own event covers the read.
+// (appointment.Service): the receipt's own event covers the read. PatientHasAccount tells whether the visit's patient
+// has a Salus account (a profile the clinic registered has none and gets no e-mail, docs/clinic-cms W1).
 type Visits interface {
 	Lookup(ctx context.Context, id string) (appointment.Appointment, error)
 	LookupPractitioner(ctx context.Context, id string) (string, error)
+	PatientHasAccount(ctx context.Context, id string) (bool, error)
 }
 
 // Consents gives the state of a patient's consents with the clinic, in the caller's transaction and scope
@@ -104,7 +106,8 @@ var taxID = regexp.MustCompile(`^[0-9]{12,13}$`)
 
 // Issue numbers, stores and enqueues the fiscal report of a receipt (POST /clinic/receipts). ErrInvalid for a draft
 // that is no receipt, a line the price list does not price, a patient who is not the visit's, or, on its own, a
-// patient the clinic does not treat; ErrForbidden to anyone but the clinic's admin and the practitioner of the visit;
+// patient the clinic does not treat; ErrForbidden to anyone but the clinic's admin, its receptionists and the
+// practitioner of the visit;
 // ErrNotFound for a visit the clinic does not have; ErrSellerIncomplete while the clinic's billing details are.
 // With an idempotency key already issued in the clinic: that receipt, audited as a read, or ErrInvalid when another
 // account issued it.
@@ -112,7 +115,7 @@ func (s *Service) Issue(ctx context.Context, c Caller, d Draft) (Invoice, error)
 	if !validDraft(d) {
 		return Invoice{}, ErrInvalid
 	}
-	if c.OrganizationID == "" || (!c.Admin && (c.PractitionerID == "" || d.AppointmentID == "")) {
+	if c.OrganizationID == "" || (!c.issuesAny() && (c.PractitionerID == "" || d.AppointmentID == "")) {
 		return Invoice{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrForbidden)
 	}
 	var out Invoice
@@ -225,7 +228,7 @@ func (s *Service) draft(ctx context.Context, c Caller, d Draft) (Invoice, error)
 }
 
 // buyer returns the patient the receipt names. For a visit: the visit's patient unless a company pays, and only to
-// the clinic's admin or the visit's practitioner. On its own: only a patient the clinic treats (an active care
+// the clinic's admin, its receptionists or the visit's practitioner. On its own: only a patient the clinic treats (an active care
 // consent, or a visit), because the patient sees the receipt.
 func (s *Service) buyer(ctx context.Context, c Caller, d Draft) (string, error) {
 	if d.AppointmentID == "" {
@@ -243,7 +246,7 @@ func (s *Service) buyer(ctx context.Context, c Caller, d Draft) (string, error) 
 	case a.OrganizationID != c.OrganizationID:
 		return "", ErrNotFound
 	}
-	if !c.Admin {
+	if !c.issuesAny() {
 		practitioner, err := s.p.Visits.LookupPractitioner(ctx, d.AppointmentID)
 		if err != nil {
 			return "", err

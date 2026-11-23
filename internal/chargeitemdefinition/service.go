@@ -175,6 +175,29 @@ func (s *Service) Offered(ctx context.Context, org string, mode schedule.VisitMo
 	return out, nil
 }
 
+// OfClinic returns the whole price list of the clinic org, inactive services included, read in its own scope whether
+// or not it is listed: a staff booking's service and the desk's service names (docs/clinic-cms F2), whose services
+// authorize and audit. Not audited here: nothing in a price list is personal data.
+func (s *Service) OfClinic(ctx context.Context, org string) ([]Definition, error) {
+	var out []Definition
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.Repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		all, err := s.Repo.List(ctx, org)
+		for _, d := range all {
+			if d.OrganizationID == org { // not on row-level security alone
+				out = append(out, d)
+			}
+		}
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("chargeitemdefinition: of clinic: %w", err)
+	}
+	return out, nil
+}
+
 // Lines prices the picks of a receipt of the clinic org from its active services, in the caller's transaction (the
 // clinic's scope is set on it): internal/invoice's Prices port. Each line copies the service's name, unit price and
 // VAT rate as they are now. ErrNotFound for a pick that is not an active service of the clinic, ErrInvalid for no

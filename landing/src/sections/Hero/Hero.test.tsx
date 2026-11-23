@@ -133,6 +133,6 @@ describe('Hero', () => {
     render(<Hero />)
 
     const header = screen.getByRole('navigation', { name: 'Main' }).closest('header') ?? document.body
-    expect(within(header).getByRole('link', { name: 'Sign up' }).getAttribute('href')).toBe('/signup')
+    expect(within(header).getByRole('link', { name: 'Sign up' }).getAttribute('href')).toBe('[APP URL]/signup')
   })
 })

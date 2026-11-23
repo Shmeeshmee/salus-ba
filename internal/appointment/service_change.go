@@ -7,6 +7,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 )
 
@@ -146,7 +147,7 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 		return Appointment{}, ErrNotFound, nil
 	case v.level != access.Full:
 		return Appointment{}, ErrForbidden, nil
-	case v.a.Status != StatusBooked:
+	case v.a.Status != StatusBooked && (v.a.Status != StatusArrived || c.patient()): // staff cancel an arrived visit too
 		return Appointment{}, ErrClosed, nil
 	}
 	now := s.Clock.Now()
@@ -175,9 +176,9 @@ func (s *Service) cancel(ctx context.Context, c Caller, id string) (out Appointm
 }
 
 // cancelled frees the slot of the cancelled appointment a, hands it to the waitlist while it is ahead
-// (waitlist_slot_freed), cancels its reminders, and enqueues its e-mail, the end of its consultation's access
-// (consultation_access_end), the discard of its questionnaire responses (questionnaire_responses_discard) and the
-// refresh of the clinic's statistics, and keeps it in its history (a status_set to cancelled, by who: its Via,
+// (waitlist_slot_freed), cancels its reminders, and enqueues its e-mail (cancelledEmail), the end of its
+// consultation's access (consultation_access_end), the discard of its questionnaire responses
+// (questionnaire_responses_discard) and the refresh of the clinic's statistics, and keeps it in its history (a status_set to cancelled, by who: its Via,
 // ByAccountID and Agent), in its transaction. Every cancellation goes through it.
 func (s *Service) cancelled(ctx context.Context, a Appointment, who Change) error {
 	if err := s.recordChange(ctx, Change{
@@ -196,7 +197,7 @@ func (s *Service) cancelled(ctx context.Context, a Appointment, who Change) erro
 	if err := s.cancelReminders(ctx, a.ID); err != nil {
 		return err
 	}
-	if err := s.Jobs.EnqueueCancelled(ctx, a.ID, a.OrganizationID); err != nil {
+	if err := s.cancelledEmail(ctx, a); err != nil {
 		return err
 	}
 	if err := s.Jobs.EnqueueAccessEnd(ctx, a.ID, a.OrganizationID); err != nil {
@@ -206,6 +207,20 @@ func (s *Service) cancelled(ctx context.Context, a Appointment, who Change) erro
 		return err
 	}
 	return s.Jobs.EnqueueQuestionnaireDiscard(ctx, a.ID, a.OrganizationID)
+}
+
+// cancelledEmail enqueues the cancellation e-mail of a in its transaction, unless its patient has no account (a
+// profile the clinic registered, docs/clinic-cms W1: no e-mail and no push, anywhere). A patient the caller's scope
+// does not show is enqueued: the job reads the appointment in its own scope and decides there.
+func (s *Service) cancelledEmail(ctx context.Context, a Appointment) error {
+	p, err := s.Patients.Lookup(ctx, a.PatientID)
+	switch {
+	case err == nil && p.AccountID == "":
+		return nil
+	case err != nil && !errors.Is(err, patient.ErrNotFound):
+		return err
+	}
+	return s.Jobs.EnqueueCancelled(ctx, a.ID, a.OrganizationID)
 }
 
 // SetStatus marks the booked appointment id fulfilled or noshow, by its practitioner, once its start has
@@ -258,7 +273,7 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 		return s.correctStatus(ctx, c, v, status, now)
 	case c.Admin || !access.RecordsOutcome(v.viewer, v.facts, visit(v.a)):
 		return Appointment{}, ErrForbidden, nil
-	case v.a.Status != StatusBooked:
+	case v.a.Status != StatusBooked && v.a.Status != StatusArrived: // the desk's arrival is closed as a booking is
 		return Appointment{}, ErrClosed, nil
 	case now.Before(v.a.Start):
 		return Appointment{}, ErrNotStarted, nil
@@ -272,7 +287,7 @@ func (s *Service) setStatus(ctx context.Context, c Caller, id string, status Sta
 	}
 	if err := s.recordChange(ctx, Change{
 		At: now, AppointmentID: id, Kind: ChangeStatusSet, Via: ViaStaff, ByAccountID: c.AccountID,
-		FromStatus: StatusBooked, ToStatus: status,
+		FromStatus: v.a.Status, ToStatus: status,
 	}); err != nil {
 		return Appointment{}, nil, err
 	}

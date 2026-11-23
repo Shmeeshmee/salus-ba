@@ -140,9 +140,9 @@ func (s *Service) BookingsStopped(ctx context.Context, org string) (bool, error)
 	return sub.Status == StatusSuspended || sub.Status == StatusCancelled, nil
 }
 
-// StartTrial gives the clinic org its 30-day trial of the default plan (the operator's clinic creation), audited as
-// salusctl. A clinic that has a membership keeps it. ErrNoPlan while the owner has not set the default plan.
-func (s *Service) StartTrial(ctx context.Context, org string) (Subscription, error) {
+// StartTrial gives the clinic org its 30-day trial of the default plan (the clinic's creation, or salusctl
+// subscription start-trial), audited as agent, which is no account. A clinic that has a membership keeps it. ErrNoPlan while the owner has not set the default plan.
+func (s *Service) StartTrial(ctx context.Context, agent, org string) (Subscription, error) {
 	var out Subscription
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		plan, err := s.Repo.Plan(ctx, DefaultPlan)
@@ -158,7 +158,7 @@ func (s *Service) StartTrial(ctx context.Context, org string) (Subscription, err
 			return err
 		}
 		if created {
-			if err := s.Audit.Record(ctx, event(auditevent.CodeCreate, auditevent.ActionCreate, auditevent.AgentOperator, org)); err != nil {
+			if err := s.Audit.Record(ctx, event(auditevent.CodeCreate, auditevent.ActionCreate, agent, org)); err != nil {
 				return err
 			}
 		}

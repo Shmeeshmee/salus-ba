@@ -42,19 +42,20 @@ WHERE (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)
 ORDER BY lower(period), id;
 
 -- name: CancelAppointment :one
--- Only a booked appointment is cancelled; a concurrent change that committed first leaves no row.
+-- Only a booked or arrived appointment is cancelled; a concurrent change that committed first leaves no row.
 UPDATE appointment
 SET status = 'cancelled', cancelled_at = @at, cancellation_reason = @reason, cancelled_by_account_id = sqlc.narg(cancelled_by),
     updated_at = @at, version_id = version_id + 1
-WHERE id = @id AND status = 'booked'
+WHERE id = @id AND status IN ('booked', 'arrived')
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
           cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: SetAppointmentStatus :one
+-- A booked visit, or one the desk marked arrived (00065), is closed: fulfilled or a no-show.
 UPDATE appointment
 SET status = @status, updated_at = @at, version_id = version_id + 1
-WHERE id = @id AND status = 'booked'
+WHERE id = @id AND status IN ('booked', 'arrived')
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
           cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;

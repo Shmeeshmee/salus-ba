@@ -26,8 +26,11 @@ const (
 	visit    = "appt-1"
 	// revokedVisit is a visit whose patient revoked their care consent since.
 	revokedVisit = "appt-revoked"
-	exam         = "svc-exam"
-	lab          = "svc-lab"
+	// registeredVisit is a visit of a patient the clinic registered, without an account (docs/clinic-cms W1), with an
+	// active care consent.
+	registeredVisit = "appt-registered"
+	exam            = "svc-exam"
+	lab             = "svc-lab"
 )
 
 var (
@@ -244,11 +247,20 @@ func (fakeVisits) Lookup(_ context.Context, id string) (appointment.Appointment,
 		return appointment.Appointment{ID: visit, OrganizationID: org, PatientID: patientA}, nil
 	case revokedVisit:
 		return appointment.Appointment{ID: revokedVisit, OrganizationID: org, PatientID: "patient-revoked"}, nil
+	case registeredVisit:
+		return appointment.Appointment{ID: registeredVisit, OrganizationID: org, PatientID: "patient-registered"}, nil
 	}
 	return appointment.Appointment{}, appointment.ErrNotFound
 }
 
 func (fakeVisits) LookupPractitioner(context.Context, string) (string, error) { return "pract-1", nil }
+
+func (fakeVisits) PatientHasAccount(_ context.Context, id string) (bool, error) {
+	if id == registeredVisit {
+		return false, nil
+	}
+	return true, nil
+}
 
 // fakeCare: the clinic treats patientA (a visit and an active care consent) and "patient-consented" (an active care
 // consent), nobody else.
@@ -262,7 +274,7 @@ func (fakeCare) Visits(_ context.Context, patientID, _ string) ([]access.Visit, 
 }
 
 func (fakeCare) State(_ context.Context, patientID, _ string) (access.Consent, error) {
-	return access.Consent{Active: patientID == "patient-consented" || patientID == patientA}, nil
+	return access.Consent{Active: patientID == "patient-consented" || patientID == patientA || patientID == "patient-registered"}, nil
 }
 
 type fakeJobs struct {

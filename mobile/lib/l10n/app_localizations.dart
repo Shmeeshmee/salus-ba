@@ -3347,6 +3347,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Expired'**
   String get quoteExpired;
+
+  /// Label of the clinic list's language filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Language spoken'**
+  String get clinicLanguageFilter;
+
+  /// The language filter's choice for every clinic.
+  ///
+  /// In en, this message translates to:
+  /// **'Any language'**
+  String get anyLanguage;
+
+  /// Empty list under a language filter.
+  ///
+  /// In en, this message translates to:
+  /// **'No listed clinic speaks this language yet.'**
+  String get noClinicsSpeak;
+
+  /// On a clinic's profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcomes patients from abroad'**
+  String get welcomesInternational;
+
+  /// On a clinic's profile; the languages by their own names.
+  ///
+  /// In en, this message translates to:
+  /// **'Languages spoken: {languages}'**
+  String languagesSpoken(String languages);
+
+  /// Heading above a clinic's services on its profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Services and prices'**
+  String get clinicServices;
 }
 
 class _AppLocalizationsDelegate

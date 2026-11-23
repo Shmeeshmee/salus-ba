@@ -11,24 +11,27 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
-// Public reads the schedules of the public directory, for anyone (Service).
+// Public reads the schedules of the public directory, for anyone, and those of the caller's own clinic org for its
+// staff (empty org for anyone else) whether or not it is listed (Service).
 type Public interface {
-	Read(ctx context.Context, id string) (Schedule, error)
-	ByActor(ctx context.Context, roleID string) (Schedule, error)
+	ReadFor(ctx context.Context, org, id string) (Schedule, error)
+	ByActorFor(ctx context.Context, org, roleID string) (Schedule, error)
 }
 
 // Handler serves the Schedule read and search of the FHIR API (api/fhir/CapabilityStatement.json): the
-// schedules of active roles of listed clinics, to anyone, signed in or not, unaudited (SPEC.md "Public
-// browse").
+// schedules of active roles of listed clinics, to anyone, signed in or not, and its own clinic's to its staff
+// (the front desk, docs/clinic-cms F3); unaudited (SPEC.md "Public browse": nothing in a schedule is personal data).
 type Handler struct {
-	svc  Public
-	log  *slog.Logger
-	base string // the FHIR API's absolute base URL (FHIR_BASE_URL)
+	svc    Public
+	clinic func(ctx context.Context) string // the signed-in staff's clinic; empty for anyone else
+	log    *slog.Logger
+	base   string // the FHIR API's absolute base URL (FHIR_BASE_URL)
 }
 
-// NewHandler returns the handler on svc. base is the FHIR API's absolute base URL (https://…/fhir/R4).
-func NewHandler(svc Public, base string, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, base: base, log: log}
+// NewHandler returns the handler on svc. clinic gives the signed-in staff's clinic (empty for anyone else); base is
+// the FHIR API's absolute base URL (https://…/fhir/R4).
+func NewHandler(svc Public, clinic func(ctx context.Context) string, base string, log *slog.Logger) *Handler {
+	return &Handler{svc: svc, clinic: clinic, base: base, log: log}
 }
 
 // Routes declares the Schedule routes on mux.
@@ -55,7 +58,7 @@ func toFHIR(s Schedule) resource {
 }
 
 func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
-	s, err := h.svc.Read(r.Context(), r.PathValue("id"))
+	s, err := h.svc.ReadFor(r.Context(), h.clinic(r.Context()), r.PathValue("id"))
 	switch {
 	case errors.Is(err, ErrNotFound):
 		fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")
@@ -79,7 +82,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var matches []fhir.BundleEntry
-	s, err := h.svc.ByActor(r.Context(), role)
+	s, err := h.svc.ByActorFor(r.Context(), h.clinic(r.Context()), role)
 	switch {
 	case errors.Is(err, ErrNotFound):
 	case err != nil:

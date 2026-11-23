@@ -52,7 +52,7 @@ func (s *Service) SendQuote(ctx context.Context, c Caller, d QuoteDraft) (Quote,
 		if out, err = s.p.Repo.InsertQuote(ctx, q); err != nil {
 			return err
 		}
-		if err := s.p.Jobs.EnqueueQuoteEmail(ctx, out.AppointmentID, out.OrganizationID); err != nil {
+		if err := s.quoteEmail(ctx, out); err != nil {
 			return err
 		}
 		return s.p.Audit.Record(ctx, quoteEvent(c, auditevent.CodeCreate, out.ID, auditevent.OutcomeSuccess))
@@ -66,6 +66,16 @@ func (s *Service) SendQuote(ctx context.Context, c Caller, d QuoteDraft) (Quote,
 		return Quote{}, fmt.Errorf("invoice: send quote: %w", err)
 	}
 	return s.stated(out), nil
+}
+
+// quoteEmail enqueues the e-mail of the quote q in its transaction, unless the visit's patient has no account (a
+// profile the clinic registered, docs/clinic-cms W1: no e-mail and no push).
+func (s *Service) quoteEmail(ctx context.Context, q Quote) error {
+	ok, err := s.p.Visits.PatientHasAccount(ctx, q.AppointmentID)
+	if err != nil || !ok {
+		return err
+	}
+	return s.p.Jobs.EnqueueQuoteEmail(ctx, q.AppointmentID, q.OrganizationID)
 }
 
 // validQuote reports whether d could be a quote: a patient and a visit, lines as a receipt's, a note within bounds.

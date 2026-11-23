@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 )
@@ -24,8 +26,15 @@ type StaffBooking struct {
 // DeskVisit is one visit on the desk's day: the appointment and its patient (docs/clinic-cms W2: name, birth date
 // and phone; nothing clinical).
 type DeskVisit struct {
+	ServiceName string // the booked service's, in the clinic's language; empty for none
 	Patient     patient.Patient
 	Appointment Appointment
+}
+
+// Desk is the desk's day: its date (midnight in the clinic's zone) and its visits.
+type Desk struct {
+	Day    time.Time
+	Visits []DeskVisit
 }
 
 // desk reports whether c is the clinic's admin or receptionist, who book, move and cancel for any of its patients.
@@ -51,28 +60,37 @@ func (s *Service) actsFor(ctx context.Context, c Caller, roleID string) (bool, e
 }
 
 // BookForPatient books the free slot b.SlotID of the staff caller c's clinic for the patient b.PatientID, naming the
-// service b.ServiceID (empty for none), and returns the appointment with c as who booked it. The desk books for any
-// role, a practitioner for their own. The slot is resolved as the directory shows it; then, in one transaction in the
+// service b.ServiceID (empty for none, else an active service of the clinic's own price list offered in the slot's
+// mode), and returns the appointment with c as who booked it. The desk books for any role, a practitioner for their
+// own. A clinic whose bookings are stopped (a suspended or cancelled membership) books nothing; the slot is resolved
+// in the clinic's own scope, listed or not, and must be of an active role; then, in one transaction in the
 // clinic's scope, the patient is read, their active care consent checked, the slot held, the appointment stored,
 // what follows a booking enqueued (for a patient without an account only the statistics: they get no e-mail and no
 // reminder) and the booking audited. ErrForbidden to a patient and to a practitioner for another role's slot,
-// ErrNotFound for a patient or slot the clinic does not have, ErrSlotUnavailable for a slot that is not free and
-// ahead, ErrInvalidService, ErrConsentRequired; each refusal is audited.
+// ErrNotFound for a patient the clinic does not have, ErrSlotUnavailable for a slot it does not have, one that is
+// not free and ahead or of an inactive role, and while its bookings are stopped, ErrInvalidService,
+// ErrConsentRequired; each refusal is audited.
 func (s *Service) BookForPatient(ctx context.Context, c Caller, b StaffBooking) (Appointment, error) {
 	if c.patient() {
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrForbidden)
 	}
+	if s.Stops == nil {
+		return Appointment{}, errors.New("appointment: book for patient: no booking stops")
+	}
+	if stopped, err := s.Stops.BookingsStopped(ctx, c.OrganizationID); err != nil {
+		return Appointment{}, fmt.Errorf("appointment: book for patient: %w", err)
+	} else if stopped {
+		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrSlotUnavailable)
+	}
 	now := s.Clock.Now()
-	sl, err := s.Slots.Bookable(ctx, b.SlotID)
+	sl, err := s.Slots.BookableInClinic(ctx, c.OrganizationID, b.SlotID)
 	switch {
 	case errors.Is(err, slot.ErrUnavailable), err == nil && !sl.Start.After(now):
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrSlotUnavailable)
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: book for patient: %w", err)
-	case sl.OrganizationID != c.OrganizationID:
-		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrNotFound)
 	}
-	if offered, err := s.offers(ctx, sl, b.ServiceID); err != nil {
+	if offered, err := s.offersInClinic(ctx, sl, b.ServiceID); err != nil {
 		return Appointment{}, fmt.Errorf("appointment: book for patient: %w", err)
 	} else if !offered {
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrInvalidService)
@@ -104,6 +122,12 @@ func (s *Service) bookFor(ctx context.Context, c Caller, b StaffBooking, sl slot
 	}
 	if ok, err := s.actsFor(ctx, c, sl.PractitionerRoleID); err != nil || !ok {
 		return Appointment{}, ErrForbidden, err
+	}
+	role, err := s.Roles.Lookup(ctx, c.OrganizationID, sl.PractitionerRoleID)
+	if errors.Is(err, practitionerrole.ErrNotFound) || err == nil && !role.Active { // the directory hides such a slot
+		return Appointment{}, ErrSlotUnavailable, nil
+	} else if err != nil {
+		return Appointment{}, nil, err
 	}
 	p, err := s.Patients.Lookup(ctx, b.PatientID)
 	if errors.Is(err, patient.ErrNotFound) {
@@ -203,6 +227,12 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 		} else if err != nil {
 			return err
 		}
+		if err := s.recordChange(ctx, Change{
+			At: out.ArrivedAt, AppointmentID: id, Kind: ChangeStatusSet, Via: ViaStaff, ByAccountID: c.AccountID,
+			FromStatus: StatusBooked, ToStatus: StatusArrived,
+		}); err != nil {
+			return err
+		}
 		if err := s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start); err != nil {
 			return err
 		}
@@ -217,15 +247,15 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 	return out, nil
 }
 
-// DeskDay is the clinic's visits, but the cancelled ones, of the calendar day day (its date) in the clinic's zone, by
-// practitioner role and start, each with its patient, for the desk (package F3's screen): to the clinic's admin and
-// receptionists only (ErrForbidden, audited, to anyone else). One search of Appointment is audited, and each patient
-// shown as a read of Patient.
-func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) ([]DeskVisit, error) {
+// DeskDay is the clinic's visits, but the cancelled ones, of the calendar day day (its date; zero for today in the
+// clinic's zone) in the clinic's zone, by practitioner role and start, each with its patient and its booked service's
+// name, for the desk (package F3's screen): to the clinic's admin and receptionists only (ErrForbidden, audited, to
+// anyone else). One search of Appointment is audited, and each patient shown as a read of Patient.
+func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error) {
 	if !c.desk() {
-		return nil, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
+		return Desk{}, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
 	}
-	var out []DeskVisit
+	var out Desk
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		clinic, err := s.Clinics.Read(ctx, organization.Caller{OrganizationID: c.OrganizationID}, c.OrganizationID)
 		if err != nil {
@@ -235,35 +265,46 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) ([]DeskV
 		if err != nil {
 			return err
 		}
+		if day.IsZero() {
+			day = s.Clock.Now().In(loc)
+		}
 		if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {
 			return err
 		}
 		y, m, d := day.Date()
-		from := time.Date(y, m, d, 0, 0, 0, 0, loc)
-		all, err := s.Repo.Desk(ctx, c.OrganizationID, from, from.AddDate(0, 0, 1))
+		out.Day = time.Date(y, m, d, 0, 0, 0, 0, loc)
+		all, err := s.Repo.Desk(ctx, c.OrganizationID, out.Day, out.Day.AddDate(0, 0, 1))
 		if err != nil {
 			return err
 		}
-		if out, err = s.deskVisits(ctx, c, all); err != nil {
+		if out.Visits, err = s.deskVisits(ctx, c, all); err != nil {
 			return err
 		}
 		return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("appointment: desk day: %w", err)
+		return Desk{}, fmt.Errorf("appointment: desk day: %w", err)
 	}
 	return out, nil
 }
 
-// deskVisits pairs each appointment with its patient, read once each and audited as a read of Patient.
+// deskVisits pairs each appointment with its patient, read once each and audited as a read of Patient, and its booked
+// service's name.
 func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) ([]DeskVisit, error) {
+	names, err := s.serviceNames(ctx, c.OrganizationID, all)
+	if err != nil {
+		return nil, err
+	}
 	patients := map[string]patient.Patient{}
 	out := make([]DeskVisit, 0, len(all))
 	for _, a := range all {
 		p, ok := patients[a.PatientID]
 		if !ok {
 			var err error
-			if p, err = s.Patients.Lookup(ctx, a.PatientID); err != nil {
+			p, err = s.Patients.Lookup(ctx, a.PatientID)
+			if errors.Is(err, patient.ErrNotFound) {
+				continue // the scope no longer shows them (a revocation): nothing of them reaches the desk
+			} else if err != nil {
 				return nil, err
 			}
 			patients[a.PatientID] = p
@@ -271,7 +312,24 @@ func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) (
 				return nil, err
 			}
 		}
-		out = append(out, DeskVisit{Appointment: a, Patient: p})
+		out = append(out, DeskVisit{Appointment: a, Patient: p, ServiceName: names[a.ServiceID]})
 	}
 	return out, nil
+}
+
+// serviceNames gives the names of the services the appointments booked, by id, from the clinic's own price list; none
+// is read when no appointment booked one.
+func (s *Service) serviceNames(ctx context.Context, org string, all []Appointment) (map[string]string, error) {
+	if !slices.ContainsFunc(all, func(a Appointment) bool { return a.ServiceID != "" }) {
+		return nil, nil
+	}
+	list, err := s.Services.OfClinic(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(list))
+	for _, d := range list {
+		names[d.ID] = d.Name
+	}
+	return names, nil
 }

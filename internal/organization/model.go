@@ -83,6 +83,7 @@ type Caller struct {
 	// exists. Only the chat hours read it.
 	PatientID string
 	Admin     bool // the caller is an admin of that clinic
+	Reception bool // the caller is its receptionist (docs/clinic-cms F1): their read of the clinic is audited
 }
 
 // ChatHour is one stretch of a weekday in which the clinic answers chat messages, in its time zone: Day is the

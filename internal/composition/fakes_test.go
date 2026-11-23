@@ -512,6 +512,7 @@ type fixture struct {
 	store       *fakeStore
 	publisher   *fakePublisher
 	jobs        *fakeJobs
+	accounts    fakeAccounts
 	conditions  *fakeConditions
 	audit       *fakeAuditor
 	logs        *bytes.Buffer
@@ -541,6 +542,7 @@ func newFixture(t *testing.T) *fixture {
 		store:      &fakeStore{objects: map[string][]byte{}},
 		publisher:  &fakePublisher{},
 		jobs:       &fakeJobs{},
+		accounts:   fakeAccounts{},
 		conditions: &fakeConditions{},
 		audit:      &fakeAuditor{},
 		logs:       &bytes.Buffer{},
@@ -562,9 +564,16 @@ func newFixture(t *testing.T) *fixture {
 	f.svc = composition.NewService(composition.Ports{
 		Repo: f.repo, Encounters: f.encounters, Transcripts: f.transcripts, Drafter: f.drafter, Store: f.store,
 		Publisher: f.publisher, Jobs: f.jobs, Stats: f.jobs, Conditions: f.conditions, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now}, KEK: kek,
-		Log: slog.New(slog.NewTextHandler(f.logs, nil)),
+		Log: slog.New(slog.NewTextHandler(f.logs, nil)), Accounts: f.accounts,
 	})
 	return f
+}
+
+// fakeAccounts tells which appointments' patients have no account.
+type fakeAccounts map[string]bool
+
+func (a fakeAccounts) PatientHasAccount(_ context.Context, appointmentID string) (bool, error) {
+	return !a[appointmentID], nil
 }
 
 // template stores the findings report's placeholder template (content()) in clinic A and returns it.

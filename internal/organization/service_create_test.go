@@ -23,10 +23,10 @@ func (r *fakeRepository) Create(ctx context.Context, name string) (organization.
 	return o, nil
 }
 
-func TestCreate_AddsAClinicAndAuditsItAsTheOperatorCommand(t *testing.T) {
+func TestCreate_AddsAClinicAndAuditsItAsItsAgent(t *testing.T) {
 	repo, audit := newFakeRepository(), &fakeAuditor{}
 
-	got, err := newService(repo, audit).Create(t.Context(), "  Synthetic clinic C ")
+	got, err := newService(repo, audit).Create(t.Context(), auditevent.AgentSignup, "  Synthetic clinic C ")
 
 	if want := repo.orgs[createdClinic]; err != nil || got != want || got.Name != "Synthetic clinic C" {
 		t.Fatalf("Create() = %+v, %v; want the new clinic, its name trimmed", got, err)
@@ -39,7 +39,7 @@ func TestCreate_AddsAClinicAndAuditsItAsTheOperatorCommand(t *testing.T) {
 		Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeCreate},
 		Purpose:         auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodeHOPERAT},
 		Action:          auditevent.ActionCreate,
-		AgentName:       auditevent.AgentOperator,
+		AgentName:       auditevent.AgentSignup,
 		EntityReference: "Organization/" + createdClinic,
 		OrganizationID:  createdClinic,
 	}
@@ -49,9 +49,9 @@ func TestCreate_AddsAClinicAndAuditsItAsTheOperatorCommand(t *testing.T) {
 }
 
 func TestCreate_RejectsABlankOrOverlongName(t *testing.T) {
-	for _, name := range []string{" ", strings.Repeat("x", 201)} {
+	for _, name := range []string{" ", strings.Repeat("x", 201), "Synthetic\rclinic", "http://example.test"} {
 		repo := newFakeRepository()
-		if _, err := newService(repo, &fakeAuditor{}).Create(t.Context(), name); !errors.Is(err, organization.ErrInvalidName) || len(repo.calls) != 0 {
+		if _, err := newService(repo, &fakeAuditor{}).Create(t.Context(), auditevent.AgentOperator, name); !errors.Is(err, organization.ErrInvalidName) || len(repo.calls) != 0 {
 			t.Errorf("Create(%d characters) = %v after %v, want ErrInvalidName", len(name), err, repo.calls)
 		}
 	}
@@ -60,10 +60,10 @@ func TestCreate_RejectsABlankOrOverlongName(t *testing.T) {
 func TestCreate_FailsOnARepositoryOrAuditError(t *testing.T) {
 	repo := newFakeRepository()
 	repo.err = errors.New("connection reset")
-	if _, err := newService(repo, &fakeAuditor{}).Create(t.Context(), "Synthetic clinic C"); err == nil {
+	if _, err := newService(repo, &fakeAuditor{}).Create(t.Context(), auditevent.AgentOperator, "Synthetic clinic C"); err == nil {
 		t.Error("Create() with a failing repository: error = nil")
 	}
-	if _, err := newService(newFakeRepository(), &fakeAuditor{err: errors.New("audit down")}).Create(t.Context(), "Synthetic clinic C"); err == nil {
+	if _, err := newService(newFakeRepository(), &fakeAuditor{err: errors.New("audit down")}).Create(t.Context(), auditevent.AgentOperator, "Synthetic clinic C"); err == nil {
 		t.Error("Create() with a failing audit: error = nil")
 	}
 }

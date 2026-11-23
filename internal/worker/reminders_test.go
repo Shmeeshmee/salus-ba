@@ -65,6 +65,9 @@ type noSlots struct{}
 func (noSlots) Bookable(context.Context, string) (slot.Bookable, error) {
 	return slot.Bookable{}, slot.ErrUnavailable
 }
+func (noSlots) BookableInClinic(context.Context, string, string) (slot.Bookable, error) {
+	return slot.Bookable{}, slot.ErrUnavailable
+}
 func (noSlots) Hold(context.Context, string, string) (slot.Slot, error) {
 	return slot.Slot{}, slot.ErrUnavailable
 }

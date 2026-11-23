@@ -3,6 +3,7 @@ import 'package:salus_api/api.dart' show Quote, QuoteState;
 
 import 'booking.dart';
 import 'documents.dart';
+import 'fhir.dart';
 import 'files.dart';
 import 'loading.dart';
 import 'messages.dart';
@@ -13,7 +14,8 @@ import 'zones.dart';
 
 /// The patient's treatment quotes from every clinic, newest first, each with its date, validity, lines, note and
 /// total, and its PDF as the clinic printed it (docs/clinic-cms, package X1). A quote is not a receipt: nothing is
-/// charged, which the screen says above the list. A quote carries no clinic zone: the clinics are in Bosnia and
+/// charged, which the screen says above the list. Each card names its clinic from the directory (the listed FHIR
+/// Organizations, as the consents screen does). A quote carries no clinic zone: the clinics are in Bosnia and
 /// Herzegovina.
 class QuotesScreen extends StatefulWidget {
   const QuotesScreen({super.key, required this.booking, required this.files});
@@ -25,13 +27,19 @@ class QuotesScreen extends StatefulWidget {
   State<QuotesScreen> createState() => _QuotesScreenState();
 }
 
-class _QuotesScreenState extends LoadingState<QuotesScreen, List<Quote>> {
+typedef _Quotes = ({List<Quote> all, Map<String, Organization> clinics});
+
+class _QuotesScreenState extends LoadingState<QuotesScreen, _Quotes> {
   final _zone = Zone('Europe/Sarajevo');
   String? _error;
   String? _busy;
 
   @override
-  Future<List<Quote>> load() => widget.booking.quotes();
+  Future<_Quotes> load() async {
+    final all = await widget.booking.quotes();
+    if (all.isEmpty) return (all: all, clinics: const <String, Organization>{});
+    return (all: all, clinics: {for (final c in await widget.booking.fhir.listedClinics()) c.id: c});
+  }
 
   Future<void> _share(Quote quote) async {
     final t = context.t;
@@ -55,15 +63,15 @@ class _QuotesScreenState extends LoadingState<QuotesScreen, List<Quote>> {
     children: [
       if (_error != null) ui.Message(_error!, error: true),
       ...body(
-        (all) => [
-          Text(all.isEmpty ? context.t.noQuotes : context.t.quotesIntro),
-          for (final quote in all) _card(quote),
+        (data) => [
+          Text(data.all.isEmpty ? context.t.noQuotes : context.t.quotesIntro),
+          for (final quote in data.all) _card(quote, data.clinics[quote.organizationId]),
         ],
       ),
     ],
   );
 
-  Widget _card(Quote quote) {
+  Widget _card(Quote quote, Organization? clinic) {
     final t = context.t;
     final note = quote.note ?? '';
     return Card(
@@ -73,6 +81,7 @@ class _QuotesScreenState extends LoadingState<QuotesScreen, List<Quote>> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ui.Heading(t.quoteTitle),
+            Text(clinic?.name ?? t.unlistedClinic),
             Text(t.receiptIssuedOn(_zone.date(quote.issuedAt, t.localeName))),
             Text(
               quote.state == QuoteState.expired

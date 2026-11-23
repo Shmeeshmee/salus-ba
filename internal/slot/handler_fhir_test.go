@@ -41,15 +41,15 @@ func assertGolden(t *testing.T, name string, got []byte) {
 
 // stubSearch answers with what it is given and keeps what it was asked.
 type stubSearch struct {
-	err      error
-	from, to time.Time
-	schedule string
-	out      []slot.Slot
-	calls    int
+	err           error
+	from, to      time.Time
+	schedule, org string
+	out           []slot.Slot
+	calls         int
 }
 
-func (s *stubSearch) Search(_ context.Context, scheduleID string, from, to time.Time) ([]slot.Slot, error) {
-	s.schedule, s.from, s.to = scheduleID, from, to
+func (s *stubSearch) SearchFor(_ context.Context, org, scheduleID string, from, to time.Time) ([]slot.Slot, error) {
+	s.org, s.schedule, s.from, s.to = org, scheduleID, from, to
 	s.calls++
 	return s.out, s.err
 }
@@ -57,7 +57,7 @@ func (s *stubSearch) Search(_ context.Context, scheduleID string, from, to time.
 func searchSlots(t *testing.T, svc *stubSearch, log *bytes.Buffer, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
-	slot.NewHandler(svc, "https://api.example.test/fhir/R4", slog.New(slog.NewJSONHandler(log, nil))).Routes(mux)
+	slot.NewHandler(svc, staffClinic, "https://api.example.test/fhir/R4", slog.New(slog.NewJSONHandler(log, nil))).Routes(mux)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/fhir/R4/Slot?"+query, nil))
 	return rec
@@ -117,5 +117,30 @@ func TestHandlerSearch_SendsAFixedOperationOutcomeOnAnError(t *testing.T) {
 	rec := searchSlots(t, &stubSearch{err: errors.New("db down")}, &log, "schedule="+scheduleA1+"&status=free&start=lt2026-11-06T00:00:00Z")
 	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "db down") || log.Len() == 0 {
 		t.Errorf("status = %d %s, log %q; want 500 without the error, the error logged", rec.Code, rec.Body, log.String())
+	}
+}
+
+// clinicKey marks a request as the signed-in staff's of a clinic, for staffClinic.
+type clinicKey struct{}
+
+// staffClinic is the handler's clinic: the one the request's context names, empty for anyone else.
+func staffClinic(ctx context.Context) string {
+	org, _ := ctx.Value(clinicKey{}).(string)
+	return org
+}
+
+// The clinic's own staff search its free times in its own scope (the front desk, docs/clinic-cms F3): the handler
+// passes the signed-in staff's clinic to the service, and none for anyone else.
+func TestHandler_PassesTheStaffsClinic(t *testing.T) {
+	query := "schedule=Schedule/" + scheduleA1 + "&status=free&start=lt2026-11-06T00:00:00Z"
+	for want, ctx := range map[string]context.Context{clinicA: context.WithValue(t.Context(), clinicKey{}, clinicA), "": t.Context()} {
+		svc := &stubSearch{}
+		mux := http.NewServeMux()
+		slot.NewHandler(svc, staffClinic, "https://api.example.test/fhir/R4", slog.New(slog.DiscardHandler)).Routes(mux)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, "/fhir/R4/Slot?"+query, nil))
+		if rec.Code != http.StatusOK || svc.org != want {
+			t.Errorf("Slot search = %d with clinic %q, want 200 with %q", rec.Code, svc.org, want)
+		}
 	}
 }

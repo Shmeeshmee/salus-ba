@@ -139,10 +139,10 @@ func TestInvite_FailsWhenTheJobCannotBeEnqueued(t *testing.T) {
 	}
 }
 
-func TestInviteAdmin_InvitesAClinicsFirstAdminAsTheOperatorCommand(t *testing.T) {
+func TestInviteAdmin_InvitesAClinicsFirstAdminAsItsAgent(t *testing.T) {
 	f := newFixture()
 
-	got, err := f.svc.InviteAdmin(t.Context(), clinicID, "Dee@example.test")
+	got, err := f.svc.InviteAdmin(t.Context(), auditevent.AgentSignup, clinicID, "Dee@example.test")
 
 	want := auth.Invite{ID: got.ID, OrganizationID: clinicID, Email: "dee@example.test", Role: auth.RoleAdmin, CreatedAt: now, ExpiresAt: now.Add(inviteLifetime)}
 	if err != nil || got != want || f.repo.clinic != clinicID {
@@ -152,11 +152,11 @@ func TestInviteAdmin_InvitesAClinicsFirstAdminAsTheOperatorCommand(t *testing.T)
 		t.Errorf("jobs %+v, want the invite's e-mail enqueued in the transaction", f.jobs.jobs)
 	}
 	e := inviteEvent(create, auditevent.ActionCreate, "", "Invite/"+got.ID, auditevent.OutcomeSuccess)
-	e.AgentName = auditevent.AgentOperator
+	e.AgentName = auditevent.AgentSignup
 	if got := f.onlyEvent(t); got != e {
 		t.Errorf("audit event %+v,\nwant %+v", got, e)
 	}
-	if _, err := f.svc.InviteAdmin(t.Context(), clinicID, "not an e-mail"); !errors.Is(err, auth.ErrInvalidEmail) {
+	if _, err := f.svc.InviteAdmin(t.Context(), auditevent.AgentOperator, clinicID, "not an e-mail"); !errors.Is(err, auth.ErrInvalidEmail) {
 		t.Errorf("InviteAdmin(invalid e-mail) = %v, want ErrInvalidEmail", err)
 	}
 }

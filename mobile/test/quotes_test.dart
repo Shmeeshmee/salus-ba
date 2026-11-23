@@ -7,9 +7,9 @@ const sent = 'f1000000-0000-4000-8000-000000000001';
 const expired = 'f1000000-0000-4000-8000-000000000002';
 
 // A synthetic treatment quote (clinic-cms X1): an examination with a discount, valid 30 days.
-Map<String, Object?> quote(String id, String state, {String note = ''}) => {
+Map<String, Object?> quote(String id, String state, {String note = '', String clinic = clinicId}) => {
   'id': id,
-  'organizationId': 'a1000000-0000-4000-8000-0000000000a1',
+  'organizationId': clinic,
   'patientId': 'd1000000-0000-4000-8000-0000000000d1',
   'issuedAt': '2026-11-02T09:30:00Z',
   'validUntil': '2026-12-02T09:30:00Z',
@@ -44,6 +44,16 @@ void main() {
     expect(find.text('Placeholder examination × 2'), findsNWidgets(2));
     expect(find.text('Placeholder note'), findsOneWidget);
     expect(find.text('95.00 BAM'), findsNWidgets(2));
+  });
+
+  testWidgets('names the clinic of each quote from the directory, or says it is no longer listed', (tester) async {
+    await atQuotes(tester, [
+      quote(sent, 'sent'),
+      quote(expired, 'expired', clinic: 'a1000000-0000-4000-8000-0000000000a1'),
+    ]);
+
+    expect(find.text(clinicName), findsOneWidget);
+    expect(find.text('A clinic no longer listed'), findsOneWidget);
   });
 
   testWidgets('says when there are no quotes', (tester) async {

@@ -148,3 +148,17 @@ func TestSign_EnqueuesThePatientsEmail(t *testing.T) {
 		t.Errorf("jobs = %q, want the appointment's e-mail", f.jobs.signed)
 	}
 }
+
+// A patient the clinic registered has no account and gets no e-mail of a signed document (docs/clinic-cms W1).
+func TestSign_EnqueuesNoEmailForAPatientWithoutAnAccount(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.accounts[apptA] = true
+	d := f.drafted(t)
+	if _, err := f.svc.Sign(t.Context(), pract, d.ID, values(), 1); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.jobs.signed) != 0 {
+		t.Errorf("jobs = %q, want no e-mail", f.jobs.signed)
+	}
+}

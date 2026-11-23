@@ -332,6 +332,7 @@ func TestHandler_MapsTheServiceErrors(t *testing.T) {
 		{err: organization.ErrForbidden, method: http.MethodPut, status: http.StatusForbidden, golden: "forbidden.json"},
 		{err: organization.ErrInvalidName, method: http.MethodPut, status: http.StatusUnprocessableEntity, golden: "invalid_name.json"},
 		{err: organization.ErrInvalidTimeZone, method: http.MethodPut, status: http.StatusBadRequest, golden: "invalid_time_zone.json"},
+		{err: organization.ErrNotApproved, method: http.MethodPut, status: http.StatusConflict, golden: "not_approved.json"},
 	}
 	for _, tt := range tests {
 		s := newOrgServer(&stubClinics{err: tt.err})

@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/signup"
@@ -144,12 +146,17 @@ func (c *fakeCounters) Incr(_ context.Context, key string, _ time.Duration) (int
 	return c.counts[key], time.Minute, nil
 }
 
+// agents are the audit agents the clinic's writes were made as, in order: the clinic, the invite, the trial.
+type agents []string
+
 type fakeClinics struct {
+	agents  *agents
 	created []string
 	listed  []string
 }
 
-func (c *fakeClinics) Create(_ context.Context, name string) (organization.Organization, error) {
+func (c *fakeClinics) Create(_ context.Context, agent, name string) (organization.Organization, error) {
+	*c.agents = append(*c.agents, agent)
 	c.created = append(c.created, name)
 	return organization.Organization{ID: newClinic, Name: name}, nil
 }
@@ -159,22 +166,28 @@ func (c *fakeClinics) List(_ context.Context, id string) error {
 	return nil
 }
 
-type fakeAdmins struct{ invited []string }
+type fakeAdmins struct {
+	agents  *agents
+	invited []string
+}
 
-func (a *fakeAdmins) InviteAdmin(_ context.Context, org, email string) (auth.Invite, error) {
+func (a *fakeAdmins) InviteAdmin(_ context.Context, agent, org, email string) (auth.Invite, error) {
+	*a.agents = append(*a.agents, agent)
 	a.invited = append(a.invited, org+" "+email)
 	return auth.Invite{ID: "i1", OrganizationID: org, Email: email}, nil
 }
 
 type fakeTrials struct {
 	err     error
+	agents  *agents
 	started []string
 }
 
-func (f *fakeTrials) StartTrial(_ context.Context, org string) (subscription.Subscription, error) {
+func (f *fakeTrials) StartTrial(_ context.Context, agent, org string) (subscription.Subscription, error) {
 	if f.err != nil {
 		return subscription.Subscription{}, f.err
 	}
+	*f.agents = append(*f.agents, agent)
 	f.started = append(f.started, org)
 	return subscription.Subscription{}, nil
 }
@@ -187,13 +200,12 @@ type fixture struct {
 	admins   *fakeAdmins
 	trials   *fakeTrials
 	svc      *signup.Service
+	agents   agents
 }
 
 func newFixture() *fixture {
-	f := &fixture{
-		repo: newFakeRepo(), jobs: &fakeJobs{}, counters: &fakeCounters{counts: map[string]int64{}},
-		clinics: &fakeClinics{}, admins: &fakeAdmins{}, trials: &fakeTrials{},
-	}
+	f := &fixture{repo: newFakeRepo(), jobs: &fakeJobs{}, counters: &fakeCounters{counts: map[string]int64{}}}
+	f.clinics, f.admins, f.trials = &fakeClinics{agents: &f.agents}, &fakeAdmins{agents: &f.agents}, &fakeTrials{agents: &f.agents}
 	f.svc = signup.NewService(signup.Ports{
 		Repo: f.repo, Jobs: f.jobs, Counters: f.counters, Tx: &fakeTx{}, Clock: clock.Fixed{T: now},
 		Clinics: f.clinics, Admins: f.admins, Trials: f.trials, RateLimitKey: []byte("synthetic key"),
@@ -320,6 +332,9 @@ func TestVerify_CreatesTheClinicInvitesItsAdminAndStartsTheTrial(t *testing.T) {
 	if len(f.trials.started) != 1 || f.trials.started[0] != newClinic {
 		t.Errorf("trials started %v", f.trials.started)
 	}
+	if want := (agents{auditevent.AgentSignup, auditevent.AgentSignup, auditevent.AgentSignup}); !slices.Equal(f.agents, want) {
+		t.Errorf("clinic, invite and trial made as %q, want %q", f.agents, want)
+	}
 	if len(f.clinics.listed) != 0 {
 		t.Errorf("clinics listed %v, want none before the operator approves", f.clinics.listed)
 	}
@@ -365,6 +380,9 @@ func TestCreateClinic_WithoutAPlanCreatesTheClinicWithoutATrial(t *testing.T) {
 	if want := (signup.Created{OrganizationID: newClinic, InviteID: "i1"}); err != nil || got != want {
 		t.Errorf("CreateClinic() = %+v, %v; want %+v", got, err, want)
 	}
+	if want := (agents{auditevent.AgentOperator, auditevent.AgentOperator}); !slices.Equal(f.agents, want) {
+		t.Errorf("clinic and invite made as %q, want salusctl's", f.agents)
+	}
 	f.trials.err = nil
 	if got, err := f.svc.CreateClinic(t.Context(), "Synthetic clinic", "admin@example.test"); err != nil || !got.Trial {
 		t.Errorf("CreateClinic() with a plan = %+v, %v; want the trial started", got, err)
@@ -388,7 +406,17 @@ func TestApprove_ListsTheVerifiedClinicOnce(t *testing.T) {
 	}
 }
 
-func TestSetup_EveryStepOpenUntilSavedAndOnlyTheAdminSaves(t *testing.T) {
+// A save with no read before it writes in the clinic's scope (row-level security on clinic_setup_step).
+func TestSaveSetup_WritesInTheClinicsScopeWithoutAReadFirst(t *testing.T) {
+	f := newFixture()
+	in := signup.Setup{Steps: map[signup.Step]signup.StepState{signup.StepDetails: signup.StepDone}}
+	got, err := f.svc.SaveSetup(t.Context(), signup.Caller{AccountID: "a1", OrganizationID: newClinic, Admin: true}, in)
+	if err != nil || got.Steps[signup.StepDetails] != signup.StepDone {
+		t.Errorf("SaveSetup() first = %+v, %v; want details done", got, err)
+	}
+}
+
+func TestSetup_EveryStepOpenUntilSavedAndOnlyTheAdminReadsOrSaves(t *testing.T) {
 	f := newFixture()
 	admin := signup.Caller{AccountID: "a1", OrganizationID: newClinic, Admin: true}
 	got, err := f.svc.Setup(t.Context(), admin)
@@ -403,12 +431,20 @@ func TestSetup_EveryStepOpenUntilSavedAndOnlyTheAdminSaves(t *testing.T) {
 	if err != nil || !maps.Equal(saved.Steps, in.Steps) {
 		t.Fatalf("SaveSetup() = %+v, %v", saved, err)
 	}
-	member := signup.Caller{AccountID: "a2", OrganizationID: newClinic}
-	if got, err := f.svc.Setup(t.Context(), member); err != nil || !maps.Equal(got.Steps, in.Steps) {
-		t.Errorf("Setup() by a member = %+v, %v; want the saved progress", got, err)
+	if got, err := f.svc.Setup(t.Context(), admin); err != nil || !maps.Equal(got.Steps, in.Steps) {
+		t.Errorf("Setup() = %+v, %v; want the saved progress", got, err)
 	}
-	if _, err := f.svc.SaveSetup(t.Context(), member, in); !errors.Is(err, signup.ErrForbidden) {
-		t.Errorf("SaveSetup() by a member = %v, want ErrForbidden", err)
+	// The wizard is the admin's only: a practitioner or a receptionist of the clinic is refused both ways.
+	for name, member := range map[string]signup.Caller{
+		"practitioner": {AccountID: "a2", OrganizationID: newClinic},
+		"receptionist": {AccountID: "a3", OrganizationID: newClinic},
+	} {
+		if _, err := f.svc.Setup(t.Context(), member); !errors.Is(err, signup.ErrForbidden) {
+			t.Errorf("Setup() by a %s = %v, want ErrForbidden", name, err)
+		}
+		if _, err := f.svc.SaveSetup(t.Context(), member, in); !errors.Is(err, signup.ErrForbidden) {
+			t.Errorf("SaveSetup() by a %s = %v, want ErrForbidden", name, err)
+		}
 	}
 	if _, err := f.svc.Setup(t.Context(), signup.Caller{AccountID: "p1"}); !errors.Is(err, signup.ErrNotFound) {
 		t.Errorf("Setup() without a clinic = %v, want ErrNotFound", err)

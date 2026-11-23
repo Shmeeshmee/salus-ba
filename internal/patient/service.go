@@ -205,8 +205,11 @@ func (s *Service) readAsStaff(ctx context.Context, c Caller, id string) (Patient
 		return Patient{}, false, err
 	}
 	viewer := access.Viewer{Role: access.RolePractitioner, Clinic: c.OrganizationID, PractitionerRole: c.PractitionerRoleID}
-	if c.Admin {
+	switch {
+	case c.Admin:
 		viewer = access.Viewer{Role: access.RoleAdmin, Clinic: c.OrganizationID}
+	case c.Reception: // the front desk: access gives them no profile (docs/clinic-cms W2)
+		viewer = access.Viewer{Role: access.RoleReception, Clinic: c.OrganizationID}
 	}
 	facts := access.Facts{Patient: id, Clinic: c.OrganizationID, Consent: state, Visits: visits}
 	if access.Profile(viewer, facts) != access.Full {

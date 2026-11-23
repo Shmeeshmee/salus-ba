@@ -41,15 +41,18 @@ func (s *stubStaff) Arrive(_ context.Context, _ appointment.Caller, id string) (
 	return s.out, s.err
 }
 
-func (s *stubStaff) DeskDay(_ context.Context, _ appointment.Caller, day time.Time) ([]appointment.DeskVisit, error) {
+func (s *stubStaff) DeskDay(_ context.Context, _ appointment.Caller, day time.Time) (appointment.Desk, error) {
 	s.day = day
-	return s.visits, s.err
+	if day.IsZero() {
+		day = now // the service's today in the clinic's zone
+	}
+	return appointment.Desk{Day: day, Visits: s.visits}, s.err
 }
 
 func serveStaff(t *testing.T, svc *stubStaff, method, target, body string, header map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	h := appointment.NewStaffHandler(svc, func(context.Context) (appointment.Caller, bool, error) { return desk, true, nil },
-		func() time.Time { return now }, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+		slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
 	mux := http.NewServeMux()
 	h.Routes(mux)
 	req := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
@@ -85,15 +88,16 @@ func TestStaffHandler_GivesTheDesksDay(t *testing.T) {
 	t.Parallel()
 	a := booked(newID, patientC, roleA1, clinicA, start)
 	p := patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example", BirthDate: time.Date(1980, 3, 4, 0, 0, 0, 0, time.UTC), VersionID: 1, LastUpdated: now}
-	svc := &stubStaff{visits: []appointment.DeskVisit{{Appointment: a, Patient: p}}}
+	svc := &stubStaff{visits: []appointment.DeskVisit{{Appointment: a, Patient: p, ServiceName: "Synthetic exam"}}}
 	rec := serveStaff(t, svc, http.MethodGet, "/clinic/desk/today?date=2030-01-07", "", nil)
 	want := `"patient":{"lastUpdated":"2030-01-01T08:00:00Z","id":"` + patientC + `","givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","registeredByClinic":true,"versionId":1}`
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) || !strings.HasPrefix(rec.Body.String(), `{"date":"2030-01-07","visits":[`) ||
+		!strings.Contains(rec.Body.String(), `"serviceName":"Synthetic exam"`) ||
 		rec.Header().Get("Cache-Control") != "no-store" || !svc.day.Equal(time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC)) {
 		t.Errorf("desk = %d %s (day %v)", rec.Code, rec.Body, svc.day)
 	}
 	empty := &stubStaff{}
-	if rec := serveStaff(t, empty, http.MethodGet, "/clinic/desk/today", "", nil); rec.Code != http.StatusOK || rec.Body.String() != `{"date":"2030-01-01","visits":[]}`+"\n" || !empty.day.Equal(now) {
+	if rec := serveStaff(t, empty, http.MethodGet, "/clinic/desk/today", "", nil); rec.Code != http.StatusOK || rec.Body.String() != `{"date":"2030-01-01","visits":[]}`+"\n" || !empty.day.IsZero() {
 		t.Errorf("today = %d %s (day %v)", rec.Code, rec.Body, empty.day)
 	}
 }

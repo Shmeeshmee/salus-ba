@@ -185,7 +185,7 @@ func searchQuery(raw string) (url.Values, Filter, bool) {
 			ok = ok && len(values) == 1
 		case "status":
 			f.Status = Status(values[0])
-			ok = ok && (f.Status == StatusBooked || f.Status == StatusCancelled || f.Status == StatusFulfilled || f.Status == StatusNoShow)
+			ok = ok && (f.Status == StatusBooked || f.Status == StatusArrived || f.Status == StatusCancelled || f.Status == StatusFulfilled || f.Status == StatusNoShow)
 		case "date":
 			f.From, f.To, ok = fhir.DateRange(values)
 		default:

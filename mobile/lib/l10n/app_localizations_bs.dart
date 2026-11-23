@@ -2099,4 +2099,25 @@ class AppLocalizationsBs extends AppLocalizations {
 
   @override
   String get quoteExpired => 'Istekla';
+
+  @override
+  String get clinicLanguageFilter => 'Jezik koji se govori';
+
+  @override
+  String get anyLanguage => 'Bilo koji jezik';
+
+  @override
+  String get noClinicsSpeak =>
+      'Nijedna klinika na spisku još ne govori ovaj jezik.';
+
+  @override
+  String get welcomesInternational => 'Prima pacijente iz inostranstva';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Jezici koji se govore: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Usluge i cijene';
 }

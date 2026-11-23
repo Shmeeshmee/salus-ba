@@ -182,6 +182,45 @@ func TestImport_ReadsAnXLSXFile(t *testing.T) {
 	}
 }
 
+// windows1250 encodes s the way Excel in Bosnia and Herzegovina saves a CSV, for the letters these tests use.
+func windows1250(t *testing.T, s string) []byte {
+	t.Helper()
+	table := map[rune]byte{
+		'Š': 0x8A, 'š': 0x9A, 'Ž': 0x8E, 'ž': 0x9E, 'Č': 0xC8, 'č': 0xE8, 'Ć': 0xC6, 'ć': 0xE6, 'Đ': 0xD0, 'đ': 0xF0,
+		'–': 0x96,
+	}
+	var out []byte
+	for _, r := range s {
+		switch b, ok := table[r]; {
+		case ok:
+			out = append(out, b)
+		case r < 0x80:
+			out = append(out, byte(r))
+		default:
+			t.Fatalf("windows1250: no byte for %q", r)
+		}
+	}
+	return out
+}
+
+func TestImport_ReadsAWindows1250CSV(t *testing.T) {
+	names := []string{"Pregled kod ljekara – šđčćž", "Ultrazvuk srca – ŠĐČĆŽ", "Kontrolni pregled"}
+	f := chargeitemdefinition.ImportFile{Name: "services.csv", Data: windows1250(t,
+		"Naziv;Šifra;Cijena\n"+names[0]+";Č-1;25\n"+names[1]+";Ž-2;40\n"+names[2]+";;10\n")}
+	rows, err := newService(&fakeRepository{}, &fakeAuditor{}).Import(t.Context(), admin, f, false)
+	if err != nil || len(rows) != len(names) {
+		t.Fatalf("Import(cp1250) = %+v, %v", rows, err)
+	}
+	for i, want := range names {
+		if rows[i].Service.Name != want || rows[i].Errors != nil {
+			t.Errorf("row %d = %q %v, want %q", i, rows[i].Service.Name, rows[i].Errors, want)
+		}
+	}
+	if rows[0].Service.Code != "Č-1" || rows[1].Service.Code != "Ž-2" {
+		t.Errorf("codes = %q, %q, want Č-1, Ž-2", rows[0].Service.Code, rows[1].Service.Code)
+	}
+}
+
 func TestImport_RefusesAFileItCannotRead(t *testing.T) {
 	many := []string{"name,price"}
 	for i := range 1001 {
@@ -192,7 +231,7 @@ func TestImport_RefusesAFileItCannotRead(t *testing.T) {
 		"no name column":    csvFile("title,price", "Exam,10"),
 		"no price":          csvFile("name", "Exam"),
 		"only a header":     csvFile("name,price"),
-		"not UTF-8":         {Name: "services.csv", Data: []byte("name;price\nPregled \x9a;10\n")},
+		"not UTF-8 or 1250": {Name: "services.csv", Data: []byte("name;price\nPregled \x81;10\n")},
 		"broken CSV":        csvFile("name,price", `"Exam,10`),
 		"broken XLSX":       {Name: "services.xlsx", Data: []byte("PK\x03\x04 not really")},
 		"too many rows":     csvFile(many...),

@@ -297,7 +297,9 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request, o Organization, 
 	case errors.Is(err, ErrForbidden):
 		fhir.WriteError(w, http.StatusForbidden, "forbidden", "Only an admin of the clinic may change it.")
 	case errors.Is(err, ErrInvalidName):
-		fhir.WriteError(w, http.StatusUnprocessableEntity, "business-rule", "The name must be 1 to 200 characters.")
+		fhir.WriteError(w, http.StatusUnprocessableEntity, "business-rule", "The name must be 1 to 200 characters on one line, without a link.")
+	case errors.Is(err, ErrNotApproved):
+		fhir.WriteError(w, http.StatusConflict, "business-rule", "The clinic is listed once Salus approves its signup.")
 	case errors.Is(err, ErrInvalidTimeZone):
 		fhir.WriteError(w, http.StatusBadRequest, "value", "The time zone must be an IANA time zone name.")
 	case errors.Is(err, ErrInvalidDefaultLanguage):

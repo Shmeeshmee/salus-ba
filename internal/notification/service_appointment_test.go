@@ -363,3 +363,24 @@ func TestAppointmentEmails_OfAnInPersonVisitSayWhereToCome(t *testing.T) {
 		t.Errorf("the cancellation: %v, %+v; want one e-mail without the address", err, sender.sent)
 	}
 }
+
+// Every appointment e-mail job of a patient the clinic registered, without an account (docs/clinic-cms W1), completes
+// without error (no retry) and sends nothing: the cancellation, the reschedule, a signed document and a quote too, in
+// whatever status the appointment is.
+func TestAppointmentEmails_EveryKindCompletesForAPatientWithoutAnAccount(t *testing.T) {
+	for _, status := range []appointment.Status{appointment.StatusBooked, appointment.StatusCancelled, appointment.StatusFulfilled} {
+		accounts, sender := &fakeAccounts{language: "en"}, &fakeSender{}
+		mail := newMail(&fakeAppointments{status: status, noAccount: true}, accounts, zonedClinics{}, sender)
+		for name, send := range map[string]func(context.Context, string, string) error{
+			"booked": mail.SendAppointmentBooked, "cancelled": mail.SendAppointmentCancelled, "reminder": mail.SendAppointmentReminder,
+			"rescheduled": mail.SendAppointmentRescheduled, "signed": mail.SendDocumentSigned, "quote": mail.SendQuote,
+		} {
+			if err := send(t.Context(), apptID, clinicID); err != nil {
+				t.Errorf("%s while %s: error = %v, want nil", name, status, err)
+			}
+		}
+		if len(sender.sent) != 0 || accounts.asked != nil {
+			t.Errorf("while %s: sent %v after reading the account %v, want nothing", status, sender.sent, accounts.asked)
+		}
+	}
+}

@@ -215,6 +215,31 @@ func (s *Service) public(ctx context.Context, read func(ctx context.Context) (Sc
 	return out, nil
 }
 
+// ReadFor is Read for a caller who is staff of the clinic org (empty for anyone else): a schedule of that clinic is read
+// in its own scope, listed or not (the front desk, docs/clinic-cms F3), any other as the directory shows it. Not
+// audited.
+func (s *Service) ReadFor(ctx context.Context, org, id string) (Schedule, error) {
+	return s.forClinic(ctx, org, func(ctx context.Context) (Schedule, error) { return s.Repo.ByID(ctx, id) })
+}
+
+// ByActorFor is ByActor for a caller who is staff of the clinic org (empty for anyone else), as ReadFor. Not audited.
+func (s *Service) ByActorFor(ctx context.Context, org, roleID string) (Schedule, error) {
+	return s.forClinic(ctx, org, func(ctx context.Context) (Schedule, error) { return s.Repo.ByRole(ctx, roleID) })
+}
+
+func (s *Service) forClinic(ctx context.Context, org string, read func(ctx context.Context) (Schedule, error)) (Schedule, error) {
+	if org != "" {
+		out, err := s.inClinic(ctx, org, read)
+		if !errors.Is(err, ErrNotFound) {
+			if err != nil {
+				return Schedule{}, fmt.Errorf("schedule: read in clinic: %w", err)
+			}
+			return out, nil
+		}
+	}
+	return s.public(ctx, read)
+}
+
 // ForGeneration returns the schedule id of the clinic org, locked until the transaction in ctx ends (the
 // slots_generate job), or ErrNotFound. Not audited: a system step that discloses nothing.
 func (s *Service) ForGeneration(ctx context.Context, org, id string) (Schedule, error) {

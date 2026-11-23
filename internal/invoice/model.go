@@ -86,7 +86,13 @@ type Caller struct {
 	PractitionerID string
 	PatientID      string // empty for staff
 	Admin          bool
+	// Reception is the clinic's receptionist (docs/clinic-cms W2): issues a receipt for any visit of the clinic and reads
+	// and prints the receipts they issued; the list of all receipts, reversals, retries, reports and quotes are not theirs.
+	Reception bool
 }
+
+// issuesAny reports whether c issues a receipt for any visit of the clinic, or on its own: its admin and its front desk.
+func (c Caller) issuesAny() bool { return c.Admin || c.Reception }
 
 // Period is a report's half-open range [From, To).
 type Period struct {

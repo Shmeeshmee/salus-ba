@@ -75,6 +75,15 @@ type Ports struct {
 	KEK         *envelope.KEK // wraps each PDF's data key
 	Log         *slog.Logger  // a failed publish: ids and the error only
 	Tagger      Tagger        // the explained terms of a document (SAL-13)
+	// Accounts tells whether the appointment's patient has an account: a profile the clinic registered gets no e-mail
+	// (docs/clinic-cms W1). Without it the signing enqueues the e-mail and the notifier sends nothing to such a patient.
+	Accounts Accounts
+}
+
+// Accounts tells whether an appointment's patient has a Salus account, in the caller's transaction
+// (appointment.Service).
+type Accounts interface {
+	PatientHasAccount(ctx context.Context, appointmentID string) (bool, error)
 }
 
 // Service holds the rules of the templates, the drafting and the signing (docs/plans/consult-intelligence.md,

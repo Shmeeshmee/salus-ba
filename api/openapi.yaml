@@ -5715,7 +5715,7 @@ paths:
       x-salus-package: cms-c
       summary: Issue a receipt for a visit or on its own
       description: >-
-        By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from
+        By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from
         the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by
         a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is
         a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the
@@ -5772,7 +5772,7 @@ paths:
       operationId: getClinicReceipt
       x-salus-package: cms-c
       summary: A receipt of the clinic
-      description: For the clinic's admin and the practitioner who issued it. Audited.
+      description: For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -6291,8 +6291,10 @@ paths:
       summary: Book a visit for a patient
       description: >-
         Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service
-        (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its
-        receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+        of its own price list (active, offered in the slot's mode); the appointment records who booked it. The slot
+        is read in the clinic's own scope, listed or not; a clinic whose membership is suspended or cancelled books
+        nothing (`slot_unavailable`). For the clinic's admin, its receptionists and a practitioner for their own
+        patients. Built in package F2. Audited, also when refused.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -6325,12 +6327,12 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such patient or slot the caller may see."
+          description: "`not_found`: no such patient the caller may see."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "409":
-          description: "`slot_unavailable`: the slot was taken or held."
+          description: "`slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -6577,7 +6579,9 @@ paths:
       operationId: getClinicSetup
       x-salus-package: cms-o1
       summary: The setup wizard's progress
-      description: Each step open, done or skipped. For the clinic's staff. Built in package O1. Not personal data; not audited.
+      description: >-
+        Each step open, done or skipped. For the clinic's admin only (a practitioner or a receptionist is refused).
+        Built in package O1. Not personal data; not audited.
       tags: [signup]
       security:
         - sessionCookie: []
@@ -6592,6 +6596,8 @@ paths:
               schema: {$ref: "#/components/schemas/ClinicSetup"}
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
         "404":
           $ref: "#/components/responses/ClinicNotFound"
         "500":
@@ -6627,6 +6633,8 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
   /clinic/services/import:
@@ -6635,7 +6643,8 @@ paths:
       x-salus-package: cms-o2
       summary: Import a price list from a file
       description: >-
-        A CSV or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the
+        A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT
+        rate, visit modes). With `save` false (the
         default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when
         any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data;
         audited as a price-list change.

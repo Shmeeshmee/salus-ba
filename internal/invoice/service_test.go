@@ -308,3 +308,46 @@ func TestIssue_WithTheSameIdempotencyKeyIssuesOneReceipt(t *testing.T) {
 		t.Errorf("stored key = %q", f.repo.invoices[0].IdempotencyKey)
 	}
 }
+
+// The front desk (docs/clinic-cms W2, F1): a receptionist issues a receipt for any visit of the clinic, and reads and
+// prints the receipts they issued; the list of all receipts, a reversal and a retried report stay the admin's.
+func TestReception_IssuesReadsAndPrintsTheirReceiptsAndNothingElse(t *testing.T) {
+	f := newFixture(theSeller)
+	desk := invoice.Caller{AccountID: "acct-desk", OrganizationID: org, Reception: true}
+	issued, err := f.svc.Issue(t.Context(), desk, draft())
+	if err != nil {
+		t.Fatalf("the receptionist's Issue() = %v", err)
+	}
+	if issued.IssuedByAccountID != "acct-desk" || f.audit.last().AgentAccountID != "acct-desk" {
+		t.Errorf("Issue() = %+v, audit %+v; want the receptionist as the issuer and the agent", issued, f.audit.last())
+	}
+	byAdmin, err := f.svc.Issue(t.Context(), adminC, draft())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := f.svc.Read(t.Context(), desk, issued.ID); err != nil || got.ID != issued.ID {
+		t.Errorf("Read() of their own receipt = %q, %v", got.ID, err)
+	}
+	if _, err := f.svc.PDF(t.Context(), desk, issued.ID); err != nil {
+		t.Errorf("PDF() of their own receipt = %v", err)
+	}
+	if _, err := f.svc.Read(t.Context(), desk, byAdmin.ID); !errors.Is(err, invoice.ErrNotFound) {
+		t.Errorf("Read() of the admin's receipt = %v, want ErrNotFound", err)
+	}
+	day := invoice.Period{From: at.Add(-time12h), To: at.Add(time12h)}
+	if _, err := f.svc.List(t.Context(), desk, day); !errors.Is(err, invoice.ErrForbidden) {
+		t.Errorf("List() = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.Reverse(t.Context(), desk, issued.ID, invoice.PaymentCash); !errors.Is(err, invoice.ErrForbidden) {
+		t.Errorf("Reverse() = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.Retry(t.Context(), desk, issued.ID); !errors.Is(err, invoice.ErrForbidden) {
+		t.Errorf("Retry() = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.Report(t.Context(), desk, day); !errors.Is(err, invoice.ErrForbidden) {
+		t.Errorf("Report() = %v, want ErrForbidden", err)
+	}
+	if _, err := f.svc.Quotes(t.Context(), desk, ""); !errors.Is(err, invoice.ErrForbidden) {
+		t.Errorf("Quotes() = %v, want ErrForbidden", err)
+	}
+}

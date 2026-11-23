@@ -38,6 +38,10 @@ const (
 // AgentOperator names the agent of an access by the operator command (cmd/salusctl), which is no account.
 const AgentOperator = "salusctl"
 
+// AgentSignup names the agent of the writes of a clinic's self-signup (POST /signup/verify, docs/clinic-cms O1): the
+// clinic, its admin's invite and its trial, made before the clinic has any account.
+const AgentSignup = "signup"
+
 // Action is AuditEvent.action (FHIR value set audit-event-action).
 type Action string
 

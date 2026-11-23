@@ -20,20 +20,20 @@ type StaffAppointments interface {
 	BookForPatient(ctx context.Context, c Caller, b StaffBooking) (Appointment, error)
 	CancelForPatient(ctx context.Context, c Caller, id string, version int32) (Appointment, error)
 	Arrive(ctx context.Context, c Caller, id string) (Appointment, error)
-	DeskDay(ctx context.Context, c Caller, day time.Time) ([]DeskVisit, error)
+	DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error)
 }
 
 // StaffHandler serves the bookings staff make for patients and the desk's day in the JSON API (package F2 of
 // docs/clinic-cms). Errors as HTTPHandler's.
 type StaffHandler struct {
-	svc   StaffAppointments
-	clock func() time.Time // today, for the desk's day without a date
+	svc StaffAppointments
 	HTTPHandler
 }
 
-// NewStaffHandler returns the handler on svc; now gives the current time (the clinic's today is taken from it).
-func NewStaffHandler(svc StaffAppointments, caller func(ctx context.Context) (Caller, bool, error), now func() time.Time, log *slog.Logger) *StaffHandler {
-	return &StaffHandler{svc: svc, clock: now, HTTPHandler: HTTPHandler{caller: caller, log: log}}
+// NewStaffHandler returns the handler on svc. The desk's day without a date is today in the clinic's zone, which the
+// service knows.
+func NewStaffHandler(svc StaffAppointments, caller func(ctx context.Context) (Caller, bool, error), log *slog.Logger) *StaffHandler {
+	return &StaffHandler{svc: svc, HTTPHandler: HTTPHandler{caller: caller, log: log}}
 }
 
 // Routes declares the staff's appointment routes on mux. The staff's move (/clinic/appointments/{id}/reschedule) is
@@ -100,8 +100,9 @@ type deskPatientJSON struct {
 	VersionID          int32     `json:"versionId"`
 }
 
-// deskVisitJSON is the DeskVisit schema; the service's name is the screen's to look up from the price list.
+// deskVisitJSON is the DeskVisit schema.
 type deskVisitJSON struct {
+	ServiceName string          `json:"serviceName,omitempty"`
 	Patient     deskPatientJSON `json:"patient"`
 	Appointment appointmentJSON `json:"appointment"`
 }
@@ -111,7 +112,7 @@ func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	day := h.clock()
+	var day time.Time // none: today in the clinic's zone, the service's to say
 	if d := r.URL.Query().Get("date"); d != "" {
 		var err error
 		if day, err = time.Parse(dateLayout, d); err != nil {
@@ -119,7 +120,7 @@ func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	visits, err := h.svc.DeskDay(r.Context(), c, day)
+	desk, err := h.svc.DeskDay(r.Context(), c, day)
 	if err != nil {
 		h.writeStaffError(w, r, err)
 		return
@@ -127,10 +128,10 @@ func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
 	out := struct {
 		Date   string          `json:"date"`
 		Visits []deskVisitJSON `json:"visits"`
-	}{Date: day.Format(dateLayout), Visits: make([]deskVisitJSON, 0, len(visits))}
-	for _, v := range visits {
+	}{Date: desk.Day.Format(dateLayout), Visits: make([]deskVisitJSON, 0, len(desk.Visits))}
+	for _, v := range desk.Visits {
 		p := v.Patient
-		out.Visits = append(out.Visits, deskVisitJSON{Appointment: toJSON(v.Appointment), Patient: deskPatientJSON{
+		out.Visits = append(out.Visits, deskVisitJSON{ServiceName: v.ServiceName, Appointment: toJSON(v.Appointment), Patient: deskPatientJSON{
 			ID: p.ID, GivenName: p.GivenName, FamilyName: p.FamilyName, BirthDate: p.BirthDate.Format(dateLayout), Phone: p.Phone,
 			RegisteredByClinic: p.RegisteredBy != "", VersionID: p.VersionID, LastUpdated: p.LastUpdated.UTC(),
 		}})

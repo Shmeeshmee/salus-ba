@@ -71,14 +71,16 @@ func (s clinicSeller) Seller(ctx context.Context, org string) (invoice.Seller, e
 	return invoice.Seller{LegalName: details.LegalName, TaxID: details.TaxID, Address: clinic.Address()}, nil
 }
 
-// invoiceCaller is the receipts' view of the signed-in session: for staff, whether the account is the clinic's admin
-// and the practitioner it is; for a patient, their profile's id (empty before the profile exists).
+// invoiceCaller is the receipts' view of the signed-in session: for staff, whether the account is the clinic's admin,
+// its receptionist (the desk's receipts, docs/clinic-cms W2) and the practitioner it is; for a patient, their
+// profile's id (empty before the profile exists).
 func invoiceCaller(accounts *auth.Service, patients *patient.Service) func(ctx context.Context) (invoice.Caller, bool, error) {
-	caller := appointmentCaller(accounts, patients)
+	caller := deskCaller(accounts, patients)
 	return func(ctx context.Context) (invoice.Caller, bool, error) {
 		c, ok, err := caller(ctx)
 		return invoice.Caller{
-			AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, PatientID: c.PatientID, Admin: c.Admin,
+			AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, PatientID: c.PatientID,
+			Admin: c.Admin, Reception: c.Reception,
 		}, ok, err
 	}
 }

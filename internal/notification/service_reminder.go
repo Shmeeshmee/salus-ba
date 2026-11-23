@@ -85,10 +85,14 @@ func (s *Service) DispatchReminder(ctx context.Context, a appointment.ReminderAr
 // patient's quiet hours end if that is at least 30 minutes before c.Deadline, else none. Quiet hours are in the
 // patient's zone, else the clinic's. A source delivered before on a channel (and device) gets nothing more there. The
 // reads of the account's settings and devices are audited with the kind's agent (agentOf). The clinic's settings are
-// read in its scope; the caller's clinic scope is set back after (as it was, or none).
+// read in its scope; the caller's clinic scope is set back after (as it was, or none). A patient without an account (a
+// profile the clinic registered, docs/clinic-cms W1) gets nothing on any channel, and nothing is read.
 func (s *Service) Deliver(ctx context.Context, kind Kind, sourceID, org, accountID string, c Content) error {
 	if err := s.delivers(false); err != nil {
 		return err
+	}
+	if accountID == "" {
+		return nil
 	}
 	agent := agentOf(kind)
 	return s.p.Tx.WithTx(ctx, func(ctx context.Context) error {

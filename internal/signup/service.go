@@ -16,6 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/subscription"
@@ -47,18 +48,18 @@ type Transactor interface {
 
 // Clinics creates a clinic and lists it in the public directory (organization.Service).
 type Clinics interface {
-	Create(ctx context.Context, name string) (organization.Organization, error)
+	Create(ctx context.Context, agent, name string) (organization.Organization, error)
 	List(ctx context.Context, id string) error
 }
 
 // Admins invites a clinic's first admin (auth.Service).
 type Admins interface {
-	InviteAdmin(ctx context.Context, org, email string) (auth.Invite, error)
+	InviteAdmin(ctx context.Context, agent, org, email string) (auth.Invite, error)
 }
 
 // Trials starts a clinic's trial (subscription.Service).
 type Trials interface {
-	StartTrial(ctx context.Context, org string) (subscription.Subscription, error)
+	StartTrial(ctx context.Context, agent, org string) (subscription.Subscription, error)
 }
 
 // Ports are what the Service consumes. salusctl's CreateClinic, Signups and Approve need Repo, Tx, Clock, Clinics,
@@ -168,7 +169,8 @@ func (s *Service) IssueVerification(ctx context.Context, id string) (Verificatio
 	return v, nil
 }
 
-// Verify checks token, creates the clinic unlisted, invites its admin and starts the trial, in one transaction.
+// Verify checks token, creates the clinic unlisted, invites its admin and starts the trial, in one transaction, each
+// audited with the signup as the agent.
 // ErrInvalidToken for a token that is unknown, replaced, used or older than TokenLifetime; a RateLimitedError over the
 // limit of clientIP.
 func (s *Service) Verify(ctx context.Context, token, clientIP string) (Signup, error) {
@@ -193,7 +195,7 @@ func (s *Service) Verify(ctx context.Context, token, clientIP string) (Signup, e
 		if !sg.VerifiedAt.IsZero() || now.Sub(sg.CreatedAt) > TokenLifetime {
 			return ErrInvalidToken
 		}
-		created, err := s.CreateClinic(ctx, sg.ClinicName, sg.Email)
+		created, err := s.createClinic(ctx, auditevent.AgentSignup, sg.ClinicName, sg.Email)
 		if err != nil {
 			return err
 		}
@@ -215,21 +217,27 @@ func (s *Service) Verify(ctx context.Context, token, clientIP string) (Signup, e
 }
 
 // CreateClinic creates the clinic name, unlisted, with its first admin's invite to email and its 30-day trial, in one
-// transaction: the one path for a clinic, from salusctl create-clinic and from a verified signup. Without the owner's
-// default plan the clinic is created without a trial (Created.Trial false).
+// transaction, audited as salusctl (salusctl create-clinic). Without the owner's default plan the clinic is created
+// without a trial (Created.Trial false).
 func (s *Service) CreateClinic(ctx context.Context, name, email string) (Created, error) {
+	return s.createClinic(ctx, auditevent.AgentOperator, name, email)
+}
+
+// createClinic is the one path for a clinic, from salusctl create-clinic and from a verified signup; its writes are
+// audited as agent.
+func (s *Service) createClinic(ctx context.Context, agent, name, email string) (Created, error) {
 	var out Created
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
-		clinic, err := s.p.Clinics.Create(ctx, name)
+		clinic, err := s.p.Clinics.Create(ctx, agent, name)
 		if err != nil {
 			return err
 		}
-		inv, err := s.p.Admins.InviteAdmin(ctx, clinic.ID, email)
+		inv, err := s.p.Admins.InviteAdmin(ctx, agent, clinic.ID, email)
 		if err != nil {
 			return err
 		}
 		out = Created{OrganizationID: clinic.ID, InviteID: inv.ID, Trial: true}
-		if _, err = s.p.Trials.StartTrial(ctx, clinic.ID); errors.Is(err, subscription.ErrNoPlan) {
+		if _, err = s.p.Trials.StartTrial(ctx, agent, clinic.ID); errors.Is(err, subscription.ErrNoPlan) {
 			out.Trial, err = false, nil
 		}
 		return err
@@ -269,10 +277,14 @@ func (s *Service) Approve(ctx context.Context, organizationID string) error {
 }
 
 // Setup returns the setup wizard's progress of the caller's clinic: every step, open unless saved done or skipped.
-// ErrNotFound for a caller with no clinic. Not personal data; not audited.
+// ErrNotFound for a caller with no clinic, ErrForbidden for staff who are not its admin (a practitioner, a
+// receptionist): the wizard is the admin's. Not personal data; not audited.
 func (s *Service) Setup(ctx context.Context, c Caller) (Setup, error) {
 	if c.OrganizationID == "" {
 		return Setup{}, ErrNotFound
+	}
+	if !c.Admin {
+		return Setup{}, ErrForbidden
 	}
 	var out Setup
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -302,6 +314,9 @@ func (s *Service) SaveSetup(ctx context.Context, c Caller, in Setup) (Setup, err
 	}
 	var out Setup
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.p.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
+			return err
+		}
 		now := s.p.Clock.Now()
 		for _, step := range steps {
 			if state, ok := in.Steps[step]; ok {

@@ -58,3 +58,48 @@ func TestStaffBookingArriveAndDesk_InTheClinicsScope(t *testing.T) {
 		t.Errorf("Desk = %+v, %v; want the arrived visit", day, err)
 	}
 }
+
+// An arrived visit is closed as a booked one is: fulfilled or a no-show, or cancelled (00065's transitions).
+func TestCancelAndSetStatus_CloseAnArrivedVisit(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner)
+	var staffID string
+	if err := owner.QueryRow(t.Context(), `INSERT INTO account (email, password_hash, role, organization_id)
+		VALUES ('desk.b@example.test', 'h', 'reception', $1) RETURNING id::text`, clinicA).Scan(&staffID); err != nil {
+		t.Fatal(err)
+	}
+	var visits [2]appointment.Appointment
+	at := now.Add(time.Hour)
+	err := inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
+		for i := range visits {
+			in := newAppt(s, s.patientA, start.Add(time.Duration(i)*time.Hour))
+			in.Mode, in.BookedBy = schedule.ModeInPerson, staffID
+			a, err := r.Create(ctx, in)
+			if err != nil {
+				return err
+			}
+			if visits[i], err = r.Arrive(ctx, a.ID, at); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
+		done, err := r.SetStatus(ctx, visits[0].ID, appointment.StatusFulfilled, at)
+		if err != nil || done.Status != appointment.StatusFulfilled || !done.ArrivedAt.Equal(at) {
+			t.Errorf("SetStatus(fulfilled) of an arrived visit = %+v, %v; want fulfilled, its arrival kept", done, err)
+		}
+		cancelled, err := r.Cancel(ctx, visits[1].ID, appointment.ReasonProvider, "", at)
+		if err != nil || cancelled.Status != appointment.StatusCancelled {
+			t.Errorf("Cancel() of an arrived visit = %+v, %v; want cancelled", cancelled, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

@@ -18,21 +18,14 @@ writes under its own heading here.
 | Q3 | done 2026-11-23, integrated 2026-11-23 | `cms(Q3)`, merged into `feat/cms` with `cms(wave 2)` |
 | F | split into F1, F2, F3 (wave 3; the owner said yes to the reception role on 2026-11-23) | |
 | G | hold (Q6) | |
-| 3.0 | done 2026-11-23 | `cms(3.0)` on `wt/cms/3.0` |
-| F1 | done 2026-11-23 | `cms(F1)` on `wt/cms/F1` |
-| F2 | not started (wave 3, after 3.0) | |
-| F1 | not started (wave 3, after 3.0) | |
-| F2 | done 2026-11-23, partly (see its Deferred) | `cms(F2)` on `wt/cms/F2` |
-| F3 | not started (wave 3, after 3.0) | |
-| F3 | done 2026-11-23 | `cms(F3)` on `wt/cms/F3` |
-| O1 | not started (wave 3, after 3.0) | |
-| O1 | done 2026-11-23 | `cms(O1)` on `wt/cms/O1` |
-| O2 | not started (wave 3, after 3.0) | |
-| O2 | import done 2026-11-23; the clinic data export deferred to a follow-up package | `cms(O2)` on `wt/cms/O2` |
-| X1 | not started (wave 3, after 3.0) | |
-| X1 | done 2026-11-23 | `cms(X1)` on `wt/cms/X1` |
-| X2 | not started (wave 3, after 3.0) | |
-| X2 | done 2026-11-23 | `cms(X2)` on `wt/cms/X2` |
+| 3.0 | done 2026-11-23, integrated 2026-11-23 | `cms(3.0)`, merged into `feat/cms` with `cms(wave 3)` |
+| F1 | done 2026-11-23, integrated 2026-11-23 | `cms(F1)`, merged into `feat/cms` with `cms(wave 3)` |
+| F2 | done 2026-11-23, integrated 2026-11-23; the staff move deferred to wave 4 | `cms(F2)`, merged into `feat/cms` with `cms(wave 3)` |
+| F3 | done 2026-11-23, integrated 2026-11-23 | `cms(F3)`, merged into `feat/cms` with `cms(wave 3)` |
+| O1 | done 2026-11-23, integrated 2026-11-23 (migration renumbered `00066`) | `cms(O1)`, merged into `feat/cms` with `cms(wave 3)` |
+| O2 | import done 2026-11-23, integrated 2026-11-23; the clinic data export deferred to wave 4 | `cms(O2)`, merged into `feat/cms` with `cms(wave 3)` |
+| X1 | done 2026-11-23, integrated 2026-11-23 | `cms(X1)`, merged into `feat/cms` with `cms(wave 3)` |
+| X2 | done 2026-11-23, integrated 2026-11-23 | `cms(X2)`, merged into `feat/cms` with `cms(wave 3)` |
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
 
@@ -1175,7 +1168,7 @@ the integration's, below).
 
 ## O1: clinic signup and setup wizard
 
-Status: done, 2026-11-23, on `wt/cms/O1`, one commit `cms(O1)`. Migration `00068_clinic_signup.sql`. 3.0 was taken as
+Status: done, 2026-11-23, on `wt/cms/O1`, one commit `cms(O1)`. Migration `00066_clinic_signup.sql`. 3.0 was taken as
 done on the strength of its commit `2ea853c` (merged into this branch by `80e7769`).
 
 **Built.**
@@ -1183,7 +1176,7 @@ done on the strength of its commit `2ea853c` (merged into this branch by `80e776
 - **One path for a clinic.** `signup.Service.CreateClinic` creates the clinic (unlisted), its admin's invite and its
   30-day trial in one transaction; `salusctl create-clinic` now calls it, and a verified signup calls it from the API.
   `organization`'s repository `Create` sets the new clinic's scope first (an id from `gen_random_uuid()`), and
-  migration 00068 grants `salus_app` `INSERT (id, name)` on `organization`: `organization_clinic`'s check lets the app
+  migration 00066 grants `salus_app` `INSERT (id, name)` on `organization`: `organization_clinic`'s check lets the app
   insert only the clinic of its scope, so the invite and the trial that follow write into that clinic alone.
 - **Signup.** `POST /signup` (202 for every valid request, so nothing is enumerated: each is a new signup), rate limited
   per client address (5 an hour) and per e-mail (3 a day), counters named by an HMAC of `RATE_LIMIT_KEY`; the
@@ -1193,14 +1186,14 @@ done on the strength of its commit `2ea853c` (merged into this branch by `80e776
   `invalid_verification`, and a concurrent second verification rolls its clinic back.
 - **Operator.** `salusctl signup list` (opaque ids and dates only) and `salusctl signup approve <organization-id>`
   (sets `approved_at` and lists the clinic: `organization.Service.List`, audited as salusctl).
-- **Wizard.** `clinic_setup_step` (00068, owned by `signup`, not personal data, clinic-scoped): `GET /clinic/setup` for
+- **Wizard.** `clinic_setup_step` (00066, owned by `signup`, not personal data, clinic-scoped): `GET /clinic/setup` for
   the clinic's staff, `PUT /clinic/setup` for its admin; a step without a row is open. Web: `SetupWizard.tsx` (`/setup`,
   each step links to its own screen: clinic settings, membership for the billing details, working hours,
   practitioners, price list; done, skip or reopen) and `SetupBanner` above an admin's screens while a step is open.
 - **Web signup.** `Signup.tsx`: `/signup` (clinic name, e-mail, the UI language) and `/signup/verify` (the token from
   the fragment, removed from the address bar). New catalog area `signup` in the five staff languages.
 - **Retention.** The `clinic_signup` rule now deletes unverified signups 30 days after they were made
-  (`signup.Purger`, as `salus_retention`, 00068's grant); a verified one stays with its clinic.
+  (`signup.Purger`, as `salus_retention`, 00066's grant); a verified one stays with its clinic.
 - **Landing.** The header's button is "Sign up" to `/signup` (only that link changed).
 - **DPIA**: "Package O1" block.
 
@@ -1226,7 +1219,7 @@ worker calls `signup.Service.IssueVerification` and then the notifier.
 (`internal/notification/templates/<language>/signup.txt`, ten languages), and the landing button "Sign up".
 
 **Review** (one round, a fresh subagent over the diff; Copilot is out of quota). Fixed, each with its failing test
-first: a signed-up clinic's admin could list it through the clinic settings before approval (00068's trigger
+first: a signed-up clinic's admin could list it through the clinic settings before approval (00066's trigger
 `organization_guard_signup_listed`: a clinic with a waiting signup is listed only by the operator; a clinic from
 `create-clinic` is unaffected); a clinic name with a line break or a link went into the e-mail (refused,
 `invalid_signup`). Checked and not reproduced: a double verification under React's StrictMode (a test pins one
@@ -1443,6 +1436,147 @@ warn on), `make cover`.
 
 **Not walked in a browser**: this session had no browser tool. The web section and the mobile screens are covered by
 their component and widget tests only; the integration session should walk `/clinic` at desktop width and 390 px.
+
+## Wave 3 integration
+
+Done 2026-11-23 on `feat/cms`: `wt/cms/F1`, `F2`, `F3`, `O1`, `O2`, `X1`, `X2` merged with `--no-ff` in that order onto
+3.0, then one commit `cms(wave 3): integrate F1, F2, F3, O1, O2, X1, X2`. The wave's migrations follow `00065` without
+gaps: O1's `00068_clinic_signup.sql` is now `00066_clinic_signup.sql` (with every reference to it); no other package
+needed one, so `00067` to `00071` are not used.
+
+- **Merges.** Conflicts only in shared files: this file and the DPIA (every package's block kept), the organization
+  queries and port (X2's profile and O1's create and list, both kept), the web catalog area list, and the mobile ARB
+  catalogs (merged as JSON: every package's keys). Generated code was not hand-merged: `make sqlc`, `make gen-clients`
+  and `flutter gen-l10n` ran after the merges. `web/src/App.tsx` was merged by hand: a receptionist's menu holds only
+  "Front desk", `/` sends them to `/desk`, and every other path is not found (F1 had them land on "not found"
+  everywhere, with F3's `/desk` route behind that check).
+- **The receptionist's clinic.** `internal/api/app.go` gives the care record's domains `appointmentCaller`, in which a
+  receptionist is still no one of the clinic (refused as a stranger), and the desk's own routes and the receipts
+  `deskCaller`, which carries the clinic and `Reception`. `patient.Caller` takes `Reception` from F1's member, and a
+  receptionist's FHIR Patient read is decided by `access` as `RoleReception` (refused). The consent routes treat a
+  receptionist as a stranger, so FHIR Consent is refused too.
+- **Receipts at the desk.** `invoice.Caller.Reception`: a receptionist issues a receipt for any visit of the clinic and
+  reads and prints the receipts they issued; the list of all receipts, a reversal, a retried report, the reports and
+  quotes stay the admin's (and the practitioner's where they were). `GET /clinic/services` was already the desk's.
+- **The desk's FHIR reads.** Organization/<own clinic> (its time zone), PractitionerRole?organization=<own clinic> with
+  its practitioners, Schedule and Slot. A receptionist's read of their clinic is now audited (`organization.Read`
+  records it when the caller is the receptionist; other staff reads of a clinic stay unaudited, nothing in a clinic is
+  personal data); the role search and the practitioner reads were audited already.
+- **A clinic that is not listed or not approved.** The desk works through the clinic's own scope: the FHIR Schedule
+  and Slot searches give a clinic's own staff its schedules and free slots in its scope, listed or not
+  (`schedule.ReadFor`/`ByActorFor`, `slot.SearchFor`; everyone else still gets the public directory), and a staff
+  booking resolves its slot with `slot.BookableInClinic`, checks the role is active, and checks its service against the
+  clinic's own price list (`chargeitemdefinition.OfClinic`). The suspended clinic's booking stop holds: a staff booking
+  asks `subscription.BookingsStopped` (the clinic's scope does not hide such a clinic as the directory does) and is
+  refused with `slot_unavailable`. The CapabilityStatement's Schedule, Slot and Organization texts say so.
+- **The desk's day.** Without a date it is today in the clinic's zone (the service decides; the handler no longer
+  takes a clock); each visit carries `serviceName` from the clinic's own price list; visits are ordered by practitioner
+  role, then start, as F2 built. A patient registered at the desk is bookable at once: the in-person consent is the
+  clinic's active care consent (`TestReceptionDesk_…` books them in the same minute).
+- **F1's route test, every route.** `notServedYet` is now the staff move and the clinic export only; the receipts are
+  reclassified (issue, read, PDF: desk; the rest refused); `GET /clinic/profile` is desk (the clinic's public profile,
+  open to any staff since X2); `GET`/`PUT /clinic/setup` are refused and now are (admin only). PUT routes get an
+  If-Match so they reach the access check. New `reception_fhir_test.go` holds every FHIR interaction of the
+  CapabilityStatement to a class the same way: the desk's reads answer, every resource with a patient's data refuses
+  (403, 404 or an empty search, the same for the clinic's own patient as for an unknown one, with none of their data).
+  New `reception_desk_test.go` runs the desk at an unlisted clinic against Postgres.
+- **Patients without an account.** No e-mail or push job is enqueued for them anywhere, and a job already queued
+  completes without sending or retrying: booking (F2), cancellation by staff, the clinic or a revocation (new), SAL-33
+  reminders (no delivery is created; the reminder is marked dispatched), the waitlist (such a patient is not
+  reachable, so passed over), quotes (`quote_email` is not enqueued; `appointment.PatientHasAccount`), a signed
+  document's e-mail (`composition` asks the same port), and chat (no unread e-mail and no push). A test per job kind.
+  **Their reminders by SMS are a later package** (wave 4): until then they get no reminder at all.
+- **Signup (O1).** The audit events of a clinic created by signup name the signup (`auditevent.AgentSignup`), those of
+  `salusctl create-clinic` salusctl; `organization.Create`, `auth.InviteAdmin` and `subscription.StartTrial` take the
+  agent. Every signup service error maps to a client code the contract documents for its route
+  (`handler_http_errors_test.go` checks it against `api/openapi.yaml`); `PUT /clinic/setup` gained its documented 404.
+  The wizard is the admin's only (403 to other staff). The landing's sign-up link is `VITE_APP_URL` + `/signup`, set at
+  build time, and `[APP URL]/signup` while unset (CLAUDE.md's landing row lists the placeholder). The e2e journey
+  `TestClinic_SignsItselfUpAndIsListedOnceApproved` found a real bug: `PUT /clinic/setup` wrote before it set the
+  clinic's scope (a 500 on the first save); fixed with a test.
+- **Price list import (O2).** A CSV that is not valid UTF-8 is decoded as Windows-1250 before it is refused (a
+  128-entry table, no dependency); bytes Windows-1250 leaves undefined are still refused. Tested with š, đ, č, ć, ž and
+  their capitals.
+- **Quotes and profile (X1, X2).** `make fhir-validate` over X2's golden files and SearchParameter: 0 errors (only the
+  general dom-6 narrative warning); the SearchParameter keeps no expression, which R4 allows, because the languages
+  are profile data, not an Organization element. The mobile quote card names its clinic from the directory, or says
+  it is no longer listed.
+- **Web.** One global style for `date` and `tel` inputs; the desk's own copy of it is gone, so the desk and the
+  receipts period match.
+- **e2e.** New `TestDesk_AReceptionistRegistersAWalkInBooksChecksInAndIssuesTheReceipt` (the receptionist finds a free
+  in-person time through the clinic's own searches, registers the walk-in with the in-person consent, books with a
+  service, sees it on the desk's day with its name, marks the arrival, issues and prints the receipt, and is refused the
+  patient's questionnaire answers, documents, history and chat) and O1's signup journey.
+
+**Checks** (this integration's own compose project, `salus-cms-w3`; e2e on fresh volumes, twice: before and after the
+review's fixes). On the final tree: `make lint` (gofmt, vet, golangci-lint, i18n-check, migrations, Caddy routes),
+`make test`, `make archcheck`, `make cover` (90.6% total, every package at 80% or more), `make fhir-validate` (129
+files, 0 errors), `make gen-clients` (no diff), `make e2e` (362 s); before the review's fixes, which touched no web,
+mobile or landing file: `make web-lint` (the one warning in `analytics/ClinicView.tsx` that was there), `web-typecheck`,
+`web-test` (1266), `web-build`, `make mobile-analyze`, `mobile-test` (680), `landing-lint`, `-typecheck`, `-test` (51),
+`-build`: all pass. Tests changed on purpose: F1's App test (the receptionist's menu and landing), F1's route table
+(receipts, `notServedYet`, the profile), the staff booking's "another clinic's slot" row (`slot_unavailable`), the
+desk handler's day without a date, O2's undecodable-byte case (0x9a is "š" in Windows-1250), and the golden files of
+the organization's invalid name and the router's CapabilityStatement.
+
+**Review** (a fresh subagent over `origin/main` and the working tree; Copilot is out of quota). The one question —
+can a receptionist, or one clinic, reach another's data or clinical data — found no path. Fixed:
+
+- An XLSX "cell bomb" (cells referencing column XFD) could expand a few KB of XML into gigabytes in `pkg/xlsx`; a
+  sheet may now expand to at most a million cells (`ErrTooLarge`, tested), and self-signup made the import public.
+- An `arrived` visit could never be closed: its practitioner now marks it fulfilled or a no-show and staff cancel it
+  (00065's transitions), and the arrival is written to the visit's change history.
+- One patient the clinic's scope hides (a revocation before the job cancels the visit) gave the whole desk day a 500;
+  their visit is now left off the day.
+- A signed-up clinic's admin listing it before approval got a 500 from 00066's trigger: now 409 `business-rule`
+  (`organization.ErrNotApproved`, audited as refused).
+- A clinic could be renamed, after signup's check, to a text with a link or a line break that then went into every
+  invite e-mail it sends: a clinic's name is one line without `://` on create and on rename too.
+- FHIR `Appointment?status=arrived` was refused; it is a search value now (CapabilityStatement updated).
+- `access.Desk` had no caller (the desk rests on its SQL and row-level security, and `access` refuses a receptionist
+  every care-record rule): deleted with its test.
+
+Declined, with reasons in the PR: a cap on invites per clinic (the name rule removes the attacker's text; a signed-up
+clinic must invite its first practitioner in the wizard before approval, so gating invites on approval would break
+the wizard; a per-clinic invite limit is a wave 4 item); the clinic revoking an in-person consent and the subject
+rights of a clinic-registered profile (deferred to wave 4 above, needed before production); the import reading the
+2 MiB upload before the admin check (bounded, refused and audited).
+
+**Browser walk** (headless Chromium from the playwright service on this integration's own stack, a synthetic clinic,
+1280 and 390 px; the temporary spec and its Go driver are not committed): as a receptionist, `/desk` with the only
+menu entry "Front desk", "Arrived" and its time, the receipt dialog from the row, the walk-in dialog, and
+`/practitioners` not found; as an admin, the home banner of the setup, the staff invite with Reception, the desk, the
+price list import with a file that has errors (three lines named with their errors), the quote dialog, the clinic
+settings with the profile for patients abroad, `/setup`; signed out, `/signup`. No horizontal scroll on any page at
+either width. At 390 px the receptionist's run stopped at "Arrived" because the 1280 run had already marked the visit
+arrived (the script's order, not the screen). Seen: at desktop width the walk-in dialog's fields take half its width.
+The patient app's quote and clinic profile screens are covered by widget tests (`quotes_test.dart`, the clinic
+profile's), not walked: there is no device run in this repository.
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| A receptionist in the care record's domains | No clinic at all (a stranger), as F1 built; the clinic only on the desk's routes and receipts | One place refuses by default; a new clinical route cannot open to the desk by accident |
+| A receptionist's receipts | Issue for any visit; read and print the ones they issued | W2 gives the desk receipts; the list of all of them is the admin's |
+| The desk's free times | The existing FHIR searches, opened to the clinic's own staff in its scope; no new route | The screen already reads them; nothing in a slot is personal data |
+| Another clinic's slot in a staff booking | `slot_unavailable`, as an unknown one (was `not_found`) | Resolved in the clinic's own scope, it does not exist; one existing test row changed on purpose |
+| A suspended clinic at the desk | Refused with `slot_unavailable` | The same answer the app gets for such a clinic |
+| Auditing a clinic read | The receptionist's only | Asked for the desk; a clinic holds no personal data |
+| `GET /clinic/profile` | Any staff of the clinic, as X2 built | The same data is public at `/organizations/{id}/profile` |
+
+**Deferred to wave 4.**
+
+- Staff moving a visit: `POST /clinic/appointments/{id}/reschedule` stays declared and unserved, `MoveForPatient`
+  refuses, and the desk shows no move action.
+- SMS reminders for patients without an account (deliveries are per account today: a migration).
+- The clinic revoking an in-person consent, and correcting a profile it registered.
+- The clinic data export (O2; its migration number is reserved, the three routes stay declared and unserved).
+- A clinic-wide quotes page in web.
+- Patient import.
+- A limit on the invites a clinic sends (review).
+- Also open: the hourly slot generation covers listed clinics only, so an unlisted clinic's free times run 28 days ahead
+  of its last change of hours and are not rolled forward until it is listed.
 
 ## Facts
 

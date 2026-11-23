@@ -240,10 +240,10 @@ func TestService_OnlyTheClinicsAdminSeesTheMembership(t *testing.T) {
 	}
 }
 
-// A new clinic gets a 30-day trial of the default plan, once, audited as salusctl; none while the plan is not set.
+// A new clinic gets a 30-day trial of the default plan, once, audited as its agent; none while the plan is not set.
 func TestStartTrial_GivesThirtyDaysOfTheDefaultPlanOnce(t *testing.T) {
 	w := newWorld(t)
-	got, err := w.svc.StartTrial(t.Context(), orgB)
+	got, err := w.svc.StartTrial(t.Context(), auditevent.AgentSignup, orgB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,15 +251,15 @@ func TestStartTrial_GivesThirtyDaysOfTheDefaultPlanOnce(t *testing.T) {
 		t.Errorf("StartTrial() = %+v, want a basic trial until %v", got, want)
 	}
 	w.clock.T = w.clock.T.Add(48 * time.Hour)
-	again, err := w.svc.StartTrial(t.Context(), orgB)
+	again, err := w.svc.StartTrial(t.Context(), auditevent.AgentSignup, orgB)
 	if err != nil || !again.TrialEndsAt.Equal(got.TrialEndsAt) {
 		t.Errorf("second StartTrial() = %+v, %v, want the first trial kept", again, err)
 	}
-	if n := w.audit.by(auditevent.AgentOperator); n != 1 {
+	if n := w.audit.by(auditevent.AgentSignup); n != 1 {
 		t.Errorf("%d audit events, want one", n)
 	}
 	delete(w.repo.plans, "basic")
-	if _, err := w.svc.StartTrial(t.Context(), "0c000000-0000-4000-8000-000000000003"); !errors.Is(err, subscription.ErrNoPlan) {
+	if _, err := w.svc.StartTrial(t.Context(), auditevent.AgentOperator, "0c000000-0000-4000-8000-000000000003"); !errors.Is(err, subscription.ErrNoPlan) {
 		t.Errorf("without the plan: %v, want ErrNoPlan", err)
 	}
 }

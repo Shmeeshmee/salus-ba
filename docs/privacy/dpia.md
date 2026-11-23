@@ -2605,7 +2605,7 @@ in-person consent by the clinic are not built yet (F2's deferred items in `docs/
 | An e-mail to nobody, or to the wrong account | A notice without an account sends nothing; no reminder is scheduled for a patient without an account |
 | A practitioner books or reads beyond their patients | A practitioner books only their own role's slots and finds only patients with an appointment with their role |
 
-### Package O1: clinic signup and setup wizard (migration 00068)
+### Package O1: clinic signup and setup wizard (migration 00066)
 
 **Processing added.** Anyone may sign a clinic up (W3): `POST /signup` stores the admin's e-mail, the clinic's name and
 a staff language in `clinic_signup` with the hash of a verification token, and the notifier sends the verification

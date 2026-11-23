@@ -262,6 +262,33 @@ func TestNotifier_MailsACancellationAfterARevocationAndNothingThatNoLongerApplie
 	}
 }
 
+// clinic-cms W1: a patient the clinic registered has no account. Every appointment e-mail job of theirs, enqueued
+// before they had none or by a path that does not know it, completes (no retry) and sends nothing.
+func TestNotifier_CompletesEveryAppointmentEmailOfAPatientWithoutAnAccountSendingNothing(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	b := seedBooking(t, owner)
+	if _, err := owner.Exec(t.Context(), `UPDATE patient SET account_id = NULL, registered_by_organization_id = $2 WHERE id = $1`,
+		b.patient, clinicID); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range []river.JobArgs{
+		appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.RescheduledEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.CancelledEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		composition.SignedEmailArgs{AppointmentID: b.past, OrganizationID: clinicID},
+		invoice.QuoteEmailArgs{AppointmentID: b.past, OrganizationID: clinicID},
+	} {
+		if state := runEmailJob(t, app, args); state != rivertype.JobStateCompleted {
+			t.Errorf("%s: job state %s, want completed", args.Kind(), state)
+		}
+	}
+	if n := mailpitCount(t, b.email); n != 0 {
+		t.Errorf("%d e-mails to the address of the account the patient no longer has, want none", n)
+	}
+}
+
 // mailpitCount returns how many messages to address the compose Mailpit holds.
 func mailpitCount(t *testing.T, address string) int {
 	t.Helper()

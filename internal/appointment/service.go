@@ -41,6 +41,8 @@ type Consents interface {
 // transaction (slot.Service).
 type Slots interface {
 	Bookable(ctx context.Context, id string) (slot.Bookable, error)
+	// BookableInClinic resolves a staff booking's slot in the clinic org's own scope, listed or not (F2).
+	BookableInClinic(ctx context.Context, org, id string) (slot.Bookable, error)
 	Hold(ctx context.Context, org, id string) (slot.Slot, error)
 	Release(ctx context.Context, org, id string) (bool, error)
 }
@@ -81,6 +83,13 @@ type Jobs interface {
 	EnqueueRescheduled(ctx context.Context, id, org string) error
 }
 
+// BookingStops tells whether a clinic takes no new bookings: its membership is suspended or cancelled
+// (subscription.Service). A staff booking asks it, because the clinic's own scope does not hide such a clinic as the
+// public directory does.
+type BookingStops interface {
+	BookingsStopped(ctx context.Context, org string) (bool, error)
+}
+
 // StatsQueue enqueues the refresh of a clinic's statistics for the local day holding day, in the transaction in
 // ctx (clinicstats' River queue, docs/plans/analytics.md §4): every appointment write enqueues its start's day.
 type StatsQueue interface {
@@ -104,6 +113,8 @@ type Ports struct {
 	// Services gives the services a clinic offers in a mode, for a booking that names one (service_service.go): needed
 	// only by the api's Service.
 	Services Services
+	// Stops says whether a clinic's new bookings are stopped: needed only by the api's Service, for a staff booking.
+	Stops BookingStops
 	// Prices gives a booking's price and Payments takes it (service_purchase.go): no price exists before the payments
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices

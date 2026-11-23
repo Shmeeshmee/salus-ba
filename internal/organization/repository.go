@@ -27,7 +27,7 @@ type Repository interface {
 	// last updated at at; or returns ErrConflict when that version is not the current one.
 	PutProfile(ctx context.Context, id string, p Profile, at time.Time) (Profile, error)
 	// Create stores a new active, unlisted clinic and returns it, setting its scope on the transaction in ctx: the
-	// operator command as the owner, or a verified signup as salus_app (00068).
+	// operator command as the owner, or a verified signup as salus_app (00066).
 	Create(ctx context.Context, name string) (Organization, error)
 	// List puts the unlisted clinic id in the public directory; false when there is no such unlisted clinic. Only the
 	// owner may (salusctl signup approve).

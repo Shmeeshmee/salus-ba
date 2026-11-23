@@ -14,17 +14,20 @@ import (
 	"strings"
 )
 
-// The limits of what is read: a part's size once inflated, and the rows and columns of the sheet.
+// The limits of what is read: a part's size once inflated, the rows and columns of the sheet, and the cells it expands
+// to (empty ones before a cell included), so that a few kilobytes of XML cannot take gigabytes of memory.
 const (
 	maxPart    = 16 << 20
 	MaxRows    = 10000
 	maxColumns = 16384 // XFD, a spreadsheet's last column
+	maxCells   = 1 << 20
 )
 
 var (
 	// ErrNotWorkbook is returned for bytes that are not a workbook with a readable first sheet.
 	ErrNotWorkbook = errors.New("xlsx: not a workbook")
-	// ErrTooLarge is returned for a part larger than 16 MiB once inflated, or a sheet with a row after MaxRows.
+	// ErrTooLarge is returned for a part larger than 16 MiB once inflated, a sheet with a row after MaxRows, or one that
+	// expands to more than a million cells.
 	ErrTooLarge = errors.New("xlsx: too large")
 )
 
@@ -64,14 +67,31 @@ type sharedXML struct {
 
 type sheetXML struct {
 	Rows []struct {
-		Cells []struct {
-			Ref    string  `xml:"r,attr"`
-			Type   string  `xml:"t,attr"`
-			Value  string  `xml:"v"`
-			Inline textXML `xml:"is"`
-		} `xml:"c"`
-		R int `xml:"r,attr"`
+		Cells []cellXML `xml:"c"`
+		R     int       `xml:"r,attr"`
 	} `xml:"sheetData>row"`
+}
+
+type cellXML struct {
+	Ref    string  `xml:"r,attr"`
+	Type   string  `xml:"t,attr"`
+	Value  string  `xml:"v"`
+	Inline textXML `xml:"is"`
+}
+
+// text is the cell's text: a shared string, an inline string or its value; false for a shared index that is none.
+func (c cellXML) text(shared sharedXML) (string, bool) {
+	switch c.Type {
+	case "s":
+		i, err := strconv.Atoi(c.Value)
+		if err != nil || i < 0 || i >= len(shared.Items) {
+			return "", false
+		}
+		return shared.Items[i].String(), true
+	case "inlineStr":
+		return c.Inline.String(), true
+	}
+	return c.Value, true
 }
 
 // Rows returns the cells of the workbook's first sheet as text, row by row from row 1: a row without cells is
@@ -117,6 +137,7 @@ func Rows(data []byte) ([][]string, error) {
 // cells lays the sheet's cells out by their references.
 func cells(sheet sheetXML, shared sharedXML) ([][]string, error) {
 	var out [][]string
+	cells := 0 // the cells laid out so far, empty ones included
 	for _, row := range sheet.Rows {
 		r := row.R
 		if r == 0 {
@@ -140,16 +161,12 @@ func cells(sheet sheetXML, shared sharedXML) ([][]string, error) {
 					return nil, ErrNotWorkbook
 				}
 			}
-			text := c.Value
-			switch c.Type {
-			case "s":
-				i, err := strconv.Atoi(c.Value)
-				if err != nil || i < 0 || i >= len(shared.Items) {
-					return nil, ErrNotWorkbook
-				}
-				text = shared.Items[i].String()
-			case "inlineStr":
-				text = c.Inline.String()
+			text, ok := c.text(shared)
+			if !ok {
+				return nil, ErrNotWorkbook
+			}
+			if cells += col + 1 - len(line); cells > maxCells {
+				return nil, ErrTooLarge
 			}
 			for len(line) < col {
 				line = append(line, "")

@@ -54,9 +54,9 @@ func (s *Service) Invite(ctx context.Context, sess Session, in Invite) (Invite, 
 	return out, nil
 }
 
-// InviteAdmin invites the first admin of the clinic org. Only the operator command calls it (salusctl
-// create-clinic); its audit event names the operator command as the agent.
-func (s *Service) InviteAdmin(ctx context.Context, org, email string) (Invite, error) {
+// InviteAdmin invites the first admin of the clinic org, a step of the clinic's creation (salusctl create-clinic or a
+// verified signup); its audit event names agent, which is no account (auditevent.AgentOperator or AgentSignup).
+func (s *Service) InviteAdmin(ctx context.Context, agent, org, email string) (Invite, error) {
 	in, err := validInvite(Invite{Email: email, Role: RoleAdmin})
 	if err != nil {
 		return Invite{}, err
@@ -69,7 +69,7 @@ func (s *Service) InviteAdmin(ctx context.Context, org, email string) (Invite, e
 			return err
 		}
 		e := inviteEvent(auditevent.CodeCreate, auditevent.ActionCreate, Account{OrganizationID: org}, out.ID, auditevent.OutcomeSuccess)
-		e.AgentName = auditevent.AgentOperator
+		e.AgentName = agent
 		return s.audit.Record(ctx, e)
 	})
 	if err != nil {

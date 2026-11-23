@@ -17,7 +17,7 @@ class SignupApi {
 
   /// The setup wizard's progress
   ///
-  /// Each step open, done or skipped. For the clinic's staff. Built in package O1. Not personal data; not audited.
+  /// Each step open, done or skipped. For the clinic's admin only (a practitioner or a receptionist is refused). Built in package O1. Not personal data; not audited.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> getClinicSetupWithHttpInfo({
@@ -49,7 +49,7 @@ class SignupApi {
 
   /// The setup wizard's progress
   ///
-  /// Each step open, done or skipped. For the clinic's staff. Built in package O1. Not personal data; not audited.
+  /// Each step open, done or skipped. For the clinic's admin only (a practitioner or a receptionist is refused). Built in package O1. Not personal data; not audited.
   Future<ClinicSetup?> getClinicSetup({
     Future<void>? abortTrigger,
   }) async {

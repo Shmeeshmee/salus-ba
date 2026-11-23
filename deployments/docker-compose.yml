@@ -282,6 +282,8 @@ services:
     build:
       context: ../landing
       dockerfile: ../build/package/landing.Dockerfile
+      args:
+        VITE_APP_URL: ${VITE_APP_URL:-} # the web app's address for the sign-up link; unset, the [APP URL] placeholder
     image: salus-landing:dev
     ports: ["127.0.0.1:${SALUS_LANDING_PORT:-8090}:8080"]
     read_only: true

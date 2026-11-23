@@ -24,7 +24,7 @@ tables:
   clinic_appointment_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
   clinic_diagnosis_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
   clinic_signup: {owner: signup, personal_data: true} # a clinic's self-signup: the admin's e-mail (00065, O1)
-  clinic_setup_step: {owner: signup, personal_data: false} # the setup wizard's progress (00068, O1)
+  clinic_setup_step: {owner: signup, personal_data: false} # the setup wizard's progress (00066, O1)
   clinic_subscription: {owner: subscription, personal_data: false} # the clinic's plan and status (00059)
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
