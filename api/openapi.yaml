@@ -6022,6 +6022,40 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/subscription/invoices/{id}/pdf:
+    get:
+      operationId: getSubscriptionInvoicePdf
+      x-salus-package: cms-i
+      summary: A membership invoice as a PDF
+      description: >-
+        Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to
+        pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued.
+        Not personal data.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such invoice of the clinic, or no clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/billing-details:
     get:
       operationId: getBillingDetails

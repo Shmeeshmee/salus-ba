@@ -46,3 +46,8 @@ type Repository interface {
 	// OldestPastDue returns the due date of the clinic's oldest open invoice past due at now, zero for none.
 	OldestPastDue(ctx context.Context, org string, now time.Time) (time.Time, error)
 }
+
+// Jobs enqueues the invoice's e-mail in the transaction in the context (River's InsertTx).
+type Jobs interface {
+	EnqueueInvoiceEmail(ctx context.Context, a InvoiceEmailArgs) error
+}

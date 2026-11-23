@@ -39,6 +39,8 @@ type letter struct {
 	// When is the appointment's start in the clinic's zone, written by the language's date.txt.
 	When string
 	Link string
+	// Number is the membership invoice's number (docs/plans/clinic-cms.md, package I).
+	Number string
 	// Until is when a waitlist offer's hold ends, HH:MM in the clinic's zone (SAL-35).
 	Until string
 	// The reminders' (SAL-33): WhenLocal is the start in the patient's zone when it differs from the clinic's ("" when

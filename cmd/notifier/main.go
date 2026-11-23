@@ -18,6 +18,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/notification"
+	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -70,7 +71,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 	sender := notification.NewSMTPSender(relay.Addr, notification.SMTPSecurity(relay.TLS), relay.Username, relay.Password, relay.From, clock.System{})
 	client, err := worker.NewNotifier(pool, log, worker.Notifier{
 		Sender: sender, Pusher: pusher, SMS: &smstest.Sender{}, WebBaseURL: cfg.WebBaseURL, PatientAppURL: cfg.PatientAppURL,
-		LinkURL: cfg.AppointmentLinkURL,
+		LinkURL: cfg.AppointmentLinkURL, Seller: subscription.Seller(cfg.Seller),
 	})
 	if err != nil {
 		return err

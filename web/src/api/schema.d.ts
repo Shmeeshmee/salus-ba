@@ -2853,6 +2853,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/subscription/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A membership invoice as a PDF
+         * @description Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+         */
+        get: operations["getSubscriptionInvoicePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clinic/billing-details": {
         parameters: {
             query?: never;
@@ -12394,6 +12414,41 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSubscriptionInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such invoice of the clinic, or no clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

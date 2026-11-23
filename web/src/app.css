@@ -609,4 +609,10 @@ p.hint.join { margin-bottom: 20px; }
 .membership-invoices { min-width: 0; }
 @media (max-width: 480px) {
   .plain-table { display: block; overflow-x: auto; }
+  /* The membership invoices stack as one card per invoice, each cell under its column's name: no sideways scroll. */
+  .plain-table.membership-table { display: table; width: 100%; overflow: visible; }
+  .membership-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .membership-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
+  .membership-table td { display: block; padding: 0; border: 0; }
+  .membership-table td::before { content: attr(data-label); display: block; font-size: 0.8em; color: var(--color-text-muted); }
 }

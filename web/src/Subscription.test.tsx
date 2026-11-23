@@ -55,6 +55,15 @@ describe('Subscription', () => {
     expect(row?.textContent).toMatch(/1 Dec.* to 31 Dec/)
   })
 
+  // Package I: each invoice downloads as a PDF; every cell carries its column's name for the narrow layout.
+  it('links each invoice to its PDF', async () => {
+    renderScreen()
+    const link = await screen.findByRole('link', { name: 'Download invoice 7 (PDF)' })
+    expect(link.getAttribute('href')).toBe(`${globalThis.location.origin}/clinic/subscription/invoices/${invoice.id}/pdf`)
+    const cells = link.closest('tr')?.querySelectorAll('td') ?? []
+    expect([...cells].map((c) => c.getAttribute('data-label'))).toEqual(['Number', 'Period', 'Practitioners', 'Amount', 'Due', 'Status', 'Invoice'])
+  })
+
   // The period starts at midnight in the clinic's zone (Europe/Sarajevo), whatever the browser's zone is.
   it("shows the dates in the clinic's time zone", async () => {
     renderScreen({

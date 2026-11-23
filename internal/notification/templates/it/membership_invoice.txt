@@ -1,0 +1,5 @@
+Fattura di abbonamento Salus n. {{.Number}}
+
+In allegato trovate la fattura di abbonamento Salus n. {{.Number}} per {{.Clinic}} in formato PDF.
+
+La fattura e le istruzioni di pagamento sono anche nella pagina Abbonamento di Salus. Il pagamento avviene con bonifico bancario, indicando il numero della fattura come causale.

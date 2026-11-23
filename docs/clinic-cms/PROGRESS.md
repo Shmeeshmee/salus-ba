@@ -361,6 +361,76 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 
 ## I: membership invoice document and the suspended listing
 
+Status: built, 2026-11-23, on `wt/cms/I` (one commit `cms(I)`). Migration `00064_directory_membership.sql`. No pull
+request: the wave's integration opens it.
+
+Built:
+
+- `internal/subscription/service_document.go`: `PDF` (the admin's download, `GET /clinic/subscription/invoices/{id}/pdf`,
+  403 for the clinic's other staff, 404 for anyone else and another clinic's invoice) and `SendInvoice` (the
+  `subscription_invoice_email` job): the invoice laid out with `pkg/pdfdoc` in the clinic's default language (the five
+  staff languages, Bosnian for any other), the dates in its zone: the seller, the invoice's number, issue, due and paid
+  dates, the clinic as the buyer (legal name or name, tax id, address), the month's line (seats times the price per
+  seat), the total and the bank transfer with the number as the reference.
+- The e-mail: `issue` enqueues `subscription_invoice_email` (`InvoiceEmailArgs`, opaque ids, the notifier's `email`
+  queue, `subscription.NewRiverJobs`) in the invoice's transaction, so a second run of the month enqueues nothing. The
+  notifier works it (`invoiceEmailWorker` in `internal/worker/subscription.go`): the PDF goes to the clinic's billing
+  e-mail through `notification.Service.SendMembershipInvoice` (template `membership_invoice.txt` in all ten languages)
+  as an attachment; a clinic without a billing e-mail gets none. `notification.Message` gained `Attachment` (a pointer,
+  so `Message` stays comparable), sent by the SMTP sender as `multipart/mixed` (tested against Mailpit).
+- The seller: `config.LoadSeller` (`SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT`), each its
+  `[SELLER …]` placeholder when unset, in `config.Config.Seller` for the api and the notifier; `.env.example` lists them.
+- The suspended listing: migration 00064 rewrites the directory policy `organization_directory`: a listed clinic whose
+  membership is `suspended` or `cancelled` is not in the directory scope. The directory policies of practitioners,
+  roles, services, schedules and slots read `organization` through it, so all of them hide with it. A new select
+  policy `clinic_subscription_directory` lets the directory scope see the membership of a stopped clinic only. No grant
+  changes: the app still has no `UPDATE` on `subscription_invoice`.
+- Web: `/membership`'s invoices table has a PDF column (a link per invoice, with an accessible name naming its number);
+  at 480 px and less it is a card per invoice, every cell under its column's name (`data-label`), instead of the
+  sideways scroll of the wave 1 walk. Catalog `subscription`: `col.document`, `download`, `downloadLabel` in the five
+  staff languages.
+- `api/openapi.yaml`: the PDF route (`x-salus-package: cms-i`); `make gen-clients` run. DPIA: "Package I".
+
+Readings and decisions (agent, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Where the directory hides a stopped clinic | Row-level security (migration 00064), not a Go filter: one policy hides the clinic and everything the directory shows under it, and `organization` reads no table of `subscription` in Go (ownership). D's `bookableClinics` wrapper stays for the booking's own refusal |
+| Which statuses hide | `suspended` and `cancelled`, as D's `BookingsStopped`; `past_due` stays listed (Q4: the stop is at 30 days) |
+| The api test of the hiding | The api tests connect as the owner, which bypasses row-level security, so the hiding is tested as `salus_app` in `migrations/directory_membership_test.go`; the api test checks the PDF route and that care goes on |
+| The e-mail is not recorded on the invoice | The owner's note: no `UPDATE` grant on `subscription_invoice`. River keeps the job's state; a failed send is retried by River, a missing invoice or an address SMTP cannot carry cancels it |
+| A clinic without a billing e-mail | No e-mail; the admin downloads the PDF from `/membership` |
+| PDF labels | A Go map in `service_document.go` for the five staff languages (as C's receipt before H moves it); the invoice is for the clinic's staff |
+| The seller unset | Prints its placeholder (`[SELLER]` …) instead of refusing to start: the dev stack runs, and no invoice can look finished before Q3 |
+| One invoice by id | Read from the clinic's list (a clinic has one a month), no query of its own |
+| The PDF's file name | `salus-invoice.pdf` on the download, `salus-invoice-<number>.pdf` on the e-mail |
+
+New user-facing strings (for the owner): the invoice PDF's labels (five languages, `service_document.go`); the e-mail
+`membership_invoice.txt` (ten languages; subject "Salus membership invoice no. {number}"); web `subscription.col.document`
+("Invoice"), `subscription.download` ("PDF"), `subscription.downloadLabel` ("Download invoice {number} (PDF)").
+
+Tests first: each step's test was written and seen failing before its code (the service, the document, the SMTP
+attachment, the notification, the handler, the migration's policy, the web link).
+
+Checks (2026-11-23, compose project `salus-cms-i`): `runner.sh full` (`make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test`) passed on its second run; the first failed on four struct
+layouts (`fieldalignment`), fixed. `make cover` passed (90.8% total; `subscription` 86.4%, `config` 98.3%, `worker`
+90.1%). `make i18n-check` passed inside lint. Not run: `make e2e` (not in I's check sets), `make fhir-validate` (no
+golden FHIR file changed).
+
+Layout at 390 px: the invoices table's markup and `app.css` rendered in headless Chromium (Playwright 1.65) at 1280 and
+390 px: no sideways scroll at 390 (table 326 px in a 358 px panel). Not walked against a running stack with a signed-in
+admin.
+
+Deferred:
+
+- A browser walk of `/membership` against the full stack (seeded membership and invoice, admin sign-in with MFA): the
+  integration session's walk covers it.
+- No worker-level test runs `subscription_invoice_email` through River into Mailpit; the parts are tested (the service
+  with fakes, the SMTP attachment against Mailpit, the notification's message).
+- The PDF labels stay in Go; if H's `templates/pdf/<language>.json` pattern is wanted here too, a follow-up moves them.
+
+
 ## L: landing page
 
 ## Q1: questionnaire branching, rules and server

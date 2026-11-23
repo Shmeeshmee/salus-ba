@@ -109,6 +109,7 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
 *BillingApi* | [**getMyReceiptPdf**](doc//BillingApi.md#getmyreceiptpdf) | **GET** /me/receipts/{id}/pdf | The patient's own receipt as a PDF
 *BillingApi* | [**getReceiptsReport**](doc//BillingApi.md#getreceiptsreport) | **GET** /clinic/reports/receipts | The clinic's receipts summed for a day or a period, for its accountant
+*BillingApi* | [**getSubscriptionInvoicePdf**](doc//BillingApi.md#getsubscriptioninvoicepdf) | **GET** /clinic/subscription/invoices/{id}/pdf | A membership invoice as a PDF
 *BillingApi* | [**issueReceipt**](doc//BillingApi.md#issuereceipt) | **POST** /clinic/receipts | Issue a receipt for a visit or on its own
 *BillingApi* | [**listClinicReceipts**](doc//BillingApi.md#listclinicreceipts) | **GET** /clinic/receipts | The clinic's receipts issued in a period
 *BillingApi* | [**listClinicServices**](doc//BillingApi.md#listclinicservices) | **GET** /clinic/services | The clinic's price list
