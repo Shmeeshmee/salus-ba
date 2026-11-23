@@ -538,5 +538,11 @@
   "noQuotes": "Henüz fiyat teklifiniz yok.",
   "quoteTitle": "Fiyat teklifi",
   "quoteValidUntil": "{date} tarihine kadar geçerli",
-  "quoteExpired": "Süresi doldu"
+  "quoteExpired": "Süresi doldu",
+  "clinicLanguageFilter": "Konuşulan dil",
+  "anyLanguage": "Herhangi bir dil",
+  "noClinicsSpeak": "Bu dili konuşan listelenmiş bir klinik henüz yok.",
+  "welcomesInternational": "Yurt dışından gelen hastaları kabul eder",
+  "languagesSpoken": "Konuşulan diller: {languages}",
+  "clinicServices": "Hizmetler ve fiyatlar"
 }

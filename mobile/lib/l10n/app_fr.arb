@@ -538,5 +538,11 @@
   "noQuotes": "Vous n'avez pas encore de devis.",
   "quoteTitle": "Devis",
   "quoteValidUntil": "Valable jusqu'au {date}",
-  "quoteExpired": "Expiré"
+  "quoteExpired": "Expiré",
+  "clinicLanguageFilter": "Langue parlée",
+  "anyLanguage": "Toutes les langues",
+  "noClinicsSpeak": "Aucune clinique répertoriée ne parle encore cette langue.",
+  "welcomesInternational": "Accueille les patients venant de l’étranger",
+  "languagesSpoken": "Langues parlées : {languages}",
+  "clinicServices": "Services et tarifs"
 }

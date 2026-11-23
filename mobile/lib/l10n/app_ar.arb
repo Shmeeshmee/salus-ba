@@ -538,5 +538,11 @@
   "noQuotes": "ليس لديك عروض أسعار بعد.",
   "quoteTitle": "عرض سعر",
   "quoteValidUntil": "صالح حتى {date}",
-  "quoteExpired": "منتهي الصلاحية"
+  "quoteExpired": "منتهي الصلاحية",
+  "clinicLanguageFilter": "اللغة المحكية",
+  "anyLanguage": "أي لغة",
+  "noClinicsSpeak": "لا توجد عيادة مدرجة تتحدث هذه اللغة حتى الآن.",
+  "welcomesInternational": "ترحب بالمرضى من الخارج",
+  "languagesSpoken": "اللغات المحكية: {languages}",
+  "clinicServices": "الخدمات والأسعار"
 }

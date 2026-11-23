@@ -538,5 +538,11 @@
   "noQuotes": "Sie haben noch keine Kostenvoranschläge.",
   "quoteTitle": "Kostenvoranschlag",
   "quoteValidUntil": "Gültig bis {date}",
-  "quoteExpired": "Abgelaufen"
+  "quoteExpired": "Abgelaufen",
+  "clinicLanguageFilter": "Gesprochene Sprache",
+  "anyLanguage": "Jede Sprache",
+  "noClinicsSpeak": "Noch keine eingetragene Klinik spricht diese Sprache.",
+  "welcomesInternational": "Empfängt Patientinnen und Patienten aus dem Ausland",
+  "languagesSpoken": "Gesprochene Sprachen: {languages}",
+  "clinicServices": "Leistungen und Preise"
 }

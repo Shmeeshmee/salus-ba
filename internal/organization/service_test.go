@@ -34,6 +34,7 @@ type fakeRepository struct {
 	err       error // returned by ByID and Listed when set
 	updateErr error // returned by Update when set
 	orgs      map[string]organization.Organization
+	profiles  map[string]organization.Profile
 	clinic    string   // set by SetOrganization
 	calls     []string // the calls, "outside:" prefixed when made outside a transaction
 	shared    []string // other clinics the scope shows through organization_shared (the history)
@@ -66,7 +67,7 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (organization.Orga
 		return organization.Organization{}, r.err
 	}
 	o, ok := r.orgs[id]
-	if !ok || (id != r.clinic && !slices.Contains(r.shared, id)) {
+	if !ok || (id != r.clinic && !slices.Contains(r.shared, id) && (!r.directory || !o.Listed)) {
 		return organization.Organization{}, organization.ErrNotFound
 	}
 	return o, nil

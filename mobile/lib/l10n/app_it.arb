@@ -538,5 +538,11 @@
   "noQuotes": "Non ha ancora preventivi.",
   "quoteTitle": "Preventivo",
   "quoteValidUntil": "Valido fino al {date}",
-  "quoteExpired": "Scaduto"
+  "quoteExpired": "Scaduto",
+  "clinicLanguageFilter": "Lingua parlata",
+  "anyLanguage": "Qualsiasi lingua",
+  "noClinicsSpeak": "Nessuna clinica elencata parla ancora questa lingua.",
+  "welcomesInternational": "Accoglie pazienti dall’estero",
+  "languagesSpoken": "Lingue parlate: {languages}",
+  "clinicServices": "Servizi e prezzi"
 }

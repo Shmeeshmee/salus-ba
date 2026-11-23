@@ -147,6 +147,7 @@ type Profile struct {
 	Languages             []string      // BCP 47 tags of the language enum the clinic's staff speak
 	Description           string        // in the clinic's default language; empty for none
 	Translations          []Translation // the description in other languages
+	VersionID             int32         // the organization's version (its If-Match)
 	WelcomesInternational bool
 }
 

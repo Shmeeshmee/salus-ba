@@ -1,0 +1,18 @@
+{
+  "title": "Profile for patients abroad",
+  "intro": "Patients see this in the app with your services and prices.",
+  "loadFailed": "The profile could not be loaded. Reload the page to try again.",
+  "languages": "Languages your staff speak",
+  "welcomes": "We welcome patients from abroad",
+  "description": "Description",
+  "descriptionHint": "A few sentences in the clinic's default language. Up to 2000 characters.",
+  "translations": "Translations of the description",
+  "descriptionIn": "Description in {language}",
+  "translationsNeedDescription": "Write the description before its translations.",
+  "conflict": "Someone else changed the profile. Reload the page to see the change; what you entered stays in the form.",
+  "invalid": "Keep the description and each translation under 2000 characters.",
+  "saveFailed": "The profile could not be saved. Try again.",
+  "saved": "Profile saved.",
+  "save": "Save profile",
+  "saving": "Saving…"
+}

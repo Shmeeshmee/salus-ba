@@ -20,13 +20,19 @@
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true only, without the location and the contribution.",
+          "documentation": "Read: staff of the clinic. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true and at most one language, without the location and the contribution.",
           "searchParam": [
             {
               "name": "listed",
               "definition": "https://salus.invalid/fhir/SearchParameter/organization-listed",
               "type": "token",
               "documentation": "Required, true only: the clinics listed in the public directory."
+            },
+            {
+              "name": "language",
+              "definition": "https://salus.invalid/fhir/SearchParameter/organization-language",
+              "type": "token",
+              "documentation": "Optional, one tag of the language enum (bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr): the listed clinics whose staff speak it, from the clinic's profile (GET /organizations/{id}/profile). Another value gives 400."
             }
           ]
         },

@@ -128,6 +128,82 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 	}
 }
 
+func (r *postgresRepository) ListedSpeaking(ctx context.Context, language string) ([]Organization, error) {
+	rows, err := r.q(ctx).ListedOrganizationsSpeaking(ctx, language)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Organization, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toOrganization(organizationdb.OrganizationByIDRow{
+			ID: row.ID, UpdatedAt: row.UpdatedAt, VersionID: row.VersionID, Active: row.Active, Listed: row.Listed, Name: row.Name,
+			TimeZone: row.TimeZone, DefaultLanguage: row.DefaultLanguage, PatientTranscriptCopy: row.PatientTranscriptCopy,
+		}))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ProfileOf(ctx context.Context, id string) (Profile, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Profile{}, ErrNotFound
+	}
+	row, err := r.q(ctx).OrganizationProfile(ctx, u)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Profile{}, ErrNotFound
+	}
+	if err != nil {
+		return Profile{}, err
+	}
+	rows, err := r.q(ctx).OrganizationProfileTranslations(ctx, u)
+	if err != nil {
+		return Profile{}, err
+	}
+	p := Profile{
+		Languages: row.Languages, Description: row.ProfileDescription, VersionID: row.VersionID,
+		WelcomesInternational: row.WelcomesInternational, Translations: make([]Translation, 0, len(rows)),
+	}
+	for _, t := range rows {
+		p.Translations = append(p.Translations, Translation{Language: string(t.Language), Description: t.Description})
+	}
+	return p, nil
+}
+
+func (r *postgresRepository) PutProfile(ctx context.Context, id string, p Profile, at time.Time) (Profile, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Profile{}, ErrConflict
+	}
+	langs := p.Languages
+	if langs == nil {
+		langs = []string{}
+	}
+	q := r.q(ctx)
+	version, err := q.UpdateOrganizationProfile(ctx, organizationdb.UpdateOrganizationProfileParams{
+		ID: u, VersionID: p.VersionID, Languages: langs, ProfileDescription: p.Description,
+		WelcomesInternational: p.WelcomesInternational, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Profile{}, ErrConflict
+	}
+	if err != nil {
+		return Profile{}, err
+	}
+	if err := q.DeleteOrganizationProfileTranslations(ctx, u); err != nil {
+		return Profile{}, err
+	}
+	for _, t := range p.Translations {
+		err := q.InsertOrganizationProfileTranslation(ctx, organizationdb.InsertOrganizationProfileTranslationParams{
+			OrganizationID: u, Language: organizationdb.Language(t.Language), Description: t.Description,
+		})
+		if err != nil {
+			return Profile{}, err
+		}
+	}
+	p.Languages, p.VersionID = langs, version
+	return p, nil
+}
+
 // NewPostgresChatRepository returns the ChatRepository on db, as salus_app: row-level security shows only the
 // clinic set by SetOrganization.
 func NewPostgresChatRepository(db postgres.Querier) ChatRepository {

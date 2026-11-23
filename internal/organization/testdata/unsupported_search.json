@@ -1,1 +1,1 @@
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search with listed=true only."}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search with listed=true and at most one language."}]}

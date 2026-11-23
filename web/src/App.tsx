@@ -16,6 +16,7 @@ import { Desk } from './Desk'
 import { OnlinePractice } from './OnlinePractice'
 import { PriceList } from './PriceList'
 import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
+import { ClinicProfile } from './ClinicProfile'
 import { Practitioners } from './Practitioners'
 import { Questionnaires } from './Questionnaires'
 import { Receipts } from './Receipts'
@@ -278,6 +279,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
           platform={account.features?.includes('analytics_platform') === true}
         />
         <ClinicSettingsWaitlist api={api} />
+        <ClinicProfile api={api} />
       </>
     )
   }

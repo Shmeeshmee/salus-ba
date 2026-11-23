@@ -538,5 +538,11 @@
   "noQuotes": "Još nemate ponuda.",
   "quoteTitle": "Ponuda",
   "quoteValidUntil": "Vrijedi do {date}",
-  "quoteExpired": "Istekla"
+  "quoteExpired": "Istekla",
+  "clinicLanguageFilter": "Jezik kojim se govori",
+  "anyLanguage": "Bilo koji jezik",
+  "noClinicsSpeak": "Nijedna klinika na popisu još ne govori ovim jezikom.",
+  "welcomesInternational": "Prima pacijente iz inozemstva",
+  "languagesSpoken": "Jezici kojima se govori: {languages}",
+  "clinicServices": "Usluge i cijene"
 }

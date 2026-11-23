@@ -136,6 +136,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Routes: append([]func(*http.ServeMux){
 			authHandler.Routes,
 			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).Routes,
+			organization.NewProfileHandler(clinics, organizationCaller(accounts), log).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
 			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,

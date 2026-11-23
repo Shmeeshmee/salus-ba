@@ -32,6 +32,7 @@ writes under its own heading here.
 | X1 | not started (wave 3, after 3.0) | |
 | X1 | done 2026-11-23 | `cms(X1)` on `wt/cms/X1` |
 | X2 | not started (wave 3, after 3.0) | |
+| X2 | done 2026-11-23 | `cms(X2)` on `wt/cms/X2` |
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
 
@@ -1393,7 +1394,55 @@ the app); `make gen-clients` regenerates the clients (two response descriptions 
 
 ## X2: clinic profile for patients abroad
 
-Not started.
+Done 2026-11-23, one commit `cms(X2)` on `wt/cms/X2`. No migration: 3.0's columns and `organization_profile_translation`
+are enough, so `00071` stays unused.
+
+**Built.**
+
+- `organization`: `service_profile.go` (`Profile` for the public read, `ClinicProfile` for the clinic's staff,
+  `SaveProfile` for its admin, `ListListedSpeaking` for the directory's language filter), the repository's
+  `ProfileOf`, `PutProfile` and `ListedSpeaking` (in `repository_postgres.go`, which archcheck requires for the sqlc
+  package; six queries), and
+  `handler_profile.go` (`GET` and `PUT /clinic/profile`, `GET /organizations/{id}/profile`). `Profile` gains
+  `VersionID` (the organization's version, for the ETag); `ErrInvalidProfile` (`invalid_profile`).
+- FHIR: `Organization?listed=true&language=<tag>`; the CapabilityStatement's `language` search parameter and
+  `api/fhir/SearchParameter-organization-language.json`.
+- Web: `ClinicProfile.tsx` on the clinic settings page (`/clinic`, admin): the ten languages by their own names, the
+  welcome, the description, and its translations behind a disclosure; the new catalog area `clinicProfile` in the five
+  staff languages.
+- Mobile: the clinic list's language filter (a drop-down, "Any language" first), and `clinic_profile.dart` above a
+  clinic's practitioners: the description in the app's language where translated (else as written), the welcome, the
+  languages spoken, and the services with their prices (in person and video, each once). Six strings in all ten
+  languages (eleven ARB files with `sr`).
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| A suspended clinic (owner's note, package I) | The public profile reads in the directory scope, so 00064's `organization_directory` policy hides a suspended or cancelled clinic, and the service checks `listed` again; it answers `not_found`, as the directory. Proved by `TestProfile_TheDirectoryHidesAnUnlistedOrSuspendedClinic` against the database (also the language filter) |
+| "In the patient's language when translated" | The public read returns the description and every translation; the app picks the one in its language. No `Accept-Language` handling on the server |
+| The language search parameter | A token `language` with no FHIRPath expression: the languages are the profile's, not an element or extension of the Organization resource, and adding an extension would change every directory response |
+| The FHIR search's refusal text | Now "Search with listed=true and at most one language." (`unsupported_search.json` updated on purpose) |
+| Translations without a description | Refused (`invalid_profile`): a translation of nothing |
+| Order | Languages and translations are stored and returned in the enum's order |
+| `GET /clinic/profile` | Any staff of the clinic (the OpenAPI says "for the clinic's staff"); `PUT` the admin only. A patient gets `not_found` |
+| The web screen's place | A section of `/clinic` after the waitlist settings; no new menu entry |
+
+**Test first.** The service tests, the mobile widget test and the web test were written and run red before the code.
+The repository and handler tests were written with their code, then run.
+
+**Checks** (this worktree's compose project, `salus-cms-x2`): the fast layer after each change; then `make lint`,
+`make test`, `make archcheck`, `make web-lint`, `web-typecheck`, `web-test` (1206), `web-build`, `make mobile-analyze`,
+`mobile-test` (675): all pass. The first full runs stopped on findings, fixed before the next: govet fieldalignment
+and staticcheck in the test fakes, gofmt, the router's `metadata.json` golden (the CapabilityStatement's new
+parameter, updated on purpose with `-update`), archcheck (the sqlc package may be imported only by
+`repository_postgres.go`, so the profile's repository code moved there), and the web catalog test's list of areas
+(`clinicProfile` added). Not run: `make e2e`, `make fhir-validate` (the new golden files are a searchset and an
+OperationOutcome of shapes already validated; the new SearchParameter has no expression, which the validator may
+warn on), `make cover`.
+
+**Not walked in a browser**: this session had no browser tool. The web section and the mobile screens are covered by
+their component and widget tests only; the integration session should walk `/clinic` at desktop width and 390 px.
 
 ## Facts
 

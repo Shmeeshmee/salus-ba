@@ -1,0 +1,14 @@
+{
+  "resourceType": "SearchParameter",
+  "id": "organization-language",
+  "url": "https://salus.invalid/fhir/SearchParameter/organization-language",
+  "version": "0.1.0",
+  "name": "OrganizationLanguage",
+  "status": "active",
+  "date": "2026-11-23",
+  "publisher": "Salus",
+  "description": "The listed clinics whose staff speak a language: one tag of the language enum (bs, hr, sr-Latn, sr-Cyrl, en, de, ar, tr, it, fr), from the clinic's profile for patients abroad (GET /organizations/{id}/profile). The profile is not an element of the Organization resource, so the parameter has no expression.",
+  "code": "language",
+  "base": ["Organization"],
+  "type": "token"
+}
