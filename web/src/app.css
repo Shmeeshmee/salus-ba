@@ -610,3 +610,25 @@ p.hint.join { margin-bottom: 20px; }
 @media (max-width: 480px) {
   .plain-table { display: block; overflow-x: auto; }
 }
+
+/* Questionnaire branching (SAL-43): branches indented by depth, the join marked, the preview. */
+.items .item.in-branch { margin-left: calc(var(--branch, 0) * 24px); border-left: 3px solid var(--color-mint); }
+.items .item.in-branch.nested { margin-left: calc(20px + var(--branch, 0) * 24px); }
+.join-marker { margin: 0; padding: 4px 12px; font-size: 12px; color: var(--color-brand-hover); border-bottom: 1px dashed var(--color-mint); }
+.conditions { display: grid; gap: 12px; }
+.branches { border: 0; padding: 0; margin: 0; }
+.branches legend { font-weight: 600; margin-bottom: 6px; }
+.branches ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.branch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.branch-dependents { margin: 0; }
+.q-preview { display: grid; gap: 16px; margin-top: 16px; }
+.preview-sheet { border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); padding: 20px; display: grid; gap: 12px; max-width: 640px; }
+.preview-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.preview-section { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 12px 16px; }
+.preview-section legend { font-weight: 600; }
+.q-preview .field .tag, .q-preview .choice .tag { margin-left: 8px; }
+@media (max-width: 600px) {
+  .items .item.in-branch { margin-left: calc(var(--branch, 0) * 10px); }
+  .items .item.in-branch.nested { margin-left: calc(10px + var(--branch, 0) * 10px); }
+  .preview-sheet { padding: 14px; }
+}

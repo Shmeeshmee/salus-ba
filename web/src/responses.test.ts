@@ -44,8 +44,8 @@ describe('answered', () => {
   it('leaves out a question whose condition depends on a hidden question, along a chain of two', () => {
     const chain = [
       { ...newItem('boolean', 'a'), text: 'Placeholder a' },
-      { ...newItem('single', 'b'), text: 'Placeholder b', options: ['A', 'B'], condition: { question: 'a', answer: true } },
-      { ...newItem('string', 'c'), text: 'Placeholder c', condition: { question: 'b', answer: 'B' } },
+      { ...newItem('single', 'b'), text: 'Placeholder b', options: ['A', 'B'], enableWhen: [{ question: 'a', operator: '=' as const, answer: true }] },
+      { ...newItem('string', 'c'), text: 'Placeholder c', enableWhen: [{ question: 'b', operator: '=' as const, answer: 'B' }] },
     ]
     const shown = (a: boolean) =>
       answered(chain, [
@@ -60,7 +60,7 @@ describe('answered', () => {
   it('matches a condition on a choice with repeats when any answer matches', () => {
     const multi = [
       { ...newItem('multiple', 'm'), text: 'Placeholder m', options: ['C', 'D'] },
-      { ...newItem('date', 'after'), text: 'Placeholder after', condition: { question: 'm', answer: 'D' } },
+      { ...newItem('date', 'after'), text: 'Placeholder after', enableWhen: [{ question: 'm', operator: '=' as const, answer: 'D' }] },
     ]
     const ids = (values: string[]) =>
       answered(multi, [{ linkId: 'm', answer: values.map((valueString) => ({ valueString })) }]).flatMap((b) => b.questions.map((q) => q.linkId))

@@ -38,3 +38,9 @@ export function useFormat() {
     weekday: (weekday: number) => formatWeekday(weekday, language),
   }
 }
+
+// useList joins names as the UI language lists them ("A, B and C").
+export function useList(): (names: string[]) => string {
+  const { language } = useLanguage()
+  return (names) => new Intl.ListFormat(language, { type: 'conjunction' }).format(names)
+}

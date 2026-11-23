@@ -23,8 +23,12 @@ export const maxHelp = 500
 export const maxOptions = 50
 export const maxOption = 200
 
-// Condition shows an item only when the earlier yes or no or choice question is answered answer.
-export type Condition = { question: string; answer: boolean | string }
+// Condition is one FHIR R4 enableWhen: the earlier question, the operator and the value it is compared with
+// (exists takes true for answered, false for not answered). An item's conditions combine by its enableBehavior,
+// all when it has none.
+export type Operator = 'exists' | '=' | '!=' | '>' | '<' | '>=' | '<='
+export type Condition = { question: string; operator: Operator; answer: boolean | string | number }
+export type Behavior = 'all' | 'any'
 
 // Item is one item of the questionnaire; items is a section's content, empty for every other kind. accept and
 // maxFiles are a file upload's only.
@@ -35,7 +39,8 @@ export type Item = {
   required: boolean
   help: string
   options: string[]
-  condition?: Condition
+  enableWhen?: Condition[]
+  enableBehavior?: Behavior
   items: Item[]
   accept?: FileKind[]
   maxFiles?: number
@@ -49,7 +54,18 @@ export type Result = { ok: true; items: Item[] } | { ok: false; error: 'nested-s
 
 export const isChoice = (k: Kind) => k === 'single' || k === 'multiple'
 export const isQuestion = (k: Kind) => k !== 'group' && k !== 'display'
-const conditional = (k: Kind) => k === 'boolean' || isChoice(k)
+
+// operatorsFor is the operators a condition on a question of the kind may use (SAL-43): yes or no and choices is
+// and is not; numbers every comparison; a date before, after and on; any question answered or not (exists).
+export function operatorsFor(kind: Kind): Operator[] {
+  if (kind === 'boolean' || isChoice(kind)) return ['=', '!=', 'exists']
+  if (kind === 'integer' || kind === 'decimal') return ['=', '!=', '>', '>=', '<', '<=', 'exists']
+  if (kind === 'date') return ['<', '>', '=', 'exists']
+  return isQuestion(kind) ? ['exists'] : []
+}
+
+// on is whether a condition names the linkId.
+const on = (it: Item, ids: Set<string>) => (it.enableWhen ?? []).some((c) => ids.has(c.question))
 
 // textLabel is the message id of the label of the item's text: a section's title, instructions, or a question.
 export function textLabel(kind: Kind): string {
@@ -185,17 +201,30 @@ function removed(items: Item[], linkId: string): Set<string> {
   return new Set(item ? [item.linkId, ...item.items.map((c) => c.linkId)] : [])
 }
 
-// dependents counts the other items whose condition is on the item (or on an item of the section).
-export function dependents(items: Item[], linkId: string): number {
+// dependentsOf are the other items with a condition on the item (or on an item of the section).
+export function dependentsOf(items: Item[], linkId: string): Item[] {
   const gone = removed(items, linkId)
-  return all(items).filter((it) => !gone.has(it.linkId) && it.condition && gone.has(it.condition.question)).length
+  return all(items).filter((it) => !gone.has(it.linkId) && on(it, gone))
+}
+
+export function dependents(items: Item[], linkId: string): number {
+  return dependentsOf(items, linkId).length
+}
+
+// without drops the conditions on the linkIds, and the behaviour with the last of them.
+function without(it: Item, gone: Set<string>): Item {
+  if (!on(it, gone)) return it
+  const kept = (it.enableWhen ?? []).filter((c) => !gone.has(c.question))
+  const { enableWhen: _w, enableBehavior: _b, ...rest } = it
+  if (kept.length === 0) return rest
+  return kept.length === 1 ? { ...rest, enableWhen: kept } : { ...it, enableWhen: kept }
 }
 
 // remove deletes the item (a section with its items) and the conditions that depended on it.
 export function remove(items: Item[], linkId: string): Item[] {
   const gone = removed(items, linkId)
   const kept = items.filter((it) => !gone.has(it.linkId)).map((it) => ({ ...it, items: it.items.filter((c) => !gone.has(c.linkId)) }))
-  return map(kept, (it) => (it.condition && gone.has(it.condition.question) ? { ...it, condition: undefined } : it))
+  return map(kept, (it) => without(it, gone))
 }
 
 // changeKind gives the item another type under a new linkId (SPEC §2 "linkIds": a linkId keeps its type
@@ -208,16 +237,16 @@ export function changeKind(items: Item[], linkId: string, kind: Kind, newLinkId:
       const files = kind === 'attachment' ? { accept: defaultAccept, maxFiles: 1 } : {}
       return { ...rest, ...files, linkId: newLinkId, kind, options, required: isQuestion(kind) && it.required, help: kind === 'display' ? '' : it.help }
     }
-    if (it.condition?.question === linkId) return { ...it, condition: { ...it.condition, question: newLinkId } }
-    return it
+    if (!on(it, new Set([linkId]))) return it
+    return { ...it, enableWhen: (it.enableWhen ?? []).map((c) => (c.question === linkId ? { ...c, question: newLinkId } : c)) }
   })
 }
 
-// earlierQuestions are the yes or no and choice questions above the item, which a condition may depend on.
+// earlierQuestions are the questions above the item, which a condition may depend on.
 export function earlierQuestions(items: Item[], linkId: string): Item[] {
   const list = all(items)
   const at = list.findIndex((it) => it.linkId === linkId)
-  return list.slice(0, Math.max(at, 0)).filter((it) => conditional(it.kind))
+  return list.slice(0, Math.max(at, 0)).filter((it) => isQuestion(it.kind))
 }
 
 const blank = (s: string) => s.trim() === ''
@@ -257,13 +286,26 @@ function fileProblems(it: Item): string[] {
   return [...((it.accept ?? []).length === 0 ? ['questionnaire.noFileKind'] : []), ...(Number.isInteger(n) && n >= 1 && n <= maxFilesLimit ? [] : ['questionnaire.fileCount'])]
 }
 
+// conditionProblems are W28 on each condition, as the API checks them (SAL-43): the question is above the item,
+// the operator fits its type, and the value fits the operator and the question (one of a choice's options).
 function conditionProblems(it: Item, seen: Map<string, Item>): string[] {
-  if (!it.condition) return []
-  const on = seen.get(it.condition.question)
-  if (!on || !conditional(on.kind)) return ['questionnaire.conditionOrder']
-  const answer = it.condition.answer
-  const fits = on.kind === 'boolean' ? typeof answer === 'boolean' : typeof answer === 'string' && on.options.includes(answer)
-  return fits ? [] : ['questionnaire.conditionAnswer']
+  const found = new Set<string>()
+  for (const c of it.enableWhen ?? []) {
+    const q = seen.get(c.question)
+    if (!q || !isQuestion(q.kind)) found.add('questionnaire.conditionOrder')
+    else if (!operatorsFor(q.kind).includes(c.operator)) found.add('questionnaire.conditionOperator')
+    else if (!fits(q, c)) found.add('questionnaire.conditionAnswer')
+  }
+  return [...found]
+}
+
+function fits(q: Item, c: Condition): boolean {
+  const a = c.answer
+  if (c.operator === 'exists' || q.kind === 'boolean') return typeof a === 'boolean'
+  if (isChoice(q.kind)) return typeof a === 'string' && q.options.includes(a)
+  if (q.kind === 'integer') return Number.isInteger(a)
+  if (q.kind === 'decimal') return typeof a === 'number' && Number.isFinite(a)
+  return typeof a === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a)
 }
 
 // at is where the item is, said as W42 says it: in a section with the section's title, else at (or, after a

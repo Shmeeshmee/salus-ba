@@ -94,6 +94,17 @@ export interface Appointment {
   extension?: Extension[]
 }
 
+// EnableWhen is Questionnaire.item.enableWhen with the answer types the builder uses.
+export interface EnableWhen {
+  question: string
+  operator: string
+  answerBoolean?: boolean
+  answerString?: string
+  answerInteger?: number
+  answerDecimal?: number
+  answerDate?: string
+}
+
 export interface QuestionnaireItem {
   linkId: string
   text: string
@@ -101,7 +112,8 @@ export interface QuestionnaireItem {
   required?: boolean
   repeats?: boolean
   answerOption?: { valueString: string }[]
-  enableWhen?: { question: string; operator: string; answerBoolean?: boolean; answerString?: string }[]
+  enableWhen?: EnableWhen[]
+  enableBehavior?: 'all' | 'any'
   extension?: { url: string; valueCodeableConcept?: CodeableConcept; valueCode?: string; valueInteger?: number }[]
   item?: QuestionnaireItem[]
 }

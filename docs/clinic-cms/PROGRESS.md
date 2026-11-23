@@ -367,6 +367,52 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 
 ## Q2: questionnaire branching, builder and preview
 
+Done 2026-11-23 (ticket SAL-43, web only; no Go, no mobile, no `api/openapi.yaml` change).
+
+- **Model.** An item's condition is now FHIR R4 `enableWhen[]` (`question`, `operator` of `exists = != > < >= <=`,
+  the value) with `enableBehavior` (`all`/`any`) when it has more than one (`builder.ts`). Operators per type
+  (`operatorsFor`): yes or no and choices is / is not / answered; numbers every comparison; dates before / after / on;
+  every other question answered / not answered. Any earlier question can be depended on (file uploads only by
+  answered). W28 checks each condition: the question is above (`conditionOrder`), the operator fits its type
+  (`conditionOperator`, new), the value fits (`conditionAnswer`, now any type).
+- **Evaluator** `enableWhen.ts`, pure and tested: `test` (one condition), `enabled` (document order, a hidden
+  section hides its items, a hidden question counts as unanswered), `enabledAnswers` (the path taken),
+  `discarded` (answers a change would hide). `responses.ts` (the practitioner's view of a submitted response) now
+  uses it too instead of its own `is`-only check.
+- **Builder** (`builder-logic.ts`, `BuilderBranch.tsx`, `ItemCard.tsx`, `Builder.tsx`): on a yes or no or choice
+  question, "Branches": per answer "If the answer is X", the questions it asks, and "Ask a question", which adds a
+  short answer shown only on that answer at the end of the question's branches (`addFollowUp`). Cards are indented
+  by branch depth (`branchDepths`, a mint left border), tagged "Conditional", and "Branches join here" marks the
+  first item back at a shallower depth (`joins`). The condition editor ("More options") has several conditions,
+  "Show when all / any", a comparison and a value control per type. W19 deleting names the affected items; an
+  opened question others depend on says which ("Shown only through this question: ...").
+- **Preview** (`BuilderPreview.tsx`): "Preview" beside Publish shows the draft as the patient fills it in, branches
+  live; a change that hides answers already given asks "Change this answer?" (Keep answer / Change answer); "Start
+  again" clears it. Nothing is saved.
+- **Wire (decision).** A single `=` condition on a yes or no or a choice is still sent in the JSON API's legacy
+  object shape (`{question, answerBoolean|answerString}`), so today's forms save unchanged on today's server; any
+  other logic is sent as FHIR `enableWhen[]` (`answerBoolean|answerString|answerInteger|answerDecimal|answerDate`)
+  plus `enableBehavior`. Reading takes both. The request type widens the generated one (`questionnaire.ts`), with one
+  cast in `Builder.tsx` until Q1's API and `make gen-clients` land.
+- **Not built (decision).** "Any of" on a choice is several `=` conditions with "any" (FHIR has no `in`). Branches
+  are items carrying the condition or a top-level section; sections still do not nest (API rule), so a nested
+  branch is a conditional question inside a conditional branch. "Ask a question" adds a question, not a section.
+- **Checks.** `make web-lint`, `web-typecheck`, `web-test`, `web-build`, `make i18n-check`, and the runner's full
+  set: see the report. TDD: the evaluator, builder-logic, the wire tests and the Builder tests were written before
+  or with their code in this session; the old tests that stated the single-`is` model (answer label "is", "a short
+  answer cannot be depended on", the W19 text) were changed on purpose.
+- **Browser walk** (headless Chromium from the playwright service, this worktree's stack, a synthetic clinic,
+  1280 px and 390 px): built the gynaecology example with "Ask a question if the answer is Yes" twice (whole numbers)
+  and a main question; the join marker shows; "Save draft" saved (legacy shape accepted by today's API); the preview
+  showed 2 items, 4 on Yes, back to 2 on No; the warning appeared after a month was entered, Keep answer kept 3,
+  Change answer discarded it. No horizontal scroll at 390 px. Fixed on the way: the preview's `.preview` class
+  collided with the device check's video box (renamed `q-preview`).
+
+INTEGRATION NOTES: Q1 must accept the FHIR `enableWhen[]` + `enableBehavior` on the JSON save (and keep the legacy
+object); after it, `make gen-clients` and drop the widened types in `questionnaire.ts` and the cast in `Builder.tsx`.
+Run Q1's `test/testdata/enablewhen/` vectors against `enableWhen.ts` (`enabled`, `test`). The web e2e of both paths
+can reuse the walk's steps (labels above).
+
 ## Q3: questionnaire branching, patient app
 
 ## F: reception role and desk
