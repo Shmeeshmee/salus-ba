@@ -622,6 +622,11 @@ func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(c
 			if err != nil {
 				return appointment.Caller{}, false, err
 			}
+			if m.Reception {
+				// The front desk sees no clinical content (docs/clinic-cms W2): to the care record's domains a
+				// receptionist is no one of the clinic, refused as a stranger. The desk's own routes say otherwise.
+				return appointment.Caller{AccountID: s.AccountID}, true, nil
+			}
 			c.PractitionerID, c.Admin = m.PractitionerID, m.Admin
 			return c, true, nil
 		}

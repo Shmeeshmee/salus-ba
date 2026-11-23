@@ -195,6 +195,7 @@ const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 function inviteLine(t: T, invite: Invite, date: string): string {
   if (invite.role === 'admin') return t('admin.inviteAdmin', { date })
+  if (invite.role === 'reception') return t('admin.inviteReception', { date })
   return t('admin.invitePractitioner', { name: [invite.givenName, invite.familyName].join(' '), date })
 }
 
@@ -209,7 +210,7 @@ function InviteForm({ api, onInvited }: { api: ApiClient; onInvited: (invite: In
   const [sent, setSent] = useState(false)
   const { busy, error, onSubmit } = useSubmit(async () => {
     setSent(false)
-    const body = role === 'admin' ? { email, role } : { email, role, givenName, familyName }
+    const body = role === 'practitioner' ? { email, role, givenName, familyName } : { email, role } // an admin and a receptionist by e-mail alone
     const res = await attempt(api.POST('/invites', { body }))
     if (res.ok) {
       onInvited(res.data)
@@ -228,6 +229,7 @@ function InviteForm({ api, onInvited }: { api: ApiClient; onInvited: (invite: In
         <legend>{t('admin.role')}</legend>
         <RoleOption value="practitioner" label={t('common.practitioner')} role={role} onChange={setRole} />
         <RoleOption value="admin" label={t('admin.admin')} role={role} onChange={setRole} />
+        <RoleOption value="reception" label={t('admin.reception')} role={role} onChange={setRole} />
       </fieldset>
       <Field label={t('common.email')} type="email" autoComplete="off" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} required />
       {role === 'practitioner' && (

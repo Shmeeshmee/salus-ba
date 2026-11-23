@@ -15,8 +15,8 @@ const (
 	RoleAdmin        Role = "admin"
 	RolePractitioner Role = "practitioner"
 	// RoleReception is the clinic's front desk (owner, 2026-11-23): books, checks patients in and issues receipts,
-	// and sees no clinical content. Staff of one clinic, with no Practitioner. Invited from package F1 of
-	// docs/clinic-cms; until then an invite naming it is refused (ErrInvalidRole).
+	// and sees no clinical content. Staff of one clinic, with no Practitioner. Invited by e-mail alone, as an admin
+	// (docs/clinic-cms, F1).
 	RoleReception Role = "reception"
 	RolePatient   Role = "patient"
 )
@@ -46,6 +46,7 @@ type Account struct {
 type Member struct {
 	PractitionerID string
 	Admin          bool
+	Reception      bool // the clinic's receptionist (docs/clinic-cms, F1): the front desk, no clinical content
 	TermReviewer   bool // the account's reviewer permission of the term list (Account.TermReviewer)
 }
 
@@ -98,7 +99,7 @@ type Invite struct {
 	Email          string // trimmed and lower-cased: the login the new account gets
 	GivenName      string // a practitioner's one HumanName; empty for an admin
 	FamilyName     string
-	Role           Role // RoleAdmin or RolePractitioner
+	Role           Role // RoleAdmin, RolePractitioner or RoleReception
 }
 
 // open reports whether the invite can still be accepted at now.

@@ -19,7 +19,7 @@ writes under its own heading here.
 | F | split into F1, F2, F3 (wave 3; the owner said yes to the reception role on 2026-11-23) | |
 | G | hold (Q6) | |
 | 3.0 | done 2026-11-23 | `cms(3.0)` on `wt/cms/3.0` |
-| F1 | not started (wave 3, after 3.0) | |
+| F1 | done 2026-11-23 | `cms(F1)` on `wt/cms/F1` |
 | F2 | not started (wave 3, after 3.0) | |
 | F3 | not started (wave 3, after 3.0) | |
 | O1 | not started (wave 3, after 3.0) | |
@@ -947,7 +947,69 @@ description. Not run: `make e2e` and `make fhir-validate` (no route is served an
 
 ## F1: reception role and what it may see
 
-Not started.
+Status: done, 2026-11-23, on `wt/cms/F1`, one commit `cms(F1)`. No migration (00066 left unused): 3.0's role checks
+already take `reception`.
+
+**Built.**
+
+- **Invite.** `POST /invites` with `role: reception` (e-mail alone, as an admin's; a name is `invalid_name`);
+  acceptance creates the account with a pending TOTP secret and no Practitioner (`service_invite_reception.go`).
+  `ClinicMember` gives a receptionist `Member{Reception: true}`, never admin, practitioner or term reviewer.
+- **access.** `RoleReception`, outside `staffOf`, so every rule of the care record refuses it; `access.Desk`
+  (`reception.go`) is W2's desk view (name, birth date, phone, appointments with service and visit type) for the
+  clinic's receptionist and admin with an active care consent or a visit before a revocation, for F2's routes.
+- **Composition root.** `appointmentCaller` gives a receptionist no clinic, so every domain built on it
+  (appointments, compositions and document templates, receipts, the clinic waitlist, binaries) refuses the
+  receptionist as a stranger. The route test found the two that answered 200 before this: `GET /clinic/waitlist` and
+  `GET /document-templates`.
+- **The route test** (`internal/api/reception_routes_test.go`). `receptionRoutes` classifies every operation of
+  `api/openapi.yaml`, parsed at test time: `public` (must match `security: []`), `own`, `desk`, `refused`, `stranger`
+  (a patient's own routes), `machine` (the LiveKit webhook). An operation not in the table, or classified but gone
+  from the contract, fails `TestReceptionRoutes_EveryRouteOfTheContractIsClassified`. The second test runs every
+  route as a signed-in receptionist (row-level security on, the platform analytics on) against a clinic with a
+  patient, a care consent and a booked visit: `refused` answers 403 or 404, byte for byte the same for the clinic's
+  appointment or patient as for an unknown id, with none of the patient's data; `stranger` is refused or gets what a
+  signed-in account without a patient profile gets; `own` and `desk` are not refused; refusals are audited with the
+  receptionist as agent. `notServedYet` lists the wave 3 routes no package has mounted (they answer the router's
+  404 or 405); mounting one fails the test until it is taken off the list.
+- **Web.** The invite form has a Reception option (no name fields) and the open invites show "Reception · Expires";
+  a receptionist gets no navigation, no cheatsheet, and every clinical screen says the page does not exist (five
+  staff languages, `admin.reception`, `admin.inviteReception`).
+- **DPIA.** "Package F1" block in `docs/privacy/dpia.md`.
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Deny by default | The receptionist is refused in the composition root's appointment caller, not in each domain: one place, and a domain added later refuses them too. The desk's routes open explicitly (F2) |
+| Receipts | Classified `refused` for now: `invoice` allows the admin and the visit's practitioner. W2 gives the desk the receipts and F3 issues them from the row, so the integration opens `POST/GET /clinic/receipts`, `GET /clinic/receipts/{id}` and `/pdf` to the receptionist (a `Reception` flag on `invoice.Caller`, admin-like for the clinic's visits) and reclassifies them `desk` |
+| Price list | `GET /clinic/services` is `desk` (any staff of the clinic reads it); editing stays the admin's |
+| A patient's routes | `stranger`: the patient and consent domains refuse staff with 403, the others answer as to an account without a profile (empty lists, defaults); neither reveals anything |
+| 400 before access | A write without a body (`invalid_request`) and a live stream without the WebSocket upgrade (`websocket_required`) are rejected before any access check; the test accepts that, still compared with an unknown id. Writes with valid bodies are left to each domain's own authorization tests |
+| Directory ids | The clinic and its PractitionerRole are public in the directory, so their routes are not compared with an unknown id (an admin-only route there answers 403 to staff and 404 to an unknown id) |
+| The receptionist's home | No screen until F3: `/desk` and its link are F3's, which should make it the receptionist's home |
+| `GET /terminology/explanations` | `own`: term explanations are reference data any signed-in account reads |
+
+**For the integration** (F2, F3, X1, O1, O2, X2 mount routes that are on `notServedYet`):
+
+- Each mounted route comes off `notServedYet`; its class in `receptionRoutes` then holds.
+- F2's desk routes need the receptionist's clinic: `appointmentCaller` returns none for a receptionist, so F2's handler
+  takes a caller with `Reception` (or `appointment.Caller` gains the flag) and `access.Desk` for the patient reads.
+- Receipts for the desk, as in the decisions above.
+
+**Test first.** Red before green: the auth invite and member tests (refused role, missing field), the `access` tests
+(no `Desk`, no `RoleReception`), and the route test (unclassified operations, then `GET /clinic/waitlist` and
+`GET /document-templates` answering 200 to a receptionist) before the `appointmentCaller` change. The web tests were
+written before the code but not run red first.
+
+**Checks** (compose project `salus-cms-f1`): the fast layer (vet and tests of the 23 affected Go packages, oxlint,
+vitest related, i18n-check) and `runner.sh full` (`make lint test archcheck web-lint web-typecheck web-test web-build`;
+web 1203 tests) pass. The first full run failed on gocognit (32) in the route test, fixed by moving the per-class
+check into `checkClass`. Not run: `make e2e`, `make fhir-validate` (no FHIR route or golden file changed), `make cover`.
+No screen walk in a browser: the only web changes are an invite radio option and a hidden menu, covered by Vitest.
+
+**Copy waiting for the owner:** "Reception" / "Recepcija" / "Рецепција" and "Reception · Expires {date}" in the
+five staff languages.
 
 ## F2: patients registered by the clinic and bookings by staff
 
