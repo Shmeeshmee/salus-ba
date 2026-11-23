@@ -1997,4 +1997,7 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.';
+
+  @override
+  String get serviceAtClinic => 'Klinikte seçeceğim';
 }

@@ -520,5 +520,6 @@
   "visitModeVideo": "Путем видеа",
   "visitModeInPerson": "У клиници",
   "pricesHeading": "Цијене у овој установи",
-  "pricesPaidAtClinic": "Плаћате у установи. У апликацији се ништа не наплаћује."
+  "pricesPaidAtClinic": "Плаћате у установи. У апликацији се ништа не наплаћује.",
+  "serviceAtClinic": "Одабраћу у установи"
 }

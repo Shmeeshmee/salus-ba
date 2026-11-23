@@ -275,6 +275,7 @@ type Appointment struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 }
 
 type AppointmentActionToken struct {

@@ -1,0 +1,59 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "appointment-service",
+  "url": "https://salus.invalid/fhir/StructureDefinition/appointment-service",
+  "version": "0.1.0",
+  "name": "AppointmentService",
+  "title": "Appointment service",
+  "status": "active",
+  "date": "2026-11-23",
+  "publisher": "Salus",
+  "description": "The service of the clinic's price list (ChargeItemDefinition) the patient picked when booking, shown to the clinic and the first line of the visit's receipt. R4 Appointment.serviceType is a CodeableConcept and a clinic's own services have no code system to code them in. Absent when the booking named none; nothing is charged in the app.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Appointment"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "The service the booking named",
+        "definition": "The price-list service the patient picked when booking.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/appointment-service"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/ChargeItemDefinition"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

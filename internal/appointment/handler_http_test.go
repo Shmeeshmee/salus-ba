@@ -24,8 +24,8 @@ type stubAppointments struct {
 	changes []appointment.Change
 }
 
-func (s *stubAppointments) Book(_ context.Context, c appointment.Caller, slotID string) (appointment.Appointment, error) {
-	s.caller, s.args = c, []string{"Book", slotID}
+func (s *stubAppointments) Book(_ context.Context, c appointment.Caller, slotID, serviceID string) (appointment.Appointment, error) {
+	s.caller, s.args = c, []string{"Book", slotID, serviceID}
 	return s.out, s.err
 }
 
@@ -79,6 +79,19 @@ func TestHandler_Books(t *testing.T) {
 	}
 }
 
+func TestHandler_BooksWithTheServiceNamed(t *testing.T) {
+	withService := bookedA
+	withService.ServiceID = serviceVideo
+	svc := &stubAppointments{out: withService}
+	rec := serveAppt(t, svc, as(me), &bytes.Buffer{}, http.MethodPost, "/appointments", `{"slotId":"`+slotFree+`","serviceId":"`+serviceVideo+`"}`)
+	if rec.Code != http.StatusCreated || svc.args[2] != serviceVideo || !strings.Contains(rec.Body.String(), `"serviceId":"`+serviceVideo+`"`) {
+		t.Errorf("POST /appointments = %d %s (%v), want 201 with the service asked and returned", rec.Code, rec.Body, svc.args)
+	}
+	if svc := (&stubAppointments{out: bookedA}); serveAppt(t, svc, as(me), &bytes.Buffer{}, http.MethodPost, "/appointments", `{"slotId":"`+slotFree+`"}`).Code != http.StatusCreated || svc.args[2] != "" {
+		t.Errorf("POST /appointments without a service asked %v, want none", svc.args)
+	}
+}
+
 func TestHandler_CancelsAndSetsTheStatus(t *testing.T) {
 	cancelled := bookedA
 	cancelled.Status, cancelled.Reason, cancelled.CancelledAt, cancelled.CancelledBy, cancelled.VersionID = appointment.StatusCancelled, appointment.ReasonPatient, now, accountA, 2
@@ -111,6 +124,7 @@ func TestHandler_MapsEveryErrorToItsCode(t *testing.T) {
 		appointment.ErrClosed:                   {"appointment_closed", http.StatusConflict},
 		appointment.ErrNotStarted:               {"appointment_not_started", http.StatusConflict},
 		appointment.ErrInvalidStatus:            {"invalid_status", http.StatusBadRequest},
+		appointment.ErrInvalidService:           {"invalid_service", http.StatusBadRequest},
 	} {
 		svc := &stubAppointments{err: err}
 		rec := serveAppt(t, svc, as(me), &bytes.Buffer{}, http.MethodPost, "/appointments/"+apptA+"/cancel", "")

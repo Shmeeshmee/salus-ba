@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/riverqueue/river"
+
+	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
 // QueueStats is the River queue of the clinic statistics' builds: cmd/worker works it two jobs at a time, so the
@@ -165,4 +167,20 @@ type AppointmentFigures struct {
 type Count struct {
 	Key   string
 	Count int64
+}
+
+// PracticeQuery is the online practice report's period: the half-open range [From, To) (docs/plans/clinic-cms.md E).
+type PracticeQuery struct {
+	From time.Time
+	To   time.Time
+}
+
+// PracticeRow is one practitioner role's work in one visit mode in the period: the minutes its availability offers,
+// the visits held (fulfilled) and their receipted amount in BAM minor units.
+type PracticeRow struct {
+	PractitionerRoleID string
+	Mode               schedule.VisitMode
+	MinutesOffered     int64
+	Visits             int64
+	ReceiptedMinor     int64
 }

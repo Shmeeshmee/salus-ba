@@ -357,6 +357,76 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 
 ## E: service on a booking and the online practice report
 
+Status: built, 2026-11-23, on `wt/cms/E`, one commit `cms(E)`. Migration `00062_appointment_service.sql`. No pull
+request: the wave's integration opens it.
+
+Built:
+
+- A booking may name a service: `appointment.service_id` (nullable; held to the appointment's own clinic by a composite
+  foreign key to `charge_item_definition (id, organization_id)`, which gains that unique key; no `UPDATE` grant, so a
+  reschedule keeps it), `serviceId` on `POST /appointments` and on the JSON `Appointment`. `appointment.Service.Book`
+  takes the service id and asks `chargeitemdefinition.Service.Offered` (the new `Services` port, the api's only) in the
+  directory before the booking's transaction, as the slot is: a service the clinic does not offer, active, in the
+  slot's mode is `400 invalid_service`, audited. Nothing is charged.
+- The clinic sees it: the FHIR Appointment carries the extension
+  `https://salus.invalid/fhir/StructureDefinition/appointment-service` (a reference to `ChargeItemDefinition/<id>`,
+  `api/fhir/StructureDefinition-appointment-service.json`, golden `appointment_service.json`); left out at the name
+  level. Web `AppointmentDetail.tsx` names the service ("Service: …", from the clinic's price list) and passes it to
+  C's `ReceiptDialog.tsx`, whose first line starts with it (`serviceId` prop, the only change there).
+- The online practice report, `GET /clinic/reports/practice?from=&to=` (RFC 3339, half-open, as the receipts report):
+  `clinicstats.Service.Practice` (`service_practice.go`, `handler_practice.go`), per practitioner role and visit mode:
+  minutes offered by the role's availability rules, visits held (fulfilled appointments starting in the period), and
+  the receipted amount of those visits. Sources through their services: `organization` (the zone),
+  `schedule.Service.OfClinic` (new, the clinic's schedules in its scope), `appointment.Service.Visits` (new, opaque ids,
+  modes, statuses), `invoice.Service.List` (C's, admin only, audited by invoice). Admin only; the read is audited with
+  the clinic as the entity, a refusal too. Wired in `internal/api/practice.go`.
+- Web `OnlinePractice.tsx` at `/receipts/practice` (admin), linked from the receipts report; `practice.*` strings in the
+  `receipts` catalog, `calendar.bookedService`, in the five staff languages.
+- Mobile `service_picker.dart`: the booking screen's prices became a choice, "I will choose at the clinic" first and
+  the default, then each service with its price; `Booking.book` sends the pick. B's `ServicePrices` widget, now
+  unused, is deleted (`priceText` stays). One string, `serviceAtClinic`, in the ten languages.
+- `docs/privacy/dpia.md`: "Package E". Ownership unchanged (a column on `appointment`); its retention is the row's.
+
+Decisions and readings:
+
+- "Hours offered" are the availability rules as they are now projected over the period (rule history is not kept):
+  a past period shows today's rules, not the ones then. Slots are not used: free slots are deleted once they end.
+- "Visits held" are fulfilled appointments; the receipted amount counts only receipts of those visits, issued from
+  the period's start until now; a reversed receipt and its reversal are both left out. A no-show's receipt is not
+  counted.
+- The report is the admin's only: it is revenue per practitioner. A practitioner gets 403, audited.
+- The service on the FHIR Appointment is an extension with a Reference, not `serviceType`: R4's `serviceType` is a
+  CodeableConcept and a clinic's own services have no code system (CLAUDE.md "no free-text codes").
+  `ChargeItemDefinition` is not served over FHIR; the reference is logical.
+- A service made inactive later stays on the appointments that named it; the receipt dialog then starts with an empty
+  pick (its list holds active services only).
+- `Book(ctx, c, slotID, serviceID)`: every caller passes `""` but the handler.
+- The report's sources are read outside its audited transaction except the visits (schedules and the clinic hold no
+  personal data; the receipts' read is audited by invoice in its own transaction).
+
+Departures from the file table: `internal/schedule/service.go` gains `OfClinic` (no new query: the existing `Listed`
+in the clinic's scope); `web/src/api/fhir.ts` `Extension` gains `valueReference`; `web/src/ClinicReports.tsx` gains the
+link; `mobile/lib/booking.dart` and `service_price.dart` (above); `web/src/appointmentService.ts` is new.
+
+Copy waiting for the owner: web `calendar.bookedService` ("Service: {name}"), `receipts.practice.*` (14 strings,
+`web/src/i18n/receipts/en.json`); mobile `serviceAtClinic` ("I will choose at the clinic").
+
+Deferred: an `internal/api` test of the report against a real database (the service's equality test runs on fakes of
+the raw appointments and receipts); an e2e journey for the service at booking; the browser walk at desktop and 390 px
+(no browser in this unattended session; the screens are covered by `OnlinePractice.test.tsx`,
+`AppointmentDetail.test.tsx` and the mobile `book_test.dart`, whose 390 px layout test now holds the picker).
+
+Tests first: each behaviour's test was written and run before its code, except the repository's `Visits` and the
+FHIR extension, whose tests were written in the same step as the code.
+
+Checks (2026-11-23, compose project `salus-cms-e`): `runner.sh full` (`make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test`, `make i18n-check` inside lint) passed, `gen-clients` left
+no further diff; `make cover` passed (90.9% total; appointment 85.3%, clinicstats 89.7%, schedule 91.7%);
+`make fhir-validate` passed (the new golden included); `make e2e` passed. In the fast layer `cmd/scheduler`'s
+`TestRun_StartsRiverAndStopsCleanly` timed out once while every package ran at once beside the Flutter tests, and
+passed on its rerun and in the full run: load, not this package.
+
+
 ## H: receipts follow-ups
 
 ## I: membership invoice document and the suspended listing

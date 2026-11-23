@@ -12,6 +12,7 @@ import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
 import { ClinicReports } from './ClinicReports'
+import { OnlinePractice } from './OnlinePractice'
 import { PriceList } from './PriceList'
 import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
 import { Practitioners } from './Practitioners'
@@ -222,6 +223,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/receipts' && account.role === 'admin') return <Receipts api={api} fhir={fhir} account={account} />
   if (path === '/receipts/report' && account.role === 'admin') return <ClinicReports api={api} fhir={fhir} account={account} />
+  if (path === '/receipts/practice' && account.role === 'admin') return <OnlinePractice api={api} fhir={fhir} account={account} /> // clinic-cms E
   if (path === '/membership' && account.role === 'admin') return <Subscription api={api} fhir={fhir} account={account} />
   if (path === '/clinic' && account.role === 'admin') {
     return (

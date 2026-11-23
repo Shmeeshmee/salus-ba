@@ -22,7 +22,7 @@ func checkEvents(t *testing.T, name string, audit *fakeAuditor, want ...auditeve
 
 func TestBook_HoldsTheSlotStoresTheAppointmentEnqueuesItsEmailsAndAuditsIt(t *testing.T) {
 	f := newFixture()
-	got, err := f.svc.Book(t.Context(), me, slotFree)
+	got, err := f.svc.Book(t.Context(), me, slotFree, "")
 	want := appointment.Appointment{
 		ID: newID, PatientID: patientA, PractitionerRoleID: roleA1, OrganizationID: clinicA, SlotID: slotFree,
 		Start: start, End: start.Add(30 * time.Minute), Created: now, LastUpdated: now, Status: appointment.StatusBooked, VersionID: 1,
@@ -73,7 +73,7 @@ func TestBook_RefusesAndAuditsEveryCaseOfRefusal(t *testing.T) {
 		for k, v := range tt.consents {
 			f.consents.state[k] = v
 		}
-		_, err := f.svc.Book(t.Context(), tt.caller, tt.slot)
+		_, err := f.svc.Book(t.Context(), tt.caller, tt.slot, "")
 		if !errors.Is(err, tt.want) {
 			t.Errorf("%s: Book() error = %v, want %v", tt.name, err, tt.want)
 		}
@@ -95,7 +95,7 @@ func TestBook_FailsOnABackendErrorWithoutLeakingItsInputs(t *testing.T) {
 	} {
 		f := newFixture()
 		breakIt(f)
-		_, err := f.svc.Book(t.Context(), me, slotFree)
+		_, err := f.svc.Book(t.Context(), me, slotFree, "")
 		if !errors.Is(err, errBackend) || strings.Contains(err.Error(), patientA) || strings.Contains(err.Error(), slotFree) {
 			t.Errorf("%s: Book() error = %v, want the backend's error without ids", name, err)
 		}
@@ -113,7 +113,7 @@ func TestBook_TheAppointmentTakesTheModeOfItsSlot(t *testing.T) {
 	b.Mode = schedule.ModeInPerson
 	f.slots.bookable[slotFree] = b
 
-	got, err := f.svc.Book(t.Context(), me, slotFree)
+	got, err := f.svc.Book(t.Context(), me, slotFree, "")
 	if err != nil || got.Mode != schedule.ModeInPerson {
 		t.Errorf("Book() = mode %q, %v; want in-person", got.Mode, err)
 	}

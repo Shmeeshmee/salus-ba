@@ -2022,4 +2022,7 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Vous payez sur place. Rien n\'est facturé dans l\'application.';
+
+  @override
+  String get serviceAtClinic => 'Je choisirai sur place';
 }

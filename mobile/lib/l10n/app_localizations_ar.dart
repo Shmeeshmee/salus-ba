@@ -2058,4 +2058,7 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق.';
+
+  @override
+  String get serviceAtClinic => 'سأختار في العيادة';
 }

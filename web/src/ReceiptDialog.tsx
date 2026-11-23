@@ -16,6 +16,8 @@ type Props = {
   api: ApiClient
   // appointmentId is the visit the receipt is for; without one the receipt is a cash sale or a company's invoice.
   appointmentId?: string
+  // serviceId is the service the visit's booking named: the first line starts with it (clinic-cms E).
+  serviceId?: string
   onIssued: (receipt: Receipt) => void
   onClose: () => void
 }
@@ -24,11 +26,11 @@ type Props = {
 // quantity and a discount, how it was paid, and who it is for: the visit's patient, a company, or nobody (a cash
 // sale). The total shown is the price list's; the server prices the lines again at issue. An issued receipt never
 // changes, which the dialog says before the button.
-export function ReceiptDialog({ api, appointmentId, onIssued, onClose }: Props) {
+export function ReceiptDialog({ api, appointmentId, serviceId, onIssued, onClose }: Props) {
   const t = useT()
   const { language } = useLanguage()
   const id = useId()
-  const [lines, setLines] = useState<Line[]>([{ key: 0, serviceId: '', quantity: '1', discount: '' }])
+  const [lines, setLines] = useState<Line[]>([{ key: 0, serviceId: serviceId ?? '', quantity: '1', discount: '' }])
   const [buyer, setBuyer] = useState<Buyer>(appointmentId ? 'patient' : 'cash')
   const [companyName, setCompanyName] = useState('')
   const [companyTaxId, setCompanyTaxId] = useState('')

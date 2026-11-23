@@ -415,6 +415,84 @@ class BillingApi {
     return null;
   }
 
+  /// The online practice report, per practitioner and visit mode
+  ///
+  /// Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [DateTime] from (required):
+  ///
+  /// * [DateTime] to (required):
+  Future<Response> getPracticeReportWithHttpInfo(
+    DateTime from,
+    DateTime to, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/reports/practice';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'from', from));
+    queryParams.addAll(_queryParams('', 'to', to));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The online practice report, per practitioner and visit mode
+  ///
+  /// Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [DateTime] from (required):
+  ///
+  /// * [DateTime] to (required):
+  Future<PracticeReport?> getPracticeReport(
+    DateTime from,
+    DateTime to, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getPracticeReportWithHttpInfo(
+      from,
+      to,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PracticeReport',
+      ) as PracticeReport;
+    }
+    return null;
+  }
+
   /// The clinic's receipts summed for a day or a period, for its accountant
   ///
   /// Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.

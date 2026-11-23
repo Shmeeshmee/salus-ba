@@ -16,6 +16,7 @@ import { ReceiptDialog } from './ReceiptDialog'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
 import { Alert, Link, Notice } from './ui'
+import { serviceOf } from './appointmentService'
 import { visitModeOf } from './visitMode'
 
 type T = ReturnType<typeof useT>
@@ -124,6 +125,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
         <ConfirmationTag appt={appt} />
         <NoShowFlag api={api} id={appt.id} start={start} />
       </p>
+      {serviceOf(appt) && <BookedService api={api} id={serviceOf(appt)!} />}
       {profile && <Profile patient={profile} />}
       {practitioner && join === 'open' && (
         <div className="actions join">
@@ -138,7 +140,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
       <ChangesToggle api={api} id={appt.id} zone={zone} />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
-      {(own || admin) && appt.status !== 'cancelled' && appt.status !== 'noshow' && <IssueReceipt api={api} appointmentId={appt.id} />}
+      {(own || admin) && appt.status !== 'cancelled' && appt.status !== 'noshow' && <IssueReceipt api={api} appointmentId={appt.id} serviceId={serviceOf(appt)} />}
       {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}
     </>
   )
@@ -146,7 +148,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
 
 // IssueReceipt opens the receipt dialog for this visit (clinic-cms C): for the clinic's admin and the visit's own
 // practitioner, to the visit's patient or a company. The server decides again who may issue.
-function IssueReceipt({ api, appointmentId }: { api: ApiClient; appointmentId: string }) {
+function IssueReceipt({ api, appointmentId, serviceId }: { api: ApiClient; appointmentId: string; serviceId?: string }) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const [notice, setNotice] = useState<string>()
@@ -160,6 +162,7 @@ function IssueReceipt({ api, appointmentId }: { api: ApiClient; appointmentId: s
         <ReceiptDialog
           api={api}
           appointmentId={appointmentId}
+          serviceId={serviceId}
           onClose={() => setOpen(false)}
           onIssued={(r) => {
             setOpen(false)
@@ -169,6 +172,18 @@ function IssueReceipt({ api, appointmentId }: { api: ApiClient; appointmentId: s
       )}
     </div>
   )
+}
+
+// BookedService names the price-list service the patient picked when booking (clinic-cms E), from the clinic's price
+// list; left out while it loads or when it cannot be read.
+function BookedService({ api, id }: { api: ApiClient; id: string }) {
+  const t = useT()
+  const { state } = useLoad(async () => {
+    const res = await attempt(api.GET('/clinic/services'))
+    return res.ok ? res.data.find((s) => s.id === id)?.name : undefined
+  }, [api, id])
+  if (state.name !== 'loaded' || !state.value) return null
+  return <p className="service">{t('calendar.bookedService', { name: state.value })}</p>
 }
 
 // Consultation is whether the video consultation started, and whether each side joined (SPEC §2 "Consultation

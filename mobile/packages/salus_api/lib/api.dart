@@ -190,6 +190,8 @@ part 'model/platform_heatmap_cells_inner.dart';
 part 'model/platform_months.dart';
 part 'model/platform_rises.dart';
 part 'model/platform_rises_rises_inner.dart';
+part 'model/practice_report.dart';
+part 'model/practice_report_rows_inner.dart';
 part 'model/push_device.dart';
 part 'model/questionnaire.dart';
 part 'model/questionnaire_default.dart';

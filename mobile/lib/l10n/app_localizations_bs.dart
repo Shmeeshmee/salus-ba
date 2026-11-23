@@ -2021,4 +2021,7 @@ class AppLocalizationsBs extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
+
+  @override
+  String get serviceAtClinic => 'Odabrat ću u ustanovi';
 }

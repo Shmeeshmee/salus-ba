@@ -3239,6 +3239,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You pay at the clinic. Nothing is charged in the app.'**
   String get pricesPaidAtClinic;
+
+  /// Clinic system, package E: booking, the first choice above the services: the patient names no service and leaves it to the clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'I will choose at the clinic'**
+  String get serviceAtClinic;
 }
 
 class _AppLocalizationsDelegate

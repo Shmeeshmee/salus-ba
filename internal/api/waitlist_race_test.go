@@ -369,7 +369,7 @@ func TestWaitlist_ADirectBookingNeverTakesAnOfferedSlot(t *testing.T) {
 		offer, p, _ := openOffer(t, owner, s)
 		errs := atOnce(
 			func() error { _, err := svc.Accept(t.Context(), callerOf(c, p), offer); return err },
-			func() error { _, err := svc.Book(t.Context(), direct, s); return err },
+			func() error { _, err := svc.Book(t.Context(), direct, s, ""); return err },
 		)
 		if errs[0] != nil || !errors.Is(errs[1], appointment.ErrSlotUnavailable) {
 			t.Fatalf("round %d: Accept() = %v, Book() = %v; want the acceptance, and the direct booking refused", round, errs[0], errs[1])
@@ -394,7 +394,7 @@ func TestWaitlist_ACancellationRacingAnOfferKeepsTheSlotInStep(t *testing.T) {
 	svc := waitlistAt(t, app, clock.System{})
 	holder := appointment.Caller{AccountID: c.accounts[2], PatientID: c.patients[2]}
 	for round, s := range c.slots {
-		a, err := svc.Book(t.Context(), holder, s)
+		a, err := svc.Book(t.Context(), holder, s, "")
 		if err != nil {
 			t.Fatalf("round %d: Book() = %v", round, err)
 		}
@@ -501,7 +501,7 @@ func TestWaitlist_ARescheduleHandsTheSlotItLeavesToTheWaitlist(t *testing.T) {
 	c := waitlistClinic(t, owner, 2, 72*time.Hour, 74*time.Hour)
 	svc := waitlistAt(t, app, clock.System{})
 	mover := appointment.Caller{AccountID: c.accounts[1], PatientID: c.patients[1]}
-	a, err := svc.Book(t.Context(), mover, c.slots[0])
+	a, err := svc.Book(t.Context(), mover, c.slots[0], "")
 	if err != nil {
 		t.Fatal(err)
 	}

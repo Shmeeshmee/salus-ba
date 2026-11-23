@@ -17,6 +17,7 @@ class Appointment {
     required this.organizationId,
     required this.practitionerRoleId,
     required this.slotId,
+    this.serviceId,
     required this.start,
     required this.end,
     required this.status,
@@ -37,6 +38,15 @@ class Appointment {
   String practitionerRoleId;
 
   String slotId;
+
+  /// The price-list service the booking named; absent for none (package E).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? serviceId;
 
   DateTime start;
 
@@ -89,6 +99,7 @@ class Appointment {
           other.organizationId == organizationId &&
           other.practitionerRoleId == practitionerRoleId &&
           other.slotId == slotId &&
+          other.serviceId == serviceId &&
           other.start == start &&
           other.end == end &&
           other.status == status &&
@@ -108,6 +119,7 @@ class Appointment {
       (organizationId.hashCode) +
       (practitionerRoleId.hashCode) +
       (slotId.hashCode) +
+      (serviceId == null ? 0 : serviceId!.hashCode) +
       (start.hashCode) +
       (end.hashCode) +
       (status.hashCode) +
@@ -122,7 +134,7 @@ class Appointment {
 
   @override
   String toString() =>
-      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
+      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, serviceId=$serviceId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -130,6 +142,11 @@ class Appointment {
     json[r'organizationId'] = this.organizationId;
     json[r'practitionerRoleId'] = this.practitionerRoleId;
     json[r'slotId'] = this.slotId;
+    if (this.serviceId != null) {
+      json[r'serviceId'] = this.serviceId;
+    } else {
+      json[r'serviceId'] = null;
+    }
     json[r'start'] = this.start.toUtc().toIso8601String();
     json[r'end'] = this.end.toUtc().toIso8601String();
     json[r'status'] = this.status;
@@ -224,6 +241,7 @@ class Appointment {
         practitionerRoleId:
             mapValueOfType<String>(json, r'practitionerRoleId')!,
         slotId: mapValueOfType<String>(json, r'slotId')!,
+        serviceId: mapValueOfType<String>(json, r'serviceId'),
         start: mapDateTime(json, r'start', r'')!,
         end: mapDateTime(json, r'end', r'')!,
         status: AppointmentStatusEnum.fromJson(json[r'status'])!,

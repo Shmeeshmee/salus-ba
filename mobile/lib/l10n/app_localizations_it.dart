@@ -2012,4 +2012,7 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Si paga presso la struttura. Nell\'app non viene addebitato nulla.';
+
+  @override
+  String get serviceAtClinic => 'Sceglierò presso la struttura';
 }

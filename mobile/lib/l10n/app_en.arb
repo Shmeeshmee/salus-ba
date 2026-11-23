@@ -2627,5 +2627,9 @@
   "pricesPaidAtClinic": "You pay at the clinic. Nothing is charged in the app.",
   "@pricesPaidAtClinic": {
     "description": "Clinic system, package B: booking, under the prices: they are shown, never charged in the app. Draft, waiting for the owner."
+  },
+  "serviceAtClinic": "I will choose at the clinic",
+  "@serviceAtClinic": {
+    "description": "Clinic system, package E: booking, the first choice above the services: the patient names no service and leaves it to the clinic. Draft, waiting for the owner."
   }
 }

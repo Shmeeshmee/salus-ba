@@ -480,3 +480,26 @@ func TestLookup_ReadsTheScheduleInItsClinicUnlocked(t *testing.T) {
 		t.Errorf("Lookup() = %v, want the repository's error", err)
 	}
 }
+
+// The online practice report reads the clinic's schedules for the hours offered, in its scope (clinic-cms E).
+func TestOfClinic_GivesTheClinicsSchedulesInItsScope(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	got, err := f.svc.OfClinic(t.Context(), clinicA)
+	if err != nil || len(got) == 0 || !slices.Equal(f.calls, []string{"SetOrganization", "Listed"}) {
+		t.Fatalf("OfClinic() = %d, %v after %v; want clinic A's in its scope", len(got), err, f.calls)
+	}
+	for _, s := range got {
+		if s.OrganizationID != clinicA {
+			t.Errorf("OfClinic() gave %s of clinic %s, want clinic A's only", s.ID, s.OrganizationID)
+		}
+	}
+	f.repo.leak = true
+	if got, _ := f.svc.OfClinic(t.Context(), clinicA); slices.ContainsFunc(got, func(s schedule.Schedule) bool { return s.OrganizationID != clinicA }) {
+		t.Error("OfClinic() with the scope leaking gave another clinic's, want them dropped")
+	}
+	f.repo.leak, f.repo.err = false, errors.New("synthetic failure")
+	if _, err := f.svc.OfClinic(t.Context(), clinicA); err == nil {
+		t.Error("OfClinic() error = nil, want the repository's")
+	}
+}

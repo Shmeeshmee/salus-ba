@@ -49,6 +49,7 @@ type Appointment struct {
 	PractitionerRoleID string // the practitioner role participant
 	OrganizationID     string // the clinic
 	SlotID             string // Appointment.slot
+	ServiceID          string // the price-list service named at booking; empty for none (docs/plans/clinic-cms.md, E)
 	CancelledBy        string // the account that cancelled; empty for none or a job
 	Status             Status
 	Reason             Reason             // Appointment.cancelationReason; empty unless cancelled
@@ -284,6 +285,15 @@ type Booked struct {
 	PractitionerRoleID string
 	Status             Status
 	BookedVia          BookedVia
+}
+
+// Visit is an appointment as the online practice report counts it (clinicstats, docs/plans/clinic-cms.md, E): whose,
+// in which mode, and its status. Opaque ids only, no patient.
+type Visit struct {
+	ID                 string
+	PractitionerRoleID string
+	Mode               schedule.VisitMode
+	Status             Status
 }
 
 // Start is an appointment as a build gets it: the patient only as a pseudonym under the build's key

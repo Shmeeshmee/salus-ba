@@ -520,5 +520,6 @@
   "visitModeVideo": "عبر الفيديو",
   "visitModeInPerson": "في العيادة",
   "pricesHeading": "الأسعار في هذه العيادة",
-  "pricesPaidAtClinic": "تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق."
+  "pricesPaidAtClinic": "تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق.",
+  "serviceAtClinic": "سأختار في العيادة"
 }

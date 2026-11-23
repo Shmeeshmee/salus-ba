@@ -2023,4 +2023,7 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Sie zahlen in der Praxis. In der App wird nichts berechnet.';
+
+  @override
+  String get serviceAtClinic => 'Ich wähle in der Praxis';
 }

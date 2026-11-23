@@ -520,5 +520,6 @@
   "visitModeVideo": "Per Video",
   "visitModeInPerson": "In der Klinik",
   "pricesHeading": "Preise dieser Praxis",
-  "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet."
+  "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet.",
+  "serviceAtClinic": "Ich wähle in der Praxis"
 }

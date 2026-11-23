@@ -520,5 +520,6 @@
   "visitModeVideo": "In video",
   "visitModeInPerson": "In clinica",
   "pricesHeading": "Prezzi di questa struttura",
-  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla."
+  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla.",
+  "serviceAtClinic": "Sceglierò presso la struttura"
 }
