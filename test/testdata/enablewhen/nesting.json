@@ -1,0 +1,42 @@
+{
+  "name": "A branch within a branch, each a group carrying its condition, joining back at the next unconditional item",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "intro", "text": "Placeholder section", "type": "group",
+        "item": [
+          {"linkId": "q1", "text": "Placeholder yes/no", "type": "boolean"},
+          {"linkId": "branch-1", "text": "Placeholder branch", "type": "group",
+            "enableWhen": [{"question": "q1", "operator": "=", "answerBoolean": true}],
+            "item": [
+              {"linkId": "q2", "text": "Placeholder single choice", "type": "choice",
+                "answerOption": [{"valueString": "Option A"}, {"valueString": "Option B"}]},
+              {"linkId": "branch-2", "text": "Placeholder inner branch", "type": "group",
+                "enableWhen": [{"question": "q2", "operator": "=", "answerString": "Option A"}],
+                "item": [
+                  {"linkId": "q3", "text": "Placeholder inner question", "type": "string"}
+                ]},
+              {"linkId": "inner-join", "text": "Placeholder: the inner branches join here", "type": "string"}
+            ]},
+          {"linkId": "after-q3", "text": "Placeholder: depends on the inner question", "type": "string",
+            "enableWhen": [{"question": "q3", "operator": "exists", "answerBoolean": true}]},
+          {"linkId": "outer-join", "text": "Placeholder: everyone", "type": "string"}
+        ]},
+      {"linkId": "main", "text": "Placeholder main section", "type": "group",
+        "item": [
+          {"linkId": "m1", "text": "Placeholder main question", "type": "string"}
+        ]}
+    ]
+  },
+  "cases": [
+    {"name": "no: straight to the join", "answers": {"q1": [{"valueBoolean": false}]},
+      "enabled": ["intro", "q1", "outer-join", "main", "m1"]},
+    {"name": "yes, B: the outer branch only", "answers": {"q1": [{"valueBoolean": true}], "q2": [{"valueString": "Option B"}]},
+      "enabled": ["intro", "q1", "branch-1", "q2", "inner-join", "outer-join", "main", "m1"]},
+    {"name": "yes, A: both branches", "answers": {"q1": [{"valueBoolean": true}], "q2": [{"valueString": "Option A"}], "q3": [{"valueString": "Placeholder"}]},
+      "enabled": ["intro", "q1", "branch-1", "q2", "branch-2", "q3", "inner-join", "after-q3", "outer-join", "main", "m1"]},
+    {"name": "changed to no: the answers in both branches count as none",
+      "answers": {"q1": [{"valueBoolean": false}], "q2": [{"valueString": "Option A"}], "q3": [{"valueString": "Placeholder"}]},
+      "enabled": ["intro", "q1", "outer-join", "main", "m1"]}
+  ]
+}

@@ -496,8 +496,8 @@ class ApiClient {
           return QuestionnaireItem.fromJson(value);
         case 'QuestionnaireItemAnswerOptionInner':
           return QuestionnaireItemAnswerOptionInner.fromJson(value);
-        case 'QuestionnaireItemEnableWhen':
-          return QuestionnaireItemEnableWhen.fromJson(value);
+        case 'QuestionnaireItemEnableWhenInner':
+          return QuestionnaireItemEnableWhenInner.fromJson(value);
         case 'QuestionnaireItemTranslation':
           return QuestionnaireItemTranslation.fromJson(value);
         case 'QuestionnaireResponse':

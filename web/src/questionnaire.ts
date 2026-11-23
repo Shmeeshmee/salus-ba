@@ -166,7 +166,7 @@ function fromJSONItem(j: JSONItem): Item {
     required: j.required ?? false,
     help: j.help ?? '',
     options: (j.answerOption ?? []).map((o) => o.valueString),
-    condition: conditionOf(j.enableWhen),
+    condition: conditionOf(j.enableWhen?.[0]),
     items: (j.item ?? []).map(fromJSONItem),
     ...(j.type === 'attachment' ? { accept: ordered(j.accept ?? []), maxFiles: j.maxFiles ?? 1 } : {}),
   })
@@ -201,7 +201,7 @@ function toJSONItem(it: Item): JSONItem {
   }
   if (it.condition) {
     const { question, answer } = it.condition
-    out.enableWhen = typeof answer === 'boolean' ? { question, answerBoolean: answer } : { question, answerString: answer }
+    out.enableWhen = [typeof answer === 'boolean' ? { question, operator: '=', answerBoolean: answer } : { question, operator: '=', answerString: answer }]
   }
   if (it.kind === 'group') out.item = it.items.map(toJSONItem)
   return out

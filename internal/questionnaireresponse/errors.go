@@ -44,6 +44,8 @@ var (
 	ErrLanguageUnavailable = errors.New("questionnaireresponse: language unavailable")
 	// ErrAnswersInvalid is what every *AnswersError is (answers_invalid).
 	ErrAnswersInvalid = errors.New("questionnaireresponse: answers invalid")
+	// ErrNotEnabled is what every *NotEnabledError is (answer_not_enabled).
+	ErrNotEnabled = errors.New("questionnaireresponse: answer not enabled")
 )
 
 // AnswersError is a set of answers that breaks the rules of SPEC.md §2 "Limits" and "Patient flow": an answer
@@ -58,3 +60,15 @@ func (e *AnswersError) Error() string { return ErrAnswersInvalid.Error() }
 
 // Is makes errors.Is(err, ErrAnswersInvalid) hold.
 func (e *AnswersError) Is(target error) bool { return target == ErrAnswersInvalid }
+
+// NotEnabledError refuses a submit whose saved answers include answers to items that are hidden on the answers
+// given (docs/clinic-cms, Q1): a response holds only the path taken. LinkIDs are those items, in document order.
+// Its text holds no linkId and no answer.
+type NotEnabledError struct {
+	LinkIDs []string
+}
+
+func (e *NotEnabledError) Error() string { return ErrNotEnabled.Error() }
+
+// Is makes errors.Is(err, ErrNotEnabled) hold.
+func (e *NotEnabledError) Is(target error) bool { return target == ErrNotEnabled }

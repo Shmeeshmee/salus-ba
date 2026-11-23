@@ -365,6 +365,56 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 
 ## Q1: questionnaire branching, rules and server
 
+**Status: done, 2026-11-23** (worktree `wt/cms/Q1`). Ticket SAL-43. No migration: `00065` is left unused.
+
+**Built.**
+- **The model is FHIR R4 `enableWhen`.** `questionnaire.Item.EnableWhen` is a list of `Condition`
+  (`question`, `operator`, one `answer[x]`: `answerBoolean`, `answerString`, `answerInteger`, `answerDecimal`,
+  `answerDate`) plus `enableBehavior` (`all`, `any`). The FHIR read serves the model's conditions as they are; the
+  JSON API (`api/openapi.yaml` `QuestionnaireItem`) now takes and returns the FHIR array. The single object of before
+  (`{question, answerBoolean | answerString}`, operator `=`) is still decoded, from stored rows and from requests,
+  so existing drafts and published versions keep working without a migration.
+- **Publishing refuses broken logic** (`internal/questionnaire/validate_logic.go`, on every save and so on
+  publish, 422 `invalid_questionnaire` naming the item): a condition on a missing, later or own-descendant question,
+  on a section, instructions or a file upload; an operator that does not fit the type (`=`/`!=` on yes/no and choice,
+  every comparison on integer, decimal and date, `exists` on any question, string and text only `exists`); not exactly
+  one answer of the type (`exists` takes `answerBoolean`); an option that no longer exists; a malformed decimal or a
+  date that does not exist; two or more conditions without `enableBehavior`, an unknown behavior, a behavior without
+  conditions. Sections now nest (a branch is a section carrying the condition); an empty one at any depth is refused
+  on publish (que-1).
+- **The server evaluates the conditions on submit** (`internal/questionnaireresponse/service_enable.go`, was
+  `enabled.go`) and refuses saved answers to hidden items: 422 `answer_not_enabled` with their `linkIds` in document
+  order, audited as a refused submit. Files of hidden attachment items are still removed on submit.
+- **Shared test vectors** `test/testdata/enablewhen/*.json` (README there): today's `is` conditions, every operator
+  and type, `all` and `any`, nesting with a join, the ticket's gynaecology example, the changed-answer case. Both Go
+  packages run every case (`TestPublish_AcceptsEveryEnableWhenVector`, `TestSubmit_EvaluatesEveryEnableWhenVector`);
+  `questionnaire_branching.json` is a new golden FHIR read.
+
+**Readings and decisions.**
+- Every operator but `exists` is false on an unanswered or hidden question, `!=` included (R4 leaves it open; R5
+  says so). `!=` on a multiple choice holds when no answer equals.
+- `answer_not_enabled` refuses rather than drops, as the plan says. Today's mobile app saves answers of hidden items
+  and relied on the server dropping them: after Q3 it saves only the shown answers; until then a patient who changed
+  an answer that hides a branch gets the refusal on submit.
+- A condition on a file upload is refused (its answers live in `binary`, outside the answers the conditions read);
+  the ticket's "any question: answered" covers every other question type.
+- The JSON API's `enableWhen` changed to the FHIR array (the plan's contract); `web/src/questionnaire.ts` and its
+  test fixture were adapted in two lines each so the web app keeps building until Q2 replaces them.
+- `docs/questionnaire/SPEC.md` §2 "Item model" (one `=` condition, sections top level only) is superseded by this
+  package; that plan's docs are not edited here.
+- TDD: the tests were written before the code each time; the first runs failed on the build (the model change)
+  rather than on an assertion.
+
+**Checks.** Fast layer after each change; `make gen-clients lint test archcheck web-lint web-typecheck web-test
+web-build mobile-analyze mobile-test` passed (lint includes `i18n-check`), `make cover` passed (questionnaire 93.6%,
+questionnaireresponse 93.1%), `make fhir-validate` passed (the new golden: 0 errors, the usual dom-6 warning).
+`gen-clients` dropped the stale generated `questionnaire_item_enable_when.dart` (git rm: the generator leaves it).
+
+**Integration notes.** Run the vectors against `enableWhen.ts` and `enable_when.dart`. Q2 and Q3 should read and
+write `enableWhen` as the array (the JSON API's response no longer carries the single object), Q3 should save
+without hidden answers before submit and handle `answer_not_enabled`. Regenerate the clients after the merges.
+`openapi.yaml`'s `Error.error` enum gained `answer_not_enabled` at its end.
+
 ## Q2: questionnaire branching, builder and preview
 
 ## Q3: questionnaire branching, patient app

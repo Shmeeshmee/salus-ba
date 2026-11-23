@@ -1,0 +1,34 @@
+{
+  "name": "Two conditions on one item, combined with all (AND) and with any (OR)",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "pregnant", "text": "Placeholder yes/no", "type": "boolean"},
+      {"linkId": "weeks", "text": "Placeholder integer", "type": "integer"},
+      {"linkId": "both", "text": "Placeholder: yes and more than 20", "type": "string",
+        "enableBehavior": "all",
+        "enableWhen": [
+          {"question": "pregnant", "operator": "=", "answerBoolean": true},
+          {"question": "weeks", "operator": ">", "answerInteger": 20}
+        ]},
+      {"linkId": "either", "text": "Placeholder: yes or more than 20", "type": "string",
+        "enableBehavior": "any",
+        "enableWhen": [
+          {"question": "pregnant", "operator": "=", "answerBoolean": true},
+          {"question": "weeks", "operator": ">", "answerInteger": 20}
+        ]}
+    ]
+  },
+  "cases": [
+    {"name": "neither", "answers": {"pregnant": [{"valueBoolean": false}], "weeks": [{"valueInteger": 10}]},
+      "enabled": ["pregnant", "weeks"]},
+    {"name": "only the first", "answers": {"pregnant": [{"valueBoolean": true}], "weeks": [{"valueInteger": 10}]},
+      "enabled": ["pregnant", "weeks", "either"]},
+    {"name": "only the second", "answers": {"pregnant": [{"valueBoolean": false}], "weeks": [{"valueInteger": 21}]},
+      "enabled": ["pregnant", "weeks", "either"]},
+    {"name": "both", "answers": {"pregnant": [{"valueBoolean": true}], "weeks": [{"valueInteger": 21}]},
+      "enabled": ["pregnant", "weeks", "both", "either"]},
+    {"name": "the second unanswered", "answers": {"pregnant": [{"valueBoolean": true}]},
+      "enabled": ["pregnant", "weeks", "either"]}
+  ]
+}

@@ -2432,3 +2432,15 @@ owner (`salusctl`) edits a plan or marks an invoice paid.
 | A clinic that does not pay loses access to its patients' records, or a patient to theirs | Only a new booking and a new waitlist entry ask the membership (`bookableClinics` in `internal/api`); existing appointments, records, documents, exports and subject rights never do (`TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
 | The app marks its own invoices paid or edits a plan | No `UPDATE` grant on `subscription_invoice`, no write grant on `subscription_plan`; tested as the app role |
 | Billing details in a log | The handlers log through `httpx.InternalError` only; the api test checks the log for them |
+
+### Package Q1: questionnaire branching, rules and server (no migration)
+
+**Processing changed.** A questionnaire's items may now carry several FHIR R4 `enableWhen` conditions on earlier
+answers (yes/no, choice, number, date, answered or not), combined with `enableBehavior` `all` or `any`, and branches
+are sections nested in sections. The conditions are the clinic's own wording and settings, not personal data. No new
+personal-data field and no new table: the answers are stored as before (`questionnaire_response.answers`).
+
+**Data minimisation.** The server evaluates the conditions on submit and refuses (422 `answer_not_enabled`) a
+response that still holds answers to items hidden on the path the patient took, so a submitted response holds only
+the answers the patient's own path asked for; the files of hidden attachment items are still removed on submit, as
+before. The refusal names only `linkId`s, never an answer, and is audited like every other refused submit.

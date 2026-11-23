@@ -229,14 +229,11 @@ var errorCodes = []struct {
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if invalid, ok := errors.AsType[*AnswersError](err); ok {
-		ids := invalid.LinkIDs
-		if ids == nil {
-			ids = []string{}
-		}
-		httpx.JSON(w, http.StatusUnprocessableEntity, struct {
-			Error   string   `json:"error"`
-			LinkIDs []string `json:"linkIds"`
-		}{"answers_invalid", ids})
+		writeLinkIDs(w, "answers_invalid", invalid.LinkIDs)
+		return
+	}
+	if hidden, ok := errors.AsType[*NotEnabledError](err); ok {
+		writeLinkIDs(w, "answer_not_enabled", hidden.LinkIDs)
 		return
 	}
 	for _, c := range errorCodes {
@@ -246,6 +243,17 @@ func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err err
 		}
 	}
 	httpx.InternalError(w, r, h.log, err)
+}
+
+// writeLinkIDs writes a 422 with its code and the offending items' linkIds, an empty list when none is named.
+func writeLinkIDs(w http.ResponseWriter, code string, ids []string) {
+	if ids == nil {
+		ids = []string{}
+	}
+	httpx.JSON(w, http.StatusUnprocessableEntity, struct {
+		Error   string   `json:"error"`
+		LinkIDs []string `json:"linkIds"`
+	}{code, ids})
 }
 
 func writeCode(w http.ResponseWriter, status int, code string) {
