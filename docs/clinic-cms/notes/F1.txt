@@ -1,0 +1,2 @@
+Package F1. Migration, only if needed: 00066. The route-by-route refusal test is the deliverable: generate its table
+from api/openapi.yaml so a route added later fails the test until it is classified.

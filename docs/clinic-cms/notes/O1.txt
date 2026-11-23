@@ -1,0 +1,2 @@
+Package O1. Migration, only if needed: 00068. Today a clinic is created only by `salusctl create-clinic`, which also
+starts the trial: reuse that path. In landing/ change only the sign-up link.

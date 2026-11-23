@@ -5,7 +5,8 @@
 # One branch feat/cms per wave, one commit per package (cms(<pkg>): ...), one PR per wave after its integration.
 # Step 0 is merged (PR #107). Wave 1: A B C D (built 2026-11-21, integrated in its own PR).
 # Wave 2: E H I L Q1 Q2 Q3 together, from a fresh feat/cms after wave 1 is on main.
-# F waits for the owner on Q1 (reception role), G on Q6 (ESET specification and test access).
+# Wave 3: 3.0 alone first (the contract), then F1 F2 F3 O1 O2 X1 X2 together, from a fresh feat/cms after wave 2 is on main.
+# O3 waits for F2 (clinic-registered patients), X3 for a payment provider, G for the owner on the ESET specification.
 # package	tickets	title	hold
 A	-	Visit modes: in-person and video
 B	-	Price list
@@ -18,5 +19,14 @@ L	-	Landing page for the clinic system
 Q1	-	Questionnaire branching: rules and server
 Q2	-	Questionnaire branching: builder and preview
 Q3	-	Questionnaire branching: patient app
-F	-	Reception role and desk	hold
+3.0	-	Wave 3 contract: reception, desk, signup, quotes, clinic profile
+F1	-	Reception role and what it may see
+F2	-	Patients registered by the clinic and bookings by staff
+F3	-	The front desk screen
+O1	-	Clinic signup and setup wizard
+O2	-	Price list import and the clinic data export
+X1	-	Treatment quotes
+X2	-	Clinic profile for patients abroad
+O3	-	Patient and appointment import	hold
+X3	-	Prepaid and deposit bookings	hold
 G	-	ESET adapter	hold

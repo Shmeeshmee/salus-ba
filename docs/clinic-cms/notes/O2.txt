@@ -1,0 +1,2 @@
+Package O2. Migration, only if needed: 00069. Check what Go library reads XLSX before adding a dependency
+(CLAUDE.md "Top rules"); CSV alone is acceptable if XLSX needs a heavy one: say so in the report.
