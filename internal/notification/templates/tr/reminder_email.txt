@@ -5,7 +5,9 @@ Klinik: {{.Clinic}}
 Tarih ve saat: {{.When}}
 {{if .WhenLocal}}Sizin saat diliminizde: {{.WhenLocal}}
 {{end}}
-{{if .Questionnaire}}Randevunuzdan önce doldurmanız gereken bir anket var. Anketi Salus uygulamasında bulabilirsiniz.
+{{if .InPerson}}Bu randevu klinikte yapılacaktır, görüntülü değildir.{{if .Address}} Adres: {{.Address}}{{end}}
+
+{{end}}{{if .Questionnaire}}Randevunuzdan önce doldurmanız gereken bir anket var. Anketi Salus uygulamasında bulabilirsiniz.
 
 {{end}}Randevuyu onaylamak veya iptal etmek için bu bağlantıyı açın:
 {{.ActionLink}}

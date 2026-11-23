@@ -54,5 +54,8 @@
     "defaultMessage": "Dijagnoze i termini klinike ulaze, anonimizirani, u podatke svih klinika. Ako se isključite, klinika se izostavlja od sljedeće obrade, a njezino osoblje više ne vidi ove podatke.",
     "description": "legal"
   },
-  "invalidLocation": "Odaberite grad u toj regiji."
+  "invalidLocation": "Odaberite grad u toj regiji.",
+  "addressLine": "Ulica i broj",
+  "postalCode": "Poštanski broj",
+  "addressHint": "Pacijenti s terminom u klinici dobivaju ovu adresu u e-porukama i podsjetnicima."
 }

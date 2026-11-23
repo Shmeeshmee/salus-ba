@@ -1,0 +1,4 @@
+Package I. Migration, only if you need one: 00064.
+- From D's report: the invoice e-mail and PDF were deferred; the public listing still shows a suspended clinic while
+  booking is refused through a wrapper in internal/api.
+- Keep the app without an UPDATE grant on subscription_invoice.

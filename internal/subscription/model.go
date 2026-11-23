@@ -3,9 +3,6 @@
 // scheduler issues for the month ahead. Plain JSON, not FHIR; nothing clinical and no personal data. The owner edits
 // the plans and marks invoices paid in salusctl (Q2, Q3). Past due: a banner at 14 days, new bookings stop at 30; care
 // never stops (Q4).
-//
-// Step 0 holds the contract: the model, the ports and the service's methods, each refused with errors.ErrUnsupported
-// until package D builds it.
 package subscription
 
 import "time"
@@ -20,7 +17,16 @@ type Plan struct {
 	Active            bool
 }
 
-// Status is where a clinic's membership stands. It moves only forward, through the monthly job or salusctl.
+// The membership's terms (docs/plans/clinic-cms.md Q2 to Q4, the defaults applied 2026-11-21).
+const (
+	DefaultPlan  = "basic"             // the plan of a new clinic's trial
+	TrialLength  = 30 * 24 * time.Hour // from the clinic's creation
+	PaymentTerm  = 14 * 24 * time.Hour // an invoice is due this long after it is issued
+	SuspendAfter = 30 * 24 * time.Hour // past due this long, new bookings stop; care never does
+)
+
+// Status is where a clinic's membership stands. It moves only forward, through the monthly job or salusctl; the one
+// way back is a payment: past_due or suspended returns to active when no invoice is past due any more.
 type Status string
 
 // The statuses.
@@ -32,8 +38,13 @@ const (
 	StatusCancelled Status = "cancelled"
 )
 
-// Subscription is a clinic's membership.
+// rank orders the statuses: a move is forward when it goes to a higher rank.
+var rank = map[Status]int{StatusTrial: 1, StatusActive: 2, StatusPastDue: 3, StatusSuspended: 4, StatusCancelled: 5}
+
+// Subscription is a clinic's membership. Current fills Plan and PastDueSince (the due date of the oldest open invoice
+// past due, zero for none): the admin's banner reads it.
 type Subscription struct {
+	PastDueSince       time.Time
 	TrialEndsAt        time.Time // zero without a trial
 	CurrentPeriodStart time.Time // zero before the first invoice
 	CurrentPeriodEnd   time.Time
@@ -41,6 +52,7 @@ type Subscription struct {
 	OrganizationID     string
 	PlanCode           string
 	Status             Status
+	Plan               Plan
 }
 
 // InvoiceStatus is where a monthly invoice stands.

@@ -2607,5 +2607,25 @@
   "waitlistOfferExpired": "This time is no longer held for you. You stay on the waitlist.",
   "@waitlistOfferExpired": {
     "description": "SAL-35: 409 offer_expired. Draft, waiting for the owner."
+  },
+  "visitModeQuestion": "How would you like to attend?",
+  "@visitModeQuestion": {
+    "description": "Clinic system, package A: above the choice between a visit by video and one at the clinic, before the time is picked. Draft, waiting for the owner."
+  },
+  "visitModeVideo": "By video",
+  "@visitModeVideo": {
+    "description": "Clinic system, package A: a visit by video. Draft, waiting for the owner."
+  },
+  "visitModeInPerson": "At the clinic",
+  "@visitModeInPerson": {
+    "description": "Clinic system, package A: a visit at the clinic, in person. Draft, waiting for the owner."
+  },
+  "pricesHeading": "Prices at this clinic",
+  "@pricesHeading": {
+    "description": "Clinic system, package B: booking, the heading above the clinic's services and their prices. Draft, waiting for the owner."
+  },
+  "pricesPaidAtClinic": "You pay at the clinic. Nothing is charged in the app.",
+  "@pricesPaidAtClinic": {
+    "description": "Clinic system, package B: booking, under the prices: they are shown, never charged in the app. Draft, waiting for the owner."
   }
 }

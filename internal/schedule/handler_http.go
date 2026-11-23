@@ -48,6 +48,8 @@ type ruleBody struct {
 	Day   *int    `json:"day"`
 	Start *string `json:"start"`
 	End   *string `json:"end"`
+	// Mode is optional: a rule without one is a video rule (the service's validation).
+	Mode VisitMode `json:"mode"`
 }
 
 // availabilityJSON is the Availability schema.
@@ -130,7 +132,7 @@ func decodeAvailability(w http.ResponseWriter, r *http.Request) (Availability, b
 		if rule.Day == nil || rule.Start == nil || rule.End == nil {
 			return Availability{}, false
 		}
-		in.Rules = append(in.Rules, Rule{Day: *rule.Day, Start: *rule.Start, End: *rule.End})
+		in.Rules = append(in.Rules, Rule{Day: *rule.Day, Start: *rule.Start, End: *rule.End, Mode: rule.Mode})
 	}
 	return in, true
 }

@@ -78,6 +78,7 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 		PatientTranscriptCopy: o.PatientTranscriptCopy, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
 		RegionID: text(o.Region), CityID: text(o.City), LocationSince: instant(o.LocationSince),
 		AnalyticsContributes: o.AnalyticsContributes, ContributesSince: instant(o.ContributesSince),
+		AddressLine: text(o.AddressLine), PostalCode: text(o.PostalCode),
 	})
 	if foreignKeyViolation(err) {
 		return Organization{}, ErrInvalidLocation
@@ -105,6 +106,7 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 		Listed: row.Listed, DefaultLanguage: string(row.DefaultLanguage), LastUpdated: row.UpdatedAt.Time,
 		PatientTranscriptCopy: row.PatientTranscriptCopy, Region: row.RegionID.String, City: row.CityID.String,
 		LocationSince: row.LocationSince.Time, AnalyticsContributes: row.AnalyticsContributes, ContributesSince: row.ContributesSince.Time,
+		AddressLine: row.AddressLine.String, PostalCode: row.PostalCode.String,
 	}
 }
 
@@ -256,4 +258,47 @@ func (r *postgresRepository) PutAppointmentSettings(ctx context.Context, org str
 func foreignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23503"
+}
+
+type postgresBillingRepository struct {
+	db postgres.Querier
+}
+
+// NewPostgresBillingRepository returns the BillingRepository on db, using the transaction in the context when there
+// is one.
+func NewPostgresBillingRepository(db postgres.Querier) BillingRepository {
+	return &postgresBillingRepository{db: db}
+}
+
+func (r *postgresBillingRepository) SetOrganization(ctx context.Context, id string) error {
+	return postgres.SetLocal(ctx, "app.organization_id", id)
+}
+
+func (r *postgresBillingRepository) BillingDetails(ctx context.Context, org string) (BillingDetails, error) {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return BillingDetails{}, ErrNotFound
+	}
+	row, err := organizationdb.New(postgres.Conn(ctx, r.db)).BillingDetails(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return BillingDetails{}, ErrNotFound
+	case err != nil:
+		return BillingDetails{}, err
+	}
+	return BillingDetails{LegalName: row.LegalName.String, TaxID: row.TaxID.String, BillingEmail: row.BillingEmail.String, VATRegistered: row.VatRegistered}, nil
+}
+
+func (r *postgresBillingRepository) SetBillingDetails(ctx context.Context, org string, d BillingDetails) error {
+	var u pgtype.UUID
+	if u.Scan(org) != nil {
+		return ErrNotFound
+	}
+	n, err := organizationdb.New(postgres.Conn(ctx, r.db)).SetBillingDetails(ctx, organizationdb.SetBillingDetailsParams{
+		ID: u, LegalName: text(d.LegalName), TaxID: text(d.TaxID), VatRegistered: d.VATRegistered, BillingEmail: text(d.BillingEmail),
+	})
+	if err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return err
 }

@@ -24,6 +24,7 @@ const (
 type Period struct {
 	Start time.Time
 	End   time.Time
+	Mode  schedule.VisitMode // its rule's: in-person or video
 }
 
 // Slot is a bookable time of one schedule.
@@ -34,8 +35,7 @@ type Slot struct {
 	ScheduleID     string
 	OrganizationID string
 	Status         Status
-	Mode           schedule.VisitMode // its rule's: in-person or video
-	VersionID      int32              // meta.versionId
+	VersionID      int32 // meta.versionId
 }
 
 // Bookable is a free slot of the directory with the practitioner role of its schedule, which a booking is

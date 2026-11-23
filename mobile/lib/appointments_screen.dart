@@ -235,6 +235,7 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
             Text(
               place == null ? t.unlistedClinic : [place.$2.name, place.$1.name].where((s) => s.isNotEmpty).join(', '),
             ),
+            if (a.inPerson) Text(t.visitModeInPerson),
             Text(_status(t, a.status)),
             if (open)
               AppointmentActionsPanel(
@@ -324,7 +325,7 @@ enum JoinWindow { before, open, closed }
 /// after the end (docs/consultation/SPEC.md "Join button"). It only decides whether Join shows; the server decides
 /// whether a token is issued.
 JoinWindow joinWindow(Appointment a, DateTime now) {
-  if (a.status != 'booked') return JoinWindow.closed;
+  if (a.status != 'booked' || a.inPerson) return JoinWindow.closed; // a visit at the clinic has no call
   if (now.isBefore(a.start.subtract(const Duration(minutes: 10)))) return JoinWindow.before;
   if (!now.isBefore(a.end.add(const Duration(minutes: 30)))) return JoinWindow.closed;
   return JoinWindow.open;

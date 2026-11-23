@@ -1,0 +1,6 @@
+Package A (visit modes). Migration placeholder: 00060.
+Step 0 handed you four things:
+- slots must carry their rule's mode;
+- a reschedule keeps the appointment's mode and refuses a slot of the other mode;
+- the availability PUT starts accepting `mode`;
+- the Go fields for the clinic's address on `organization` are yours, on the existing FHIR Organization update.

@@ -41,8 +41,9 @@ Future<Harness> atSlots(WidgetTester tester, {DateTime? now}) async {
 /// Thursday's 09:00, on the screen that books it.
 /// The booking screen of the 09:00 slot; [sharing] answers its preview of the history sharing (SAL-42), unanswered
 /// when null.
-Future<Harness> atBook(WidgetTester tester, {Map<String, Object?>? sharing}) async {
+Future<Harness> atBook(WidgetTester tester, {Map<String, Object?>? sharing, List<Object?>? services}) async {
   final h = await atSlots(tester);
+  if (services != null) h.api.answer('GET /organizations/$clinicId/services', 200, services);
   if (sharing != null) h.api.answer('GET /history-sharing/$clinicId', 200, sharing);
   await tapLink(tester, 'Next day');
   await tapOutlined(tester, '09:00');
@@ -87,6 +88,43 @@ void main() {
 
     await tapLink(tester, 'Previous day');
     expect(find.text('Wednesday 4 November 2026'), findsOneWidget);
+  });
+
+  testWidgets('a day with visits by video and at the clinic asks which before the time, video first', (tester) async {
+    final h = await atSlots(tester);
+    h.api.on(
+      'GET /fhir/R4/Slot',
+      (_) async => fhirResponse(
+        200,
+        bundle([
+          slot('video', '2026-11-04T13:00:00Z', '2026-11-04T13:30:00Z'),
+          slot('clinic', '2026-11-04T14:00:00Z', '2026-11-04T14:30:00Z', mode: 'in-person'),
+        ]),
+      ),
+    );
+    await tapLink(tester, 'Next day');
+
+    expect(find.text('How would you like to attend?'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '14:00'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '15:00'), findsNothing);
+
+    await tapText(tester, 'At the clinic');
+    expect(find.widgetWithText(OutlinedButton, '14:00'), findsNothing);
+    await tapOutlined(tester, '15:00');
+
+    expect(find.text('Book this time'), findsOneWidget);
+    expect(find.text('At the clinic'), findsOneWidget);
+    expect(find.text('By video'), findsNothing);
+  });
+
+  testWidgets('a day with one kind of visit names it and asks nothing', (tester) async {
+    await atSlots(tester);
+
+    expect(find.text('How would you like to attend?'), findsNothing);
+    expect(find.text('By video'), findsOneWidget);
+
+    await tapOutlined(tester, '14:00');
+    expect(find.text('By video'), findsOneWidget);
   });
 
   testWidgets('shows the practitioners with the specialty the API gives', (tester) async {
@@ -346,5 +384,59 @@ void main() {
       debugPrint = original;
     }
     expect(printed, isEmpty);
+  });
+
+  // Placeholder services, not a real clinic's.
+  testWidgets("shows the clinic's prices for the visit, to be paid at the clinic", (tester) async {
+    final h = await atBook(
+      tester,
+      services: [
+        {'id': 'd1', 'name': 'Placeholder exam', 'priceMinor': 5000, 'currency': 'BAM', 'durationMinutes': 30},
+        {'id': 'd2', 'name': 'Placeholder call', 'priceMinor': 2550, 'currency': 'BAM'},
+      ],
+    );
+
+    expect(find.text('Prices at this clinic'), findsOneWidget);
+    expect(find.text('Placeholder exam'), findsOneWidget);
+    expect(find.text('50.00 BAM'), findsOneWidget);
+    expect(find.text('25.50 BAM'), findsOneWidget);
+    expect(find.text('You pay at the clinic. Nothing is charged in the app.'), findsOneWidget);
+    expect(h.api.last('GET /organizations/$clinicId/services').url.queryParameters, {
+      'mode': 'video',
+      'language': 'en',
+    });
+  });
+
+  testWidgets("asks for the prices of the slot's own mode: a visit at the clinic", (tester) async {
+    final h = await atSlots(tester);
+    h.api.on('GET /fhir/R4/Slot', (request) async {
+      final from = request.url.queryParametersAll['start']!.first;
+      return fhirResponse(200, switch (from) {
+        'ge2026-11-04T23:00:00Z' => bundle([slot(slotId, '2026-11-05T08:00:00Z', '2026-11-05T08:30:00Z', mode: 'in-person')]),
+        _ => bundle([]),
+      });
+    });
+    h.api.answer('GET /organizations/$clinicId/services', 200, [
+      {'id': 'd1', 'name': 'Placeholder exam', 'priceMinor': 5000, 'currency': 'BAM'},
+    ]);
+    await tapLink(tester, 'Next day');
+    await tapOutlined(tester, '09:00');
+
+    expect(find.text('Placeholder exam'), findsOneWidget);
+    expect(h.api.last('GET /organizations/$clinicId/services').url.queryParameters['mode'], 'in-person');
+  });
+
+  testWidgets('shows no prices for a clinic without a price list, or when they cannot be read', (tester) async {
+    await atBook(tester, services: []);
+    expect(find.text('Prices at this clinic'), findsNothing);
+    expect(find.text('Book'), findsOneWidget);
+  });
+
+  testWidgets('books without the prices when they cannot be read', (tester) async {
+    final h = await atBook(tester); // the fake API answers 404
+    expect(count(h.api, 'GET /organizations/$clinicId/services'), 1);
+    expect(find.text('Prices at this clinic'), findsNothing);
+    expect(find.text('Book'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

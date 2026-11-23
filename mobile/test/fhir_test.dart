@@ -97,6 +97,36 @@ void main() {
     );
   });
 
+  test('reads whether a slot and an appointment are at the clinic, video without the extension', () async {
+    h.api.on(
+      'GET /fhir/R4/Slot',
+      (_) async => fhirResponse(
+        200,
+        bundle([
+          slot('s1', '2026-11-05T08:00:00Z', '2026-11-05T08:30:00Z', mode: 'in-person'),
+          slot('s2', '2026-11-05T09:00:00Z', '2026-11-05T09:30:00Z'),
+          slot('s3', '2026-11-05T10:00:00Z', '2026-11-05T10:30:00Z')..remove('extension'),
+        ]),
+      ),
+    );
+    h.api.on(
+      'GET /fhir/R4/Appointment',
+      (_) async => fhirResponse(
+        200,
+        bundle([
+          appointment('e1', '2026-11-06T08:00:00Z', '2026-11-06T08:30:00Z', mode: 'in-person'),
+          appointment('e2', '2026-11-06T09:00:00Z', '2026-11-06T09:30:00Z'),
+        ]),
+      ),
+    );
+
+    final slots = await fhir.freeSlots(scheduleId, DateTime.utc(2026, 11, 4, 23), DateTime.utc(2026, 11, 5, 23));
+    final all = await fhir.appointments(patientId);
+
+    expect([for (final s in slots) (s.id, s.inPerson)], [('s1', true), ('s2', false), ('s3', false)]);
+    expect([for (final a in all) (a.id, a.inPerson)], [('e1', true), ('e2', false)]);
+  });
+
   test("searches the patient's appointments with their role", () async {
     h.api.on(
       'GET /fhir/R4/Appointment',

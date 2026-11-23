@@ -2005,4 +2005,20 @@ class AppLocalizationsBs extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'Ovaj termin više nije rezervisan za vas. Ostajete na listi čekanja.';
+
+  @override
+  String get visitModeQuestion => 'Kako želite obaviti termin?';
+
+  @override
+  String get visitModeVideo => 'Putem videa';
+
+  @override
+  String get visitModeInPerson => 'U klinici';
+
+  @override
+  String get pricesHeading => 'Cijene u ovoj ustanovi';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
 }

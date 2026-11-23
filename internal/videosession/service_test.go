@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/videosession"
 )
 
@@ -333,4 +334,20 @@ func TestJoin_FailsWhenTheEndedSessionCannotBeRead(t *testing.T) {
 		t.Errorf("Join() = %v, want the backend's error", err)
 	}
 	checkEvents(t, "the failed join", f.audit)
+}
+
+// An in-person visit has no call (docs/plans/clinic-cms.md, ADR 0016): no session, no room and no token for either
+// participant at any time, the refusal audited; a video visit is unchanged (the tests above).
+func TestJoin_RefusesAnInPersonVisitWithoutASessionARoomOrAToken(t *testing.T) {
+	for _, c := range []appointment.Caller{me, pract} {
+		f := newFixture(now)
+		f.change(func(a *appointment.Attendance) { a.Appointment.Mode = schedule.ModeInPerson })
+		if _, err := f.svc.Join(t.Context(), c, apptA); !errors.Is(err, videosession.ErrNotFound) {
+			t.Errorf("as %s: Join() = %v, want ErrNotFound", c.AccountID, err)
+		}
+		if len(f.repo.sessions) != 0 || len(f.provider.grants) != 0 || len(f.provider.rooms) != 0 {
+			t.Errorf("as %s: a session, a room or a token for an in-person visit", c.AccountID)
+		}
+		checkEvents(t, "Join in person", f.audit, joinEvent(c, "Appointment/"+apptA, auditevent.OutcomeMinorFailure))
+	}
 }

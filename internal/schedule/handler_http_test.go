@@ -175,3 +175,21 @@ func TestHTTPHandler_SendsAFixedErrorAndLogsNoAvailability(t *testing.T) {
 		t.Errorf("GET when the caller cannot be resolved = %d, want 500", rec.Code)
 	}
 }
+
+func TestHTTPHandler_TakesEachRulesModeAndLeavesOneWithoutToTheService(t *testing.T) {
+	svc := &stubAvailability{out: savedA1}
+	body := `{"slotMinutes":30,"availability":[{"day":1,"start":"09:00","end":"12:00","mode":"in-person"},` +
+		`{"day":2,"start":"09:00","end":"12:00","mode":"video"},{"day":3,"start":"09:00","end":"12:00"}]}`
+	rec := serve(t, svc, true, &bytes.Buffer{}, http.MethodPut, `W/"1"`, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body)
+	}
+	want := []schedule.Rule{
+		{Day: 1, Start: "09:00", End: "12:00", Mode: schedule.ModeInPerson},
+		{Day: 2, Start: "09:00", End: "12:00", Mode: schedule.ModeVideo},
+		{Day: 3, Start: "09:00", End: "12:00"},
+	}
+	if !slices.Equal(svc.in.Rules, want) {
+		t.Fatalf("rules = %+v, want %+v", svc.in.Rules, want)
+	}
+}

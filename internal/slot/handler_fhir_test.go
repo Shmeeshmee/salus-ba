@@ -67,8 +67,8 @@ func searchSlots(t *testing.T, svc *stubSearch, log *bytes.Buffer, query string)
 // (SPEC.md "FHIR reads and searches").
 func TestHandlerSearch_SendsTheFreeSlotsOfTheScheduleInTheRange(t *testing.T) {
 	start := time.Date(2026, 11, 5, 8, 0, 0, 0, time.UTC)
-	free := slot.Slot{ID: slotA1, ScheduleID: scheduleA1, OrganizationID: clinicA, Status: slot.StatusFree, Mode: schedule.ModeInPerson,
-		Period: slot.Period{Start: start, End: start.Add(30 * time.Minute)}, VersionID: 1, LastUpdated: now}
+	free := slot.Slot{ID: slotA1, ScheduleID: scheduleA1, OrganizationID: clinicA, Status: slot.StatusFree,
+		Period: slot.Period{Start: start, End: start.Add(30 * time.Minute), Mode: schedule.ModeInPerson}, VersionID: 1, LastUpdated: now}
 	for _, query := range []string{
 		"schedule=Schedule/" + scheduleA1 + "&status=free&start=ge2026-11-05T00:00:00Z&start=lt2026-11-06T00:00:00Z",
 		"schedule=" + scheduleA1 + "&start=" + url.QueryEscape("ge2026-11-05T01:00:00+01:00") + "&status=free&start=lt2026-11-06T00:00:00Z",

@@ -1,1 +1,1 @@
-Reminder: {{.Clinic}}, {{.Day}}/{{.Month}}/{{.Year}} at {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}/{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Confirm or cancel: {{.ActionLink}}
+Reminder: {{.Clinic}}{{if .Address}} ({{.Address}}){{end}}, {{.Day}}/{{.Month}}/{{.Year}} at {{.Time}} ({{.Zone}}){{if .ZoneLocal}}, {{.DayLocal}}/{{.MonthLocal}} {{.TimeLocal}} ({{.ZoneLocal}}){{end}}. Confirm or cancel: {{.ActionLink}}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:salus_api/api.dart' as api;
 
 import 'appointments_screen.dart';
 import 'booking.dart';
@@ -9,9 +10,12 @@ import 'files.dart';
 import 'loading.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
+import 'questionnaire_language.dart' show appLanguage;
+import 'service_price.dart';
 import 'session.dart';
 import 'sharing.dart';
 import 'ui.dart' as ui;
+import 'visit_mode.dart';
 import 'waitlist_screen.dart';
 import 'zones.dart';
 
@@ -51,6 +55,30 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
   late DateTime _day = _today;
   bool _scheduleRead = false;
   String? _schedule;
+
+  /// The mode the patient picked on a day that has both, video until they pick (ADR 0016).
+  bool _inPerson = false;
+
+  /// The day's times: the mode first, to pick when the day has both and named when it has one, then the times of it.
+  List<Widget> _times(List<Slot> slots) {
+    final t = context.t;
+    final both = hasBothModes(slots);
+    final shown = both ? slotsOfMode(slots, inPerson: _inPerson) : slots;
+    return [
+      if (both)
+        VisitModePicker(inPerson: _inPerson, onChanged: (v) => setState(() => _inPerson = v))
+      else if (slots.isNotEmpty)
+        Text(visitModeName(t, inPerson: slots.first.inPerson)),
+      if (shown.isEmpty) Text(t.noFreeTimes),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final slot in shown) OutlinedButton(onPressed: () => _choose(slot), child: Text(_zone.time(slot.start))),
+        ],
+      ),
+    ];
+  }
 
   /// The day's free slots, or null when the practitioner has no schedule.
   @override
@@ -119,19 +147,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
             ],
           ),
           ui.Heading(Zone.longDate(_day, t.localeName)),
-          ...body(
-            (slots) => [
-              if (slots == null || slots.isEmpty) Text(t.noFreeTimes),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final slot in slots ?? const <Slot>[])
-                    OutlinedButton(onPressed: () => _choose(slot), child: Text(_zone.time(slot.start))),
-                ],
-              ),
-            ],
-          ),
+          ...body((slots) => _times(slots ?? const <Slot>[])),
           TextButton(onPressed: _joinWaitlist, child: Text(t.waitlistJoinButton)),
         ],
       ],
@@ -181,6 +197,23 @@ class _BookScreenState extends State<BookScreen> {
   void initState() {
     super.initState();
     _loadSharing();
+  }
+
+  /// The clinic's services and prices for this visit's mode (the slot's, ADR 0016), in the app's language: shown,
+  /// never charged.
+  List<api.OfferedService> _prices = const [];
+  String? _pricesLanguage;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final language = appLanguage(context);
+    if (language == _pricesLanguage) return;
+    _pricesLanguage = language;
+    final mode = widget.slot.inPerson ? api.VisitMode.inPerson : api.VisitMode.video;
+    widget.booking.offeredServices(widget.clinic.id, mode, language).then((got) {
+      if (mounted && _pricesLanguage == language) setState(() => _prices = got);
+    }, onError: (Object _) {}); // booking goes on without the prices
   }
 
   /// Reads what is shared with the clinic now; nothing changes on the screen when it fails or nothing is.
@@ -328,9 +361,11 @@ class _BookScreenState extends State<BookScreen> {
       children: [
         ui.Heading(_zone.date(slot.start, t.localeName)),
         Text(t.timeRange(_zone.time(slot.start), _zone.time(slot.end), _zone.name)),
+        Text(visitModeName(t, inPerson: slot.inPerson)),
         Text(widget.role.name),
         if (specialty != null) Text(specialty),
         Text(widget.clinic.name),
+        ServicePrices(services: _prices),
         SwitchListTile(value: _share, onChanged: _busy ? null : _toggleSharing, title: Text(t.sharingToggle)),
         if (_share && _choice != null)
           SharingPicker(

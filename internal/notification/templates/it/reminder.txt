@@ -3,7 +3,9 @@ Promemoria del suo appuntamento
 Le ricordiamo il suo appuntamento presso {{.Clinic}}.
 Data e ora: {{.When}}
 
-{{if .Questionnaire}}Prima dell'appuntamento c'è un questionario da compilare. Lo trova nell'app Salus.
+{{if .InPerson}}Questo appuntamento si svolge in sede, non in video.{{if .Address}} Indirizzo: {{.Address}}{{end}}
+
+{{end}}{{if .Questionnaire}}Prima dell'appuntamento c'è un questionario da compilare. Lo trova nell'app Salus.
 
 {{end}}Per vedere l'appuntamento, apra l'app Salus:
 {{.Link}}

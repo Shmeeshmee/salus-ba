@@ -344,6 +344,7 @@ type ReminderNotice struct {
 	OrganizationID string
 	PatientID      string
 	AccountID      string
+	Mode           schedule.VisitMode // in-person or video: an in-person visit's reminder says where to come
 }
 
 // ReminderArgs is the appointment_reminder job on the notifier's push queue, scheduled at the reminder's due time and

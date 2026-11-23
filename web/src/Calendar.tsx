@@ -12,6 +12,7 @@ import { navigate } from './route'
 import { loadStaff, loadTimeZone } from './staff'
 import { addDays, dayIn, sameDay, startOfDay, weekOf, type Day } from './time'
 import { Alert, Link } from './ui'
+import { visitModeOf } from './visitMode'
 
 type Props = { api: ApiClient; fhir: FhirClient; account: Account; now?: () => Date }
 
@@ -142,6 +143,7 @@ function Card({ appt, zone, now, joins, flag }: CardProps) {
       </span>
       {name && <span className="appt-name">{name}</span>}
       {appt.status !== 'booked' && <span className="tag">{t(`calendar.status.${appt.status}`)}</span>}
+      <InPersonTag appt={appt} />
       <ConfirmationTag appt={appt} />
       <NoShowTag flag={flag} />
       {current && <span className="now">{t('calendar.now')}</span>}
@@ -166,6 +168,13 @@ function confirmation(appt: Appointment): 'confirmed' | 'unconfirmed' | undefine
   if (status === 'accepted') return 'confirmed'
   if (status === 'tentative') return 'unconfirmed'
   return undefined
+}
+
+// InPersonTag marks a visit at the clinic; a video visit, the usual kind, has no tag (ADR 0016).
+export function InPersonTag({ appt }: { appt: Appointment }) {
+  const t = useT()
+  if (visitModeOf(appt) !== 'in-person') return null
+  return <span className="tag in-person">{t('calendar.mode.inPerson')}</span>
 }
 
 // ConfirmationTag is the badge of confirmation(appt), or nothing.

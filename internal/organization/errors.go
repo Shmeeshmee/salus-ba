@@ -19,7 +19,7 @@ var (
 	// sr-Latn, sr-Cyrl, en).
 	ErrInvalidDefaultLanguage = errors.New("organization: invalid default language")
 	// ErrInvalidLocation is returned for a location that is not a city of terminology's places under the leaf
-	// region given with it.
+	// region given with it, and for an address line or a postal code that is too long or has no city.
 	ErrInvalidLocation = errors.New("organization: invalid location")
 	// ErrInvalidChatSettings is returned for chat settings out of their ranges, or hours that are not valid
 	// stretches of a weekday.
@@ -32,3 +32,7 @@ var (
 	// ErrSMSUnavailable is returned when the paid SMS option is turned on while no SMS provider sends (the fake).
 	ErrSMSUnavailable = errors.New("organization: no SMS provider")
 )
+
+// ErrInvalidBillingDetails is returned for billing details with a tax id that is not 12 or 13 digits, an e-mail that
+// is not an address, or a legal name that is too long.
+var ErrInvalidBillingDetails = errors.New("organization: invalid billing details")

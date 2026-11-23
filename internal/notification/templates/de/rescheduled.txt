@@ -3,7 +3,9 @@ Ihr Termin hat eine neue Uhrzeit
 Ihr Termin bei {{.Clinic}} wurde verschoben.
 Neues Datum und neue Uhrzeit: {{.When}}
 
-Um den Termin anzusehen oder abzusagen, öffnen Sie die Salus-App:
+{{if .InPerson}}Dieser Termin findet vor Ort in der Klinik statt, nicht per Video.{{if .Address}} Adresse: {{.Address}}{{end}}
+
+{{end}}Um den Termin anzusehen oder abzusagen, öffnen Sie die Salus-App:
 {{.Link}}
 
 Sie können ihn bis 24 Stunden vor Beginn absagen.

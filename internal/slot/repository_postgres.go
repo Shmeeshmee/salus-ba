@@ -40,8 +40,8 @@ func (r *postgresRepository) DeleteFreeExcept(ctx context.Context, scheduleID st
 	if err := u.Scan(scheduleID); err != nil {
 		return 0, err
 	}
-	starts, ends := bounds(keep)
-	return r.q(ctx).DeleteFreeSlotsExcept(ctx, slotdb.DeleteFreeSlotsExceptParams{ScheduleID: u, After: ts(after), Starts: starts, Ends: ends})
+	starts, ends, modes := bounds(keep)
+	return r.q(ctx).DeleteFreeSlotsExcept(ctx, slotdb.DeleteFreeSlotsExceptParams{ScheduleID: u, After: ts(after), Starts: starts, Ends: ends, Modes: modes})
 }
 
 func (r *postgresRepository) Insert(ctx context.Context, scheduleID, org string, periods []Period) (int64, error) {
@@ -49,8 +49,8 @@ func (r *postgresRepository) Insert(ctx context.Context, scheduleID, org string,
 	if s.Scan(scheduleID) != nil || o.Scan(org) != nil {
 		return 0, errors.New("slot: an id is not a UUID")
 	}
-	starts, ends := bounds(periods)
-	return r.q(ctx).InsertSlots(ctx, slotdb.InsertSlotsParams{ScheduleID: s, OrganizationID: o, Starts: starts, Ends: ends})
+	starts, ends, modes := bounds(periods)
+	return r.q(ctx).InsertSlots(ctx, slotdb.InsertSlotsParams{ScheduleID: s, OrganizationID: o, Starts: starts, Ends: ends, Modes: modes})
 }
 
 func (r *postgresRepository) Search(ctx context.Context, scheduleID string, from, to time.Time) ([]Slot, error) {
@@ -114,23 +114,25 @@ func (r *postgresRepository) DeleteFreeEndedBefore(ctx context.Context, before t
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 
-// bounds are the periods' starts and ends, as two arrays of one length.
-func bounds(periods []Period) (starts, ends []pgtype.Timestamptz) {
+// bounds are the periods' starts, ends and modes, as three arrays of one length.
+func bounds(periods []Period) (starts, ends []pgtype.Timestamptz, modes []string) {
 	starts = make([]pgtype.Timestamptz, 0, len(periods))
 	ends = make([]pgtype.Timestamptz, 0, len(periods))
+	modes = make([]string, 0, len(periods))
 	for _, p := range periods {
+		modes = append(modes, string(p.Mode))
 		starts = append(starts, ts(p.Start))
 		ends = append(ends, ts(p.End))
 	}
-	return starts, ends
+	return starts, ends, modes
 }
 
 // toSlot maps a row; every slot query selects the same columns.
 func toSlot(row slotdb.HoldSlotRow) Slot {
 	return Slot{
-		Period: Period{Start: row.StartAt.Time, End: row.EndAt.Time},
+		Period: Period{Start: row.StartAt.Time, End: row.EndAt.Time, Mode: schedule.VisitMode(row.VisitMode)},
 		ID:     row.ID.String(), ScheduleID: row.ScheduleID.String(), OrganizationID: row.OrganizationID.String(),
-		Status: Status(row.Status), Mode: schedule.VisitMode(row.VisitMode), VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
+		Status: Status(row.Status), VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
 	}
 }
 

@@ -1977,4 +1977,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get waitlistOfferExpired =>
       'This time is no longer held for you. You stay on the waitlist.';
+
+  @override
+  String get visitModeQuestion => 'How would you like to attend?';
+
+  @override
+  String get visitModeVideo => 'By video';
+
+  @override
+  String get visitModeInPerson => 'At the clinic';
+
+  @override
+  String get pricesHeading => 'Prices at this clinic';
+
+  @override
+  String get pricesPaidAtClinic =>
+      'You pay at the clinic. Nothing is charged in the app.';
 }

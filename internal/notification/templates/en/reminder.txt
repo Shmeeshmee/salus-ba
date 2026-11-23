@@ -2,7 +2,9 @@ Reminder of your appointment
 
 This is a reminder of your appointment at {{.Clinic}} on {{.When}}.
 
-{{if .Questionnaire}}There is a questionnaire to fill in before your appointment. You can find it in the Salus app.
+{{if .InPerson}}This appointment is at the clinic, not by video.{{if .Address}} Address: {{.Address}}{{end}}
+
+{{end}}{{if .Questionnaire}}There is a questionnaire to fill in before your appointment. You can find it in the Salus app.
 
 {{end}}To see it, open the Salus app:
 {{.Link}}

@@ -574,3 +574,39 @@ p.hint.join { margin-bottom: 20px; }
 /* SAL-36: the repeat no-show flag beside an appointment, and its setting below the clinic's settings. */
 .tag.noshow-flag { color: var(--color-ink); border-color: var(--color-border-strong); background: var(--color-page); }
 .settings-part { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--color-border); }
+
+/* Receipts (clinic-cms C): the list, the dialog that issues one, and the accountant's report. */
+.receipt-dialog { width: min(100%, 520px); max-height: 100%; overflow-y: auto; padding: 20px; background: var(--color-surface); border-radius: var(--radius); }
+.receipt-dialog form { display: grid; gap: 14px; }
+.receipt-dialog h2, .receipt-dialog p { margin: 0; }
+.receipt-line { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+.receipt-line > .field:first-of-type { grid-column: 1 / -1; }
+.receipt-line select, .receipt-line input { width: 100%; }
+.tag.fiscal-fiscalized { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.tag.fiscal-failed { color: var(--color-danger, #B3261E); border-color: currentColor; }
+/* The report's own classes: the membership screen has facts and a table of its own (D). */
+.report-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 20px; }
+.report-facts dd { margin: 0; font-weight: 600; }
+.report-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+.report-table caption { text-align: left; font-weight: 600; padding-bottom: 6px; }
+.report-table th, .report-table td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--color-border); font-weight: 400; overflow-wrap: anywhere; }
+.report-table thead th { border-top: 0; font-size: 13px; color: var(--color-text-muted); overflow-wrap: normal; }
+/* The price list's intro and its add button keep their distance from the rows (B). */
+.price-list .rows { margin: 12px 0; }
+/* Issue receipt sits apart from the appointment's other actions. */
+.actions.receipt { margin-top: 8px; }
+@media (max-width: 480px) {
+  .receipt-line { grid-template-columns: 1fr; }
+  .report-facts { grid-template-columns: minmax(0, 1fr) auto; }
+}
+/* The membership screen (Subscription.tsx): the plan's facts and the invoices. */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.facts dt { color: var(--color-text-muted, inherit); }
+.facts dd { margin: 0; }
+.plain-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.plain-table th, .plain-table td { padding: 8px 12px 8px 0; text-align: left; border-bottom: 1px solid var(--color-border); }
+/* A grid item of the page: it may be narrower than its table, which then scrolls inside it at phone width. */
+.membership-invoices { min-width: 0; }
+@media (max-width: 480px) {
+  .plain-table { display: block; overflow-x: auto; }
+}

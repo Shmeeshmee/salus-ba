@@ -45,6 +45,11 @@ it when it merges.
 
 ## Waves
 
+From wave 1's integration on, `docs/clinic-cms/IMPLEMENTATION_PLAN.md` is how the waves run: one branch `feat/cms` per
+wave, the packages in worktrees on `wt/cms/<package>`, one integration session and one pull request per wave, and wave
+2's packages (E, H, I, L, Q1, Q2, Q3). Where it differs from this section on branches, worktrees, migration numbers
+and pull requests, that file wins; the text below is how wave 1 was planned.
+
 ```
 Step 0 (one PR): phase A (documents and the owner's answers), then phase B (the contract)
 Wave 1, in parallel, each in its own worktree and compose project:   A   B   C   D
@@ -194,6 +199,9 @@ is A's: on FHIR `Organization.address` with the existing update. New error codes
   care paths are tested to keep working for a suspended clinic.
 
 ## Checks per PR
+
+The check sets per package and per wave are in `docs/clinic-cms/IMPLEMENTATION_PLAN.md` ("Check sets", "Packages"):
+one pull request per wave, opened by its integration session. The list below still holds for that pull request.
 
 `make lint`, `make test`, `make archcheck`, `make cover`, `make e2e`, `make i18n-check`; `make fhir-validate` where the
 golden files changed (step 0, A); `make web-typecheck`, `make web-test`, `make mobile-analyze`, `make mobile-test`

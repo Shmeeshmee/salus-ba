@@ -81,11 +81,11 @@ func TestUpdate_MovesToTheNextVersionOrConflicts(t *testing.T) {
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		var err error
 		got, err = repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, VersionID: 1,
-			Region: "BA-09", City: "Q1270190", LocationSince: at, ContributesSince: at}, at)
+			Region: "BA-09", City: "Q1270190", LocationSince: at, ContributesSince: at, AddressLine: "Synthetic street 1", PostalCode: "71000"}, at)
 		return err
 	})
 	want := organization.Organization{ID: clinicA, Name: "Renamed clinic", TimeZone: "Europe/Vienna", DefaultLanguage: "sr-Cyrl", Listed: true, PatientTranscriptCopy: true, Active: true, VersionID: 2, LastUpdated: at,
-		Region: "BA-09", City: "Q1270190", LocationSince: at, ContributesSince: at}
+		Region: "BA-09", City: "Q1270190", LocationSince: at, ContributesSince: at, AddressLine: "Synthetic street 1", PostalCode: "71000"}
 	utc := func(o *organization.Organization) {
 		o.LastUpdated, o.LocationSince, o.ContributesSince = o.LastUpdated.UTC(), o.LocationSince.UTC(), o.ContributesSince.UTC()
 	}

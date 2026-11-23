@@ -1,0 +1,5 @@
+Package E. Migration: 00062.
+- Do not build online hours or "which services may be done online": A's per-rule mode and B's `modes` are those.
+- From B's report: "a booking may name a service" was left for you; mobile/lib/slots_screen.dart already loads the
+  services for the slot's mode.
+- The receipt dialog is C's (web ReceiptDialog.tsx): add only the pre-filled line.

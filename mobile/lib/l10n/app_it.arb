@@ -515,5 +515,10 @@
   "waitlistWithdrawn": "È uscito dalla lista d'attesa.",
   "waitlistOff": "Questa struttura non ha una lista d'attesa.",
   "waitlistTooMany": "È già iscritto cinque volte alla lista d'attesa di questa struttura. Prima ne lasci una.",
-  "waitlistOfferExpired": "Questo orario non è più riservato a lei. Resta nella lista d'attesa."
+  "waitlistOfferExpired": "Questo orario non è più riservato a lei. Resta nella lista d'attesa.",
+  "visitModeQuestion": "Come desidera svolgere l'appuntamento?",
+  "visitModeVideo": "In video",
+  "visitModeInPerson": "In clinica",
+  "pricesHeading": "Prezzi di questa struttura",
+  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla."
 }

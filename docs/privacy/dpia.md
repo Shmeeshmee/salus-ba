@@ -2336,3 +2336,99 @@ directory the active services of listed clinics (prices at booking). The members
 | A receipt reveals a patient's visit to another clinic or patient | Row-level security: the clinic's scope and the patient's own only; a visit's receipt is held to the visit's clinic (and patient, when it names one) by composite foreign keys; a line only from the receipt's clinic's price list |
 | More than the law requires reaches the Tax Administration | `pkg/fiscal`'s receipt carries the seller's tax id, amounts, item names and the payment method, never a patient; what ESET needs is recorded here with package G once the specification is known (Q6) |
 | A fake fiscalization is taken for a legal receipt | `config.LoadFiscal` takes only the fake until package G; the fake's identifiers start with `TEST-` |
+
+### Package A: visit modes (migration 00060)
+
+**Processing added.** A practitioner's working hours name how patients attend each window, by video or at the clinic;
+the slots generated from a window carry its mode and an appointment keeps the mode of the slot it was booked in (a
+reschedule stays in it: the service refuses a slot of the other mode, and a trigger on `appointment` does the same). An
+in-person visit has no call: the join of the video consultation answers 404 for it, so no video session, room or token
+exists. Its confirmation, its reminders (e-mail and SMS) and the e-mail after a reschedule say that the visit is at the
+clinic and give the clinic's address, which the clinic's admin sets on `Organization.address` (a line and a postal code
+beside the city). Lawful basis: unchanged, the appointment's (Art. 6(1)(b), Art. 9(2)(h)).
+
+**Personal data added.** None beyond step 0's `slot.visit_mode` and `appointment.visit_mode`, now written with the
+rule's mode. The clinic's address (`organization.address_line`, `postal_code`) is not personal data.
+
+**Who sees what.** The visit mode of an appointment: whoever sees the appointment, as before. The clinic's address:
+the clinic's staff on its Organization, and the patient of an in-person visit in the messages about that visit; the
+public directory's search still shows no address.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A message tells more about the visit than before | It says only that the visit is at the clinic and the clinic's own address: nothing about the practitioner, the specialty or the reason, as the booking SPEC's "E-mail" asks; the push stays generic (no clinic, time or address); tested per language |
+| An SMS reminder grows with the address | The address follows the clinic's name in the same message; the parts are counted in the clinic's usage as before, and a clinic without an address line sends none |
+| A patient waits for a call that does not exist, or comes to the clinic for a video visit | The mode is picked before the time in the app and shown on the booking screen and the appointment; the apps offer no join for an in-person visit and the API refuses one; the e-mails of an in-person visit say that it is not by video |
+
+### Package B: the price list
+
+**Processing added.** The clinic's admin keeps the price list (`GET`, `POST /clinic/services`,
+`PUT /clinic/services/{id}`); anyone sees the active services of a listed clinic with their prices
+(`GET /organizations/{id}/services`), and the patient app shows them on the booking screen. Prices are shown and paid
+at the clinic: nothing is charged in the app (`appointment.Prices` stays nil).
+
+**Personal data added.** None. A service's name, code, price, duration, VAT rate, modes and translated names describe
+the clinic, not a person; the public read takes no session and stores nothing about who asked. The audit of a write
+names the admin's account, as every audited write does.
+
+**Who sees what.** Every service, active or not: the clinic's staff. The active services of a listed clinic: anyone
+(row-level security and the service both check `active` and `listed`). Only the clinic's admin changes the list; each
+write is audited, also when refused.
+
+| Risk | Measure |
+| --- | --- |
+| A price change rewrites what a patient was charged | A receipt copies its lines at issue (`Service.Lines`: the name, unit price and VAT rate then); a service is never deleted, only taken off the list |
+| A clinic that is not listed shows its prices | The directory's policy and the service both require a listed clinic; anyone else's gets 404 (tested) |
+
+### Package C: receipts and invoices (no migration)
+
+**Processing added.** The clinic's admin, and the practitioner of a visit, issue a receipt from the clinic's price
+list (`POST /clinic/receipts`); the admin reverses, lists and sums receipts (the accountant's report, also as CSV);
+staff and the patient open a receipt as a PDF; the worker's `invoice_fiscalize` job reports each receipt through
+`pkg/fiscal` (the fake only) and stores the answer. Lawful basis as in step 0: the clinic's legal obligation
+(Art. 6(1)(c)) and Art. 9(2)(h) for a receipt to a patient. No new personal-data field and no new table.
+
+**Who sees what.** The admin every receipt of the clinic; a practitioner the receipts they issued; a patient their own
+(`GET /me/receipts`, the PDF at `/me/receipts/{id}/pdf`); nobody else. The report holds sums by payment method and by
+service, no patient. The PDF and the CSV name no patient: the PDF prints the seller, the number, the lines, the total
+and the fiscal data, and a company's name on an invoice.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic issues a receipt to a patient it does not treat, who then sees it | A receipt on its own names only a patient with an active care consent or a visit at the clinic; a visit's receipt only the visit's patient (service rule, tested; the schema's foreign keys hold the visit's) |
+| A receipt number is skipped or used twice | The clinic's row of `invoice_sequence` is locked in the receipt's transaction; a receipt that rolls back gives its number back (tested with concurrent transactions against Postgres) |
+| A receipt is reported twice, or a reversal twice | The job locks the receipt while it reports and skips a fiscalized one; the reference reported is the receipt's id; a receipt is reversed once (service rule and the schema's unique key) and a reversal never |
+| The seller on a reprint differs from the one at issue | The legal name, tax id and address are copied at issue and printed from the receipt; a reversal carries the reversed receipt's |
+| Patient data in the job, the logs or the report to the authority | The job's arguments are the receipt's and the clinic's ids; errors carry no content; what is reported holds no patient; the job's update is audited with the agent `invoice_fiscalize` |
+| A spreadsheet runs a service's name as a formula | The CSV quotes a name that starts like one |
+
+Every issue, reversal, read, list, report and PDF writes an `AuditEvent` in its transaction, a refusal one of its own.
+
+### Package D: the clinic's membership (migration 00061)
+
+**Processing added.** A clinic's plan, trial and status; Salus's monthly invoice to the clinic (its seats, the count of
+its active practitioner roles, times the plan's price); the clinic's billing details (legal name, tax id, VAT
+registration, the e-mail invoices go to); the stop of new bookings for a clinic 30 days past due. Lawful basis: the
+contract between Salus and the clinic (Art. 6(1)(b)); none of it is a patient's or a practitioner's data.
+
+**Personal data added.** None. The seat count is a number, never the roles. The billing e-mail is the clinic's
+address for invoices; an admin who enters a personal address there chooses to (the field's hint says what it is for).
+The audit of a status move, a payment and a change of the billing details names the clinic and the agent (the admin's
+account, `salusctl` or the monthly job) only.
+
+**Who sees what.** The membership, its invoices and the billing details: the clinic's admin, in the clinic's scope
+(row-level security, tested); never its other staff, a patient or another clinic. The monthly job lists the clinics
+that have a membership in its own scope (`app.subscription_run`) and then works in each clinic's scope. Only the
+owner (`salusctl`) edits a plan or marks an invoice paid.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| A clinic that does not pay loses access to its patients' records, or a patient to theirs | Only a new booking and a new waitlist entry ask the membership (`bookableClinics` in `internal/api`); existing appointments, records, documents, exports and subject rights never do (`TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
+| The app marks its own invoices paid or edits a plan | No `UPDATE` grant on `subscription_invoice`, no write grant on `subscription_plan`; tested as the app role |
+| Billing details in a log | The handlers log through `httpx.InternalError` only; the api test checks the log for them |

@@ -68,9 +68,10 @@ export function Notice({ message }: { message?: string }) {
   )
 }
 
-export function Submit({ busy, label, busyLabel }: { busy: boolean; label: string; busyLabel: string }) {
+// disabled is for a form that cannot be sent yet, such as a receipt line without its service.
+export function Submit({ busy, label, busyLabel, disabled = false }: { busy: boolean; label: string; busyLabel: string; disabled?: boolean }) {
   return (
-    <button type="submit" className="primary" disabled={busy}>
+    <button type="submit" className="primary" disabled={busy || disabled}>
       {busy ? busyLabel : label}
     </button>
   )

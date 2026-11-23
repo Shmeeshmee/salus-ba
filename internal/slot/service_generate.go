@@ -9,7 +9,7 @@ import (
 // horizon is how far ahead slots are generated (SPEC.md "Slots": 4 weeks).
 const horizon = 28 * 24 * time.Hour
 
-// periods are the slots the rules give, slotMinutes long, that start after now and before now + 28 days, by
+// periods are the slots the rules give, each in its rule's mode, slotMinutes long, that start after now and before now + 28 days, by
 // start. The rules are times of day in loc: a slot starts at the rule's start and every slot length after,
 // while it ends by the rule's end. A local time that does not exist (the spring change) is skipped; one that
 // happens twice (autumn) is taken at its first occurrence.
@@ -31,7 +31,7 @@ func periods(rules []schedule.Rule, slotMinutes int32, loc *time.Location, now t
 			for m := start; m+int(slotMinutes) <= end; m += int(slotMinutes) {
 				t, ok := localTime(date, m, loc)
 				if ok && t.After(now) && t.Before(until) {
-					out = append(out, Period{Start: t, End: t.Add(length)})
+					out = append(out, Period{Start: t, End: t.Add(length), Mode: ruleMode(r)})
 				}
 			}
 		}

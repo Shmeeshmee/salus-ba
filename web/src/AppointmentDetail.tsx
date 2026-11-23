@@ -5,16 +5,18 @@ import { attempt, type Outcome } from './api/result'
 import type { components } from './api/schema'
 import { AppointmentChanges } from './AppointmentChanges'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
-import { ConfirmationTag } from './Calendar'
+import { ConfirmationTag, InPersonTag } from './Calendar'
 import { PatientHistory } from './History'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
 import { NoShowCorrection, NoShowFlag } from './NoShows'
+import { ReceiptDialog } from './ReceiptDialog'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
-import { Alert, Link } from './ui'
+import { Alert, Link, Notice } from './ui'
+import { visitModeOf } from './visitMode'
 
 type T = ReturnType<typeof useT>
 
@@ -38,11 +40,13 @@ export function AppointmentDetail({ api, fhir, account, id, now = () => new Date
   const organizationId = account.organizationId ?? ''
   const practitioner = account.role === 'practitioner'
   const { state, set } = useLoad(async (): Promise<Detail> => {
-    const [zone, appt, consultation] = await Promise.all([
+    const [zone, appt, read] = await Promise.all([
       loadTimeZone(fhir, organizationId),
       fhir.get<Appointment>(`Appointment/${encodeURIComponent(id)}`),
       readConsultation(api, id),
     ])
+    // A visit at the clinic has no call, so no consultation status to show (ADR 0016).
+    const consultation = visitModeOf(appt) === 'in-person' ? undefined : read
     const patient = participant(appt, 'Patient')
     const profile = practitioner && patient ? await readPatient(fhir, patient.id) : undefined
     return { zone, appt, profile, consultation }
@@ -116,6 +120,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       <p className="when">
         <span>{t('calendar.when', { date: f.date(start, zone, 'long'), start: f.time(start, zone), end: f.time(end, zone) })}</span>
         <span className={`tag ${appt.status}`}>{t(`calendar.status.${appt.status}`)}</span>
+        <InPersonTag appt={appt} />
         <ConfirmationTag appt={appt} />
         <NoShowFlag api={api} id={appt.id} start={start} />
       </p>
@@ -133,8 +138,36 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
       <ChangesToggle api={api} id={appt.id} zone={zone} />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
+      {(own || admin) && appt.status !== 'cancelled' && appt.status !== 'noshow' && <IssueReceipt api={api} appointmentId={appt.id} />}
       {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}
     </>
+  )
+}
+
+// IssueReceipt opens the receipt dialog for this visit (clinic-cms C): for the clinic's admin and the visit's own
+// practitioner, to the visit's patient or a company. The server decides again who may issue.
+function IssueReceipt({ api, appointmentId }: { api: ApiClient; appointmentId: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const [notice, setNotice] = useState<string>()
+  return (
+    <div className="actions receipt">
+      <button type="button" onClick={() => setOpen(true)}>
+        {t('receipts.dialog.issue')}
+      </button>
+      <Notice message={notice} />
+      {open && (
+        <ReceiptDialog
+          api={api}
+          appointmentId={appointmentId}
+          onClose={() => setOpen(false)}
+          onIssued={(r) => {
+            setOpen(false)
+            setNotice(t('receipts.issued', { number: r.number }))
+          }}
+        />
+      )}
+    </div>
   )
 }
 

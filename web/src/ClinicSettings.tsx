@@ -9,7 +9,7 @@ import { useLanguage, useT } from './i18n/useT'
 import { languageNames } from './language'
 import { useLoad } from './load'
 import { ClinicSettingsReschedule } from './ClinicSettingsReschedule'
-import { Alert, Field, Notice, Submit } from './ui'
+import { Alert, Field, Link, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 import type { components } from './api/schema'
 
@@ -22,7 +22,8 @@ type Place = components['schemas']['Place']
 // city of GET /places) and whether it contributes to the All of Salus figures, with If-Match on the version read.
 // platform is whether the All of Salus view is on (GET /auth/me features): off, the opt-out and the location hint,
 // which speak of that view, are not shown (docs/plans/analytics.md §2a). Below them, the clinic's rescheduling rules
-// (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33).
+// (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33). A link leads to the price list
+// (PriceList, docs/plans/clinic-cms.md package B).
 export function ClinicSettings({
   api,
   fhir,
@@ -63,6 +64,9 @@ export function ClinicSettings({
     <>
       <section className="panel">
         <h1>{t('admin.clinicSettings')}</h1>
+        <p>
+          <Link to="/price-list">{t('prices.title')}</Link>
+        </p>
         {load.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
         {load.name === 'failed' && <Alert message={t('admin.clinicLoadFailed')} />}
         {load.name === 'loaded' && places.name === 'failed' && <Alert message={t('admin.placesLoadFailed')} />}
@@ -81,6 +85,9 @@ export function ClinicSettings({
         {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
       </section>
       <ClinicSettingsReminders api={api} />
+      <p>
+        <Link to="/membership">{t('subscription.link')}</Link>
+      </p>
     </>
   )
 }
@@ -215,7 +222,8 @@ type LocationProps = {
 }
 
 // Location is the clinic's region and a city of it, chosen from the places; a new region clears the city. A location
-// once saved can be changed, not cleared; hint shows what the All of Salus view does with it.
+// once saved can be changed, not cleared; hint shows what the All of Salus view does with it. Below them, the street
+// address and the postal code patients come to for an in-person visit (ADR 0016), once the city is chosen.
 function Location({ places, settings, change, located, hint }: LocationProps) {
   const t = useT()
   const name = useLanguage().language === 'sr-Cyrl' ? (p: Place) => p.nameCyrl : (p: Place) => p.nameLatn
@@ -263,6 +271,22 @@ function Location({ places, settings, change, located, hint }: LocationProps) {
           ))}
         </select>
       </div>
+      <Field
+        label={t('admin.addressLine')}
+        value={settings.addressLine}
+        maxLength={200}
+        disabled={settings.city === ''}
+        hint={t('admin.addressHint')}
+        onChange={(e) => change({ addressLine: e.target.value })}
+      />
+      <Field
+        label={t('admin.postalCode')}
+        value={settings.postalCode}
+        maxLength={20}
+        disabled={settings.city === ''}
+        className="short"
+        onChange={(e) => change({ postalCode: e.target.value })}
+      />
     </>
   )
 }

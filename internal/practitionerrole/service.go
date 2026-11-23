@@ -406,3 +406,25 @@ func (s *Service) Specialties(ctx context.Context, org string, ids []string) (ma
 	}
 	return out, nil
 }
+
+// ActiveCount returns how many active roles the clinic org has: the seats of its membership (subscription). It sets
+// the clinic's scope on the transaction in ctx, joining one already there. Not audited: a count discloses no role.
+func (s *Service) ActiveCount(ctx context.Context, org string) (int, error) {
+	n := 0
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetOrganization(ctx, org); err != nil {
+			return err
+		}
+		roles, err := s.repo.ByOrganization(ctx, org)
+		for _, p := range roles {
+			if p.Active && p.OrganizationID == org { // not on row-level security alone
+				n++
+			}
+		}
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("practitionerrole: active count: %w", err)
+	}
+	return n, nil
+}

@@ -311,9 +311,15 @@ Map<String, Object?> schedule({String id = scheduleId, String role = roleId}) =>
   'active': true,
 };
 
-Map<String, Object?> slot(String id, String start, String end) => {
+/// The visit-mode extension of a Slot or an Appointment (ADR 0016).
+List<Map<String, Object?>> visitMode(String code) => [
+  {'url': 'https://salus.invalid/fhir/StructureDefinition/visit-mode', 'valueCode': code},
+];
+
+Map<String, Object?> slot(String id, String start, String end, {String mode = 'video'}) => {
   'resourceType': 'Slot',
   'id': id,
+  'extension': visitMode(mode),
   'status': 'free',
   'start': start,
   'end': end,
@@ -329,9 +335,11 @@ Map<String, Object?> appointment(
   String role = roleId,
   String practitioner = practitionerId,
   String patientStatus = 'accepted',
+  String mode = 'video',
 }) => {
   'resourceType': 'Appointment',
   'id': id,
+  'extension': visitMode(mode),
   'status': status,
   'start': start,
   'end': end,
