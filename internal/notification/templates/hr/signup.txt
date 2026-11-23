@@ -1,0 +1,8 @@
+Potvrdite prijavu ustanove na Salus
+
+Zatražili ste prijavu ustanove {{.Clinic}} na platformu Salus.
+
+Da biste potvrdili svoju adresu e-pošte, otvorite ovu poveznicu:
+{{.Link}}
+
+Nakon potvrde poslat ćemo vam pozivnicu za otvaranje administratorskog računa ustanove. Poveznica istječe 72 sata nakon prijave. Ako se niste prijavili, možete zanemariti ovu poruku.

@@ -67,3 +67,38 @@ func TestCreate_FailsOnARepositoryOrAuditError(t *testing.T) {
 		t.Error("Create() with a failing audit: error = nil")
 	}
 }
+
+func (r *fakeRepository) List(ctx context.Context, id string) (bool, error) {
+	r.seen(ctx, "List")
+	if r.err != nil {
+		return false, r.err
+	}
+	o, ok := r.orgs[id]
+	if !ok || o.Listed {
+		return false, nil
+	}
+	o.Listed = true
+	r.orgs[id] = o
+	return true, nil
+}
+
+// The operator lists a self-signed-up clinic in the public directory (salusctl signup approve, docs/clinic-cms O1).
+func TestList_ListsTheClinicOnceAndAuditsItAsTheOperator(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	repo.orgs[createdClinic] = organization.Organization{ID: createdClinic, Name: "Synthetic clinic C", VersionID: 1}
+	svc := newService(repo, audit)
+
+	if err := svc.List(t.Context(), createdClinic); err != nil || !repo.orgs[createdClinic].Listed {
+		t.Fatalf("List() = %v, listed %v; want the clinic listed", err, repo.orgs[createdClinic].Listed)
+	}
+	if len(audit.events) != 1 || audit.events[0].Action != auditevent.ActionUpdate || audit.events[0].AgentName != auditevent.AgentOperator ||
+		audit.events[0].EntityReference != "Organization/"+createdClinic {
+		t.Errorf("audit events %+v, want one update by the operator", audit.events)
+	}
+	if err := svc.List(t.Context(), createdClinic); !errors.Is(err, organization.ErrNotFound) {
+		t.Errorf("List() of a listed clinic = %v, want ErrNotFound", err)
+	}
+	if err := svc.List(t.Context(), "c0000000-0000-4000-8000-000000000000"); !errors.Is(err, organization.ErrNotFound) {
+		t.Errorf("List() of an unknown clinic = %v, want ErrNotFound", err)
+	}
+}

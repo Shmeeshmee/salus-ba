@@ -26,6 +26,7 @@ writes under its own heading here.
 | F3 | not started (wave 3, after 3.0) | |
 | F3 | done 2026-11-23 | `cms(F3)` on `wt/cms/F3` |
 | O1 | not started (wave 3, after 3.0) | |
+| O1 | done 2026-11-23 | `cms(O1)` on `wt/cms/O1` |
 | O2 | not started (wave 3, after 3.0) | |
 | X1 | not started (wave 3, after 3.0) | |
 | X2 | not started (wave 3, after 3.0) | |
@@ -1171,7 +1172,87 @@ the integration's, below).
 
 ## O1: clinic signup and setup wizard
 
-Not started.
+Status: done, 2026-11-23, on `wt/cms/O1`, one commit `cms(O1)`. Migration `00068_clinic_signup.sql`. 3.0 was taken as
+done on the strength of its commit `2ea853c` (merged into this branch by `80e7769`).
+
+**Built.**
+
+- **One path for a clinic.** `signup.Service.CreateClinic` creates the clinic (unlisted), its admin's invite and its
+  30-day trial in one transaction; `salusctl create-clinic` now calls it, and a verified signup calls it from the API.
+  `organization`'s repository `Create` sets the new clinic's scope first (an id from `gen_random_uuid()`), and
+  migration 00068 grants `salus_app` `INSERT (id, name)` on `organization`: `organization_clinic`'s check lets the app
+  insert only the clinic of its scope, so the invite and the trial that follow write into that clinic alone.
+- **Signup.** `POST /signup` (202 for every valid request, so nothing is enumerated: each is a new signup), rate limited
+  per client address (5 an hour) and per e-mail (3 a day), counters named by an HMAC of `RATE_LIMIT_KEY`; the
+  `signup_email` job issues a new token (only the newest link works) and the notifier sends the link
+  `<WEB_BASE_URL>/signup/verify#<token>` in the signup's language (ten templates, golden files).
+  `POST /signup/verify` (20 an hour per address): the signup row is locked, a used, replaced or 72-hour-old token is
+  `invalid_verification`, and a concurrent second verification rolls its clinic back.
+- **Operator.** `salusctl signup list` (opaque ids and dates only) and `salusctl signup approve <organization-id>`
+  (sets `approved_at` and lists the clinic: `organization.Service.List`, audited as salusctl).
+- **Wizard.** `clinic_setup_step` (00068, owned by `signup`, not personal data, clinic-scoped): `GET /clinic/setup` for
+  the clinic's staff, `PUT /clinic/setup` for its admin; a step without a row is open. Web: `SetupWizard.tsx` (`/setup`,
+  each step links to its own screen: clinic settings, membership for the billing details, working hours,
+  practitioners, price list; done, skip or reopen) and `SetupBanner` above an admin's screens while a step is open.
+- **Web signup.** `Signup.tsx`: `/signup` (clinic name, e-mail, the UI language) and `/signup/verify` (the token from
+  the fragment, removed from the address bar). New catalog area `signup` in the five staff languages.
+- **Retention.** The `clinic_signup` rule now deletes unverified signups 30 days after they were made
+  (`signup.Purger`, as `salus_retention`, 00068's grant); a verified one stays with its clinic.
+- **Landing.** The header's button is "Sign up" to `/signup` (only that link changed).
+- **DPIA**: "Package O1" block.
+
+**Contract changes.** `Start` and `Verify` take the client address (for the rate limits); `NewService` takes `Ports`
+(the skeleton took the repository only); `IssueVerification`, `CreateClinic`, `Signups` and `Approve` are new.
+`signup` imports `organization`, `auth` and `subscription` (service to service). The notifier's
+`SendSignupVerification` takes the address, clinic, language and token as values: a `Signups` port in
+`notification` would import `signup`, which imports `subscription`, which imports `notification` (a cycle); the
+worker calls `signup.Service.IssueVerification` and then the notifier.
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Link lifetime | 72 hours from the signup, as an invite; each e-mail replaces the token |
+| Unverified signups | Deleted 30 days after they were made |
+| The clinic's audit on creation from a signup | `organization.Create` records it as the operator command (`salusctl`), as before: one path |
+| Language of the admin's invite | The clinic's default language (`bs`), as for `create-clinic`; the signup's language is used for the verification e-mail only |
+| Wizard at first sign-in | A banner above every admin screen while a step is open, linking to `/setup`; no forced redirect |
+| Landing link | Relative `/signup`: assumes the web app is served on the landing page's origin (see integration notes) |
+
+**Copy waiting for the owner:** the `signup` web catalog (31 strings, five languages), the verification e-mail
+(`internal/notification/templates/<language>/signup.txt`, ten languages), and the landing button "Sign up".
+
+**Review** (one round, a fresh subagent over the diff; Copilot is out of quota). Fixed, each with its failing test
+first: a signed-up clinic's admin could list it through the clinic settings before approval (00068's trigger
+`organization_guard_signup_listed`: a clinic with a waiting signup is listed only by the operator; a clinic from
+`create-clinic` is unaffected); a clinic name with a line break or a link went into the e-mail (refused,
+`invalid_signup`). Checked and not reproduced: a double verification under React's StrictMode (a test pins one
+request). Left, below under "Deferred".
+
+**Deferred.**
+
+- The audit events of a clinic created from a signup name the operator (`salusctl`) as agent, since `organization`,
+  `auth` and `subscription` hard-code it; an agent for a self-signup needs a parameter through the three services.
+- A verified `clinic_signup` row (the admin's e-mail) is kept while the clinic exists; when a clinic is closed is a
+  later feature, and its deletion goes with it (owner to confirm).
+- The 72 hours count from the signup, not from the latest e-mail: a much-delayed job sends a link with less time.
+- Errors from the services `CreateClinic` calls that `validRequest` does not already exclude would be a 500 (none
+  known: the e-mail and name checks match).
+- The browser walk at desktop width and 390 px, and `make e2e` (`test/e2e/signup_test.go` is written, not run): the
+  time budget went to the Go checks.
+
+**Test first.** Red before green for the organization `Create` as `salus_app`, the signup service (compile-red), the
+listing guard, the name check and the landing link; the Postgres repository, the handler, the worker and the web
+screens' tests were written before their code but first run with it.
+
+**Checks.** `make lint`, `make archcheck`, `make arch-gate`, `make test` (the full run, then the fast layer after the fixes),
+`web-lint`, `web-typecheck`, the web tests of the touched screens, `make landing-test`, `check-caddy-routes`.
+
+**Integration notes.** `/signup` is a screen of the web app and its writes go to the API: `web/vite.config.ts` and the
+production Caddyfile gain the route (GETs to the app). `make gen-clients` gave no diff (the routes were in 3.0's contract). The landing's "Sign up"
+points at `/signup` on its own origin: when the landing and the web app are served on different hosts, the link needs
+the web app's address. `internal/api/router` needs nothing: `/signup` and `/signup/verify` take the CSRF header like
+every write.
 
 ## O2: price list import and the clinic data export
 

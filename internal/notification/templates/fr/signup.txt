@@ -1,0 +1,8 @@
+Confirmez l'inscription de votre clinique à Salus
+
+Vous avez demandé l'inscription de {{.Clinic}} à Salus.
+
+Pour confirmer votre adresse e-mail, ouvrez ce lien :
+{{.Link}}
+
+Après confirmation, nous vous enverrons une invitation pour créer le compte administrateur de la clinique. Le lien expire 72 heures après l'inscription. Si vous ne vous êtes pas inscrit, vous pouvez ignorer cet e-mail.

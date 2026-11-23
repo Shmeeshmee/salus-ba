@@ -11,5 +11,6 @@ export const nav = {
     { label: 'Standards', href: `#${ids.standards}` },
     { label: 'Pricing', href: `#${ids.pricing}` },
   ],
-  cta: { label: 'Book a demo', href: `#${ids.demo}` },
+  // The clinic's self-signup (docs/clinic-cms, O1): the web app's /signup, served beside the landing page.
+  cta: { label: 'Sign up', href: '/signup' },
 } as const

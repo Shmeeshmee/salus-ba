@@ -21,6 +21,8 @@ import { Questionnaires } from './Questionnaires'
 import { Receipts } from './Receipts'
 import { Waitlist } from './Waitlist'
 import { SignIn } from './SignIn'
+import { Signup, VerifySignup } from './Signup'
+import { SetupBanner, SetupWizard } from './SetupWizard'
 import { Subscription, SubscriptionBanner } from './Subscription'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
@@ -36,11 +38,14 @@ import { Alert, Link, Notice } from './ui'
 
 type Clients = { api: ApiClient; fhir: FhirClient }
 
-// App picks the screen from the path: sign in and accept invite are open; everything else needs a session.
+// App picks the screen from the path: sign in, accept invite and a clinic's sign-up are open; everything else needs a
+// session.
 export default function App({ api, fhir }: Clients) {
   const path = usePath()
   if (path === '/sign-in') return <SignIn api={api} onSignedIn={() => navigate('/', true)} />
   if (path === '/invite') return <AcceptInvite api={api} onDone={() => navigate('/', true)} />
+  if (path === '/signup') return <Signup api={api} /> // clinic-cms O1
+  if (path === '/signup/verify') return <VerifySignup api={api} />
   return <SignedIn api={api} fhir={fhir} path={path} />
 }
 
@@ -125,6 +130,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
         <Alert message={languageSave === 'failed' ? t('common.somethingWrong') : undefined} />
         <Notice message={languageSave === 'saved' ? t('shell.languageSaved') : undefined} />
         {account.role === 'admin' && <SubscriptionBanner api={api} fhir={fhir} account={account} />}
+        {account.role === 'admin' && path !== '/setup' && <SetupBanner api={api} />}
         <Screen api={api} fhir={fhir} path={path} account={account} />
       </main>
     </>
@@ -277,5 +283,6 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   }
   if (path === '/desk' && deskRoles.has(account.role)) return <Desk api={api} fhir={fhir} account={account} />
   if (path === '/price-list' && account.role === 'admin') return <PriceList api={api} />
+  if (path === '/setup' && account.role === 'admin') return <SetupWizard api={api} /> // clinic-cms O1
   return <p className="panel">{t('shell.notFound')}</p>
 }

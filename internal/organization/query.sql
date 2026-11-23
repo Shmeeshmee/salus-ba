@@ -21,9 +21,12 @@ SET name = @name, listed = @listed, time_zone = @time_zone, default_language = @
 WHERE id = @id AND version_id = @version_id
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code;
 
+-- name: NewOrganizationID :one
+SELECT gen_random_uuid()::uuid;
+
 -- name: CreateOrganization :one
--- The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
-INSERT INTO organization (name) VALUES (@name)
+-- salusctl create-clinic (as the owner) and a verified signup (as salus_app, in the new clinic's scope: 00068).
+INSERT INTO organization (id, name) VALUES (@id, @name)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code;
 
 -- name: ChatSettings :one
@@ -82,3 +85,8 @@ WHERE id = @id;
 UPDATE organization
 SET legal_name = @legal_name, tax_id = @tax_id, vat_registered = @vat_registered, billing_email = @billing_email
 WHERE id = @id;
+
+-- name: ListOrganization :execrows
+-- salusctl signup approve (as the owner): the clinic appears in the public directory.
+UPDATE organization SET listed = true, version_id = version_id + 1, updated_at = now()
+WHERE id = @id AND NOT listed;

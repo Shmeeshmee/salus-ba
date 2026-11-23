@@ -443,6 +443,13 @@ type ClinicDiagnosisStat struct {
 	Code               string
 }
 
+type ClinicSetupStep struct {
+	OrganizationID pgtype.UUID
+	Step           string
+	State          string
+	UpdatedAt      pgtype.Timestamptz
+}
+
 type ClinicSignup struct {
 	ID             pgtype.UUID
 	CreatedAt      pgtype.Timestamptz

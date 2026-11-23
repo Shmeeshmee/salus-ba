@@ -378,9 +378,10 @@ func clinicWave3Rules() []Rule {
 		{
 			Table: "clinic_signup",
 			Basis: "The request of a clinic to sign up (GDPR Art. 6(1)(b), steps before a contract): the admin's e-mail and the " +
-				"clinic's name. An unverified signup is to be deleted after a short period, which comes with its applier in " +
-				"package O1 (docs/clinic-cms); until then nothing removes a row",
-			Then: ThenKeep,
+				"clinic's name. An unverified signup is deleted 30 days after it was made (its link works for 72 hours); a " +
+				"verified one is the record of the clinic's own request and stays with the clinic (docs/clinic-cms, O1)",
+			Keep: 30 * day, // after created_at, unverified signups only
+			Then: ThenDelete,
 		},
 	}
 }

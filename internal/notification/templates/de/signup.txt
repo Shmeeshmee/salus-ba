@@ -1,0 +1,8 @@
+Bestätigen Sie die Anmeldung Ihrer Praxis bei Salus
+
+Sie haben die Anmeldung von {{.Clinic}} bei Salus angefordert.
+
+Um Ihre E-Mail-Adresse zu bestätigen, öffnen Sie diesen Link:
+{{.Link}}
+
+Nach der Bestätigung senden wir Ihnen eine Einladung, das Administratorkonto der Praxis einzurichten. Der Link läuft 72 Stunden nach der Anmeldung ab. Wenn Sie sich nicht angemeldet haben, können Sie diese E-Mail ignorieren.

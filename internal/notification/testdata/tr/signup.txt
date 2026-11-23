@@ -1,0 +1,8 @@
+Subject: Kliniğinizin Salus kaydını onaylayın
+
+Synthetic clinic için Salus kaydı talep ettiniz.
+
+E-posta adresinizi onaylamak için bu bağlantıyı açın:
+https://app.example.test/signup/verify#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+Onayladıktan sonra kliniğin yönetici hesabını oluşturmanız için size bir davet göndereceğiz. Bağlantının süresi kayıttan 72 saat sonra dolar. Kayıt olmadıysanız bu e-postayı dikkate almayabilirsiniz.

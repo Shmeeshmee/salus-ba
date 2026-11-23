@@ -127,4 +127,12 @@ describe('Hero', () => {
       expect(demo.getAttribute('href')).toBe('#demo')
     }
   })
+
+  // The header's button is the clinic's sign-up (docs/clinic-cms, O1).
+  it('links the header button to the sign-up', () => {
+    render(<Hero />)
+
+    const header = screen.getByRole('navigation', { name: 'Main' }).closest('header') ?? document.body
+    expect(within(header).getByRole('link', { name: 'Sign up' }).getAttribute('href')).toBe('/signup')
+  })
 })

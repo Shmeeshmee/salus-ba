@@ -96,6 +96,28 @@ func (s *Service) Create(ctx context.Context, name string) (Organization, error)
 	return o, nil
 }
 
+// List puts the unlisted clinic id in the public directory: the operator's approval of a clinic that signed itself up
+// (salusctl signup approve, docs/clinic-cms O1). A clinic that does not exist or is listed already gives ErrNotFound.
+// Audited as the operator command.
+func (s *Service) List(ctx context.Context, id string) error {
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		ok, err := s.repo.List(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrNotFound
+		}
+		e := event(auditevent.CodeUpdate, auditevent.ActionUpdate, Caller{OrganizationID: id}, id, auditevent.OutcomeSuccess)
+		e.AgentName = auditevent.AgentOperator
+		return s.audit.Record(ctx, e)
+	})
+	if err != nil {
+		return fmt.Errorf("organization: list: %w", err)
+	}
+	return nil
+}
+
 // DefaultLanguage returns the clinic's default language (a staff language): for a new questionnaire's
 // original language and for e-mails to staff with no language of their own (docs/i18n/SPEC.md §3). It sets the
 // clinic's scope on the transaction in ctx, joining one already there. A clinic that does not exist gives

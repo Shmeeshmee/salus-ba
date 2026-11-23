@@ -1,0 +1,8 @@
+Conferma la registrazione della tua clinica su Salus
+
+Hai chiesto di registrare {{.Clinic}} su Salus.
+
+Per confermare il tuo indirizzo e-mail, apri questo link:
+{{.Link}}
+
+Dopo la conferma ti invieremo un invito per creare l'account amministratore della clinica. Il link scade 72 ore dopo la registrazione. Se non ti sei registrato, puoi ignorare questa e-mail.

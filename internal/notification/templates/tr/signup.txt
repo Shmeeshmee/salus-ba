@@ -1,0 +1,8 @@
+Kliniğinizin Salus kaydını onaylayın
+
+{{.Clinic}} için Salus kaydı talep ettiniz.
+
+E-posta adresinizi onaylamak için bu bağlantıyı açın:
+{{.Link}}
+
+Onayladıktan sonra kliniğin yönetici hesabını oluşturmanız için size bir davet göndereceğiz. Bağlantının süresi kayıttan 72 saat sonra dolar. Kayıt olmadıysanız bu e-postayı dikkate almayabilirsiniz.
