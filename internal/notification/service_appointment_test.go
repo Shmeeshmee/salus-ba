@@ -28,10 +28,11 @@ var start = time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
 
 // fakeAppointments gives the appointment of a notice, in the status set.
 type fakeAppointments struct {
-	err    error
-	status appointment.Status
-	mode   schedule.VisitMode
-	asked  []string // agent, clinic, appointment
+	err       error
+	status    appointment.Status
+	mode      schedule.VisitMode
+	asked     []string // agent, clinic, appointment
+	noAccount bool     // the notice of a patient the clinic registered, without an account (docs/clinic-cms F2)
 }
 
 func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (appointment.Notice, error) {
@@ -39,12 +40,16 @@ func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (app
 	if f.err != nil {
 		return appointment.Notice{}, f.err
 	}
+	account := accountID
+	if f.noAccount {
+		account = ""
+	}
 	return appointment.Notice{
 		Appointment: appointment.Appointment{
 			ID: id, OrganizationID: org, PatientID: "aa000000-0000-4000-8000-0000000000aa", PractitionerRoleID: "a4000000-0000-4000-8000-0000000000a1",
 			Start: start, End: start.Add(30 * time.Minute), Status: f.status, Mode: f.mode,
 		},
-		AccountID: accountID,
+		AccountID: account,
 	}, nil
 }
 
@@ -204,6 +209,21 @@ func TestAppointmentEmails_SendNothingThatNoLongerApplies(t *testing.T) {
 		if len(sender.sent) != 0 || accounts.asked != nil {
 			t.Errorf("%s: sent %v after reading the account %v, want nothing", name, sender.sent, accounts.asked)
 		}
+	}
+}
+
+func TestAppointmentEmails_SendAPatientWithoutAnAccountNothing(t *testing.T) {
+	accounts, sender := &fakeAccounts{language: "en"}, &fakeSender{}
+	mail := newMail(&fakeAppointments{status: appointment.StatusBooked, noAccount: true}, accounts, zonedClinics{}, sender)
+	for name, send := range map[string]func(context.Context, string, string) error{
+		"booked": mail.SendAppointmentBooked, "reminder": mail.SendAppointmentReminder,
+	} {
+		if err := send(t.Context(), apptID, clinicID); err != nil {
+			t.Errorf("%s: error = %v, want nil", name, err)
+		}
+	}
+	if len(sender.sent) != 0 || accounts.asked != nil {
+		t.Errorf("sent %v after reading the account %v, want nothing", sender.sent, accounts.asked)
 	}
 }
 

@@ -3,6 +3,7 @@ package patient
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -82,9 +83,60 @@ func toPatient(row patientdb.PatientByIDRow, err, noRows error) (Patient, error)
 		return Patient{}, err
 	}
 	return Patient{
-		ID: row.ID.String(), AccountID: row.AccountID.String(), GivenName: row.GivenName, FamilyName: row.FamilyName,
+		ID: row.ID.String(), AccountID: uuidString(row.AccountID), RegisteredBy: uuidString(row.RegisteredByOrganizationID), GivenName: row.GivenName, FamilyName: row.FamilyName,
 		BirthDate: row.BirthDate.Time, Phone: row.Phone.String, VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
 	}, nil
+}
+
+func (r *postgresRepository) Register(ctx context.Context, p Patient, org string, at time.Time) (Patient, error) {
+	var o pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return Patient{}, errors.New("patient: the clinic id is not a UUID")
+	}
+	row, err := patientdb.New(postgres.Conn(ctx, r.db)).RegisterPatient(ctx, patientdb.RegisterPatientParams{
+		OrganizationID: o, GivenName: p.GivenName, FamilyName: p.FamilyName, BirthDate: pgDate(p.BirthDate),
+		Phone: pgText(p.Phone), UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	return toPatient(patientdb.PatientByIDRow(row), err, errors.New("patient: register returned no row"))
+}
+
+func (r *postgresRepository) SearchClinic(ctx context.Context, org, roleID string, q ClinicSearch, limit int32) ([]Patient, error) {
+	var o, role pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return nil, errors.New("patient: the clinic id is not a UUID")
+	}
+	if roleID != "" && role.Scan(roleID) != nil {
+		return nil, nil
+	}
+	born := pgtype.Date{Time: q.BirthDate, Valid: !q.BirthDate.IsZero()}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).SearchClinicPatients(ctx, patientdb.SearchClinicPatientsParams{
+		OrganizationID: o, Pattern: likePattern(q.Name), BirthDate: born, PractitionerRoleID: role, MaxRows: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Patient, 0, len(rows))
+	for _, row := range rows {
+		p, err := toPatient(patientdb.PatientByIDRow(row), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// likePattern is %name%, with LIKE's wildcards and escape in name taken literally.
+func likePattern(name string) string {
+	return "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(name) + "%"
+}
+
+// uuidString is u as text, or empty when it is NULL.
+func uuidString(u pgtype.UUID) string {
+	if !u.Valid {
+		return ""
+	}
+	return u.String()
 }
 
 func pgDate(t time.Time) pgtype.Date { return pgtype.Date{Time: t, Valid: true} }

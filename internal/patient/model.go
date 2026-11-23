@@ -11,11 +11,14 @@ type Patient struct {
 	BirthDate   time.Time // a date: midnight UTC
 	LastUpdated time.Time // meta.lastUpdated
 	ID          string
-	AccountID   string // the patient's account
-	GivenName   string
-	FamilyName  string
-	Phone       string // E.164; empty for none
-	VersionID   int32  // meta.versionId
+	AccountID   string // the patient's account; empty for a profile a clinic registered
+	// RegisteredBy is the clinic that registered the profile of a patient without an account (docs/clinic-cms F2,
+	// W1): only that clinic sees it. Empty for a patient's own profile.
+	RegisteredBy string
+	GivenName    string
+	FamilyName   string
+	Phone        string // E.164; empty for none
+	VersionID    int32  // meta.versionId
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic, whether they are its admin and a
@@ -26,6 +29,7 @@ type Caller struct {
 	OrganizationID     string // the caller's clinic; empty for a patient
 	PractitionerRoleID string // a practitioner's role in that clinic
 	Admin              bool   // the clinic's admin
+	Reception          bool   // the clinic's receptionist (docs/clinic-cms F1)
 }
 
 func (c Caller) patient() bool { return c.OrganizationID == "" }

@@ -53,6 +53,7 @@ type appointmentJSON struct {
 	End                time.Time          `json:"end"`
 	CancelledAt        *time.Time         `json:"cancelledAt,omitempty"`
 	ConfirmedAt        *time.Time         `json:"confirmedAt,omitempty"`
+	ArrivedAt          *time.Time         `json:"arrivedAt,omitempty"`
 	ID                 string             `json:"id"`
 	OrganizationID     string             `json:"organizationId"`
 	PractitionerRoleID string             `json:"practitionerRoleId"`
@@ -80,6 +81,10 @@ func toJSON(a Appointment) appointmentJSON {
 	if !a.ConfirmedAt.IsZero() {
 		at := a.ConfirmedAt.UTC()
 		out.ConfirmedAt = &at
+	}
+	if !a.ArrivedAt.IsZero() {
+		at := a.ArrivedAt.UTC()
+		out.ArrivedAt = &at
 	}
 	return out
 }

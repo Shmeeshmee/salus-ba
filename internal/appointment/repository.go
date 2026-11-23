@@ -40,6 +40,12 @@ type Repository interface {
 	AddChange(ctx context.Context, c Change) (string, error)
 	// Changes returns the history of the appointment id, oldest first, as the scope shows it.
 	Changes(ctx context.Context, id string) ([]Change, error)
+	// Arrive marks the booked in-person appointment id arrived at at and returns it at its next version; ErrClosed
+	// when it is not booked or not in person (docs/clinic-cms W6).
+	Arrive(ctx context.Context, id string, at time.Time) (Appointment, error)
+	// Desk returns the clinic org's appointments starting in [from, to) but the cancelled ones, by practitioner role
+	// and start, in the clinic's scope.
+	Desk(ctx context.Context, org string, from, to time.Time) ([]Appointment, error)
 }
 
 // TokenRepository stores the one-time links of reminders (appointment_action_token, ADR 0015): only their hash.

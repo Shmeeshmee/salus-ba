@@ -20,7 +20,7 @@ writes under its own heading here.
 | G | hold (Q6) | |
 | 3.0 | done 2026-11-23 | `cms(3.0)` on `wt/cms/3.0` |
 | F1 | not started (wave 3, after 3.0) | |
-| F2 | not started (wave 3, after 3.0) | |
+| F2 | done 2026-11-23, partly (see its Deferred) | `cms(F2)` on `wt/cms/F2` |
 | F3 | not started (wave 3, after 3.0) | |
 | O1 | not started (wave 3, after 3.0) | |
 | O2 | not started (wave 3, after 3.0) | |
@@ -951,7 +951,69 @@ Not started.
 
 ## F2: patients registered by the clinic and bookings by staff
 
-Not started.
+Status: done 2026-11-23 on `wt/cms/F2`, one commit `cms(F2)`, with the staff move and the SMS reminders deferred
+(below). No migration (00067 unused): 3.0's columns, policies and guards were enough.
+
+**Built.**
+
+- **patient** (`service_clinic.go`, `handler_clinic.go`, `GET`/`POST /clinic/patients`). `SearchClinic`: name (trimmed,
+  2 characters at least, `%`, `_`, `\` literal) contained in "given family" or "family given", optional birth date, 50
+  rows, by family and given name; the clinic's registered patients and those with its active care consent; the admin
+  and receptionist see all of them, a practitioner only those with an appointment with their role; every patient
+  returned is audited (search-type), an empty search once. `Register`: admin or receptionist only; the profile with
+  `registered_by_organization_id` and the in-person care consent (`consent.RecordInPerson`) in one transaction.
+  `Patient.RegisteredBy` is read on every query; `AccountID` is empty for a registered profile.
+- **consent** (`service_inperson.go`). `RecordInPerson`: an active care consent `given_in_person` with the recording
+  account, in the clinic's scope; `ErrActive` for one active already; `ErrNotFound` when the database's guard refuses
+  (not a patient the clinic registered). `Consent.GivenInPerson` and `RecordedBy` are set by this write only.
+- **appointment** (`service_staff.go`, `handler_staff.go`). `BookForPatient` (`POST /clinic/appointments`): a free slot of
+  the caller's clinic as the directory shows it, the service checked as the patient's booking, the patient read and
+  their active care consent checked in the clinic's scope, the slot held, `booked_by_account_id` stored; the desk books
+  for every role, a practitioner for their own. For a patient without an account only the statistics are enqueued (no
+  confirmation, questionnaire request or reminders). `CancelForPatient` (`/cancel`, `If-Match` required): the existing
+  cancellation with the desk acting with the admin's access, rolled back on a stale version (`version_conflict`).
+  `Arrive` (`/arrive`): desk only, an in-person booked visit, `arrived_at`, `not_in_person` for video. `DeskDay`
+  (`GET /clinic/desk/today?date=`): the clinic's day in its zone, cancelled visits left out, by role and start, each with
+  its patient (each patient read audited once, the search once). `Appointment.BookedBy`, `ArrivedAt` read on every
+  query; `arrivedAt` in the JSON.
+- **notification**: an appointment e-mail whose notice has no account sends nothing.
+- **Callers**: `patient.Caller` and `appointment.Caller` gain `Reception`; "the desk" is admin or receptionist.
+
+**Readings and decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| The receptionist flag | `Reception` on the callers is never set yet: `auth.Member` has no reception field before F1. Until the integration sets it, only the admin acts at the desk |
+| Who registers | Admin and receptionist; a practitioner searches (their own patients) and books (their own slots) but does not register |
+| A staff booking's slot | Resolved as the public directory shows it (listed clinic, active role), as the patient's booking: an unlisted clinic books once listed (O1) |
+| `consent_required` on a staff booking | 403, as `api/openapi.yaml` says (the patient's booking answers 409) |
+| A receptionist's cancel | The admin's access to the appointment (W2), audited as the receptionist's account |
+| Contract changes | `CancelForPatient` takes the `If-Match` version; `DeskDay` returns `[]DeskVisit` (appointment and patient) rather than `[]Appointment`, since the screen needs the patient; `serviceName` of `DeskVisit` is not filled (the screen has the price list) |
+| The desk's "today" | Without `date`, the handler's UTC date: in the first hour or two after midnight in Sarajevo it is still the day before. Pass `date` from the screen |
+
+**Deferred.**
+
+- The staff move (`MoveForPatient`, `/clinic/appointments/{id}/reschedule`): not served and still refusing. The
+  patient's `Reschedule` counts the move against the patient's own limit and confirms the visit in the app; a staff move
+  needs neither, so it needs its own query (no reschedule count, history `via staff`).
+- SMS reminders for a patient without an account: deliveries are per account (`notification_delivery.account_id`); an
+  SMS to the profile's phone under the clinic's SMS option needs a delivery without an account (a migration). Until then
+  such a patient gets no reminder at all, which the plan allows ("by SMS or not at all").
+- Revoking an in-person consent from the clinic (an `UPDATE` policy) and correcting a registered profile.
+- The concurrency test against Postgres of two staff bookings of one slot: the fake shows the second is refused, and
+  the existing `TestCreate_TwoConcurrentOverlappingBookingsOfOneRoleGiveOne` covers the constraint both bookings share.
+
+**Test first.** The service and handler tests were written before their code in each domain, but run together with it
+rather than red first; the repository tests after the queries.
+
+**Checks** (compose project `salus-cms-f2`): `make lint` (gofmt, vet, golangci-lint, i18n-check, migrations), `make
+test`, `make archcheck`: pass (the third run; the first two failed on fieldalignment of new test structs, fixed). Not
+run: `make cover` (the time budget), `make gen-clients` (no OpenAPI change), `make fhir-validate` (no golden file
+changed), `make e2e` (not in F2's check set).
+
+**INTEGRATION NOTES.** After F1: set `Reception` from F1's member in `patientReadCaller` and `appointmentCaller`
+(`internal/api/app.go`), and check a receptionist reaches `/clinic/patients`, `/clinic/appointments*` and
+`/clinic/desk/today` and nothing clinical. F3's screen should pass `date`.
 
 ## F3: the front desk screen
 

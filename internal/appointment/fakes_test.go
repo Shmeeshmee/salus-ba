@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -247,6 +248,38 @@ func (r *fakeRepository) AddChange(ctx context.Context, c appointment.Change) (s
 	return "", appointment.ErrNotFound
 }
 
+func (r *fakeRepository) Arrive(ctx context.Context, id string, at time.Time) (appointment.Appointment, error) {
+	r.seen(ctx, "Arrive")
+	if r.err != nil {
+		return appointment.Appointment{}, r.err
+	}
+	for i, a := range r.appts {
+		if a.ID == id && r.visible(a) {
+			if a.Status != appointment.StatusBooked || a.Mode != schedule.ModeInPerson {
+				return appointment.Appointment{}, appointment.ErrClosed
+			}
+			a.Status, a.ArrivedAt, a.VersionID, a.LastUpdated = appointment.StatusArrived, at, a.VersionID+1, at
+			r.appts[i] = a
+			return a, nil
+		}
+	}
+	return appointment.Appointment{}, appointment.ErrClosed
+}
+
+func (r *fakeRepository) Desk(ctx context.Context, org string, from, to time.Time) ([]appointment.Appointment, error) {
+	r.seen(ctx, "Desk")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []appointment.Appointment
+	for _, a := range r.appts {
+		if a.OrganizationID == org && r.visible(a) && a.Status != appointment.StatusCancelled && !a.Start.Before(from) && a.Start.Before(to) {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeRepository) Changes(ctx context.Context, id string) ([]appointment.Change, error) {
 	r.seen(ctx, "Changes")
 	if r.err != nil {
@@ -362,6 +395,8 @@ func (p *fakePatients) Lookup(ctx context.Context, id string) (patient.Patient, 
 		return patient.Patient{ID: patientA, AccountID: accountA, GivenName: "Ada", FamilyName: "Example"}, nil
 	case patientB:
 		return patient.Patient{ID: patientB, AccountID: accountB, GivenName: "Bo", FamilyName: "Example"}, nil
+	case patientC: // registered by clinic A, without an account (docs/clinic-cms F2)
+		return patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example"}, nil
 	}
 	return patient.Patient{}, patient.ErrNotFound
 }

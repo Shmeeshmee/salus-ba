@@ -22,6 +22,10 @@ var (
 	ErrCancellationWindowClosed = errors.New("appointment: cancellation window closed")
 	// ErrClosed is returned when an appointment that is no longer booked is changed.
 	ErrClosed = errors.New("appointment: no longer booked")
+	// ErrVersionConflict is returned when staff change an appointment at a version that is not its current one.
+	ErrVersionConflict = errors.New("appointment: version conflict")
+	// ErrNotInPerson is returned when a video visit is marked arrived at the desk.
+	ErrNotInPerson = errors.New("appointment: not in person")
 	// ErrNotStarted is returned when an appointment is marked fulfilled or no-show before its start.
 	ErrNotStarted = errors.New("appointment: not started")
 	// ErrInvalidService is returned for a booking that names a service its clinic does not offer, active, in the

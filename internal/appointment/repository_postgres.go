@@ -48,17 +48,17 @@ func (r *postgresRepository) SetNotice(ctx context.Context, id string) error {
 }
 
 func (r *postgresRepository) Create(ctx context.Context, a Appointment) (Appointment, error) {
-	var p, role, org, sl, service pgtype.UUID
+	var p, role, org, sl, service, by pgtype.UUID
 	if p.Scan(a.PatientID) != nil || role.Scan(a.PractitionerRoleID) != nil || org.Scan(a.OrganizationID) != nil || sl.Scan(a.SlotID) != nil {
 		return Appointment{}, errors.New("appointment: an id is not a UUID")
 	}
-	if a.ServiceID != "" && service.Scan(a.ServiceID) != nil {
-		return Appointment{}, errors.New("appointment: the service id is not a UUID")
+	if (a.ServiceID != "" && service.Scan(a.ServiceID) != nil) || (a.BookedBy != "" && by.Scan(a.BookedBy) != nil) {
+		return Appointment{}, errors.New("appointment: the service or booking account id is not a UUID")
 	}
 	row, err := r.q(ctx).CreateAppointment(ctx, appointmentdb.CreateAppointmentParams{
 		PatientID: p, PractitionerRoleID: role, OrganizationID: org, SlotID: sl,
 		StartAt: ts(a.Start), EndAt: ts(a.End), CreatedAt: ts(a.Created), BookedVia: string(bookedVia(a.BookedVia)),
-		VisitMode: string(visitMode(a.Mode)), ServiceID: service,
+		VisitMode: string(visitMode(a.Mode)), ServiceID: service, BookedByAccountID: by,
 	})
 	var pgErr *pgconn.PgError
 	switch {
@@ -179,6 +179,12 @@ func toAppointment(row appointmentdb.AppointmentByIDRow) Appointment {
 	}
 	if row.ServiceID.Valid {
 		a.ServiceID = row.ServiceID.String()
+	}
+	if row.BookedByAccountID.Valid {
+		a.BookedBy = row.BookedByAccountID.String()
+	}
+	if row.ArrivedAt.Valid {
+		a.ArrivedAt = row.ArrivedAt.Time
 	}
 	a.RescheduleCount, a.BookedVia, a.Mode = int32(row.RescheduleCount), BookedVia(row.BookedVia), schedule.VisitMode(row.VisitMode)
 	return a
@@ -880,6 +886,37 @@ func (r *postgresRepository) Visits(ctx context.Context, org string, from, to ti
 		out = append(out, Visit{
 			ID: row.ID.String(), PractitionerRoleID: row.PractitionerRoleID.String(), Mode: schedule.VisitMode(row.VisitMode), Status: Status(row.Status),
 		})
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Arrive(ctx context.Context, id string, at time.Time) (Appointment, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrClosed
+	}
+	row, err := r.q(ctx).ArriveAppointment(ctx, appointmentdb.ArriveAppointmentParams{ID: u, At: ts(at)})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Appointment{}, ErrClosed
+	case err != nil:
+		return Appointment{}, err
+	}
+	return toAppointment(appointmentdb.AppointmentByIDRow(row)), nil
+}
+
+func (r *postgresRepository) Desk(ctx context.Context, org string, from, to time.Time) ([]Appointment, error) {
+	var o pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return nil, errors.New("appointment: the clinic id is not a UUID")
+	}
+	rows, err := r.q(ctx).DeskAppointments(ctx, appointmentdb.DeskAppointmentsParams{OrganizationID: o, FromAt: ts(from), ToAt: ts(to)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Appointment, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toAppointment(appointmentdb.AppointmentByIDRow(row)))
 	}
 	return out, nil
 }
