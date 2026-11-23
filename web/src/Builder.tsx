@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
+import type { components } from './api/schema'
 import { FhirError, type Bundle, type FhirClient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
 import {
@@ -7,7 +8,7 @@ import {
   canStep,
   changeKind,
   count,
-  dependents,
+  dependentsOf,
   earlierQuestions,
   find,
   insert,
@@ -21,9 +22,12 @@ import {
   rowsOf,
   step,
   update,
+  type Condition,
   type Item,
   type Kind,
 } from './builder'
+import { addFollowUp, branchDepths, followUps, joins } from './builder-logic'
+import { BuilderPreview } from './BuilderPreview'
 import { DragArea, ListEnd, PaletteSource, SortableList, SortableRow } from './builder-dnd'
 import { ChevronIcon } from './icons'
 import { FilesSummary, ItemCard, TextField } from './ItemCard'
@@ -36,6 +40,7 @@ import { Languages, TranslationEditor } from './Translations'
 import { Alert, Confirm, Link } from './ui'
 
 type Loaded = { version: Version; series: Version[] }
+type SaveBody = components['schemas']['SaveQuestionnaireRequest']
 type Props = { api: ApiClient; fhir: FhirClient; id: string }
 
 type T = ReturnType<typeof useT>
@@ -147,6 +152,7 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const [leavingTo, setLeavingTo] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [fresh, setFresh] = useState<string>() // the item just added, whose text takes the focus
+  const [previewing, setPreviewing] = useState(false)
   const dirtyRef = useRef(false)
   const edits = useRef(0) // every change counts: a save clears dirty only if none came while it was in flight
   const v = loaded.version
@@ -197,7 +203,8 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     const res = await attempt(
       api.PUT('/questionnaires/{id}', {
         params: { path: { id: v.id }, header: { 'If-Match': `W/"${versionId}"` } },
-        body: toRequest(title, description, items, language, translations),
+        // The generated body type has today's single condition; the FHIR form is Q1's (see questionnaire.ts).
+        body: toRequest(title, description, items, language, translations) as unknown as SaveBody,
       }),
     )
     setBusy(false)
@@ -326,6 +333,16 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
     setFresh(linkId)
   }
 
+  // followUp is "If the answer is X, ask a question" (SAL-43): a short answer at the end of the question's branches.
+  function followUp(question: string, answer: Condition['answer']) {
+    const it = newItem('string', newLinkId())
+    const res = addFollowUp(items, question, answer, it)
+    if (!res.ok) return
+    edit(res.items)
+    setOpened((o) => [...o, it.linkId])
+    setFresh(it.linkId)
+  }
+
   function stepItem(linkId: string, dir: -1 | 1) {
     const res = step(items, linkId, dir)
     if (!res?.ok) return
@@ -336,6 +353,8 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
   const active = loaded.series.find((s) => s.status === 'active' && s.id !== v.id)
   const full = count(items) >= maxItems
   const found = problems(items)
+  const depths = branchDepths(items)
+  const joined = joins(items)
   const open = translations.find((x) => x.language === editing)
   const refusedFor = translations.find((x) => x.language === incomplete)
   const missing = refusedFor ? progress(refusedFor, description, items).missing : []
@@ -379,7 +398,9 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
           onRemove={removeTranslation}
         />
       </div>
-      {open ? (
+      {previewing ? (
+        <BuilderPreview title={title} description={description} items={items} onClose={() => setPreviewing(false)} />
+      ) : open ? (
         <div inert={publishing}>
           <TranslationEditor language={language} translation={open} title={title} description={description} items={items} onChange={(x) => editTranslations(translations.map((y) => (y.language === x.language ? x : y)))} />
         </div>
@@ -432,7 +453,11 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
                               attention={flagged.includes(r.item.linkId) || found.has(r.item.linkId) || missing.includes(r.item.linkId)}
                               canUp={canStep(items, r.item.linkId, -1)}
                               canDown={canStep(items, r.item.linkId, 1)}
-                              dependents={dependents(items, r.item.linkId)}
+                              dependents={dependentsOf(items, r.item.linkId).map(label)}
+                              branch={depths.get(r.item.linkId) ?? 0}
+                              joins={joined.has(r.item.linkId)}
+                              followUps={(answer) => followUps(items, r.item.linkId, answer)}
+                              onFollowUp={(answer) => followUp(r.item.linkId, answer)}
                               earlier={earlierQuestions(items, r.item.linkId)}
                               questionOf={(id) => find(items, id)}
                               onToggle={() =>
@@ -508,6 +533,9 @@ function Editor({ api, loaded, onReload, onPublished }: EditorProps) {
         </button>
         <button type="button" disabled={busy} onClick={askPublish}>
           {t('questionnaire.publish')}
+        </button>
+        <button type="button" aria-pressed={previewing} onClick={() => setPreviewing(!previewing)}>
+          {t('questionnaire.preview')}
         </button>
         <button type="button" className="quiet danger-text" disabled={busy} onClick={() => setConfirm('discard')}>
           {t('questionnaire.discard')}

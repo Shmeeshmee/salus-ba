@@ -15,10 +15,10 @@ describe('fromFHIR', () => {
         ...newItem('group', 'sec'),
         text: 'Placeholder section',
         help: 'Placeholder section help',
-        condition: { question: 'smoker', answer: true },
+        enableWhen: [{ question: 'smoker', operator: '=' as const, answer: true }],
         items: [
           { ...newItem('single', 'one'), text: 'Placeholder single', options: ['A', 'B'] },
-          { ...newItem('multiple', 'many'), text: 'Placeholder multiple', options: ['C', 'D'], condition: { question: 'one', answer: 'B' } },
+          { ...newItem('multiple', 'many'), text: 'Placeholder multiple', options: ['C', 'D'], enableWhen: [{ question: 'one', operator: '=' as const, answer: 'B' }] },
         ],
       },
     ])
@@ -149,5 +149,41 @@ describe('a translated questionnaire', () => {
   it('sends a translated description only when the original has one', () => {
     const t = { language: 'en' as const, title: 'T in English', description: 'Placeholder description in English', items: {} }
     expect(toRequest('T', 'Placeholder description', [], 'bs', [t]).translations).toEqual([t])
+  })
+})
+
+describe('conditions (SAL-43)', () => {
+  const q = (kind: Parameters<typeof newItem>[0], id: string) => ({ ...newItem(kind, id), text: id })
+
+  it('sends one is condition on a yes or no or a choice in the legacy shape, so published forms keep theirs', () => {
+    const items = [q('boolean', 'a'), { ...q('string', 'b'), enableWhen: [{ question: 'a', operator: '=' as const, answer: true }] }]
+    expect(toRequest('T', '', items).item[1].enableWhen).toEqual({ question: 'a', answerBoolean: true })
+  })
+
+  it('sends anything else as FHIR enableWhen with enableBehavior, the value in its type', () => {
+    const items = [
+      q('integer', 'n'),
+      q('decimal', 'd'),
+      q('date', 'w'),
+      {
+        ...q('string', 'x'),
+        enableWhen: [
+          { question: 'n', operator: '<' as const, answer: 18 },
+          { question: 'd', operator: '>=' as const, answer: 1.5 },
+          { question: 'w', operator: '=' as const, answer: '2026-01-01' },
+          { question: 'n', operator: 'exists' as const, answer: false },
+        ],
+        enableBehavior: 'any' as const,
+      },
+    ]
+    const sent = toRequest('T', '', items).item[3]
+    expect(sent.enableBehavior).toBe('any')
+    expect(sent.enableWhen).toEqual([
+      { question: 'n', operator: '<', answerInteger: 18 },
+      { question: 'd', operator: '>=', answerDecimal: 1.5 },
+      { question: 'w', operator: '=' as const, answerDate: '2026-01-01' },
+      { question: 'n', operator: 'exists', answerBoolean: false },
+    ])
+    expect(fromJSON({ ...questionnaireJSON(), item: toRequest('T', '', items).item }).items[3]).toEqual(items[3])
   })
 })
