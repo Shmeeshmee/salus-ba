@@ -224,6 +224,12 @@ enum ErrorErrorEnum {
   fiscalReportFailed._(r'fiscal_report_failed'),
   answerNotEnabled._(r'answer_not_enabled'),
   fiscalReportNotFailed._(r'fiscal_report_not_failed'),
+  invalidSignup._(r'invalid_signup'),
+  invalidVerification._(r'invalid_verification'),
+  invalidImport._(r'invalid_import'),
+  invalidQuote._(r'invalid_quote'),
+  invalidProfile._(r'invalid_profile'),
+  notInPerson._(r'not_in_person'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -435,6 +441,18 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.answerNotEnabled;
         case r'fiscal_report_not_failed':
           return ErrorErrorEnum.fiscalReportNotFailed;
+        case r'invalid_signup':
+          return ErrorErrorEnum.invalidSignup;
+        case r'invalid_verification':
+          return ErrorErrorEnum.invalidVerification;
+        case r'invalid_import':
+          return ErrorErrorEnum.invalidImport;
+        case r'invalid_quote':
+          return ErrorErrorEnum.invalidQuote;
+        case r'invalid_profile':
+          return ErrorErrorEnum.invalidProfile;
+        case r'not_in_person':
+          return ErrorErrorEnum.notInPerson;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

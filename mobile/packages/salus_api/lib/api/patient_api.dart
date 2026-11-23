@@ -73,6 +73,87 @@ class PatientApi {
     return null;
   }
 
+  /// Register a patient who has no Salus account
+  ///
+  /// The profile is the clinic's and seen by it only; the care consent is recorded as given in person, by the caller (W1 of docs/clinic-cms). For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [RegisterPatientRequest] registerPatientRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> registerClinicPatientWithHttpInfo(
+    RegisterPatientRequest registerPatientRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/patients';
+
+    // ignore: prefer_final_locals
+    Object? postBody = registerPatientRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Register a patient who has no Salus account
+  ///
+  /// The profile is the clinic's and seen by it only; the care consent is recorded as given in person, by the caller (W1 of docs/clinic-cms). For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [RegisterPatientRequest] registerPatientRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<ClinicPatient?> registerClinicPatient(
+    RegisterPatientRequest registerPatientRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await registerClinicPatientWithHttpInfo(
+      registerPatientRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ClinicPatient',
+      ) as ClinicPatient;
+    }
+    return null;
+  }
+
   /// Save the signed-in patient's profile
   ///
   /// Creates the profile when `versionId` is absent, with every required field; updates it when `versionId` is the current version. Names are trimmed. Patients only. Not cached. Audited, also when refused.
@@ -150,6 +231,87 @@ class PatientApi {
         await _decodeBodyBytes(response),
         'Patient',
       ) as Patient;
+    }
+    return null;
+  }
+
+  /// Search the clinic's patients
+  ///
+  /// By name and, when given, birth date: the patients with the clinic's care consent and those it registered. For the clinic's admin, its receptionists and its practitioners (their own patients). Built in package F2 of docs/clinic-cms. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] name (required):
+  ///
+  /// * [DateTime] birthDate:
+  Future<Response> searchClinicPatientsWithHttpInfo(
+    String name, {
+    DateTime? birthDate,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/patients';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'name', name));
+    if (birthDate != null) {
+      queryParams.addAll(_queryParams('', 'birthDate', birthDate));
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Search the clinic's patients
+  ///
+  /// By name and, when given, birth date: the patients with the clinic's care consent and those it registered. For the clinic's admin, its receptionists and its practitioners (their own patients). Built in package F2 of docs/clinic-cms. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] name (required):
+  ///
+  /// * [DateTime] birthDate:
+  Future<List<ClinicPatient>?> searchClinicPatients(
+    String name, {
+    DateTime? birthDate,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await searchClinicPatientsWithHttpInfo(
+      name,
+      birthDate: birthDate,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(
+              responseBody, 'List<ClinicPatient>') as List)
+          .cast<ClinicPatient>()
+          .toList(growable: false);
     }
     return null;
   }

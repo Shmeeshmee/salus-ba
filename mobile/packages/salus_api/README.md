@@ -81,13 +81,18 @@ Class | Method | HTTP request | Description
 *AppointmentLinksApi* | [**actOnAppointmentLink**](doc//AppointmentLinksApi.md#actonappointmentlink) | **POST** /a/{token} | Confirm or cancel through a reminder's one-time link
 *AppointmentLinksApi* | [**getAppointmentLinkPage**](doc//AppointmentLinksApi.md#getappointmentlinkpage) | **GET** /a/{token} | The page of a reminder's one-time link
 *AppointmentsApi* | [**bookAppointment**](doc//AppointmentsApi.md#bookappointment) | **POST** /appointments | Book a free slot
+*AppointmentsApi* | [**bookForPatient**](doc//AppointmentsApi.md#bookforpatient) | **POST** /clinic/appointments | Book a visit for a patient
 *AppointmentsApi* | [**cancelAppointment**](doc//AppointmentsApi.md#cancelappointment) | **POST** /appointments/{id}/cancel | Cancel an appointment
+*AppointmentsApi* | [**cancelForPatient**](doc//AppointmentsApi.md#cancelforpatient) | **POST** /clinic/appointments/{id}/cancel | Cancel a patient's visit
 *AppointmentsApi* | [**confirmAppointment**](doc//AppointmentsApi.md#confirmappointment) | **POST** /appointments/{id}/confirm | The patient confirms they will come
 *AppointmentsApi* | [**getAppointmentActions**](doc//AppointmentsApi.md#getappointmentactions) | **GET** /appointments/{id}/actions | What the patient may do with their appointment now
 *AppointmentsApi* | [**getAppointmentSettings**](doc//AppointmentsApi.md#getappointmentsettings) | **GET** /clinic/appointment-settings | The admin's clinic's appointment settings
+*AppointmentsApi* | [**getDeskDay**](doc//AppointmentsApi.md#getdeskday) | **GET** /clinic/desk/today | The desk's visits of a day
 *AppointmentsApi* | [**listAppointmentChanges**](doc//AppointmentsApi.md#listappointmentchanges) | **GET** /appointments/{id}/changes | An appointment's history
 *AppointmentsApi* | [**listNoShowFlags**](doc//AppointmentsApi.md#listnoshowflags) | **GET** /clinic/noshow-flags | Repeat no-show flags beside the calendar's appointments
+*AppointmentsApi* | [**markArrived**](doc//AppointmentsApi.md#markarrived) | **POST** /clinic/appointments/{id}/arrive | The patient arrived at the desk
 *AppointmentsApi* | [**rescheduleAppointment**](doc//AppointmentsApi.md#rescheduleappointment) | **POST** /appointments/{id}/reschedule | The patient moves their appointment to another free slot of the same practitioner role
+*AppointmentsApi* | [**rescheduleForPatient**](doc//AppointmentsApi.md#rescheduleforpatient) | **POST** /clinic/appointments/{id}/reschedule | Move a patient's visit to another slot
 *AppointmentsApi* | [**setAppointmentSettings**](doc//AppointmentsApi.md#setappointmentsettings) | **PUT** /clinic/appointment-settings | Replace the admin's clinic's appointment settings
 *AppointmentsApi* | [**setAppointmentStatus**](doc//AppointmentsApi.md#setappointmentstatus) | **POST** /appointments/{id}/status | Mark an appointment fulfilled or no-show, or correct it
 *AttachmentsApi* | [**deleteBinary**](doc//AttachmentsApi.md#deletebinary) | **DELETE** /binaries/{id} | Remove a file from an answer
@@ -104,21 +109,27 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**verifyMfa**](doc//AuthApi.md#verifymfa) | **POST** /auth/mfa/verify | Finish signing in with a TOTP code
 *BillingApi* | [**createClinicService**](doc//BillingApi.md#createclinicservice) | **POST** /clinic/services | Add a service to the clinic's price list
 *BillingApi* | [**getBillingDetails**](doc//BillingApi.md#getbillingdetails) | **GET** /clinic/billing-details | The clinic's billing details
+*BillingApi* | [**getClinicQuote**](doc//BillingApi.md#getclinicquote) | **GET** /clinic/quotes/{id} | A quote of the clinic
 *BillingApi* | [**getClinicReceipt**](doc//BillingApi.md#getclinicreceipt) | **GET** /clinic/receipts/{id} | A receipt of the clinic
 *BillingApi* | [**getClinicReceiptPdf**](doc//BillingApi.md#getclinicreceiptpdf) | **GET** /clinic/receipts/{id}/pdf | A receipt as a PDF on the clinic's letterhead
 *BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
+*BillingApi* | [**getMyQuotePdf**](doc//BillingApi.md#getmyquotepdf) | **GET** /me/quotes/{id}/pdf | The patient's own quote as a PDF
 *BillingApi* | [**getMyReceiptPdf**](doc//BillingApi.md#getmyreceiptpdf) | **GET** /me/receipts/{id}/pdf | The patient's own receipt as a PDF
 *BillingApi* | [**getPracticeReport**](doc//BillingApi.md#getpracticereport) | **GET** /clinic/reports/practice | The online practice report, per practitioner and visit mode
 *BillingApi* | [**getReceiptsReport**](doc//BillingApi.md#getreceiptsreport) | **GET** /clinic/reports/receipts | The clinic's receipts summed for a day or a period, for its accountant
 *BillingApi* | [**getSubscriptionInvoicePdf**](doc//BillingApi.md#getsubscriptioninvoicepdf) | **GET** /clinic/subscription/invoices/{id}/pdf | A membership invoice as a PDF
+*BillingApi* | [**importClinicServices**](doc//BillingApi.md#importclinicservices) | **POST** /clinic/services/import | Import a price list from a file
 *BillingApi* | [**issueReceipt**](doc//BillingApi.md#issuereceipt) | **POST** /clinic/receipts | Issue a receipt for a visit or on its own
+*BillingApi* | [**listClinicQuotes**](doc//BillingApi.md#listclinicquotes) | **GET** /clinic/quotes | The clinic's treatment quotes
 *BillingApi* | [**listClinicReceipts**](doc//BillingApi.md#listclinicreceipts) | **GET** /clinic/receipts | The clinic's receipts issued in a period
 *BillingApi* | [**listClinicServices**](doc//BillingApi.md#listclinicservices) | **GET** /clinic/services | The clinic's price list
+*BillingApi* | [**listMyQuotes**](doc//BillingApi.md#listmyquotes) | **GET** /me/quotes | The patient's own quotes
 *BillingApi* | [**listMyReceipts**](doc//BillingApi.md#listmyreceipts) | **GET** /me/receipts | The patient's own receipts, from every clinic
 *BillingApi* | [**listOfferedServices**](doc//BillingApi.md#listofferedservices) | **GET** /organizations/{id}/services | The services a listed clinic offers, with their prices, for booking
 *BillingApi* | [**listSubscriptionInvoices**](doc//BillingApi.md#listsubscriptioninvoices) | **GET** /clinic/subscription/invoices | Salus's monthly invoices to the clinic
 *BillingApi* | [**retryReceiptReport**](doc//BillingApi.md#retryreceiptreport) | **POST** /clinic/receipts/{id}/retry | Report a receipt whose fiscal report failed once more
 *BillingApi* | [**reverseReceipt**](doc//BillingApi.md#reversereceipt) | **POST** /clinic/receipts/{id}/reverse | Reverse an issued receipt
+*BillingApi* | [**sendQuote**](doc//BillingApi.md#sendquote) | **POST** /clinic/quotes | Send a patient a treatment quote
 *BillingApi* | [**setBillingDetails**](doc//BillingApi.md#setbillingdetails) | **PUT** /clinic/billing-details | Replace the clinic's billing details
 *BillingApi* | [**updateClinicService**](doc//BillingApi.md#updateclinicservice) | **PUT** /clinic/services/{id} | Change a service of the clinic's price list
 *ChatApi* | [**addConversationParticipant**](doc//ChatApi.md#addconversationparticipant) | **POST** /conversations/{id}/participants | Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
@@ -160,7 +171,13 @@ Class | Method | HTTP request | Description
 *ConsultationApi* | [**getConsultation**](doc//ConsultationApi.md#getconsultation) | **GET** /appointments/{id}/consultation | Where an appointment's video consultation stands
 *ConsultationApi* | [**joinConsultation**](doc//ConsultationApi.md#joinconsultation) | **POST** /appointments/{id}/consultation/join | A token to join an appointment's video consultation
 *ConsultationApi* | [**receiveLiveKitWebhook**](doc//ConsultationApi.md#receivelivekitwebhook) | **POST** /webhooks/livekit | LiveKit's webhook
+*DirectoryApi* | [**downloadClinicExport**](doc//DirectoryApi.md#downloadclinicexport) | **GET** /clinic/export/{id}/archive | Download a ready export
+*DirectoryApi* | [**getClinicExport**](doc//DirectoryApi.md#getclinicexport) | **GET** /clinic/export/{id} | Where an export stands
+*DirectoryApi* | [**getClinicProfile**](doc//DirectoryApi.md#getclinicprofile) | **GET** /clinic/profile | The clinic's profile for patients abroad
+*DirectoryApi* | [**getOrganizationProfile**](doc//DirectoryApi.md#getorganizationprofile) | **GET** /organizations/{id}/profile | A listed clinic's profile for patients
 *DirectoryApi* | [**listSpecialties**](doc//DirectoryApi.md#listspecialties) | **GET** /specialties | List the specialties a role can have
+*DirectoryApi* | [**requestClinicExport**](doc//DirectoryApi.md#requestclinicexport) | **POST** /clinic/export | Ask for the clinic's data export
+*DirectoryApi* | [**saveClinicProfile**](doc//DirectoryApi.md#saveclinicprofile) | **PUT** /clinic/profile | Save the clinic's profile
 *DirectoryApi* | [**setPractitionerRoleSpecialty**](doc//DirectoryApi.md#setpractitionerrolespecialty) | **PUT** /practitioner-roles/{id}/specialty | Set a practitioner role's specialty
 *DocumentsApi* | [**createDocumentTemplate**](doc//DocumentsApi.md#createdocumenttemplate) | **POST** /document-templates | Create a document template
 *DocumentsApi* | [**downloadDocument**](doc//DocumentsApi.md#downloaddocument) | **GET** /document-references/{id}/content | A signed document's PDF
@@ -198,7 +215,9 @@ Class | Method | HTTP request | Description
 *NotificationsApi* | [**getSmsUsage**](doc//NotificationsApi.md#getsmsusage) | **GET** /clinic/sms-usage | The admin's clinic's SMS usage per month
 *NotificationsApi* | [**setNotificationSettings**](doc//NotificationsApi.md#setnotificationsettings) | **PUT** /me/notification-settings | Replace the patient's reminder channels, quiet hours and time zone
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
+*PatientApi* | [**registerClinicPatient**](doc//PatientApi.md#registerclinicpatient) | **POST** /clinic/patients | Register a patient who has no Salus account
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
+*PatientApi* | [**searchClinicPatients**](doc//PatientApi.md#searchclinicpatients) | **GET** /clinic/patients | Search the clinic's patients
 *QuestionnairesApi* | [**clearRoleQuestionnaire**](doc//QuestionnairesApi.md#clearrolequestionnaire) | **DELETE** /practitioner-roles/{id}/questionnaire | Clear a practitioner role's default questionnaire
 *QuestionnairesApi* | [**createQuestionnaire**](doc//QuestionnairesApi.md#createquestionnaire) | **POST** /questionnaires | Create a questionnaire
 *QuestionnairesApi* | [**deleteQuestionnaire**](doc//QuestionnairesApi.md#deletequestionnaire) | **DELETE** /questionnaires/{id} | Discard a draft
@@ -215,6 +234,10 @@ Class | Method | HTTP request | Description
 *QuestionnairesApi* | [**withdrawQuestionnaire**](doc//QuestionnairesApi.md#withdrawquestionnaire) | **POST** /questionnaire-responses/{id}/withdraw | Withdraw a questionnaire request
 *SchedulingApi* | [**getAvailability**](doc//SchedulingApi.md#getavailability) | **GET** /practitioner-roles/{id}/availability | Read a practitioner role's weekly availability
 *SchedulingApi* | [**saveAvailability**](doc//SchedulingApi.md#saveavailability) | **PUT** /practitioner-roles/{id}/availability | Set a practitioner role's weekly availability
+*SignupApi* | [**getClinicSetup**](doc//SignupApi.md#getclinicsetup) | **GET** /clinic/setup | The setup wizard's progress
+*SignupApi* | [**saveClinicSetup**](doc//SignupApi.md#saveclinicsetup) | **PUT** /clinic/setup | Save the setup wizard's progress
+*SignupApi* | [**startSignup**](doc//SignupApi.md#startsignup) | **POST** /signup | Sign a clinic up
+*SignupApi* | [**verifySignup**](doc//SignupApi.md#verifysignup) | **POST** /signup/verify | Verify a clinic's signup
 *TerminologyApi* | [**editDiagnosisGroupName**](doc//TerminologyApi.md#editdiagnosisgroupname) | **PUT** /terminology/diagnosis-groups/{code}/names/{language} | Edit a diagnosis group's name
 *TerminologyApi* | [**editTermTranslation**](doc//TerminologyApi.md#edittermtranslation) | **PUT** /terminology/terms/{id}/translations/{language} | Edit a term's labels in one language
 *TerminologyApi* | [**getTermExplanations**](doc//TerminologyApi.md#gettermexplanations) | **GET** /terminology/explanations | The plain-language explanations of the terms
@@ -289,6 +312,12 @@ Class | Method | HTTP request | Description
  - [ClinicAppointmentsSpecialtiesInner](doc//ClinicAppointmentsSpecialtiesInner.md)
  - [ClinicDiagnoses](doc//ClinicDiagnoses.md)
  - [ClinicDiagnosesRowsInner](doc//ClinicDiagnosesRowsInner.md)
+ - [ClinicExport](doc//ClinicExport.md)
+ - [ClinicExportStatus](doc//ClinicExportStatus.md)
+ - [ClinicPatient](doc//ClinicPatient.md)
+ - [ClinicProfile](doc//ClinicProfile.md)
+ - [ClinicProfileTranslation](doc//ClinicProfileTranslation.md)
+ - [ClinicSetup](doc//ClinicSetup.md)
  - [ClinicWaitlist](doc//ClinicWaitlist.md)
  - [ClinicWaitlistEntry](doc//ClinicWaitlistEntry.md)
  - [CommandError](doc//CommandError.md)
@@ -308,6 +337,8 @@ Class | Method | HTTP request | Description
  - [CreatedWebhook](doc//CreatedWebhook.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
+ - [DeskDay](doc//DeskDay.md)
+ - [DeskVisit](doc//DeskVisit.md)
  - [DiagnosisGroup](doc//DiagnosisGroup.md)
  - [DiagnosisGroupList](doc//DiagnosisGroupList.md)
  - [DiagnosisGroupName](doc//DiagnosisGroupName.md)
@@ -392,6 +423,8 @@ Class | Method | HTTP request | Description
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
  - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)
  - [QuietHours](doc//QuietHours.md)
+ - [Quote](doc//Quote.md)
+ - [QuoteState](doc//QuoteState.md)
  - [ReadPosition](doc//ReadPosition.md)
  - [Receipt](doc//Receipt.md)
  - [ReceiptKind](doc//ReceiptKind.md)
@@ -400,6 +433,7 @@ Class | Method | HTTP request | Description
  - [ReceiptsReport](doc//ReceiptsReport.md)
  - [ReceiptsReportByPaymentMethodInner](doc//ReceiptsReportByPaymentMethodInner.md)
  - [ReceiptsReportByServiceInner](doc//ReceiptsReportByServiceInner.md)
+ - [RegisterPatientRequest](doc//RegisterPatientRequest.md)
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
  - [RescheduleAppointmentRequest](doc//RescheduleAppointmentRequest.md)
@@ -417,19 +451,26 @@ Class | Method | HTTP request | Description
  - [SendAck](doc//SendAck.md)
  - [SendAckFrame](doc//SendAckFrame.md)
  - [SendMessageRequest](doc//SendMessageRequest.md)
+ - [SendQuoteRequest](doc//SendQuoteRequest.md)
  - [Service](doc//Service.md)
+ - [ServiceImport](doc//ServiceImport.md)
+ - [ServiceImportRow](doc//ServiceImportRow.md)
  - [ServiceTranslation](doc//ServiceTranslation.md)
  - [SetAppointmentStatusRequest](doc//SetAppointmentStatusRequest.md)
  - [SetHistorySharingRequest](doc//SetHistorySharingRequest.md)
  - [SetRoleQuestionnaireRequest](doc//SetRoleQuestionnaireRequest.md)
  - [SetSpecialtyRequest](doc//SetSpecialtyRequest.md)
+ - [SetupStepState](doc//SetupStepState.md)
  - [SharingCandidate](doc//SharingCandidate.md)
  - [SharingCandidateList](doc//SharingCandidateList.md)
  - [SignDraftRequest](doc//SignDraftRequest.md)
+ - [SignupRequest](doc//SignupRequest.md)
  - [SmsUsage](doc//SmsUsage.md)
  - [SmsUsageMonthsInner](doc//SmsUsageMonthsInner.md)
  - [Specialty](doc//Specialty.md)
  - [SpecialtyList](doc//SpecialtyList.md)
+ - [StaffBookingRequest](doc//StaffBookingRequest.md)
+ - [StaffRescheduleRequest](doc//StaffRescheduleRequest.md)
  - [StartQuestionnaireRequest](doc//StartQuestionnaireRequest.md)
  - [Status](doc//Status.md)
  - [Subscription](doc//Subscription.md)
@@ -467,6 +508,7 @@ Class | Method | HTTP request | Description
  - [Unavailable](doc//Unavailable.md)
  - [UpdateMeRequest](doc//UpdateMeRequest.md)
  - [VerifyRequest](doc//VerifyRequest.md)
+ - [VerifySignupRequest](doc//VerifySignupRequest.md)
  - [VisitMode](doc//VisitMode.md)
  - [WaitlistEntry](doc//WaitlistEntry.md)
  - [WaitlistEntryList](doc//WaitlistEntryList.md)

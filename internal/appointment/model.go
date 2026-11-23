@@ -13,12 +13,15 @@ import (
 	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
-// Status is Appointment.status, the four the product uses.
+// Status is Appointment.status, the five the product uses.
 type Status string
 
 // The statuses.
 const (
-	StatusBooked    Status = "booked"
+	StatusBooked Status = "booked"
+	// StatusArrived is an in-person visit's patient checked in at the desk: between booked and fulfilled (W6 of
+	// docs/clinic-cms). Set from package F2; nothing sets it before.
+	StatusArrived   Status = "arrived"
 	StatusCancelled Status = "cancelled"
 	StatusFulfilled Status = "fulfilled"
 	StatusNoShow    Status = "noshow"

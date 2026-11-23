@@ -86,6 +86,8 @@ func TestInvite_RejectsAnInvalidInviteBeforeAnyAccess(t *testing.T) {
 		{auth.ErrInvalidEmail, auth.Invite{Email: "not an e-mail", Role: auth.RoleAdmin}},
 		{auth.ErrInvalidRole, auth.Invite{Email: "cy@example.test", Role: auth.RolePatient}},
 		{auth.ErrInvalidRole, auth.Invite{Email: "cy@example.test"}},
+		// The role exists from the wave 3 contract (docs/clinic-cms, 3.0); inviting a receptionist is package F1's.
+		{auth.ErrInvalidRole, auth.Invite{Email: "cy@example.test", Role: auth.RoleReception}},
 		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: "Cy"}},
 		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: " ", FamilyName: "Example"}},
 		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: long, FamilyName: "Example"}},

@@ -16,6 +16,267 @@ class DirectoryApi {
 
   final ApiClient apiClient;
 
+  /// Download a ready export
+  ///
+  /// By the clinic's admin, until it expires. Built in package O2. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> downloadClinicExportWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/export/{id}/archive'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Download a ready export
+  ///
+  /// By the clinic's admin, until it expires. Built in package O2. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<String?> downloadClinicExport(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await downloadClinicExportWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
+    }
+    return null;
+  }
+
+  /// Where an export stands
+  ///
+  /// By the clinic's admin. Built in package O2.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getClinicExportWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/export/{id}'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Where an export stands
+  ///
+  /// By the clinic's admin. Built in package O2.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<ClinicExport?> getClinicExport(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getClinicExportWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ClinicExport',
+      ) as ClinicExport;
+    }
+    return null;
+  }
+
+  /// The clinic's profile for patients abroad
+  ///
+  /// For the clinic's staff. Built in package X2. Not personal data; not audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> getClinicProfileWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/profile';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The clinic's profile for patients abroad
+  ///
+  /// For the clinic's staff. Built in package X2. Not personal data; not audited.
+  Future<ClinicProfile?> getClinicProfile({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getClinicProfileWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ClinicProfile',
+      ) as ClinicProfile;
+    }
+    return null;
+  }
+
+  /// A listed clinic's profile for patients
+  ///
+  /// Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getOrganizationProfileWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/organizations/{id}/profile'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// A listed clinic's profile for patients
+  ///
+  /// Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<ClinicProfile?> getOrganizationProfile(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getOrganizationProfileWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ClinicProfile',
+      ) as ClinicProfile;
+    }
+    return null;
+  }
+
   /// List the specialties a role can have
   ///
   /// The specialties an admin may give a practitioner role, in display order: the directory's SNOMED CT codes from FHIR R4 ValueSet c80-practice-codes, with the name the apps show. Fixed and public; needs no session. Not audited: it holds no personal data.
@@ -69,6 +330,171 @@ class DirectoryApi {
         await _decodeBodyBytes(response),
         'SpecialtyList',
       ) as SpecialtyList;
+    }
+    return null;
+  }
+
+  /// Ask for the clinic's data export
+  ///
+  /// The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a job. By the clinic's admin. Built in package O2. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> requestClinicExportWithHttpInfo({
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/export';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Ask for the clinic's data export
+  ///
+  /// The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a job. By the clinic's admin. Built in package O2. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<ClinicExport?> requestClinicExport({
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await requestClinicExportWithHttpInfo(
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ClinicExport',
+      ) as ClinicExport;
+    }
+    return null;
+  }
+
+  /// Save the clinic's profile
+  ///
+  /// By the clinic's admin, with the organization's version. Built in package X2. Audited as an organization change.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [ClinicProfile] clinicProfile (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> saveClinicProfileWithHttpInfo(
+    String ifMatch,
+    ClinicProfile clinicProfile, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/profile';
+
+    // ignore: prefer_final_locals
+    Object? postBody = clinicProfile;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Save the clinic's profile
+  ///
+  /// By the clinic's admin, with the organization's version. Built in package X2. Audited as an organization change.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [ClinicProfile] clinicProfile (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<ClinicProfile?> saveClinicProfile(
+    String ifMatch,
+    ClinicProfile clinicProfile, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await saveClinicProfileWithHttpInfo(
+      ifMatch,
+      clinicProfile,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ClinicProfile',
+      ) as ClinicProfile;
     }
     return null;
   }

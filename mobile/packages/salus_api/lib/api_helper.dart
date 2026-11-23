@@ -80,6 +80,9 @@ String parameterToString(dynamic value) {
   if (value is AppointmentChangeVia) {
     return AppointmentChangeViaTypeTransformer().encode(value).toString();
   }
+  if (value is ClinicExportStatus) {
+    return ClinicExportStatusTypeTransformer().encode(value).toString();
+  }
   if (value is ConsentKind) {
     return ConsentKindTypeTransformer().encode(value).toString();
   }
@@ -104,11 +107,17 @@ String parameterToString(dynamic value) {
   if (value is PeriodUnit) {
     return PeriodUnitTypeTransformer().encode(value).toString();
   }
+  if (value is QuoteState) {
+    return QuoteStateTypeTransformer().encode(value).toString();
+  }
   if (value is ReceiptKind) {
     return ReceiptKindTypeTransformer().encode(value).toString();
   }
   if (value is ReviewStatus) {
     return ReviewStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is SetupStepState) {
+    return SetupStepStateTypeTransformer().encode(value).toString();
   }
   if (value is SubscriptionInvoiceStatus) {
     return SubscriptionInvoiceStatusTypeTransformer().encode(value).toString();

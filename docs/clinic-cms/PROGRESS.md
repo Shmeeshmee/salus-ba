@@ -16,8 +16,18 @@ writes under its own heading here.
 | Q1 | done 2026-11-23, integrated 2026-11-23 | `cms(Q1)`, merged into `feat/cms` with `cms(wave 2)` |
 | Q2 | done 2026-11-23, integrated 2026-11-23 | `cms(Q2)`, merged into `feat/cms` with `cms(wave 2)` |
 | Q3 | done 2026-11-23, integrated 2026-11-23 | `cms(Q3)`, merged into `feat/cms` with `cms(wave 2)` |
-| F | hold (Q1) | |
+| F | split into F1, F2, F3 (wave 3; the owner said yes to the reception role on 2026-11-23) | |
 | G | hold (Q6) | |
+| 3.0 | done 2026-11-23 | `cms(3.0)` on `wt/cms/3.0` |
+| F1 | not started (wave 3, after 3.0) | |
+| F2 | not started (wave 3, after 3.0) | |
+| F3 | not started (wave 3, after 3.0) | |
+| O1 | not started (wave 3, after 3.0) | |
+| O2 | not started (wave 3, after 3.0) | |
+| X1 | not started (wave 3, after 3.0) | |
+| X2 | not started (wave 3, after 3.0) | |
+| O3 | hold (after F2) | |
+| X3 | hold (a payment provider) | |
 
 ## A: visit modes
 
@@ -827,7 +837,141 @@ only (a branch within a branch is built from conditional questions). The practic
 
 ## F: reception role and desk
 
+Split into F1, F2 and F3 for wave 3 (below).
+
 ## G: ESET adapter
+
+## 3.0: the wave 3 contract
+
+Status: done, 2026-11-23, on `wt/cms/3.0`, one commit `cms(3.0)`. Migration `00065_wave3_contract.sql`. Contract only,
+as step 0: no behaviour; every new service method refuses with `errors.ErrUnsupported`, with a test that says so.
+
+**Built.**
+
+- **Migration 00065.** `reception` in the role checks of `account` and `invite` (no name on its invite, as an admin's).
+  `patient.account_id` nullable and `patient.registered_by_organization_id` (exactly one of the two, `patient_owner`),
+  with `patient_registered` (the clinic scope reads, registers and corrects the profiles it registered) and the
+  restrictive `patient_registered_only_there` (no other scope sees them). `consent.recorded_by_account_id` and
+  `given_in_person` (both or neither), the clinic-scope insert `consent_clinic_in_person`, and the trigger
+  `consent_guard_in_person` (for every role: an in-person consent only for a patient its clinic registered).
+  `appointment` status `arrived`, `arrived_at` (an in-person visit only; kept when it is then fulfilled),
+  `booked_by_account_id`, the clinic-scope insert `appointment_clinic_insert` (with the clinic's active care consent);
+  `appointment_change` takes `arrived` (booked to arrived, arrived to fulfilled, no-show or cancelled). The trigger
+  `appointment_guard_staff` (who booked is an account of the row's clinic, in its scope, and never changes; an arrival
+  is set once, in the clinic's scope, from booked) and 00054's `appointment_guard_change` replaced so the clinic's
+  scope moves a booked visit as its patient does (F2's "move"; the one existing test that pinned "the clinic never
+  moves one" now expects the move, on purpose).
+  `clinic_signup` (token hash of 32 bytes). `quote` (written for a patient with the clinic's active care consent, by
+  its own staff) and `quote_line` (`quote_line_guard_insert`: only in the quote's transaction, from its clinic's price
+  list, as `invoice_line`). `organization.languages`, `profile_description`, `welcomes_international`
+  and `organization_profile_translation`. Ownership and retention for each new table.
+- **Go.** `auth.RoleReception` (an invite naming it is still refused, `ErrInvalidRole`, until F1);
+  `appointment.StatusArrived` and `service_staff.go` (`BookForPatient`, `MoveForPatient`, `CancelForPatient`, `Arrive`,
+  `DeskDay`); `patient` `service_clinic.go` (`SearchClinic`, `Register`); `consent` `service_inperson.go`
+  (`RecordInPerson`); `invoice` `Quote` and `service_quote.go` (`SendQuote`, `Quotes`, `ReadQuote`, `MyQuotes`,
+  `QuotePDF`); `organization` `Profile` and `service_profile.go` (`Profile`, `SaveProfile`); `chargeitemdefinition`
+  `service_import.go` (`Import`); the new domain `signup` (context `identity`) with `model.go`, `errors.go`,
+  `repository.go`, `service.go`, `query.sql` and `signupdb`.
+- **OpenAPI.** Every wave 3 route with `x-salus-package` (`cms-f2`, `cms-o1`, `cms-o2`, `cms-x1`, `cms-x2`), the role
+  enums with `reception`, `Appointment.status` with `arrived` and `arrivedAt`, six error codes (`invalid_signup`,
+  `invalid_verification`, `invalid_import`, `invalid_quote`, `invalid_profile`, `not_in_person`); a contract test
+  (`api/clinic_wave3_contract_test.go`) that the enums are the Go constants and every route names its package;
+  `make gen-clients`. Web's hand-written FHIR `AppointmentStatus` gains `arrived`.
+- **Docs.** CLAUDE.md "Product" and `docs/accounts/SPEC.md` §2 (roles, account scope, MFA) name the receptionist; the
+  DPIA's "Package 3.0" block.
+
+**Contract changes** (where the code fit better than the plan's text):
+
+| Plan's text | As built | Why |
+| --- | --- | --- |
+| `/clinic/staff/invites` for a receptionist | The existing `POST /invites` with `role: reception` | Invites already are the clinic's staff invites (admin, practitioner); a second route would duplicate them |
+| `invoice`: kind `quote`, `valid_until` | Own tables `quote`, `quote_line`, owned by `invoice` | A quote has no number, payment method, seller copy or fiscal status, all `NOT NULL` on `invoice`; as a kind, every receipt query, the fiscal job, the receipts report and `/me/receipts` would need a filter to keep quotes out. Separate tables cannot be numbered or reported by mistake |
+| `organization.languages` as `language[]` | `text[]` checked against `enum_range(NULL::language)` | As step 0's `modes`: an enum array needs its type registered in pgx and sqlc |
+| "the profile on the public clinic read" | `GET /organizations/{id}/profile` (public, as `/organizations/{id}/services`) | The directory's clinic read is FHIR `Organization`, which has no element for languages spoken or a welcome; the language filter of the clinic list is X2's (a search parameter in the CapabilityStatement) |
+| `/clinic/appointments` (books, moves, cancels) | `POST /clinic/appointments`, `POST /clinic/appointments/{id}/reschedule`, `/cancel`, `/arrive` | As the patient's own `/appointments/{id}/reschedule` and `/cancel` |
+| `/clinic/desk/today`, the desk's server side | Tagged `cms-f2` | F3 is the web screen only; F2 owns `appointment/service_staff.go` and its handler |
+| `/clinic/export` | `POST /clinic/export`, `GET /clinic/export/{id}`, `GET /clinic/export/{id}/archive` | The archive is built by a job: ask, poll, download |
+| A consent policy for "registered by this clinic" | A trigger (`consent_guard_in_person`) | A policy on `consent` reading `patient`, whose policies read `consent`, is refused by Postgres as recursive (`42P17`) |
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| A receptionist's invite | No name, as an admin's; no Practitioner |
+| A clinic-registered profile | Exactly one of account and registering clinic; linking an account later relaxes `patient_owner` in its own package |
+| An in-person consent | Only for a patient the clinic registered: a clinic never records consent for a patient who has an account |
+| `arrived_at` | Kept when the visit is then fulfilled or a no-show; never on a video visit |
+| Go fields for the new columns | Columns only (as step 0 did for `organization`): the model fields come with the reads in F2, X2, O1, so no field is always zero |
+| Error codes | Six new ones; the rest reuse existing codes (`invalid_name`, `invalid_birth_date`, `invalid_phone`, `slot_unavailable`, `consent_required`, `too_large`) |
+
+**Left to the packages** (their migrations are reserved: F1 `00066`, F2 `00067`, O1 `00068`, O2 `00069`, X1 `00070`,
+X2 `00071`):
+
+- **F1.** `validInvite` accepts `reception`; `ClinicMember` gives a receptionist's member (today it returns an empty
+  `Member` for one); the `access` rules of W2 and the table-driven route test. A status label for `arrived` in web
+  (none exists; nothing sets it before F2).
+- **F2.** The Go fields and reads of `patient.registered_by_organization_id`, `consent.given_in_person` and
+  `recorded_by_account_id`, `appointment.arrived_at` and `booked_by_account_id`; revoking an in-person consent from the
+  clinic (an `UPDATE` policy); the slot hold for a staff booking (slot's policies are the patient's today); reminders by
+  SMS or none for a patient without an account (the notifier reads `account_id`).
+- **O1.** Where the wizard's progress is stored (a table or columns, its migration); deleting unverified signups (a
+  retention rule with its applier); `salusctl signup list | approve`.
+- **O2.** The export's table (status, object key, expiry) and its job.
+- **X1.** The retention period of quotes; the quote e-mail.
+- **X2.** The language filter of the clinic list.
+
+**Review** (a fresh subagent over the diff and the plan docs, Copilot being out of quota). Fixed: the staff move
+refused by 00054's guard (now allowed in the clinic's scope); lines could be added to a sent quote and the line policy
+had no scope guard (`quote_line_guard_insert`, the guard); a quote could be written for a patient after a revocation
+(the clinic's active consent is required) and by another clinic's account; `booked_by_account_id` and
+`recorded_by_account_id` could name any account, and a patient's own scope could set them (both triggers check the
+clinic's staff and the scope); a patient could mark their own arrival (`appointment_guard_staff`); the `patient`
+retention basis and the DPIA did not cover a profile without an account (both amended: the clinic takes the
+subject-rights requests in person, F2 records how); the profile translations' policy had no scope guard; the signup
+token hash had no length check. Left, recorded above: the wizard's and the export's tables are O1's and O2's, in their
+reserved migrations.
+
+**Test first.** The Go skeleton tests and the contract test were written and run red (no such method or type) before
+the code. The migration was written before its tests (`migrations/wave3_contract_test.go`); the review's fixes came
+with their failing cases first only for the staff move (the existing test failed, then was changed on purpose).
+
+**Checks** (this worktree's compose project, `salus-cms-3-0`): `make lint` (gofmt, vet, golangci-lint, i18n-check,
+migrations), `make test`, `make archcheck`, `make cover` (90.8% total; `signup` 80%), `make web-lint`,
+`web-typecheck`, `web-test` (1201), `web-build`, `make mobile-analyze`, `mobile-test` (671), `make gen-clients`: all
+pass. Two existing tests changed on purpose with the staff move (the clinic case of
+`TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment`, `TestReschedule_MovesTheAppointmentOnceAndTheExclusionConstraintGuards`'s last
+step). The Dart generator cannot take `const: true` on a boolean, so `consentGivenInPerson` says "must be true" in its
+description. Not run: `make e2e` and `make fhir-validate` (no route is served and no golden file changed).
+
+**Copy waiting for the owner:** none. 3.0 adds no user-facing string; the API returns codes only.
+
+## F1: reception role and what it may see
+
+Not started.
+
+## F2: patients registered by the clinic and bookings by staff
+
+Not started.
+
+## F3: the front desk screen
+
+Not started.
+
+## O1: clinic signup and setup wizard
+
+Not started.
+
+## O2: price list import and the clinic data export
+
+Not started.
+
+## X1: treatment quotes
+
+Not started.
+
+## X2: clinic profile for patients abroad
+
+Not started.
 
 ## Facts
 

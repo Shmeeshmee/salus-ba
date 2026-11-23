@@ -6204,6 +6204,808 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/patients:
+    get:
+      operationId: searchClinicPatients
+      x-salus-package: cms-f2
+      summary: Search the clinic's patients
+      description: >-
+        By name and, when given, birth date: the patients with the clinic's care consent and those it registered. For
+        the clinic's admin, its receptionists and its practitioners (their own patients). Built in package F2 of
+        docs/clinic-cms. Audited.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: name, in: query, required: true, schema: {type: string, minLength: 2, maxLength: 200}}
+        - {name: birthDate, in: query, required: false, schema: {type: string, format: date}}
+      responses:
+        "200":
+          description: The matching patients, by family and given name.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/ClinicPatient"}
+        "400":
+          description: "`invalid_request`: no name, or a malformed birth date."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: registerClinicPatient
+      x-salus-package: cms-f2
+      summary: Register a patient who has no Salus account
+      description: >-
+        The profile is the clinic's and seen by it only; the care consent is recorded as given in person, by the
+        caller (W1 of docs/clinic-cms). For the clinic's admin and its receptionists. Built in package F2. Audited,
+        also when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterPatientRequest"}
+      responses:
+        "201":
+          description: The profile registered, with its consent recorded.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicPatient"}
+        "400":
+          description: "`invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/appointments:
+    post:
+      operationId: bookForPatient
+      x-salus-package: cms-f2
+      summary: Book a visit for a patient
+      description: >-
+        Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service
+        (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its
+        receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/StaffBookingRequest"}
+      responses:
+        "201":
+          description: The appointment booked.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request` or `invalid_service`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`, or `consent_required`: the patient has no active care consent with the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such patient or slot the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`slot_unavailable`: the slot was taken or held."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/appointments/{id}/reschedule:
+    post:
+      operationId: rescheduleForPatient
+      x-salus-package: cms-f2
+      summary: Move a patient's visit to another slot
+      description: >-
+        To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in
+        package F2. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppointmentID"
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/StaffRescheduleRequest"}
+      responses:
+        "200":
+          description: The appointment moved.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`invalid_request`, or `if_match_required`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment or slot the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`slot_unavailable`, `appointment_closed` or `version_conflict`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/appointments/{id}/cancel:
+    post:
+      operationId: cancelForPatient
+      x-salus-package: cms-f2
+      summary: Cancel a patient's visit
+      description: Cancelled by staff (`prov`), as a cancellation from the calendar. Built in package F2. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppointmentID"
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: The appointment cancelled.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "400":
+          description: "`if_match_required`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`appointment_closed` or `version_conflict`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/appointments/{id}/arrive:
+    post:
+      operationId: markArrived
+      x-salus-package: cms-f2
+      summary: The patient arrived at the desk
+      description: >-
+        Sets an in-person visit `arrived` (W6 of docs/clinic-cms), with the time; a video visit is refused. For the
+        clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AppointmentID"
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "200":
+          description: The appointment, arrived.
+          headers:
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Appointment"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such appointment the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`not_in_person`: a video visit; `appointment_closed`: not booked any more."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/desk/today:
+    get:
+      operationId: getDeskDay
+      x-salus-package: cms-f2
+      summary: The desk's visits of a day
+      description: >-
+        Every visit of the clinic on the day (today in the clinic's zone when no date is given), by practitioner and
+        time, with its visit mode, service and the patient's name, birth date and phone (W2). For the clinic's admin
+        and its receptionists; the screen is package F3's. Built in package F2. Audited.
+      tags: [appointments]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: date, in: query, required: false, schema: {type: string, format: date}}
+      responses:
+        "200":
+          description: The day.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DeskDay"}
+        "400":
+          description: "`invalid_request`: a malformed date."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /signup:
+    post:
+      operationId: startSignup
+      x-salus-package: cms-o1
+      summary: Sign a clinic up
+      description: >-
+        Public. Records the request and sends a verification e-mail to the address given. The answer is the same
+        whether or not the address is known, so it enumerates nothing (W3 of docs/clinic-cms). Rate limited. Built in
+        package O1.
+      tags: [signup]
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SignupRequest"}
+      responses:
+        "202":
+          description: Accepted; the e-mail is on its way if the request is valid.
+        "400":
+          description: "`invalid_request` or `invalid_signup`: no plain e-mail, no clinic name, or a language that is not a staff language."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /signup/verify:
+    post:
+      operationId: verifySignup
+      x-salus-package: cms-o1
+      summary: Verify a clinic's signup
+      description: >-
+        Public, with the token of the e-mailed link. Creates the clinic unlisted, invites its admin (the invite e-mail
+        follows) and starts the trial. The clinic is listed once the operator approves it (`salusctl signup approve`).
+        Rate limited. Built in package O1.
+      tags: [signup]
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VerifySignupRequest"}
+      responses:
+        "204":
+          description: Verified; the admin's invite is on its way.
+        "400":
+          description: "`invalid_request`, or `invalid_verification`: the token is unknown, used or expired."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/setup:
+    get:
+      operationId: getClinicSetup
+      x-salus-package: cms-o1
+      summary: The setup wizard's progress
+      description: Each step open, done or skipped. For the clinic's staff. Built in package O1. Not personal data; not audited.
+      tags: [signup]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The progress.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicSetup"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: saveClinicSetup
+      x-salus-package: cms-o1
+      summary: Save the setup wizard's progress
+      description: By the clinic's admin; a step's own data is saved through its own route. Built in package O1.
+      tags: [signup]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ClinicSetup"}
+      responses:
+        "200":
+          description: The progress saved.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicSetup"}
+        "400":
+          description: "`invalid_request`: an unknown step or state."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/services/import:
+    post:
+      operationId: importClinicServices
+      x-salus-package: cms-o2
+      summary: Import a price list from a file
+      description: >-
+        A CSV or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the
+        default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when
+        any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data;
+        audited as a price-list change.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: save, in: query, required: false, schema: {type: boolean, default: false}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        "200":
+          description: The rows read, and whether they were saved.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ServiceImport"}
+        "400":
+          description: "`invalid_request`, or `invalid_import`: not a CSV or XLSX file, no header row, or too many rows."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "413":
+          description: "`too_large`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/export:
+    post:
+      operationId: requestClinicExport
+      x-salus-package: cms-o2
+      summary: Ask for the clinic's data export
+      description: >-
+        The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one
+        archive built by a job. By the clinic's admin. Built in package O2. Audited.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "202":
+          description: The export, queued.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicExport"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/export/{id}:
+    get:
+      operationId: getClinicExport
+      x-salus-package: cms-o2
+      summary: Where an export stands
+      description: By the clinic's admin. Built in package O2.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The export.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicExport"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such export of the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/export/{id}/archive:
+    get:
+      operationId: downloadClinicExport
+      x-salus-package: cms-o2
+      summary: Download a ready export
+      description: By the clinic's admin, until it expires. Built in package O2. Audited.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The archive.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/zip:
+              schema: {type: string, contentMediaType: application/zip}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such export of the clinic, not ready, or expired."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/quotes:
+    get:
+      operationId: listClinicQuotes
+      x-salus-package: cms-x1
+      summary: The clinic's treatment quotes
+      description: Newest first, with their state. For the clinic's admin and its practitioners (their own patients'). Built in package X1. Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The quotes.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Quote"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: sendQuote
+      x-salus-package: cms-x1
+      summary: Send a patient a treatment quote
+      description: >-
+        Lines from the price list with quantities and discounts, a note, valid 30 days (W4 of docs/clinic-cms). Not a
+        receipt: never numbered, reported or charged. The patient gets an e-mail. By the clinic's admin or the
+        patient's practitioner. Built in package X1. Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SendQuoteRequest"}
+      responses:
+        "201":
+          description: The quote sent.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Quote"}
+        "400":
+          description: "`invalid_request`, or `invalid_quote`: no lines, a service the price list does not have, or a discount above its line."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no such patient or visit the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/quotes/{id}:
+    get:
+      operationId: getClinicQuote
+      x-salus-package: cms-x1
+      summary: A quote of the clinic
+      description: Built in package X1. Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The quote.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Quote"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such quote the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/quotes:
+    get:
+      operationId: listMyQuotes
+      x-salus-package: cms-x1
+      summary: The patient's own quotes
+      description: From every clinic, newest first. Built in package X1. Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The quotes.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Quote"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/quotes/{id}/pdf:
+    get:
+      operationId: getMyQuotePdf
+      x-salus-package: cms-x1
+      summary: The patient's own quote as a PDF
+      description: It says it is a quote, not a receipt. Built in package X1. Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such quote of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/profile:
+    get:
+      operationId: getClinicProfile
+      x-salus-package: cms-x2
+      summary: The clinic's profile for patients abroad
+      description: For the clinic's staff. Built in package X2. Not personal data; not audited.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The profile.
+          headers:
+            ETag: {schema: {type: string}, description: 'The organization''s version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicProfile"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      operationId: saveClinicProfile
+      x-salus-package: cms-x2
+      summary: Save the clinic's profile
+      description: By the clinic's admin, with the organization's version. Built in package X2. Audited as an organization change.
+      tags: [directory]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ClinicProfile"}
+      responses:
+        "200":
+          description: The profile saved.
+          headers:
+            ETag: {schema: {type: string}, description: 'The organization''s version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicProfile"}
+        "400":
+          description: "`invalid_request`, `if_match_required`, or `invalid_profile`: an unknown language or a description too long."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "409":
+          description: "`version_conflict`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /organizations/{id}/profile:
+    get:
+      operationId: getOrganizationProfile
+      x-salus-package: cms-x2
+      summary: A listed clinic's profile for patients
+      description: >-
+        Public, as the directory: the languages its staff speak, its description (in the patient's language when
+        translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+      tags: [directory]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicProfile"}
+        "404":
+          description: "`not_found`: no such listed clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     StatsFrom:
@@ -6941,6 +7743,180 @@ components:
         taxId: {type: string, pattern: "^[0-9]{12,13}$", description: The JIB (13 digits) or IDB (12).}
         vatRegistered: {type: boolean}
         billingEmail: {type: string, format: email}
+    ClinicPatient:
+      type: object
+      required: [id, givenName, familyName, birthDate, registeredByClinic, versionId, lastUpdated]
+      description: >-
+        A patient as the clinic's staff find them (package F2 of docs/clinic-cms): what the desk needs (W2), nothing
+        clinical. Health data: it shows the person is the clinic's patient.
+      properties:
+        id: {type: string, format: uuid}
+        givenName: {type: string}
+        familyName: {type: string}
+        birthDate: {type: string, format: date}
+        phone: {type: string, description: E.164; absent when none was given.}
+        registeredByClinic: {type: boolean, description: The clinic registered the profile; the patient has no Salus account.}
+        versionId: {type: integer, format: int32}
+        lastUpdated: {type: string, format: date-time}
+    RegisterPatientRequest:
+      type: object
+      required: [givenName, familyName, birthDate, consentGivenInPerson]
+      additionalProperties: false
+      properties:
+        givenName: {type: string, maxLength: 200}
+        familyName: {type: string, maxLength: 200}
+        birthDate: {type: string, format: date}
+        phone: {type: string, description: E.164; omitted for none.}
+        consentGivenInPerson:
+          type: boolean
+          description: The patient gave the clinic their care consent in person; the caller records it. Must be true (`invalid_request` otherwise).
+    StaffBookingRequest:
+      type: object
+      required: [patientId, slotId]
+      additionalProperties: false
+      properties:
+        patientId: {type: string, format: uuid}
+        slotId: {type: string, format: uuid}
+        serviceId: {type: string, format: uuid, description: The price-list service; omitted for none.}
+    StaffRescheduleRequest:
+      type: object
+      required: [slotId]
+      additionalProperties: false
+      properties:
+        slotId: {type: string, format: uuid}
+    DeskDay:
+      type: object
+      required: [date, visits]
+      properties:
+        date: {type: string, format: date}
+        visits:
+          type: array
+          description: By practitioner, then start.
+          items: {$ref: "#/components/schemas/DeskVisit"}
+    DeskVisit:
+      type: object
+      required: [appointment, patient]
+      description: One visit on the desk's list. Health data.
+      properties:
+        appointment: {$ref: "#/components/schemas/Appointment"}
+        patient: {$ref: "#/components/schemas/ClinicPatient"}
+        serviceName: {type: string, description: The booked service's name; absent for none.}
+    SignupRequest:
+      type: object
+      required: [email, clinicName, language]
+      additionalProperties: false
+      properties:
+        email: {type: string, maxLength: 254, description: The clinic admin's; becomes their login.}
+        clinicName: {type: string, maxLength: 200}
+        language: {$ref: "#/components/schemas/Language"}
+    VerifySignupRequest:
+      type: object
+      required: [token]
+      additionalProperties: false
+      properties:
+        token: {type: string, maxLength: 128}
+    SetupStepState:
+      type: string
+      enum: [open, done, skipped]
+    ClinicSetup:
+      type: object
+      required: [details, billing, hours, practitioner, services]
+      additionalProperties: false
+      description: The setup wizard's steps, in order; each skippable and resumable (package O1).
+      properties:
+        details: {$ref: "#/components/schemas/SetupStepState"}
+        billing: {$ref: "#/components/schemas/SetupStepState"}
+        hours: {$ref: "#/components/schemas/SetupStepState"}
+        practitioner: {$ref: "#/components/schemas/SetupStepState"}
+        services: {$ref: "#/components/schemas/SetupStepState"}
+    ServiceImport:
+      type: object
+      required: [rows, saved]
+      properties:
+        saved: {type: boolean, description: Every row was stored; false for a preview or when any row has an error.}
+        rows:
+          type: array
+          items: {$ref: "#/components/schemas/ServiceImportRow"}
+    ServiceImportRow:
+      type: object
+      required: [line, errors]
+      properties:
+        line: {type: integer, format: int32, description: The row's line in the file, from 1.}
+        service: {$ref: "#/components/schemas/SaveServiceRequest"}
+        errors:
+          type: array
+          description: Codes of what is wrong with the row; empty when it is valid.
+          items: {type: string, enum: [name_missing, price_invalid, duration_invalid, vat_invalid, mode_invalid, duplicate]}
+    ClinicExportStatus:
+      type: string
+      enum: [queued, ready, failed, expired]
+    ClinicExport:
+      type: object
+      required: [id, status, requestedAt]
+      properties:
+        id: {type: string, format: uuid}
+        status: {$ref: "#/components/schemas/ClinicExportStatus"}
+        requestedAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time, description: When a ready archive stops being downloadable.}
+    QuoteState:
+      type: string
+      enum: [sent, expired]
+    Quote:
+      type: object
+      required: [id, organizationId, patientId, issuedAt, validUntil, state, currency, totalMinor, lines]
+      description: >-
+        A treatment quote (W4 of docs/clinic-cms, package X1). Not a receipt: never numbered, reported or charged.
+        Health data: it shows which care the patient was offered.
+      properties:
+        id: {type: string, format: uuid}
+        organizationId: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        appointmentId: {type: string, format: uuid, description: The visit it was written at; absent for none.}
+        issuedAt: {type: string, format: date-time}
+        validUntil: {type: string, format: date-time}
+        state: {$ref: "#/components/schemas/QuoteState"}
+        note: {type: string}
+        currency: {type: string}
+        totalMinor: {type: integer, format: int64}
+        lines:
+          type: array
+          items: {$ref: "#/components/schemas/ReceiptLine"}
+    SendQuoteRequest:
+      type: object
+      required: [patientId, lines]
+      additionalProperties: false
+      properties:
+        patientId: {type: string, format: uuid}
+        appointmentId: {type: string, format: uuid}
+        note: {type: string, maxLength: 2000}
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: {$ref: "#/components/schemas/ReceiptPick"}
+    ClinicProfileTranslation:
+      type: object
+      required: [language, description]
+      additionalProperties: false
+      properties:
+        language: {$ref: "#/components/schemas/Language"}
+        description: {type: string, maxLength: 2000}
+    ClinicProfile:
+      type: object
+      required: [languages, description, translations, welcomesInternational]
+      additionalProperties: false
+      description: How a clinic describes itself to patients abroad (package X2). Not personal data.
+      properties:
+        languages:
+          type: array
+          description: The languages the clinic's staff speak.
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/Language"}
+        description: {type: string, maxLength: 2000, description: In the clinic's default language; empty for none.}
+        translations:
+          type: array
+          items: {$ref: "#/components/schemas/ClinicProfileTranslation"}
+        welcomesInternational: {type: boolean}
     LoginRequest:
       type: object
       required: [email, password]
@@ -7044,7 +8020,7 @@ components:
           maxLength: 254
         role:
           type: string
-          enum: [admin, practitioner]
+          enum: [admin, practitioner, reception]
         givenName:
           type: string
           maxLength: 200
@@ -7064,7 +8040,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, practitioner]
+          enum: [admin, practitioner, reception]
         givenName:
           type: string
         familyName:
@@ -7124,7 +8100,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, practitioner, patient]
+          enum: [admin, practitioner, reception, patient]
         organizationId:
           type: string
           format: uuid
@@ -7736,7 +8712,12 @@ components:
           format: date-time
         status:
           type: string
-          enum: [booked, cancelled, fulfilled, noshow]
+          enum: [booked, arrived, cancelled, fulfilled, noshow]
+          description: "`arrived`: an in-person visit's patient checked in at the desk (package F2 of docs/clinic-cms)."
+        arrivedAt:
+          type: string
+          format: date-time
+          description: When the patient checked in at the desk; absent unless they did (package F2).
         cancellationReason:
           type: string
           enum: [pat, prov]
@@ -8213,6 +9194,12 @@ components:
             - fiscal_report_failed
             - answer_not_enabled
             - fiscal_report_not_failed
+            - invalid_signup
+            - invalid_verification
+            - invalid_import
+            - invalid_quote
+            - invalid_profile
+            - not_in_person
         linkIds:
           type: array
           items: {type: string}
@@ -9450,8 +10437,8 @@ components:
         from_end: {type: string, format: date-time}
         to_start: {type: string, format: date-time}
         to_end: {type: string, format: date-time}
-        from_status: {type: string, enum: [booked, cancelled, fulfilled, noshow]}
-        to_status: {type: string, enum: [booked, cancelled, fulfilled, noshow]}
+        from_status: {type: string, enum: [booked, arrived, cancelled, fulfilled, noshow]}
+        to_status: {type: string, enum: [booked, arrived, cancelled, fulfilled, noshow]}
     AppointmentChangeList:
       type: object
       required: [changes]

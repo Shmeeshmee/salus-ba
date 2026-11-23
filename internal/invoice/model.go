@@ -138,3 +138,20 @@ type FiscalizeArgs struct {
 
 // Kind names the job in river_job.
 func (FiscalizeArgs) Kind() string { return "invoice_fiscalize" }
+
+// Quote is a treatment quote a clinic gives its patient (W4 of docs/clinic-cms, package X1): priced lines from the
+// price list, valid 30 days by default. Not a receipt: never numbered, never reported, never charged. A sent quote
+// never changes.
+type Quote struct {
+	IssuedAt           time.Time
+	ValidUntil         time.Time
+	ID                 string
+	OrganizationID     string
+	PatientID          string
+	AppointmentID      string // the visit it was written at; empty for none
+	CreatedByAccountID string
+	Note               string
+	Currency           string
+	Lines              []Line
+	TotalMinor         int64
+}

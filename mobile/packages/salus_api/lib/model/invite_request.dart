@@ -170,6 +170,7 @@ class InviteRequest {
 enum InviteRequestRoleEnum {
   admin._(r'admin'),
   practitioner._(r'practitioner'),
+  reception._(r'reception'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -237,6 +238,8 @@ class InviteRequestRoleEnumTypeTransformer {
           return InviteRequestRoleEnum.admin;
         case r'practitioner':
           return InviteRequestRoleEnum.practitioner;
+        case r'reception':
+          return InviteRequestRoleEnum.reception;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

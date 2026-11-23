@@ -19,12 +19,12 @@ Given by the owner. Do not reopen them.
 | Topic | Decision |
 | --- | --- |
 | Identity provider | Auth is built in the identity context (`internal/auth`). No Keycloak, Zitadel or other IdP |
-| Account scope | A patient has one account across every clinic. Admins and practitioners belong to exactly one clinic (`Organization`) |
+| Account scope | A patient has one account across every clinic. Admins, practitioners and receptionists belong to exactly one clinic (`Organization`) |
 | Tenancy | Shared tables, `organization_id` on every clinic-scoped table. Postgres row-level security is the second guard: the service sets the clinic on the transaction and RLS enforces it |
-| Roles | `admin`, `practitioner`, `patient` |
+| Roles | `admin`, `practitioner`, `reception`, `patient`. `reception` added by the owner on 2026-11-23 (docs/clinic-cms, wave 3): the clinic's front desk, staff of one clinic like an admin, with MFA; books, checks patients in and issues receipts, and sees no clinical content (W2 of docs/clinic-cms/IMPLEMENTATION_PLAN.md) |
 | Passwords | argon2id. Parameters chosen by a benchmark, numbers recorded in `PROGRESS.md` |
 | Sessions | Stored in Postgres; revocation is `session.revoked_at` in Postgres only (changed on approval, below) |
-| MFA | TOTP. Required for practitioners and admins, optional for patients |
+| MFA | TOTP. Required for practitioners, admins and receptionists, optional for patients |
 | Personal data | Every field listed in section 4 with the reason it is needed |
 
 Decisions taken in this plan (reopen only with the owner):

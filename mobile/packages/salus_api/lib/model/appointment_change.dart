@@ -236,6 +236,7 @@ class AppointmentChange {
 
 enum AppointmentChangeFromStatusEnum {
   booked._(r'booked'),
+  arrived._(r'arrived'),
   cancelled._(r'cancelled'),
   fulfilled._(r'fulfilled'),
   noshow._(r'noshow'),
@@ -305,6 +306,8 @@ class AppointmentChangeFromStatusEnumTypeTransformer {
       switch (data) {
         case r'booked':
           return AppointmentChangeFromStatusEnum.booked;
+        case r'arrived':
+          return AppointmentChangeFromStatusEnum.arrived;
         case r'cancelled':
           return AppointmentChangeFromStatusEnum.cancelled;
         case r'fulfilled':
@@ -326,6 +329,7 @@ class AppointmentChangeFromStatusEnumTypeTransformer {
 
 enum AppointmentChangeToStatusEnum {
   booked._(r'booked'),
+  arrived._(r'arrived'),
   cancelled._(r'cancelled'),
   fulfilled._(r'fulfilled'),
   noshow._(r'noshow'),
@@ -394,6 +398,8 @@ class AppointmentChangeToStatusEnumTypeTransformer {
       switch (data) {
         case r'booked':
           return AppointmentChangeToStatusEnum.booked;
+        case r'arrived':
+          return AppointmentChangeToStatusEnum.arrived;
         case r'cancelled':
           return AppointmentChangeToStatusEnum.cancelled;
         case r'fulfilled':
