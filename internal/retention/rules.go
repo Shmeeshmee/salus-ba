@@ -73,7 +73,7 @@ func tableRules() []Rule {
 		},
 		{
 			Table: "patient",
-			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
+			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists or, for a profile a clinic registered without an account (docs/clinic-cms, W1), while the clinic keeps the patient's record; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
 			Then:  ThenKeep,
 		},
 		{
@@ -121,7 +121,7 @@ func tableRules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -355,6 +355,31 @@ func appointmentRules() []Rule {
 			Basis: "The patient's own choice (GDPR Art. 6(1)(b), the contract with the patient): their reminder channels, quiet " +
 				"hours and device time zone, replaced on each change and deleted with the account (foreign key; erasure " +
 				"comes with the subject-rights feature)",
+			Then: ThenKeep,
+		},
+	}
+}
+
+// clinicWave3Rules are the rules of the clinic system's wave 3 tables (docs/clinic-cms, 3.0).
+func clinicWave3Rules() []Rule {
+	return []Rule{
+		{
+			Table: "quote",
+			Basis: "A treatment quote the clinic gives its patient (GDPR Art. 6(1)(b), Art. 9(2)(h): which care at what price is " +
+				"health data): kept as the clinic's pre-contractual record; the period needs a legal decision before production, " +
+				"and the rule that removes quotes comes with its applier (docs/clinic-cms, package X1)",
+			Then: ThenKeep,
+		},
+		{
+			Table: "quote_line",
+			Basis: "The lines of a quote (GDPR Art. 6(1)(b), Art. 9(2)(h)): kept with their quote",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "clinic_signup",
+			Basis: "The request of a clinic to sign up (GDPR Art. 6(1)(b), steps before a contract): the admin's e-mail and the " +
+				"clinic's name. An unverified signup is to be deleted after a short period, which comes with its applier in " +
+				"package O1 (docs/clinic-cms); until then nothing removes a row",
 			Then: ThenKeep,
 		},
 	}

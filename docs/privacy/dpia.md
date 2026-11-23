@@ -2516,3 +2516,42 @@ admin only (revenue per practitioner), audited with the clinic as the entity, an
 | A booking names another clinic's service | Composite foreign key to `charge_item_definition (id, organization_id)`; the service checks the slot's clinic offers it, active, in the slot's mode (tested) |
 | The report shows a practitioner another's revenue | Admin only, in the clinic's scope; a practitioner is refused and audited (tested) |
 | The service a patient booked in a log | Handlers log through `httpx.InternalError` only; the id is opaque and no name reaches a log line |
+
+### Package 3.0: the wave 3 contract (migration 00065)
+
+**Processing added.** None yet: 3.0 adds the tables, columns, policies and routes; the services refuse until packages
+F1, F2, O1, O2, X1 and X2 fill them, and each of those adds its own block here. What the contract prepares:
+
+- **The reception role** (`account.role`, `invite.role` gain `reception`; owner, 2026-11-23). A receptionist is staff
+  of one clinic with MFA, and sees the desk's data only (W2: name, birth date, phone, appointments with their service
+  and visit type, the price list, receipts), never questionnaire answers, documents, history, transcripts, chat or
+  analytics. F1 builds the rules in `access` and proves them on every route.
+- **A patient the clinic registers** (W1): `patient.account_id` becomes nullable and
+  `patient.registered_by_organization_id` names the clinic of a profile without an account. Row-level security: the
+  registering clinic reads, registers and corrects it (`patient_registered`); no other clinic ever sees it, whatever
+  consent or appointment it might have (`patient_registered_only_there`, restrictive). A patient's own profile is
+  unchanged. Lawful basis: care (Art. 9(2)(h)) on the patient's care consent, given in person and recorded by staff:
+  `consent.given_in_person` and `consent.recorded_by_account_id`, insertable by the clinic only for a patient it
+  registered (`consent_clinic_in_person`). **Needs the lawyer's word before production** (W1). Without an account the patient
+  cannot use the app's subject-rights features: the clinic receives their requests (access, export, rectification,
+  erasure) in person and acts on them through its staff; F2 records how, and the profile is kept by the `patient`
+  retention rule while the clinic keeps the record.
+- **Arrival and staff bookings**: `appointment.arrived_at` (an in-person visit only, by check) and
+  `appointment.booked_by_account_id` (who of the staff booked; null for the patient's own); a staff booking needs the
+  clinic's active care consent (`appointment_clinic_insert`). Kept with the appointment.
+- **Clinic signup** (`clinic_signup`): the admin's e-mail, the clinic's name and language, the verification token's
+  hash (never the token). Not clinic-scoped before verification (as `account`); the app cannot set `approved_at`.
+  Retention kept until O1 adds the deletion of unverified signups with its applier.
+- **Treatment quotes** (`quote`, `quote_line`): which care a clinic offered a patient at what price, health data (Art.
+  9); the patient's own and their clinic's only; no `UPDATE` grant. Retention kept until X1's decision and applier.
+- **The clinic's profile** (`organization.languages`, `profile_description`, `welcomes_international`,
+  `organization_profile_translation`): not personal data.
+
+| Risk | Measure |
+| --- | --- |
+| A clinic-registered profile seen by another clinic | Restrictive policy on `patient`: a registered profile is visible only in its clinic's scope |
+| A clinic grants itself access to a patient with an account | Staff record an in-person consent only for a patient their clinic registered (`consent_clinic_in_person`) |
+| A receptionist reads clinical content | No route opens before F1's `access` rules; F1's table-driven test covers every staff route |
+| A forged "who did it" | `appointment_guard_staff` and `consent_guard_in_person`: the booking and recording account is staff of the row's clinic, in its scope; a patient never marks an arrival |
+| A sent quote changed | No `UPDATE` grant; `quote_line_guard_insert` adds lines only in the quote's own transaction, from its clinic's price list |
+| Signup enumerates e-mails | `POST /signup` answers 202 whatever the address (O1, tested); rate limited |

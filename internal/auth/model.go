@@ -14,10 +14,14 @@ type Role string
 const (
 	RoleAdmin        Role = "admin"
 	RolePractitioner Role = "practitioner"
-	RolePatient      Role = "patient"
+	// RoleReception is the clinic's front desk (owner, 2026-11-23): books, checks patients in and issues receipts,
+	// and sees no clinical content. Staff of one clinic, with no Practitioner. Invited from package F1 of
+	// docs/clinic-cms; until then an invite naming it is refused (ErrInvalidRole).
+	RoleReception Role = "reception"
+	RolePatient   Role = "patient"
 )
 
-// Account is one person who can sign in. Staff (admin, practitioner) belong to exactly one clinic; a patient
+// Account is one person who can sign in. Staff (admin, practitioner, reception) belong to exactly one clinic; a patient
 // to none.
 type Account struct {
 	MFAEnrolledAt  time.Time // zero until MFA is set up

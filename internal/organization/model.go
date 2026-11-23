@@ -141,3 +141,17 @@ type AppointmentSettings struct {
 	SMSReminders           bool  `json:"sms_reminders"`
 	WaitlistEnabled        bool  `json:"waitlist_enabled"`
 }
+
+// Profile is how a clinic describes itself to patients abroad (package X2 of docs/clinic-cms). Not personal data.
+type Profile struct {
+	Languages             []string      // BCP 47 tags of the language enum the clinic's staff speak
+	Description           string        // in the clinic's default language; empty for none
+	Translations          []Translation // the description in other languages
+	WelcomesInternational bool
+}
+
+// Translation is the profile's description in one more language.
+type Translation struct {
+	Language    string // a BCP 47 tag of the language enum
+	Description string
+}

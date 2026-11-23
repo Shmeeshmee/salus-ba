@@ -97,6 +97,87 @@ class AppointmentsApi {
     return null;
   }
 
+  /// Book a visit for a patient
+  ///
+  /// Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [StaffBookingRequest] staffBookingRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> bookForPatientWithHttpInfo(
+    StaffBookingRequest staffBookingRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/appointments';
+
+    // ignore: prefer_final_locals
+    Object? postBody = staffBookingRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Book a visit for a patient
+  ///
+  /// Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service (as the patient's own booking, package E); the appointment records who booked it. For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [StaffBookingRequest] staffBookingRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Appointment?> bookForPatient(
+    StaffBookingRequest staffBookingRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await bookForPatientWithHttpInfo(
+      staffBookingRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Appointment',
+      ) as Appointment;
+    }
+    return null;
+  }
+
   /// Cancel an appointment
   ///
   /// Cancels a booked appointment: the patient their own up to 24 hours before the start (reason `pat`), the appointment's practitioner and the clinic's admin at any time (reason `prov`). The slot is freed while its start is ahead, and the patient is e-mailed. Not cached. Audited, also when refused.
@@ -159,6 +240,97 @@ class AppointmentsApi {
   }) async {
     final response = await cancelAppointmentWithHttpInfo(
       id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Appointment',
+      ) as Appointment;
+    }
+    return null;
+  }
+
+  /// Cancel a patient's visit
+  ///
+  /// Cancelled by staff (`prov`), as a cancellation from the calendar. Built in package F2. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> cancelForPatientWithHttpInfo(
+    String id,
+    String ifMatch, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/appointments/{id}/cancel'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Cancel a patient's visit
+  ///
+  /// Cancelled by staff (`prov`), as a cancellation from the calendar. Built in package F2. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Appointment?> cancelForPatient(
+    String id,
+    String ifMatch, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await cancelForPatientWithHttpInfo(
+      id,
+      ifMatch,
       xSalusCSRF: xSalusCSRF,
       abortTrigger: abortTrigger,
     );
@@ -384,6 +556,78 @@ class AppointmentsApi {
     return null;
   }
 
+  /// The desk's visits of a day
+  ///
+  /// Every visit of the clinic on the day (today in the clinic's zone when no date is given), by practitioner and time, with its visit mode, service and the patient's name, birth date and phone (W2). For the clinic's admin and its receptionists; the screen is package F3's. Built in package F2. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [DateTime] date:
+  Future<Response> getDeskDayWithHttpInfo({
+    DateTime? date,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/desk/today';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (date != null) {
+      queryParams.addAll(_queryParams('', 'date', date));
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The desk's visits of a day
+  ///
+  /// Every visit of the clinic on the day (today in the clinic's zone when no date is given), by practitioner and time, with its visit mode, service and the patient's name, birth date and phone (W2). For the clinic's admin and its receptionists; the screen is package F3's. Built in package F2. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [DateTime] date:
+  Future<DeskDay?> getDeskDay({
+    DateTime? date,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getDeskDayWithHttpInfo(
+      date: date,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'DeskDay',
+      ) as DeskDay;
+    }
+    return null;
+  }
+
   /// An appointment's history
   ///
   /// Its confirmations, reschedules and statuses, oldest first, for whoever sees the appointment in full: the patient their own, its practitioner and the clinic's admin with the patient's consent. Who made a change is never in it. Not cached. Audited, also when refused.
@@ -542,6 +786,87 @@ class AppointmentsApi {
     return null;
   }
 
+  /// The patient arrived at the desk
+  ///
+  /// Sets an in-person visit `arrived` (W6 of docs/clinic-cms), with the time; a video visit is refused. For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> markArrivedWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/appointments/{id}/arrive'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The patient arrived at the desk
+  ///
+  /// Sets an in-person visit `arrived` (W6 of docs/clinic-cms), with the time; a video visit is refused. For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Appointment?> markArrived(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await markArrivedWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Appointment',
+      ) as Appointment;
+    }
+    return null;
+  }
+
   /// The patient moves their appointment to another free slot of the same practitioner role
   ///
   /// The same appointment at a new time (ADR 0015): within the clinic's notice and limit, never once the consultation's join window has opened. The new slot is held and the old one freed (and offered to the waitlist) in one transaction; the reminders are scheduled again; choosing the time confirms it; the patient gets an e-mail with the new time. Not cached. Audited, also when refused.
@@ -611,6 +936,104 @@ class AppointmentsApi {
     final response = await rescheduleAppointmentWithHttpInfo(
       id,
       rescheduleAppointmentRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Appointment',
+      ) as Appointment;
+    }
+    return null;
+  }
+
+  /// Move a patient's visit to another slot
+  ///
+  /// To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in package F2. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [StaffRescheduleRequest] staffRescheduleRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> rescheduleForPatientWithHttpInfo(
+    String id,
+    String ifMatch,
+    StaffRescheduleRequest staffRescheduleRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/appointments/{id}/reschedule'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody = staffRescheduleRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    headerParams[r'If-Match'] = parameterToString(ifMatch);
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Move a patient's visit to another slot
+  ///
+  /// To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in package F2. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] ifMatch (required):
+  ///   The version read, as a weak ETag, `W/\"<versionId>\"`.
+  ///
+  /// * [StaffRescheduleRequest] staffRescheduleRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Appointment?> rescheduleForPatient(
+    String id,
+    String ifMatch,
+    StaffRescheduleRequest staffRescheduleRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await rescheduleForPatientWithHttpInfo(
+      id,
+      ifMatch,
+      staffRescheduleRequest,
       xSalusCSRF: xSalusCSRF,
       abortTrigger: abortTrigger,
     );

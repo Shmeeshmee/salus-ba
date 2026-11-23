@@ -21,6 +21,7 @@ class Appointment {
     required this.start,
     required this.end,
     required this.status,
+    this.arrivedAt,
     this.cancellationReason,
     this.cancelledAt,
     this.confirmedAt,
@@ -52,7 +53,17 @@ class Appointment {
 
   DateTime end;
 
+  /// `arrived`: an in-person visit's patient checked in at the desk (package F2 of docs/clinic-cms).
   AppointmentStatusEnum status;
+
+  /// When the patient checked in at the desk; absent unless they did (package F2).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  DateTime? arrivedAt;
 
   /// http://terminology.hl7.org/CodeSystem/appointment-cancellation-reason: `pat` the patient (also by revoking consent), `prov` staff. Absent unless cancelled.
   AppointmentCancellationReasonEnum? cancellationReason;
@@ -103,6 +114,7 @@ class Appointment {
           other.start == start &&
           other.end == end &&
           other.status == status &&
+          other.arrivedAt == arrivedAt &&
           other.cancellationReason == cancellationReason &&
           other.cancelledAt == cancelledAt &&
           other.confirmedAt == confirmedAt &&
@@ -123,6 +135,7 @@ class Appointment {
       (start.hashCode) +
       (end.hashCode) +
       (status.hashCode) +
+      (arrivedAt == null ? 0 : arrivedAt!.hashCode) +
       (cancellationReason == null ? 0 : cancellationReason!.hashCode) +
       (cancelledAt == null ? 0 : cancelledAt!.hashCode) +
       (confirmedAt == null ? 0 : confirmedAt!.hashCode) +
@@ -134,7 +147,7 @@ class Appointment {
 
   @override
   String toString() =>
-      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, serviceId=$serviceId, start=$start, end=$end, status=$status, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
+      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, serviceId=$serviceId, start=$start, end=$end, status=$status, arrivedAt=$arrivedAt, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -150,6 +163,11 @@ class Appointment {
     json[r'start'] = this.start.toUtc().toIso8601String();
     json[r'end'] = this.end.toUtc().toIso8601String();
     json[r'status'] = this.status;
+    if (this.arrivedAt != null) {
+      json[r'arrivedAt'] = this.arrivedAt!.toUtc().toIso8601String();
+    } else {
+      json[r'arrivedAt'] = null;
+    }
     if (this.cancellationReason != null) {
       json[r'cancellationReason'] = this.cancellationReason;
     } else {
@@ -245,6 +263,7 @@ class Appointment {
         start: mapDateTime(json, r'start', r'')!,
         end: mapDateTime(json, r'end', r'')!,
         status: AppointmentStatusEnum.fromJson(json[r'status'])!,
+        arrivedAt: mapDateTime(json, r'arrivedAt', r''),
         cancellationReason: AppointmentCancellationReasonEnum.fromJson(
             json[r'cancellationReason']),
         cancelledAt: mapDateTime(json, r'cancelledAt', r''),
@@ -325,8 +344,10 @@ class Appointment {
   };
 }
 
+/// `arrived`: an in-person visit's patient checked in at the desk (package F2 of docs/clinic-cms).
 enum AppointmentStatusEnum {
   booked._(r'booked'),
+  arrived._(r'arrived'),
   cancelled._(r'cancelled'),
   fulfilled._(r'fulfilled'),
   noshow._(r'noshow'),
@@ -395,6 +416,8 @@ class AppointmentStatusEnumTypeTransformer {
       switch (data) {
         case r'booked':
           return AppointmentStatusEnum.booked;
+        case r'arrived':
+          return AppointmentStatusEnum.arrived;
         case r'cancelled':
           return AppointmentStatusEnum.cancelled;
         case r'fulfilled':

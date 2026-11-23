@@ -238,6 +238,7 @@ class Account {
 enum AccountRoleEnum {
   admin._(r'admin'),
   practitioner._(r'practitioner'),
+  reception._(r'reception'),
   patient._(r'patient'),
   ;
 
@@ -306,6 +307,8 @@ class AccountRoleEnumTypeTransformer {
           return AccountRoleEnum.admin;
         case r'practitioner':
           return AccountRoleEnum.practitioner;
+        case r'reception':
+          return AccountRoleEnum.reception;
         case r'patient':
           return AccountRoleEnum.patient;
         default:

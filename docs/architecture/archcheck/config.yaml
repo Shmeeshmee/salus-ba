@@ -7,7 +7,7 @@ contexts:
   clinical: [allergyintolerance, binary, composition, condition, history, medicationstatement, questionnaire, questionnaireresponse]
   consultation: [communication, encounter, suggestion, transcript, videosession]
   directory: [organization, practitioner, practitionerrole]
-  identity: [auth]
+  identity: [auth, signup]
   notification: [notification]
   patient: [patient]
   privacy: [access, auditevent, consent, retention]

@@ -313,8 +313,9 @@ B2B: the customers are private clinics in Bosnia and Herzegovina, on a monthly m
 practitioner (docs/plans/clinic-cms.md, ADR 0016). Salus is the system a clinic runs on, with telemedicine built in:
 in-person and video visits, the price list, the receipts the fiscal law requires, and online hours a clinic's doctors
 can work from home after hours. Patients pay at the clinic, not in the app; live translation is a paid add-on per use,
-and a transaction fee applies only to prepaid bookings by diaspora and international patients (later). Practitioners
-and clinic admins work in `web/` (schedules, calendar, the price list, receipts, the questionnaire builder,
+and a transaction fee applies only to prepaid bookings by diaspora and international patients (later). Practitioners,
+clinic admins and the clinic's receptionists (the `reception` role: the front desk, no clinical content; owner,
+2026-11-23) work in `web/` (schedules, calendar, the price list, receipts, the desk, the questionnaire builder,
 consultations); patients only ever see `mobile/` (find a clinic, book, fill in questionnaires, join the consultation).
 Video consultations come with live transcription, and AI features are meant to grow across the platform from there;
 anything AI reads or writes is personal data under "GDPR and health data".
