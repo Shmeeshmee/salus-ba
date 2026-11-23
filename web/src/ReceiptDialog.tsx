@@ -18,6 +18,9 @@ type Props = {
   appointmentId?: string
   // serviceId is the service the visit's booking named: the first line starts with it (clinic-cms E).
   serviceId?: string
+  // issued are the numbers of the visit's receipts that are not reversed: the dialog first says so and asks before a
+  // second one (docs/clinic-cms/walk/wave3, finding 2). The server allows a second receipt.
+  issued?: number[]
   onIssued: (receipt: Receipt) => void
   onClose: () => void
 }
@@ -26,7 +29,28 @@ type Props = {
 // quantity and a discount, how it was paid, and who it is for: the visit's patient, a company, or nobody (a cash
 // sale). The total shown is the price list's; the server prices the lines again at issue. An issued receipt never
 // changes, which the dialog says before the button.
-export function ReceiptDialog({ api, appointmentId, serviceId, onIssued, onClose }: Props) {
+export function ReceiptDialog({ issued, ...props }: Props) {
+  const t = useT()
+  const [asked, setAsked] = useState(!issued?.length)
+  if (asked) return <ReceiptForm {...props} />
+  return (
+    <Dialog label={t('receipts.dialog.title')} className="receipt-dialog" onClose={props.onClose}>
+      <h2>{t('receipts.dialog.title')}</h2>
+      <p>{t('receipts.dialog.already', { count: issued!.length, numbers: issued!.join(', ') })}</p>
+      <div className="actions">
+        <button type="button" className="primary" onClick={() => setAsked(true)}>
+          {t('receipts.issueAnother')}
+        </button>
+        <button type="button" onClick={props.onClose}>
+          {t('receipts.dialog.cancel')}
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+// ReceiptForm is the receipt's lines, payment and buyer, and its issue.
+function ReceiptForm({ api, appointmentId, serviceId, onIssued, onClose }: Omit<Props, 'issued'>) {
   const t = useT()
   const { language } = useLanguage()
   const id = useId()

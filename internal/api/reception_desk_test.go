@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -57,10 +58,12 @@ func TestReceptionDesk_AnUnlistedClinicsDeskRegistersBooksChecksInAndIssuesTheRe
 	if rec := r.receptionist.do(http.MethodPost, "/clinic/appointments/"+visit.ID+"/arrive", ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"arrived"`) {
 		t.Errorf("POST arrive = %d %s, want arrived", rec.Code, rec.Body)
 	}
-	rec = r.receptionist.do(http.MethodPost, "/clinic/receipts", `{"kind":"receipt","appointmentId":"`+visit.ID+`","paymentMethod":"cash","lines":[{"serviceId":"`+exam+`","quantity":1}]}`)
+	issue := `{"kind":"receipt","appointmentId":"` + visit.ID + `","paymentMethod":"cash","lines":[{"serviceId":"` + exam + `","quantity":1}]}`
+	rec = r.receptionist.do(http.MethodPost, "/clinic/receipts", issue)
 	if rec.Code != http.StatusCreated {
 		t.Errorf("POST /clinic/receipts for the walk-in = %d %s", rec.Code, rec.Body)
 	}
+	checkDeskReceipts(t, r, visit.ID, issue, rec.Body.String(), start.In(sarajevo).Format(time.DateOnly))
 	if n := count(`SELECT count(*) FROM audit_event WHERE agent_account_id = $1 AND outcome = 0 AND entity_reference = $2`, r.receptionAccount, "Appointment/"+visit.ID); n == 0 {
 		t.Error("the receptionist's booking is not audited")
 	}
@@ -78,5 +81,33 @@ func TestReceptionDesk_AnUnlistedClinicsDeskRegistersBooksChecksInAndIssuesTheRe
 	if rec := r.receptionist.do(http.MethodPost, "/clinic/appointments", `{"patientId":"`+walkIn.ID+`","slotId":"`+another+`"}`); rec.Code != http.StatusConflict ||
 		!strings.Contains(rec.Body.String(), "slot_unavailable") {
 		t.Errorf("POST /clinic/appointments at a suspended clinic = %d %s, want 409 slot_unavailable", rec.Code, rec.Body)
+	}
+}
+
+// checkDeskReceipts: the receptionist's receipt (issued, its answer) and a second one the admin issues for the visit are
+// on the desk's day of date, a colleague's printable at the desk; the visit's receipts list stays the admin's
+// (docs/clinic-cms/walk/wave3, findings 1 and 2).
+func checkDeskReceipts(t *testing.T, r reception, visit, issue, issued, date string) {
+	t.Helper()
+	var mine, colleagues struct{ ID string }
+	if err := json.Unmarshal([]byte(issued), &mine); err != nil {
+		t.Fatal(err)
+	}
+	decode(t, r.admin.do(http.MethodPost, "/clinic/receipts", issue), &colleagues) // a second receipt is allowed
+	rec := r.receptionist.do(http.MethodGet, "/clinic/desk/today?date="+date, "")
+	for _, id := range []string{mine.ID, colleagues.ID} {
+		if !strings.Contains(rec.Body.String(), `{"id":"`+id+`","number":`) {
+			t.Errorf("GET /clinic/desk/today = %s, want the visit's receipt %s", rec.Body, id)
+		}
+	}
+	if rec := r.receptionist.do(http.MethodGet, "/clinic/receipts/"+colleagues.ID+"/pdf", ""); rec.Code != http.StatusOK {
+		t.Errorf("GET the PDF of a colleague's receipt of the visit as the receptionist = %d, want 200: the row prints it", rec.Code)
+	}
+	if rec := r.receptionist.do(http.MethodGet, "/clinic/receipts?appointmentId="+visit, ""); rec.Code != http.StatusForbidden {
+		t.Errorf("GET the visit's receipts as the receptionist = %d, want 403 (the admin's)", rec.Code)
+	}
+	if rec := r.admin.do(http.MethodGet, "/clinic/receipts?appointmentId="+visit, ""); rec.Code != http.StatusOK ||
+		!strings.Contains(rec.Body.String(), mine.ID) || !strings.Contains(rec.Body.String(), colleagues.ID) {
+		t.Errorf("GET the visit's receipts as the admin = %d %s, want both", rec.Code, rec.Body)
 	}
 }

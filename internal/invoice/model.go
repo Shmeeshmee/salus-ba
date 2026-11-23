@@ -87,7 +87,8 @@ type Caller struct {
 	PatientID      string // empty for staff
 	Admin          bool
 	// Reception is the clinic's receptionist (docs/clinic-cms W2): issues a receipt for any visit of the clinic and reads
-	// and prints the receipts they issued; the list of all receipts, reversals, retries, reports and quotes are not theirs.
+	// and prints the receipts they issued and any visit's; the list of all receipts, reversals, retries, reports and
+	// quotes are not theirs.
 	Reception bool
 }
 

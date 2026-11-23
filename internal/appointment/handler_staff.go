@@ -102,9 +102,17 @@ type deskPatientJSON struct {
 
 // deskVisitJSON is the DeskVisit schema.
 type deskVisitJSON struct {
-	ServiceName string          `json:"serviceName,omitempty"`
-	Patient     deskPatientJSON `json:"patient"`
-	Appointment appointmentJSON `json:"appointment"`
+	ServiceName string            `json:"serviceName,omitempty"`
+	Patient     deskPatientJSON   `json:"patient"`
+	Receipts    []deskReceiptJSON `json:"receipts"`
+	Appointment appointmentJSON   `json:"appointment"`
+}
+
+// deskReceiptJSON is the DeskReceipt schema.
+type deskReceiptJSON struct {
+	ID       string `json:"id"`
+	Number   int64  `json:"number"`
+	Reversed bool   `json:"reversed"`
 }
 
 func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +139,11 @@ func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
 	}{Date: desk.Day.Format(dateLayout), Visits: make([]deskVisitJSON, 0, len(desk.Visits))}
 	for _, v := range desk.Visits {
 		p := v.Patient
-		out.Visits = append(out.Visits, deskVisitJSON{ServiceName: v.ServiceName, Appointment: toJSON(v.Appointment), Patient: deskPatientJSON{
+		receipts := make([]deskReceiptJSON, 0, len(v.Receipts))
+		for _, rc := range v.Receipts {
+			receipts = append(receipts, deskReceiptJSON(rc))
+		}
+		out.Visits = append(out.Visits, deskVisitJSON{ServiceName: v.ServiceName, Receipts: receipts, Appointment: toJSON(v.Appointment), Patient: deskPatientJSON{
 			ID: p.ID, GivenName: p.GivenName, FamilyName: p.FamilyName, BirthDate: p.BirthDate.Format(dateLayout), Phone: p.Phone,
 			RegisteredByClinic: p.RegisteredBy != "", VersionID: p.VersionID, LastUpdated: p.LastUpdated.UTC(),
 		}})

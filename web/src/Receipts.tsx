@@ -163,7 +163,7 @@ function Row({ api, receipt: r, zone, retried, onChanged, onRetried }: RowProps)
       </span>
       {error && <Alert message={error} />}
       {asking && (
-        <div className="confirm" role="alertdialog" aria-label={t('receipts.reverseQuestion', { number: r.number })}>
+        <div className="confirm reverse" role="alertdialog" aria-label={t('receipts.reverseQuestion', { number: r.number })}>
           <p className="strong">{t('receipts.reverseQuestion', { number: r.number })}</p>
           <p>{t('receipts.reverseEffect')}</p>
           <label>

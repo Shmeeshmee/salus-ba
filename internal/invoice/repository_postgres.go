@@ -110,6 +110,28 @@ func (r *postgresRepository) Issued(ctx context.Context, org string, p Period) (
 	return r.withLines(ctx, out)
 }
 
+func (r *postgresRepository) OfVisits(ctx context.Context, org string, appointmentIDs []string) ([]Invoice, error) {
+	u, ok := parse(org)
+	if !ok {
+		return nil, nil
+	}
+	ids := make([]pgtype.UUID, 0, len(appointmentIDs))
+	for _, id := range appointmentIDs {
+		if v, ok := parse(id); ok {
+			ids = append(ids, v)
+		}
+	}
+	rows, err := r.q(ctx).InvoicesOfVisits(ctx, invoicedb.InvoicesOfVisitsParams{OrganizationID: u, AppointmentIds: ids})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Invoice, len(rows))
+	for i, row := range rows {
+		out[i] = fromRow(row.Invoice, row.ReversedByID)
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) OfPatient(ctx context.Context, patientID string) ([]Invoice, error) {
 	u, ok := parse(patientID)
 	if !ok {

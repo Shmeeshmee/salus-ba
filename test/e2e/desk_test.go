@@ -3,8 +3,13 @@
 package e2e_test
 
 import (
+	"context"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +34,7 @@ func TestDesk_AReceptionistRegistersAWalkInBooksChecksInAndIssuesTheReceipt(t *t
 	}, &exam)
 	deskAddr := email(t, "reception")
 	clinic.admin.must(http.StatusCreated, http.MethodPost, "/invites", map[string]string{"email": deskAddr, "role": "reception"}, nil)
-	desk, _ := enrolFromInvite(t, deskAddr)
+	desk, deskTOTP := enrolFromInvite(t, deskAddr)
 
 	slotID, start := deskFreeTime(t, desk, clinic)
 	var walkIn struct{ ID string }
@@ -79,8 +84,51 @@ func TestDesk_AReceptionistRegistersAWalkInBooksChecksInAndIssuesTheReceipt(t *t
 	if code := desk.do(http.MethodGet, "/clinic/receipts/"+issued.ID+"/pdf", nil, nil); code != http.StatusOK {
 		t.Errorf("GET the receipt's PDF as the receptionist = %d, want 200", code)
 	}
+	deskListsReceipt(t, desk, visit.ID, issued, start.In(sarajevo).Format(time.DateOnly))
+	// In the browser: the row shows the receipt with its PDF, and a second receipt is asked for first.
+	runDeskJourney(t, deskAddr, deskTOTP, "desk.spec.ts", "E2E_DESK_PATIENT=Vedrana Walkinova", fmt.Sprintf("E2E_DESK_RECEIPT=%d", issued.Number))
 
 	deskRefusesTheRecord(t, desk, walkIn.ID, visit.ID)
+}
+
+// deskListsReceipt: the desk's day of date lists the receipt on the visit, for its row to show and print
+// (docs/clinic-cms/walk/wave3, findings 1 and 2).
+func deskListsReceipt(t *testing.T, desk *api, visit string, issued receipt, date string) {
+	t.Helper()
+	var day struct {
+		Visits []struct {
+			Appointment struct{ ID string }
+			Receipts    []struct {
+				ID       string
+				Number   int64
+				Reversed bool
+			}
+		}
+	}
+	desk.must(http.StatusOK, http.MethodGet, "/clinic/desk/today?date="+date, nil, &day)
+	for _, v := range day.Visits {
+		for _, r := range v.Receipts {
+			if v.Appointment.ID == visit && r.ID == issued.ID && r.Number == issued.Number && !r.Reversed {
+				return
+			}
+		}
+	}
+	t.Errorf("the desk's day %+v does not list receipt no. %d on the visit", day, issued.Number)
+}
+
+// runDeskJourney runs a spec of test/e2e/web signed in as the receptionist addr (the web journeys' sign-in variables).
+func runDeskJourney(t *testing.T, addr string, totp *authenticator, spec string, env ...string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "web/node_modules/.bin/playwright", "test", "--config", "web/playwright.config.ts", spec)
+	cmd.Env = append(append(os.Environ(),
+		"E2E_PRACTITIONER_EMAIL="+addr, "E2E_PASSWORD="+password,
+		"E2E_TOTP_SECRET="+hex.EncodeToString(totp.secret), fmt.Sprintf("E2E_TOTP_LAST_STEP=%d", totp.last),
+	), env...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("the web journey %s failed: %v\nPlaywright:\n%s", spec, err, out)
+	}
 }
 
 // deskFreeTime is a free in-person slot of the clinic's schedule today (or, after the day's last one, the next), as the

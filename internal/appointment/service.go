@@ -115,6 +115,8 @@ type Ports struct {
 	Services Services
 	// Stops says whether a clinic's new bookings are stopped: needed only by the api's Service, for a staff booking.
 	Stops BookingStops
+	// Receipts gives the desk's day its visits' receipts: needed only by the api's Service.
+	Receipts DeskReceipts
 	// Prices gives a booking's price and Payments takes it (service_purchase.go): no price exists before the payments
 	// epic (SAL-23), so both are nil in every binary and nothing is charged.
 	Prices   Prices

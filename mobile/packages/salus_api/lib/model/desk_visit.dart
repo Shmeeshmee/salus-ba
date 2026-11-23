@@ -16,6 +16,7 @@ class DeskVisit {
     required this.appointment,
     required this.patient,
     this.serviceName,
+    this.receipts = const [],
   });
 
   Appointment appointment;
@@ -31,24 +32,29 @@ class DeskVisit {
   ///
   String? serviceName;
 
+  /// The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so. Each is audited as a read.
+  List<DeskReceipt> receipts;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is DeskVisit &&
           other.appointment == appointment &&
           other.patient == patient &&
-          other.serviceName == serviceName;
+          other.serviceName == serviceName &&
+          _deepEquality.equals(other.receipts, receipts);
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
       (appointment.hashCode) +
       (patient.hashCode) +
-      (serviceName == null ? 0 : serviceName!.hashCode);
+      (serviceName == null ? 0 : serviceName!.hashCode) +
+      (receipts.hashCode);
 
   @override
   String toString() =>
-      'DeskVisit[appointment=$appointment, patient=$patient, serviceName=$serviceName]';
+      'DeskVisit[appointment=$appointment, patient=$patient, serviceName=$serviceName, receipts=$receipts]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -59,6 +65,7 @@ class DeskVisit {
     } else {
       json[r'serviceName'] = null;
     }
+    json[r'receipts'] = this.receipts;
     return json;
   }
 
@@ -81,6 +88,10 @@ class DeskVisit {
             'Required key "DeskVisit[patient]" is missing from JSON.');
         assert(json[r'patient'] != null,
             'Required key "DeskVisit[patient]" has a null value in JSON.');
+        assert(json.containsKey(r'receipts'),
+            'Required key "DeskVisit[receipts]" is missing from JSON.');
+        assert(json[r'receipts'] != null,
+            'Required key "DeskVisit[receipts]" has a null value in JSON.');
         return true;
       }());
 
@@ -88,6 +99,7 @@ class DeskVisit {
         appointment: Appointment.fromJson(json[r'appointment'])!,
         patient: ClinicPatient.fromJson(json[r'patient'])!,
         serviceName: mapValueOfType<String>(json, r'serviceName'),
+        receipts: DeskReceipt.listFromJson(json[r'receipts']),
       );
     }
     return null;
@@ -146,5 +158,6 @@ class DeskVisit {
   static const requiredKeys = <String>{
     'appointment',
     'patient',
+    'receipts',
   };
 }

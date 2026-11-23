@@ -22,6 +22,9 @@ type Repository interface {
 	ByIdempotencyKey(ctx context.Context, org, key string) (Invoice, error)
 	// Issued returns the clinic org's receipts issued in the period, newest first, with their lines.
 	Issued(ctx context.Context, org string, p Period) ([]Invoice, error)
+	// OfVisits returns the clinic org's receipts of the visits appointmentIDs, reversals left out, each with whether it
+	// was reversed, by number, without their lines.
+	OfVisits(ctx context.Context, org string, appointmentIDs []string) ([]Invoice, error)
 	// OfPatient returns the patient's receipts, newest first, with their lines.
 	OfPatient(ctx context.Context, patientID string) ([]Invoice, error)
 	// NextNumber returns the clinic org's next receipt number and keeps its sequence locked until the transaction

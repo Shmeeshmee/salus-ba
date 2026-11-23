@@ -121,7 +121,7 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**importClinicServices**](doc//BillingApi.md#importclinicservices) | **POST** /clinic/services/import | Import a price list from a file
 *BillingApi* | [**issueReceipt**](doc//BillingApi.md#issuereceipt) | **POST** /clinic/receipts | Issue a receipt for a visit or on its own
 *BillingApi* | [**listClinicQuotes**](doc//BillingApi.md#listclinicquotes) | **GET** /clinic/quotes | The clinic's treatment quotes
-*BillingApi* | [**listClinicReceipts**](doc//BillingApi.md#listclinicreceipts) | **GET** /clinic/receipts | The clinic's receipts issued in a period
+*BillingApi* | [**listClinicReceipts**](doc//BillingApi.md#listclinicreceipts) | **GET** /clinic/receipts | The clinic's receipts issued in a period, or of one visit
 *BillingApi* | [**listClinicServices**](doc//BillingApi.md#listclinicservices) | **GET** /clinic/services | The clinic's price list
 *BillingApi* | [**listMyQuotes**](doc//BillingApi.md#listmyquotes) | **GET** /me/quotes | The patient's own quotes
 *BillingApi* | [**listMyReceipts**](doc//BillingApi.md#listmyreceipts) | **GET** /me/receipts | The patient's own receipts, from every clinic
@@ -338,6 +338,7 @@ Class | Method | HTTP request | Description
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
  - [DeskDay](doc//DeskDay.md)
+ - [DeskReceipt](doc//DeskReceipt.md)
  - [DeskVisit](doc//DeskVisit.md)
  - [DiagnosisGroup](doc//DiagnosisGroup.md)
  - [DiagnosisGroupList](doc//DiagnosisGroupList.md)

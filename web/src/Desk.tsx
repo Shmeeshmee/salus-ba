@@ -8,6 +8,8 @@ import { DeskWalkIn } from './DeskWalkIn'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
 import { ReceiptDialog } from './ReceiptDialog'
+import { VisitReceipts } from './VisitActions'
+import { mergeReceipts, type VisitReceipt } from './visitReceipts'
 import { loadStaff, loadTimeZone, type Member } from './staff'
 import { startOfDay } from './time'
 import { Alert, Notice } from './ui'
@@ -109,7 +111,10 @@ function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
   const t = useT()
   const f = useFormat()
   const [issuing, setIssuing] = useState(false)
+  const [issued, setIssued] = useState<VisitReceipt[]>([])
   const { appointment: a, patient: p } = visit
+  const receipts = mergeReceipts(visit.receipts, issued)
+  const active = receipts.filter((r) => !r.reversed)
   const status = a.status === 'arrived' && a.arrivedAt ? t('desk.arrivedAt', { time: f.time(new Date(a.arrivedAt), zone) }) : t(`desk.status.${a.status}`)
   const details = [f.calendarDate(p.birthDate), p.phone, t(a.visitMode === 'in-person' ? 'desk.inPerson' : 'desk.video'), visit.serviceName].filter(Boolean)
   return (
@@ -125,12 +130,13 @@ function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
           <span className={`tag desk-${a.status}`}>{status}</span>
         </span>
         <span className="muted small">{details.join(' · ')}</span>
+        <VisitReceipts receipts={receipts} />
       </span>
       <span className="actions">
         {a.status === 'booked' && a.visitMode === 'in-person' && <DeskCheckIn api={api} appointmentId={a.id} onArrived={onArrived} />}
         {(a.status === 'booked' || a.status === 'arrived' || a.status === 'fulfilled') && (
           <button type="button" onClick={() => setIssuing(true)}>
-            {t('receipts.dialog.issue')}
+            {t(active.length > 0 ? 'receipts.issueAnother' : 'receipts.dialog.issue')}
           </button>
         )}
       </span>
@@ -139,9 +145,11 @@ function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
           api={api}
           appointmentId={a.id}
           serviceId={a.serviceId}
+          issued={active.map((r) => r.number)}
           onClose={() => setIssuing(false)}
           onIssued={(r) => {
             setIssuing(false)
+            setIssued((all) => [...all, { id: r.id, number: r.number, reversed: false }])
             onIssued(r.number)
           }}
         />

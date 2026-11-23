@@ -600,7 +600,17 @@ p.hint.join { margin-bottom: 20px; }
 /* The price list's intro and its add button keep their distance from the rows (B). */
 .price-list .rows { margin: 12px 0; }
 /* Issue receipt sits apart from the appointment's other actions. */
-.actions.receipt { margin-top: 8px; }
+/* The visit page's secondary actions: one row of one style, two even columns on a phone (walk/wave3, finding 4). */
+.visit-actions { display: grid; gap: 12px; }
+.visit-actions .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 520px) {
+  .visit-actions .actions { display: grid; grid-template-columns: 1fr 1fr; }
+}
+/* A visit's receipts, each with its PDF (walk/wave3, findings 1, 2). */
+.visit-receipts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 6px 0 0; }
+.visit-receipt { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+/* The reversal's refund method: the label above its select (walk/wave3, finding 7). */
+.confirm.reverse label { display: grid; gap: 6px; margin-bottom: 12px; }
 @media (max-width: 480px) {
   .receipt-line { grid-template-columns: 1fr; }
   .report-facts { grid-template-columns: minmax(0, 1fr) auto; }
@@ -667,5 +677,8 @@ p.hint.join { margin-bottom: 20px; }
 .patient-register { display: grid; gap: 12px; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
 .patient-picker { display: grid; gap: 12px; }
 .patient-picker .toolbar { margin-bottom: 0; }
+/* The search fills the dialog as the new patient form below it does (docs/clinic-cms/walk/wave3, findings 5, 6). */
+.patient-picker form[role='search'] { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 14px; }
+.patient-picker form[role='search'] > * { width: 100%; }
 .desk-dialog { display: grid; gap: 14px; align-content: start; }
 .desk-dialog h2 { margin: 0; }

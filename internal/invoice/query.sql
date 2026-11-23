@@ -24,6 +24,14 @@ LEFT JOIN invoice r ON r.reverses_id = i.id
 WHERE i.organization_id = @organization_id AND i.issued_at >= @from_time AND i.issued_at < @to_time
 ORDER BY i.issued_at DESC, i.number DESC;
 
+-- name: InvoicesOfVisits :many
+-- The receipts of the visits (the desk's day, the admin's visit page): not the reversals, each with its reversal.
+SELECT sqlc.embed(i), r.id AS reversed_by_id
+FROM invoice i
+LEFT JOIN invoice r ON r.reverses_id = i.id
+WHERE i.organization_id = @organization_id AND i.appointment_id = ANY (@appointment_ids::uuid[]) AND i.reverses_id IS NULL
+ORDER BY i.number;
+
 -- name: InvoicesOfPatient :many
 SELECT sqlc.embed(i), r.id AS reversed_by_id
 FROM invoice i

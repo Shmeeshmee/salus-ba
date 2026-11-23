@@ -28,6 +28,7 @@ type Receipts interface {
 	Issue(ctx context.Context, c Caller, d Draft) (Invoice, error)
 	Read(ctx context.Context, c Caller, id string) (Invoice, error)
 	List(ctx context.Context, c Caller, p Period) ([]Invoice, error)
+	ForVisit(ctx context.Context, c Caller, appointmentID string) ([]Invoice, error)
 	Reverse(ctx context.Context, c Caller, id string, method PaymentMethod) (Invoice, error)
 	Retry(ctx context.Context, c Caller, id string) (Invoice, error)
 	PDF(ctx context.Context, c Caller, id string) ([]byte, error)
@@ -154,12 +155,22 @@ func (h *HTTPHandler) staff(next func(http.ResponseWriter, *http.Request, Caller
 
 // list answers GET /clinic/receipts?from=&to=.
 func (h *HTTPHandler) list(w http.ResponseWriter, r *http.Request, c Caller) {
-	p, ok := period(r)
-	if !ok {
-		writeCode(w, http.StatusBadRequest, "invalid_request")
-		return
+	var list []Invoice
+	var err error
+	if visit := r.URL.Query().Get("appointmentId"); visit != "" { // one visit's receipts, whenever issued
+		if !uuidText.MatchString(visit) {
+			writeCode(w, http.StatusBadRequest, "invalid_request")
+			return
+		}
+		list, err = h.svc.ForVisit(r.Context(), c, visit)
+	} else {
+		p, ok := period(r)
+		if !ok {
+			writeCode(w, http.StatusBadRequest, "invalid_request")
+			return
+		}
+		list, err = h.svc.List(r.Context(), c, p)
 	}
-	list, err := h.svc.List(r.Context(), c, p)
 	if h.failed(w, r, err) {
 		return
 	}

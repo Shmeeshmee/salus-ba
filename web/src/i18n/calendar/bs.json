@@ -8,6 +8,7 @@
   "noAppointments": "Nema termina ove sedmice.",
   "now": "Sada",
   "status.booked": "Zakazan",
+  "status.arrived": "Dolazak prijavljen",
   "status.cancelled": "Otkazan",
   "status.fulfilled": "Obavljen",
   "status.noshow": "Nedolazak",

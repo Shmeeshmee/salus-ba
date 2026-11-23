@@ -122,6 +122,18 @@ func (r *fakeRepo) Issued(ctx context.Context, org string, p invoice.Period) ([]
 	return out, nil
 }
 
+// OfVisits gives the clinic's receipts (not reversals) of the visits, by number, as the scope shows them.
+func (r *fakeRepo) OfVisits(ctx context.Context, org string, visits []string) ([]invoice.Invoice, error) {
+	var out []invoice.Invoice
+	for _, i := range r.invoices {
+		if i.OrganizationID == org && r.seen(i) && i.ReversesID == "" && slices.Contains(visits, i.AppointmentID) {
+			i, _ = r.ByID(ctx, i.ID)
+			out = append(out, i)
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeRepo) OfPatient(_ context.Context, patientID string) ([]invoice.Invoice, error) {
 	var out []invoice.Invoice
 	for _, i := range slices.Backward(r.invoices) {

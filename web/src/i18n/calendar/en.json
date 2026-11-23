@@ -8,6 +8,7 @@
   "noAppointments": "No appointments this week.",
   "now": "Now",
   "status.booked": "Booked",
+  "status.arrived": "Arrived",
   "status.cancelled": "Cancelled",
   "status.fulfilled": "Fulfilled",
   "status.noshow": "No-show",

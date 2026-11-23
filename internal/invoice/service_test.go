@@ -331,8 +331,19 @@ func TestReception_IssuesReadsAndPrintsTheirReceiptsAndNothingElse(t *testing.T)
 	if _, err := f.svc.PDF(t.Context(), desk, issued.ID); err != nil {
 		t.Errorf("PDF() of their own receipt = %v", err)
 	}
-	if _, err := f.svc.Read(t.Context(), desk, byAdmin.ID); !errors.Is(err, invoice.ErrNotFound) {
-		t.Errorf("Read() of the admin's receipt = %v, want ErrNotFound", err)
+	// A visit's receipt a colleague issued: the desk shows it on the visit's row and prints it (docs/clinic-cms/walk/
+	// wave3, findings 1 and 2). A receipt on its own a colleague issued stays closed to them.
+	if got, err := f.svc.Read(t.Context(), desk, byAdmin.ID); err != nil || got.ID != byAdmin.ID {
+		t.Errorf("Read() of the admin's receipt of a visit = %q, %v; want it", got.ID, err)
+	}
+	sale := draft()
+	sale.AppointmentID = ""
+	onItsOwn, err := f.svc.Issue(t.Context(), adminC, sale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Read(t.Context(), desk, onItsOwn.ID); !errors.Is(err, invoice.ErrNotFound) {
+		t.Errorf("Read() of the admin's receipt on its own = %v, want ErrNotFound", err)
 	}
 	day := invoice.Period{From: at.Add(-time12h), To: at.Add(time12h)}
 	if _, err := f.svc.List(t.Context(), desk, day); !errors.Is(err, invoice.ErrForbidden) {

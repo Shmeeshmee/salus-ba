@@ -356,6 +356,8 @@ class ApiClient {
           return CursorMessage.fromJson(value);
         case 'DeskDay':
           return DeskDay.fromJson(value);
+        case 'DeskReceipt':
+          return DeskReceipt.fromJson(value);
         case 'DeskVisit':
           return DeskVisit.fromJson(value);
         case 'DiagnosisGroup':
