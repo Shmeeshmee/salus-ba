@@ -520,5 +520,8 @@
   "visitModeVideo": "En vidéo",
   "visitModeInPerson": "À la clinique",
   "pricesHeading": "Tarifs de cet établissement",
-  "pricesPaidAtClinic": "Vous payez sur place. Rien n'est facturé dans l'application."
+  "pricesPaidAtClinic": "Vous payez sur place. Rien n'est facturé dans l'application.",
+  "discardTitle": "Modifier cette réponse ?",
+  "discardBody": "{n, plural, one{Avec cette modification, {n} question à laquelle vous avez déjà répondu ne s’applique plus. Sa réponse sera supprimée.} other{Avec cette modification, {n} questions auxquelles vous avez déjà répondu ne s’appliquent plus. Leurs réponses seront supprimées.}}",
+  "discardConfirm": "Modifier et supprimer"
 }

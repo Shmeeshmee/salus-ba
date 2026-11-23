@@ -3239,6 +3239,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You pay at the clinic. Nothing is charged in the app.'**
   String get pricesPaidAtClinic;
+
+  /// SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides.
+  ///
+  /// In en, this message translates to:
+  /// **'Change this answer?'**
+  String get discardTitle;
+
+  /// SAL-43, package Q3: a changed answer hides questions already answered; their answers are removed if the patient goes on.
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, one{This change skips {n} question you already answered. Its answer will be removed.} other{This change skips {n} questions you already answered. Their answers will be removed.}}'**
+  String discardBody(int n);
+
+  /// SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides.
+  ///
+  /// In en, this message translates to:
+  /// **'Change and remove'**
+  String get discardConfirm;
 }
 
 class _AppLocalizationsDelegate

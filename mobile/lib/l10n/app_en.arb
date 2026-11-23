@@ -2627,5 +2627,22 @@
   "pricesPaidAtClinic": "You pay at the clinic. Nothing is charged in the app.",
   "@pricesPaidAtClinic": {
     "description": "Clinic system, package B: booking, under the prices: they are shown, never charged in the app. Draft, waiting for the owner."
+  },
+  "discardTitle": "Change this answer?",
+  "@discardTitle": {
+    "description": "SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides."
+  },
+  "discardBody": "{n, plural, one{This change skips {n} question you already answered. Its answer will be removed.} other{This change skips {n} questions you already answered. Their answers will be removed.}}",
+  "@discardBody": {
+    "description": "SAL-43, package Q3: a changed answer hides questions already answered; their answers are removed if the patient goes on.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "discardConfirm": "Change and remove",
+  "@discardConfirm": {
+    "description": "SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides."
   }
 }

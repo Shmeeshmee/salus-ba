@@ -2019,6 +2019,27 @@ class AppLocalizationsSr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Плаћате у установи. У апликацији се ништа не наплаћује.';
+
+  @override
+  String get discardTitle => 'Промијенити овај одговор?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Овом промјеном прескаче се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      few:
+          'Овом промјеном прескачу се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      one:
+          'Овом промјеном прескаче се $n питање на које сте већ одговорили. Тај одговор ће бити уклоњен.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Промијени и уклони';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4035,6 +4056,27 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   @override
   String get pricesPaidAtClinic =>
       'Плаћате у установи. У апликацији се ништа не наплаћује.';
+
+  @override
+  String get discardTitle => 'Промијенити овај одговор?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Овом промјеном прескаче се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      few:
+          'Овом промјеном прескачу се $n питања на која сте већ одговорили. Ти одговори ће бити уклоњени.',
+      one:
+          'Овом промјеном прескаче се $n питање на које сте већ одговорили. Тај одговор ће бити уклоњен.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Промијени и уклони';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6053,4 +6095,25 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   @override
   String get pricesPaidAtClinic =>
       'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
+
+  @override
+  String get discardTitle => 'Promijeniti ovaj odgovor?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Ovom promjenom preskače se $n pitanja na koja ste već odgovorili. Ti odgovori će biti uklonjeni.',
+      few:
+          'Ovom promjenom preskaču se $n pitanja na koja ste već odgovorili. Ti odgovori će biti uklonjeni.',
+      one:
+          'Ovom promjenom preskače se $n pitanje na koje ste već odgovorili. Taj odgovor će biti uklonjen.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Promijeni i ukloni';
 }

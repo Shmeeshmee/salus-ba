@@ -520,5 +520,8 @@
   "visitModeVideo": "Putem videa",
   "visitModeInPerson": "U klinici",
   "pricesHeading": "Cijene u ovoj ustanovi",
-  "pricesPaidAtClinic": "Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje."
+  "pricesPaidAtClinic": "Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.",
+  "discardTitle": "Promijeniti ovaj odgovor?",
+  "discardBody": "{n, plural, one{Ovom promjenom preskače se {n} pitanje na koje ste već odgovorili. Taj odgovor će biti uklonjen.} few{Ovom promjenom preskaču se {n} pitanja na koja ste već odgovorili. Ti odgovori će biti uklonjeni.} other{Ovom promjenom preskače se {n} pitanja na koja ste već odgovorili. Ti odgovori će biti uklonjeni.}}",
+  "discardConfirm": "Promijeni i ukloni"
 }

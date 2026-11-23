@@ -2021,4 +2021,25 @@ class AppLocalizationsBs extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Plaćate u ustanovi. U aplikaciji se ništa ne naplaćuje.';
+
+  @override
+  String get discardTitle => 'Promijeniti ovaj odgovor?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Ovom promjenom preskače se $n pitanja na koja ste već odgovorili. Ti odgovori bit će uklonjeni.',
+      few:
+          'Ovom promjenom preskaču se $n pitanja na koja ste već odgovorili. Ti odgovori bit će uklonjeni.',
+      one:
+          'Ovom promjenom preskače se $n pitanje na koje ste već odgovorili. Taj odgovor bit će uklonjen.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Promijeni i ukloni';
 }

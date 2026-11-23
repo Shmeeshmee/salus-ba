@@ -2058,4 +2058,28 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'تدفع في العيادة. لا يُخصم أي مبلغ عبر التطبيق.';
+
+  @override
+  String get discardTitle => 'هل تريد تغيير هذه الإجابة؟';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'سيؤدي هذا التغيير إلى تخطي $n سؤال أجبت عنها بالفعل، وستُحذف إجاباتها.',
+      many:
+          'سيؤدي هذا التغيير إلى تخطي $n سؤالًا أجبت عنها بالفعل، وستُحذف إجاباتها.',
+      few:
+          'سيؤدي هذا التغيير إلى تخطي $n أسئلة أجبت عنها بالفعل، وستُحذف إجاباتها.',
+      two: 'سيؤدي هذا التغيير إلى تخطي سؤالين أجبت عنهما بالفعل، وستُحذف إجابتاهما.',
+      one: 'سيؤدي هذا التغيير إلى تخطي سؤال واحد أجبت عنه بالفعل، وستُحذف إجابته.',
+      zero: 'لن يؤدي هذا التغيير إلى تخطي أي سؤال أجبت عنه.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'تغيير وحذف';
 }

@@ -520,5 +520,8 @@
   "visitModeVideo": "In video",
   "visitModeInPerson": "In clinica",
   "pricesHeading": "Prezzi di questa struttura",
-  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla."
+  "pricesPaidAtClinic": "Si paga presso la struttura. Nell'app non viene addebitato nulla.",
+  "discardTitle": "Modificare questa risposta?",
+  "discardBody": "{n, plural, one{Con questa modifica viene saltata {n} domanda a cui ha già risposto. La risposta verrà rimossa.} other{Con questa modifica vengono saltate {n} domande a cui ha già risposto. Le risposte verranno rimosse.}}",
+  "discardConfirm": "Modifica e rimuovi"
 }

@@ -15,7 +15,7 @@ writes under its own heading here.
 | L | wave 2, not started | |
 | Q1 | wave 2, not started | |
 | Q2 | wave 2, not started | |
-| Q3 | wave 2, not started | |
+| Q3 | done 2026-11-23 | `cms(Q3)` on `wt/cms/Q3` |
 | F | hold (Q1) | |
 | G | hold (Q6) | |
 
@@ -464,6 +464,43 @@ Run Q1's `test/testdata/enablewhen/` vectors against `enableWhen.ts` (`enabled`,
 can reuse the walk's steps (labels above).
 
 ## Q3: questionnaire branching, patient app
+
+Done 2026-11-23, one commit `cms(Q3)` on `wt/cms/Q3`. Mobile only (ticket SAL-43, its patient-app part).
+
+**Built.**
+
+- `mobile/lib/enable_when.dart`, pure: `Condition` (question, `Operator`, answer in the question's type),
+  `EnableBehavior` (all, any), `enabled()` over several conditions with the R4 operators `exists`, `=`, `!=`, `>`, `<`,
+  `>=`, `<=` on yes/no, choice, integer, decimal, date and text answers, nested groups, and `discarded()` (the answered
+  items a change hides). `questionnaire.dart` reads every `enableWhen` and `enableBehavior` (the old single
+  `condition` is gone; today's single `=` conditions read as one condition and behave as before) and re-exports it.
+- `toApi` sends only enabled questions' answers, so a save or submit holds only the path taken (Q1's
+  `answer_not_enabled`). A response opened with answers to hidden items drops them.
+- The form shows and hides branches live. Before a save that would drop answers already given, the patient is asked
+  ("Change this answer?", how many answers go): Cancel puts the answers back to the ones the server has (the field's
+  text too) and nothing is sent; "Change and remove" removes them, the hidden items' files too, then saves. A typed
+  answer asks when typing pauses or the field is left, not per keystroke; a choice asks at once.
+- Three strings (`discardTitle`, `discardBody` with a plural, `discardConfirm`) in all ten languages (eleven ARB
+  files, `sr` mirrors `sr_Cyrl`).
+
+**Checks.** `runner.sh full` (`make lint test archcheck mobile-analyze mobile-test`): pass, 622 mobile tests, no
+analyzer issues, `i18n-check` pass. No device walk: running the app on a device is a manual step (CLAUDE.md "Checks").
+
+**Decisions.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| `!=` on an unanswered question | Holds (shown) | R4 4.0.1: "true if no answer has a value that is equal"; the integration session checks Q1's vectors agree |
+| Comparison of mismatched types (a number against text) | Never holds; `>`/`<` on text or yes/no never hold | Publishing refuses such an operator (Q1); the app does not guess |
+| Unknown operator | Never holds (hidden) | As an unknown item type is not shown |
+| When the warning shows | At the save that would drop answers (a choice at once, typing after its pause) | Hiding is live, so a half-typed number does not ask on each keystroke |
+| Declining | Back to the server's answers, not only the changed field | One snapshot; edits since the last save are at most the change being taken back |
+
+**Test first.** The evaluator and screen tests were written before their code, but the first run came after the code
+(they compiled only with it); the `toApi` test was seen failing first.
+
+**Left to the integration session.** Run Q1's `test/testdata/enablewhen/*.json` vectors against `enable_when.dart`; the
+mobile e2e of both paths of the gynaecology example and the changed-answer case.
 
 ## F: reception role and desk
 

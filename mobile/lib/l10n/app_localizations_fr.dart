@@ -2022,4 +2022,23 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Vous payez sur place. Rien n\'est facturé dans l\'application.';
+
+  @override
+  String get discardTitle => 'Modifier cette réponse ?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Avec cette modification, $n questions auxquelles vous avez déjà répondu ne s’appliquent plus. Leurs réponses seront supprimées.',
+      one:
+          'Avec cette modification, $n question à laquelle vous avez déjà répondu ne s’applique plus. Sa réponse sera supprimée.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Modifier et supprimer';
 }

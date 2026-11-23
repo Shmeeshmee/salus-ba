@@ -1997,4 +1997,23 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.';
+
+  @override
+  String get discardTitle => 'Bu yanıt değiştirilsin mi?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Bu değişiklikle daha önce yanıtladığınız $n soru atlanacak. Yanıtları silinecek.',
+      one:
+          'Bu değişiklikle daha önce yanıtladığınız $n soru atlanacak. Yanıtı silinecek.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Değiştir ve sil';
 }

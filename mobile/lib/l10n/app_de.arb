@@ -520,5 +520,8 @@
   "visitModeVideo": "Per Video",
   "visitModeInPerson": "In der Klinik",
   "pricesHeading": "Preise dieser Praxis",
-  "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet."
+  "pricesPaidAtClinic": "Sie zahlen in der Praxis. In der App wird nichts berechnet.",
+  "discardTitle": "Diese Antwort ändern?",
+  "discardBody": "{n, plural, one{Durch diese Änderung entfällt {n} Frage, die Sie bereits beantwortet haben. Die Antwort wird entfernt.} other{Durch diese Änderung entfallen {n} Fragen, die Sie bereits beantwortet haben. Die Antworten werden entfernt.}}",
+  "discardConfirm": "Ändern und entfernen"
 }
