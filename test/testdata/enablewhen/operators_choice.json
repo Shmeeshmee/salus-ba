@@ -1,0 +1,49 @@
+{
+  "name": "Yes/no and choice: =, !=, exists, and any of (several = with enableBehavior any)",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "yn", "text": "Placeholder yes/no", "type": "boolean"},
+      {"linkId": "yn-not-yes", "text": "Placeholder: answer is not yes", "type": "string",
+        "enableWhen": [{"question": "yn", "operator": "!=", "answerBoolean": true}]},
+      {"linkId": "yn-answered", "text": "Placeholder: answered", "type": "string",
+        "enableWhen": [{"question": "yn", "operator": "exists", "answerBoolean": true}]},
+      {"linkId": "yn-unanswered", "text": "Placeholder: not answered", "type": "string",
+        "enableWhen": [{"question": "yn", "operator": "exists", "answerBoolean": false}]},
+      {"linkId": "one", "text": "Placeholder single choice", "type": "choice",
+        "answerOption": [{"valueString": "Option A"}, {"valueString": "Option B"}, {"valueString": "Option C"}]},
+      {"linkId": "one-is-a", "text": "Placeholder: is A", "type": "string",
+        "enableWhen": [{"question": "one", "operator": "=", "answerString": "Option A"}]},
+      {"linkId": "one-is-not-a", "text": "Placeholder: is not A", "type": "string",
+        "enableWhen": [{"question": "one", "operator": "!=", "answerString": "Option A"}]},
+      {"linkId": "one-any-of-b-c", "text": "Placeholder: any of B, C", "type": "string",
+        "enableBehavior": "any",
+        "enableWhen": [
+          {"question": "one", "operator": "=", "answerString": "Option B"},
+          {"question": "one", "operator": "=", "answerString": "Option C"}
+        ]},
+      {"linkId": "many", "text": "Placeholder multiple choice", "type": "choice", "repeats": true,
+        "answerOption": [{"valueString": "Option A"}, {"valueString": "Option B"}]},
+      {"linkId": "many-not-a", "text": "Placeholder: none of the answers is A", "type": "string",
+        "enableWhen": [{"question": "many", "operator": "!=", "answerString": "Option A"}]}
+    ]
+  },
+  "cases": [
+    {"name": "nothing answered: only exists false holds", "answers": {},
+      "enabled": ["yn", "yn-unanswered", "one", "many"]},
+    {"name": "yes", "answers": {"yn": [{"valueBoolean": true}]},
+      "enabled": ["yn", "yn-answered", "one", "many"]},
+    {"name": "no", "answers": {"yn": [{"valueBoolean": false}]},
+      "enabled": ["yn", "yn-not-yes", "yn-answered", "one", "many"]},
+    {"name": "A", "answers": {"one": [{"valueString": "Option A"}]},
+      "enabled": ["yn", "yn-unanswered", "one", "one-is-a", "many"]},
+    {"name": "B", "answers": {"one": [{"valueString": "Option B"}]},
+      "enabled": ["yn", "yn-unanswered", "one", "one-is-not-a", "one-any-of-b-c", "many"]},
+    {"name": "C", "answers": {"one": [{"valueString": "Option C"}]},
+      "enabled": ["yn", "yn-unanswered", "one", "one-is-not-a", "one-any-of-b-c", "many"]},
+    {"name": "multiple without A", "answers": {"many": [{"valueString": "Option B"}]},
+      "enabled": ["yn", "yn-unanswered", "one", "many", "many-not-a"]},
+    {"name": "multiple with A among them", "answers": {"many": [{"valueString": "Option B"}, {"valueString": "Option A"}]},
+      "enabled": ["yn", "yn-unanswered", "one", "many"]}
+  ]
+}

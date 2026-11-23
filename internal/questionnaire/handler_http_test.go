@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -108,7 +109,7 @@ var (
 			{
 				LinkID: "q2", Text: "Placeholder choice", Type: questionnaire.ItemChoice, Repeats: true,
 				Options:    []questionnaire.Option{{Value: "Placeholder option A"}, {Value: "Placeholder option B"}},
-				EnableWhen: &questionnaire.Condition{Question: "q1", Boolean: yes()},
+				EnableWhen: questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "q1", Boolean: yes()}},
 			},
 		},
 	}}}
@@ -122,7 +123,7 @@ const savedDraftJSON = `{"id":"` + draftA + `","url":"https://salus.invalid/fhir
 	`"title":"` + placeholderTitle + `","description":"Placeholder description","language":"bs","lastUpdated":"2026-11-06T09:30:00Z","item":[` +
 	`{"linkId":"s1","text":"Placeholder section","type":"group","item":[` +
 	`{"linkId":"q1","text":"` + placeholderText + `","type":"boolean","help":"Placeholder help text","required":true},` +
-	`{"enableWhen":{"answerBoolean":true,"question":"q1"},"linkId":"q2","text":"Placeholder choice","type":"choice",` +
+	`{"enableWhen":[{"answerBoolean":true,"question":"q1","operator":"="}],"linkId":"q2","text":"Placeholder choice","type":"choice",` +
 	`"answerOption":[{"valueString":"Placeholder option A"},{"valueString":"Placeholder option B"}],"repeats":true}]}],` +
 	`"translations":[],"version":2,"versionId":3}` + "\n"
 
@@ -137,17 +138,14 @@ func sameItems(a, b []questionnaire.Item) bool {
 	for i := range a {
 		x, y := a[i], b[i]
 		if x.LinkID != y.LinkID || x.Text != y.Text || x.Type != y.Type || x.Help != y.Help || x.Required != y.Required ||
-			x.Repeats != y.Repeats || len(x.Options) != len(y.Options) || !sameItems(x.Items, y.Items) || (x.EnableWhen == nil) != (y.EnableWhen == nil) {
+			x.Repeats != y.Repeats || len(x.Options) != len(y.Options) || !sameItems(x.Items, y.Items) ||
+			!reflect.DeepEqual(x.EnableWhen, y.EnableWhen) || x.EnableBehavior != y.EnableBehavior {
 			return false
 		}
 		for j := range x.Options {
 			if x.Options[j] != y.Options[j] {
 				return false
 			}
-		}
-		if x.EnableWhen != nil && (x.EnableWhen.Question != y.EnableWhen.Question || x.EnableWhen.String != y.EnableWhen.String ||
-			(x.EnableWhen.Boolean == nil) != (y.EnableWhen.Boolean == nil) || (x.EnableWhen.Boolean != nil && *x.EnableWhen.Boolean != *y.EnableWhen.Boolean)) {
-			return false
 		}
 	}
 	return true
@@ -278,7 +276,7 @@ func TestHTTPHandler_RefusesARequestItCannotReadBeforeCallingTheService(t *testi
 		{"no items", request{http.MethodPost, "/questionnaires", "", `{"title":"x"}`}},
 		{"an unknown field", request{http.MethodPost, "/questionnaires", "", `{"title":"x","item":[],"status":"active"}`}},
 		{"an unknown item field", request{http.MethodPost, "/questionnaires", "", `{"title":"x","item":[{"linkId":"a","text":"x","type":"string","code":"x"}]}`}},
-		{"an unknown condition field", request{http.MethodPost, "/questionnaires", "", `{"title":"x","item":[{"linkId":"a","text":"x","type":"string","enableWhen":{"question":"b","operator":"!="}}]}`}},
+		{"an unknown condition field", request{http.MethodPost, "/questionnaires", "", `{"title":"x","item":[{"linkId":"a","text":"x","type":"string","enableWhen":[{"question":"b","operator":"=","answerCoding":{"code":"x"}}]}]}`}},
 		{"two objects", request{http.MethodPost, "/questionnaires", "", draftBody + draftBody}},
 		{"an update without If-Match", request{http.MethodPut, q, "", draftBody}},
 		{"an If-Match that is not a version", request{http.MethodPut, q, `W/"three"`, draftBody}},

@@ -30,7 +30,7 @@ func large() ([]questionnaire.Item, []questionnaireresponse.Answer) {
 		it := question(fmt.Sprintf("q%03d", i), kinds[i%len(kinds)])
 		it.Required = true
 		if i > 0 {
-			it.EnableWhen = &questionnaire.Condition{Question: "q000", Boolean: &yes}
+			it.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "q000", Boolean: &yes}}
 		}
 		var v []questionnaireresponse.Value
 		switch i % len(kinds) {

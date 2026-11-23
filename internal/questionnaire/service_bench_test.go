@@ -31,7 +31,7 @@ func large() questionnaire.Content {
 				it.Help, it.Required = "Placeholder help text", true
 			}
 			if i > 0 && it.Type != questionnaire.ItemDisplay {
-				it.EnableWhen = &questionnaire.Condition{Question: fmt.Sprintf("s%d-0", s), Boolean: &yes}
+				it.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: fmt.Sprintf("s%d-0", s), Boolean: &yes}}
 			}
 			sec.Items = append(sec.Items, it)
 		}

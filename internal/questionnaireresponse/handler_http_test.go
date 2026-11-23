@@ -314,6 +314,16 @@ func TestHTTPHandler_AnswersInvalidCarriesTheLinkIDs(t *testing.T) {
 	}
 }
 
+// 422 answer_not_enabled names the hidden items that were answered (docs/clinic-cms, Q1).
+func TestHTTPHandler_AnswerNotEnabledCarriesTheLinkIDs(t *testing.T) {
+	t.Parallel()
+	path := "/questionnaire-responses/" + hResponse + "/submit"
+	rec := serveJSON(t, &stubResponses{err: &questionnaireresponse.NotEnabledError{LinkIDs: []string{"q3"}}}, true, &bytes.Buffer{}, call{method: http.MethodPost, path: path, ifMatch: `W/"3"`})
+	if want := `{"error":"answer_not_enabled","linkIds":["q3"]}` + "\n"; rec.Code != http.StatusUnprocessableEntity || rec.Body.String() != want {
+		t.Errorf("submit = %d %s, want 422 %s", rec.Code, rec.Body, want)
+	}
+}
+
 // Any other error is a 500 with the fixed message; the log holds the error and never an answer, even when
 // the request carried one.
 func TestHTTPHandler_AnInternalErrorIs500AndTheLogHoldsNoAnswer(t *testing.T) {

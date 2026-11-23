@@ -68,7 +68,7 @@ export function questionnaireJSON(): JSONQuestionnaire {
         text: 'Placeholder section',
         type: 'group',
         help: 'Placeholder section help',
-        enableWhen: { question: 'smoker', answerBoolean: true },
+        enableWhen: [{ question: 'smoker', operator: '=', answerBoolean: true }],
         item: [
           { linkId: 'one', text: 'Placeholder single', type: 'choice', answerOption: [{ valueString: 'A' }, { valueString: 'B' }] },
           {
@@ -77,7 +77,7 @@ export function questionnaireJSON(): JSONQuestionnaire {
             type: 'choice',
             repeats: true,
             answerOption: [{ valueString: 'C' }, { valueString: 'D' }],
-            enableWhen: { question: 'one', answerString: 'B' },
+            enableWhen: [{ question: 'one', operator: '=', answerString: 'B' }],
           },
         ],
       },

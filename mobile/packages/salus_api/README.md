@@ -382,7 +382,7 @@ Class | Method | HTTP request | Description
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
  - [QuestionnaireItemAnswerOptionInner](doc//QuestionnaireItemAnswerOptionInner.md)
- - [QuestionnaireItemEnableWhen](doc//QuestionnaireItemEnableWhen.md)
+ - [QuestionnaireItemEnableWhenInner](doc//QuestionnaireItemEnableWhenInner.md)
  - [QuestionnaireItemTranslation](doc//QuestionnaireItemTranslation.md)
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
  - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)

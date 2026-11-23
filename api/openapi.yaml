@@ -6467,7 +6467,9 @@ components:
         "Limits"), an answer is given to an attachment item (files go through
         `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question
         is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is
-        refused without being named).
+        refused without being named). `answer_not_enabled`, on submit: a saved answer is to an item its
+        conditions hide on the answers given (a response holds only the path taken); `linkIds` names those items
+        in document order, and the patient saves the answers without them.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -7649,8 +7651,9 @@ components:
       required: [linkId, text, type]
       additionalProperties: false
       description: >-
-        One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and
-        instructions. Single and multiple choice are both `choice`; `repeats` tells them apart.
+        One item, as FHIR Questionnaire.item. Sections (`group`) hold questions, instructions and other
+        sections: a branch is a section carrying the condition, and the flow joins back at the next item without
+        one. Single and multiple choice are both `choice`; `repeats` tells them apart.
       properties:
         linkId:
           type: string
@@ -7705,19 +7708,43 @@ components:
                 minLength: 1
                 maxLength: 200
         enableWhen:
-          type: object
-          required: [question]
-          additionalProperties: false
+          type: array
+          minItems: 1
           description: >-
-            Shown only when the earlier item `question`, a boolean or a choice, is answered `answerBoolean` or
-            `answerString` (one of its options); a choice with repeats when any answer matches.
-          properties:
-            question:
-              type: string
-            answerBoolean:
-              type: boolean
-            answerString:
-              type: string
+            FHIR R4 enableWhen: shown only while these conditions on earlier questions hold, all of them or any
+            one (`enableBehavior`, required with two or more). Each takes the one answer[x] of its question's type:
+            `answerBoolean` (yes/no), `answerString` (one of a choice's options), `answerInteger`, `answerDecimal`,
+            `answerDate`. `=` and `!=` fit every type but string and text; `>`, `>=`, `<`, `<=` fit integer,
+            decimal and date; `exists` fits every question and takes `answerBoolean` (true: answered). A choice
+            with repeats meets `=` when any answer matches and `!=` when none does; every operator but `exists`
+            is false on an unanswered or hidden question. The single object of before (`question` with
+            `answerBoolean` or `answerString`, operator `=`) is still accepted.
+          items:
+            type: object
+            required: [question, operator]
+            additionalProperties: false
+            properties:
+              question:
+                type: string
+              operator:
+                type: string
+                enum: [exists, "=", "!=", ">", "<", ">=", "<="]
+              answerBoolean:
+                type: boolean
+              answerString:
+                type: string
+              answerInteger:
+                type: integer
+                format: int32
+              answerDecimal:
+                type: number
+              answerDate:
+                type: string
+                format: date
+        enableBehavior:
+          type: string
+          enum: [all, any]
+          description: How several conditions combine; required with two or more.
         item:
           type: array
           items: {$ref: "#/components/schemas/QuestionnaireItem"}
@@ -8033,12 +8060,13 @@ components:
             - already_reversed
             - billing_details_missing
             - fiscal_report_failed
+            - answer_not_enabled
         linkIds:
           type: array
           items: {type: string}
           description: >-
-            With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending
-            items' linkIds in document order.
+            With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete`
+            only, the offending items' linkIds in document order.
         language:
           $ref: "#/components/schemas/Language"
           description: With `translation_incomplete` only, the translation that is incomplete.

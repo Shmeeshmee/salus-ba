@@ -1,0 +1,32 @@
+{
+  "name": "Today's single = conditions on a yes/no and a choice, and a section carrying one",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "smoker", "text": "Placeholder yes/no question", "type": "boolean"},
+      {"linkId": "per-day", "text": "Placeholder follow-up", "type": "integer",
+        "enableWhen": [{"question": "smoker", "operator": "=", "answerBoolean": true}]},
+      {"linkId": "kinds", "text": "Placeholder multiple choice", "type": "choice", "repeats": true,
+        "answerOption": [{"valueString": "Option A"}, {"valueString": "Option B"}, {"valueString": "Option C"}]},
+      {"linkId": "section-b", "text": "Placeholder section", "type": "group",
+        "enableWhen": [{"question": "kinds", "operator": "=", "answerString": "Option B"}],
+        "item": [
+          {"linkId": "b-note", "text": "Placeholder instructions", "type": "display"},
+          {"linkId": "b-detail", "text": "Placeholder text question", "type": "text"}
+        ]},
+      {"linkId": "last", "text": "Placeholder question for everyone", "type": "string"}
+    ]
+  },
+  "cases": [
+    {"name": "nothing answered", "answers": {},
+      "enabled": ["smoker", "kinds", "last"]},
+    {"name": "yes shows the follow-up", "answers": {"smoker": [{"valueBoolean": true}]},
+      "enabled": ["smoker", "per-day", "kinds", "last"]},
+    {"name": "no keeps it hidden", "answers": {"smoker": [{"valueBoolean": false}], "per-day": [{"valueInteger": 10}]},
+      "enabled": ["smoker", "kinds", "last"]},
+    {"name": "one of several answers matches", "answers": {"kinds": [{"valueString": "Option A"}, {"valueString": "Option B"}]},
+      "enabled": ["smoker", "kinds", "section-b", "b-note", "b-detail", "last"]},
+    {"name": "no answer matches", "answers": {"kinds": [{"valueString": "Option A"}, {"valueString": "Option C"}]},
+      "enabled": ["smoker", "kinds", "last"]}
+  ]
+}

@@ -3708,7 +3708,7 @@ export interface components {
             /** @description The draft's translations, all of them: one per language, none in the original language. A translation may be incomplete while the version is a draft; publishing refuses it until complete. Absent keeps the draft's. */
             translations?: components["schemas"]["QuestionnaireTranslation"][];
         };
-        /** @description One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and instructions. Single and multiple choice are both `choice`; `repeats` tells them apart. */
+        /** @description One item, as FHIR Questionnaire.item. Sections (`group`) hold questions, instructions and other sections: a branch is a section carrying the condition, and the flow joins back at the next item without one. Single and multiple choice are both `choice`; `repeats` tells them apart. */
         QuestionnaireItem: {
             /** @description Opaque and random, unique within the questionnaire, kept by later versions. */
             linkId: string;
@@ -3733,12 +3733,24 @@ export interface components {
             answerOption?: {
                 valueString: string;
             }[];
-            /** @description Shown only when the earlier item `question`, a boolean or a choice, is answered `answerBoolean` or `answerString` (one of its options); a choice with repeats when any answer matches. */
+            /** @description FHIR R4 enableWhen: shown only while these conditions on earlier questions hold, all of them or any one (`enableBehavior`, required with two or more). Each takes the one answer[x] of its question's type: `answerBoolean` (yes/no), `answerString` (one of a choice's options), `answerInteger`, `answerDecimal`, `answerDate`. `=` and `!=` fit every type but string and text; `>`, `>=`, `<`, `<=` fit integer, decimal and date; `exists` fits every question and takes `answerBoolean` (true: answered). A choice with repeats meets `=` when any answer matches and `!=` when none does; every operator but `exists` is false on an unanswered or hidden question. The single object of before (`question` with `answerBoolean` or `answerString`, operator `=`) is still accepted. */
             enableWhen?: {
                 question: string;
+                /** @enum {string} */
+                operator: "exists" | "=" | "!=" | ">" | "<" | ">=" | "<=";
                 answerBoolean?: boolean;
                 answerString?: string;
-            };
+                /** Format: int32 */
+                answerInteger?: number;
+                answerDecimal?: number;
+                /** Format: date */
+                answerDate?: string;
+            }[];
+            /**
+             * @description How several conditions combine; required with two or more.
+             * @enum {string}
+             */
+            enableBehavior?: "all" | "any";
             /** @description A section's questions and instructions. */
             item?: components["schemas"]["QuestionnaireItem"][];
         };
@@ -3906,8 +3918,8 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed";
-            /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled";
+            /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
             language?: components["schemas"]["Language"];
@@ -5453,7 +5465,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). */
+        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). `answer_not_enabled`, on submit: a saved answer is to an item its conditions hide on the answers given (a response holds only the path taken); `linkIds` names those items in document order, and the patient saves the answers without them. */
         AnswersInvalid: {
             headers: {
                 [name: string]: unknown;

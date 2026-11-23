@@ -139,9 +139,10 @@ func (s *Service) open(ctx context.Context, r Response, att appointment.Attendan
 	return nil, nil
 }
 
-// submitted gives the answers a submit keeps, those of the enabled items, and the ids of the files of hidden
-// items, or an *AnswersError naming, in document order, the answers that break their item and the enabled
-// required questions left unanswered (an attachment item is answered by its files).
+// submitted gives the answers a submit keeps, all of them, and the ids of the files of hidden items, or an
+// *AnswersError naming, in document order, the answers that break their item and the enabled required questions
+// left unanswered (an attachment item is answered by its files), or else a *NotEnabledError naming the hidden
+// items that were answered (docs/clinic-cms, Q1).
 func submitted(items []questionnaire.Item, answers []Answer, files []binary.Attachment) (kept []Answer, hidden []string, err error) {
 	bad, unknown := invalid(items, answers)
 	given := make(map[string][]Value, len(answers))
@@ -161,11 +162,16 @@ func submitted(items []questionnaire.Item, answers []Answer, files []binary.Atta
 	if len(bad) > 0 || unknown {
 		return nil, nil, &AnswersError{LinkIDs: inOrder(items, bad)}
 	}
+	off := map[string]bool{}
 	for _, a := range answers {
-		if on[a.LinkID] {
-			kept = append(kept, a)
+		if !on[a.LinkID] {
+			off[a.LinkID] = true
 		}
 	}
+	if len(off) > 0 {
+		return nil, nil, &NotEnabledError{LinkIDs: inOrder(items, off)}
+	}
+	kept = answers
 	for _, f := range files {
 		if !on[f.LinkID] {
 			hidden = append(hidden, f.BinaryID)

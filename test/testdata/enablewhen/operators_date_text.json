@@ -1,0 +1,38 @@
+{
+  "name": "Date: on (=), before (<), after (>) and the rest; text and string: answered or not",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "when", "text": "Placeholder date", "type": "date"},
+      {"linkId": "when-on", "text": "Placeholder: on 2020-03-15", "type": "display",
+        "enableWhen": [{"question": "when", "operator": "=", "answerDate": "2020-03-15"}]},
+      {"linkId": "when-not-on", "text": "Placeholder: not on 2020-03-15", "type": "display",
+        "enableWhen": [{"question": "when", "operator": "!=", "answerDate": "2020-03-15"}]},
+      {"linkId": "when-before", "text": "Placeholder: before 2020-03-15", "type": "display",
+        "enableWhen": [{"question": "when", "operator": "<", "answerDate": "2020-03-15"}]},
+      {"linkId": "when-after", "text": "Placeholder: after 2020-03-15", "type": "display",
+        "enableWhen": [{"question": "when", "operator": ">", "answerDate": "2020-03-15"}]},
+      {"linkId": "when-from", "text": "Placeholder: on or after 2020-03-15", "type": "display",
+        "enableWhen": [{"question": "when", "operator": ">=", "answerDate": "2020-03-15"}]},
+      {"linkId": "when-until", "text": "Placeholder: on or before 2020-03-15", "type": "display",
+        "enableWhen": [{"question": "when", "operator": "<=", "answerDate": "2020-03-15"}]},
+      {"linkId": "short", "text": "Placeholder string", "type": "string"},
+      {"linkId": "long", "text": "Placeholder text", "type": "text"},
+      {"linkId": "short-answered", "text": "Placeholder: string answered", "type": "display",
+        "enableWhen": [{"question": "short", "operator": "exists", "answerBoolean": true}]},
+      {"linkId": "long-unanswered", "text": "Placeholder: text not answered", "type": "display",
+        "enableWhen": [{"question": "long", "operator": "exists", "answerBoolean": false}]}
+    ]
+  },
+  "cases": [
+    {"name": "nothing answered", "answers": {},
+      "enabled": ["when", "short", "long", "long-unanswered"]},
+    {"name": "the day before, both texts answered",
+      "answers": {"when": [{"valueDate": "2020-03-14"}], "short": [{"valueString": "Placeholder"}], "long": [{"valueString": "Placeholder"}]},
+      "enabled": ["when", "when-not-on", "when-before", "when-until", "short", "long", "short-answered"]},
+    {"name": "on the day", "answers": {"when": [{"valueDate": "2020-03-15"}]},
+      "enabled": ["when", "when-on", "when-from", "when-until", "short", "long", "long-unanswered"]},
+    {"name": "a later year", "answers": {"when": [{"valueDate": "2021-01-01"}]},
+      "enabled": ["when", "when-not-on", "when-after", "when-from", "short", "long", "long-unanswered"]}
+  ]
+}

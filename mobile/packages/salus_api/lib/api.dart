@@ -195,7 +195,7 @@ part 'model/questionnaire.dart';
 part 'model/questionnaire_default.dart';
 part 'model/questionnaire_item.dart';
 part 'model/questionnaire_item_answer_option_inner.dart';
-part 'model/questionnaire_item_enable_when.dart';
+part 'model/questionnaire_item_enable_when_inner.dart';
 part 'model/questionnaire_item_translation.dart';
 part 'model/questionnaire_response.dart';
 part 'model/questionnaire_translation.dart';

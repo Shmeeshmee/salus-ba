@@ -94,11 +94,11 @@ var everyType = questionnaire.Questionnaire{
 		{
 			LinkID: "freq", Text: "Placeholder single choice", Type: questionnaire.ItemChoice,
 			Options:    []questionnaire.Option{{Value: "Placeholder option A"}, {Value: "Placeholder option B"}},
-			EnableWhen: &questionnaire.Condition{Question: "smoker", Boolean: yes()},
+			EnableWhen: questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "smoker", Boolean: yes()}},
 		},
 		{
 			LinkID: "details", Text: "Placeholder section", Type: questionnaire.ItemGroup, Help: "Placeholder section help",
-			EnableWhen: &questionnaire.Condition{Question: "freq", String: "Placeholder option B"},
+			EnableWhen: questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "freq", String: "Placeholder option B"}},
 			Items: []questionnaire.Item{
 				{LinkID: "name", Text: "Placeholder short answer", Type: questionnaire.ItemString, Required: true},
 				{LinkID: "notes", Text: "Placeholder long answer", Type: questionnaire.ItemText},
@@ -130,7 +130,7 @@ var attachments = questionnaire.Questionnaire{
 		{LinkID: "has-files", Text: "Placeholder yes or no question", Type: questionnaire.ItemBoolean},
 		with(attachment("p1", 1, questionnaire.FilePhoto), func(i *questionnaire.Item) {
 			i.Required, i.Help = true, "Placeholder help text"
-			i.EnableWhen = &questionnaire.Condition{Question: "has-files", Boolean: yes()}
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "has-files", Boolean: yes()}}
 		}),
 		attachment("d10", 10, questionnaire.FileDocument),
 		attachment("v1", 1, questionnaire.FileVideo),
@@ -144,6 +144,24 @@ var attachments = questionnaire.Questionnaire{
 	},
 }
 
+// branching is the gynaecology example of docs/clinic-cms (Q1) with every kind of condition the vectors use: a
+// branch as a section carrying the condition, a numeric condition inside it, and two conditions combined.
+func branching(t *testing.T) questionnaire.Questionnaire {
+	t.Helper()
+	items := vectors(t)["gynaecology.json"].Questionnaire.Items
+	items = append(items, questionnaire.Item{
+		LinkID: "either", Text: "Placeholder: under 18 or the main yes", Type: questionnaire.ItemString, EnableBehavior: questionnaire.BehaviorAny,
+		EnableWhen: questionnaire.Conditions{
+			{Question: "abortion-age", Operator: questionnaire.OpLessEqual, Integer: i32(17)},
+			{Question: "main-2", Operator: questionnaire.OpExists, Boolean: yes()},
+		},
+	})
+	return questionnaire.Questionnaire{
+		ID: activeA, SeriesID: seriesA, OrganizationID: clinicA, Version: 1, Status: questionnaire.StatusActive, Language: "bs",
+		Title: placeholderTitle, PublishedAt: now, LastUpdated: now, VersionID: 1, Items: items,
+	}
+}
+
 // The read sends the Questionnaire, its canonical url and version, with its version as the ETag.
 func TestHandlerRead_SendsTheQuestionnaire(t *testing.T) {
 	for _, tt := range []struct {
@@ -153,6 +171,7 @@ func TestHandlerRead_SendsTheQuestionnaire(t *testing.T) {
 		{golden: "questionnaire_active.json", etag: `W/"4"`, q: everyType},
 		{golden: "questionnaire_draft.json", etag: `W/"1"`, q: draft},
 		{golden: "questionnaire_attachments.json", etag: `W/"2"`, q: attachments},
+		{golden: "questionnaire_branching.json", etag: `W/"1"`, q: branching(t)},
 	} {
 		svc := &stubReader{out: []questionnaire.Questionnaire{tt.q}}
 		rec := getFHIR(t, svc, as(practitionerA1), &bytes.Buffer{}, "/fhir/R4/Questionnaire/"+tt.q.ID)
