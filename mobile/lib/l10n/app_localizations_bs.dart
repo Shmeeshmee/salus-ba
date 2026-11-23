@@ -2078,4 +2078,25 @@ class AppLocalizationsBs extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovo pošaljite.';
   }
+
+  @override
+  String get myQuotes => 'Moje ponude';
+
+  @override
+  String get quotesIntro =>
+      'Ponude za liječenje koje su vam ustanove poslale nakon termina. Ponuda nije račun: ništa nije naplaćeno. Ako nastavite, plaćate u ustanovi.';
+
+  @override
+  String get noQuotes => 'Još nemate ponuda.';
+
+  @override
+  String get quoteTitle => 'Ponuda';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Vrijedi do $date';
+  }
+
+  @override
+  String get quoteExpired => 'Istekla';
 }

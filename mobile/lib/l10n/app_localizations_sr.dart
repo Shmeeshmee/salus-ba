@@ -2076,6 +2076,27 @@ class AppLocalizationsSr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
   }
+
+  @override
+  String get myQuotes => 'Моје понуде';
+
+  @override
+  String get quotesIntro =>
+      'Понуде за лијечење које су вам установе послале након термина. Понуда није рачун: ништа није наплаћено. Ако наставите, плаћате у установи.';
+
+  @override
+  String get noQuotes => 'Још немате понуда.';
+
+  @override
+  String get quoteTitle => 'Понуда';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Важи до $date';
+  }
+
+  @override
+  String get quoteExpired => 'Истекла';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4149,6 +4170,27 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String answersNotEnabled(String items) {
     return 'Ова питања се више не постављају, па су њихови одговори уклоњени: $items. Провјерите одговоре и поново пошаљите.';
   }
+
+  @override
+  String get myQuotes => 'Моје понуде';
+
+  @override
+  String get quotesIntro =>
+      'Понуде за лијечење које су вам установе послале након термина. Понуда није рачун: ништа није наплаћено. Ако наставите, плаћате у установи.';
+
+  @override
+  String get noQuotes => 'Још немате понуда.';
+
+  @override
+  String get quoteTitle => 'Понуда';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Важи до $date';
+  }
+
+  @override
+  String get quoteExpired => 'Истекла';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6224,4 +6266,25 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String answersNotEnabled(String items) {
     return 'Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: $items. Provjerite odgovore i ponovo pošaljite.';
   }
+
+  @override
+  String get myQuotes => 'Moje ponude';
+
+  @override
+  String get quotesIntro =>
+      'Ponude za liječenje koje su vam ustanove poslale nakon termina. Ponuda nije račun: ništa nije naplaćeno. Ako nastavite, plaćate u ustanovi.';
+
+  @override
+  String get noQuotes => 'Još nemate ponuda.';
+
+  @override
+  String get quoteTitle => 'Ponuda';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Važi do $date';
+  }
+
+  @override
+  String get quoteExpired => 'Istekla';
 }

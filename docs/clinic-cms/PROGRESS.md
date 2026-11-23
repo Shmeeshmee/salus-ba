@@ -30,6 +30,7 @@ writes under its own heading here.
 | O2 | not started (wave 3, after 3.0) | |
 | O2 | import done 2026-11-23; the clinic data export deferred to a follow-up package | `cms(O2)` on `wt/cms/O2` |
 | X1 | not started (wave 3, after 3.0) | |
+| X1 | done 2026-11-23 | `cms(X1)` on `wt/cms/X1` |
 | X2 | not started (wave 3, after 3.0) | |
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
@@ -1317,7 +1318,78 @@ size; the routes stay as 3.0 declared them (not served).
 
 ## X1: treatment quotes
 
-Not started.
+Status: done, 2026-11-23, on `wt/cms/X1`, one commit `cms(X1)`. No migration (3.0's `00065` holds `quote` and
+`quote_line`); `00070` stays unused.
+
+**Built.**
+
+- **Go (`invoice`).** `service_quote.go`: `SendQuote` (at a visit, by the clinic's admin or the visit's practitioner,
+  for the visit's patient while the clinic has their active care consent; lines priced from the price list as a
+  receipt's, a note of at most 2000 characters, valid 30 days), `Quotes` (the admin every quote, a practitioner
+  theirs), `ReadQuote`, `MyQuotes`, `QuotePDF`; the state (`sent`, `expired`) is read from `valid_until` and the clock,
+  never stored. Every send, list, read and PDF is audited on `Quote/<id>`, also when refused. The repository's
+  `InsertQuote`, `QuoteByID`, `QuotesOf`, `QuotesOfPatient` (sqlc); the `quote_email` job (`QuoteEmailArgs`, the
+  visit's and the clinic's ids only) enqueued in the quote's transaction on the email queue. Handlers for
+  `/clinic/quotes`, `/clinic/quotes/{id}`, `/me/quotes`, `/me/quotes/{id}/pdf` (`invalid_quote` for a draft that is
+  no quote). The PDF uses package H's catalogs (`templates/pdf/<language>.json` gained `quote`, `quote_valid_until`,
+  `quote_note`, `quote_not_receipt`): no second set of labels.
+- **E-mail (`notification`).** `SendQuote` through the appointment e-mails (the clinic, the visit's local time, the link
+  `PATIENT_APP_URL/quotes`, that nothing was charged; no service, amount or practitioner), `templates/<language>/quote.txt`
+  in all ten languages with their golden files; the notifier's worker for `quote_email`.
+- **Web.** `QuoteDialog.tsx` (the receipt dialog's line fields and words, a note, the effect before the button) and
+  `VisitQuotes` (the visit's quotes with their state and validity, on request); `AppointmentDetail.tsx` gains "Write a
+  quote" and "Show quotes" for the admin and the visit's practitioner; the `quote.*` keys of the `receipts` catalog in the five staff languages (no new area).
+- **Mobile.** `quotes_screen.dart` (date, validity or "Expired", lines, note, total, the PDF shared) behind "My quotes"
+  on the home screen; `Booking.quotes` and `quotePdf`; six strings in all ten languages.
+- **Docs.** The DPIA's "Package X1" block; the `quote` retention rule's basis states the open period.
+
+**Not a receipt, tested both ways.** `TestSendQuote_TakesNoReceiptNumberAndEnqueuesNoFiscalReport` (service: three
+quotes leave the fake sequence at 0 and enqueue no fiscal report; the next receipt is number 1) and
+`TestRepository_AQuoteTakesNoReceiptNumberAndNoFiscalJob` (Postgres and River: after a quote's transaction
+`invoice_sequence` and `invoice` are empty and the only job is `quote_email` with the two ids).
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| A quote without a visit | Refused (`invalid_quote`): the plan writes a quote "from an appointment", and the e-mail and the practitioner's right rest on the visit. `appointmentId` stays optional in the schema; its 400 says so |
+| Who sends | The clinic's admin and the visit's practitioner, as a receipt for a visit |
+| A practitioner's list | The quotes they sent (as receipts: the ones they issued) |
+| No active care consent | `not_found`, audited: the patient would see the quote, and `quote_clinic` refuses the row anyway |
+| The PDF's language | The clinic's default language, as the receipt (the patient's is the same document) |
+| The clinic's list on the web | Per visit (`?appointmentId=`), behind "Show quotes" in the appointment; a clinic-wide page needs a route and a menu entry in `App.tsx`, which F1 and F3 change in this wave (left to the integration, below) |
+| Retention | Kept: no period without a legal decision (waiting on a person); the removal rule, its applier and a `DELETE` grant come together in a later migration |
+
+**Review** (one round, a fresh subagent over the diff; Copilot is out of quota). Fixed: the visit's list read every
+quote of the clinic into the browser (now `GET /clinic/quotes?appointmentId=`, a query parameter added to the
+contract, filtered in the service); `ReadQuote` returned the refused quote beside `ErrNotFound` (now nothing). Left:
+the quote e-mail for a patient without an account (F2's profiles: `sendAppointment` asks the account's e-mail of an
+empty id and the job retries; the same holds for every appointment e-mail, so F2 or the integration decides it once);
+refusals and list audits carry no entity (as the receipts'), and `Quote/<id>` is no FHIR type (as `Invite/<id>`); a
+practitioner not the visit's gets 403 where a wrong visit gets 404 (as receipts); the app's quote card does not name
+its clinic (the `Quote` schema has only `organizationId`; a clinic name needs a field or a lookup); `appointmentId`
+stays optional in `SendQuoteRequest` (3.0's contract), its 400 says it is needed.
+
+**Test first.** The Go service, repository, handler, PDF and e-mail tests were written first and run red (missing
+methods and `quoteDocument`), then the code. The web and mobile tests were written before their components but run
+only once the components existed (red not observed).
+
+**Checks** (this worktree's compose project, `salus-cms-x1`): `runner.sh full` on the final tree (`make gen-clients`,
+`lint`, `test`, `archcheck`, `web-lint`, `web-typecheck`, `web-test` (1207), `web-build`, `mobile-analyze`,
+`mobile-test` (675)): pass. `make cover`: pass (total 90.8%; `invoice` 87.2%, `notification` 84.9%), run before the
+review's two fixes, which only add tested lines. Not run: `make e2e` (no e2e journey changed), `make fhir-validate` (no
+golden FHIR file changed). Not done: the browser walk of the dialog at desktop width and 390 px (no browser in this
+unattended session; the integration session walks it).
+
+**Copy waiting for the owner:** the PDF labels (`Quote`, `Valid until`, `Note`, "This is a quote, not a receipt.
+Nothing has been charged."), the e-mail `quote.txt` in ten languages, the web `receipts.quote.*` keys (the dialog's effect is
+tagged legal), the mobile `myQuotes`, `quotesIntro` (legal), `noQuotes`, `quoteTitle`, `quoteValidUntil`,
+`quoteExpired`. Bosnian, Croatian and Serbian use "ponuda"; German "Kostenvoranschlag", French "devis", Italian
+"preventivo", Turkish "fiyat teklifi", Arabic "عرض سعر".
+
+**For the integration:** a clinic-wide quotes page (`GET /clinic/quotes` is served) if the owner wants one beside
+the receipts, once `App.tsx` settles; the e-mail's link `/quotes` assumes the patient app opens there (today it opens
+the app); `make gen-clients` regenerates the clients (two response descriptions and the `appointmentId` query parameter of `GET /clinic/quotes`).
 
 ## X2: clinic profile for patients abroad
 

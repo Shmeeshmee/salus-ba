@@ -251,6 +251,29 @@ class Booking {
     return response.bodyBytes;
   }
 
+  /// The patient's own treatment quotes from every clinic, newest first (docs/clinic-cms, package X1). Never charged.
+  Future<List<api.Quote>> quotes() async {
+    final list = await apiCall(() => api.BillingApi(_client).listMyQuotes());
+    return list ?? const <api.Quote>[];
+  }
+
+  /// The PDF of the patient's own quote [id], as the clinic printed it: it says it is no receipt.
+  Future<Uint8List> quotePdf(String id) async {
+    final response = await apiCall(
+      () => _client.invokeAPI(
+        '/me/quotes/${Uri.encodeComponent(id)}/pdf',
+        'GET',
+        const [],
+        null,
+        {'Accept': 'application/pdf'},
+        {},
+        null,
+      ),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return response.bodyBytes;
+  }
+
   /// The explained terms of the signed document whose Composition is [id], per field and line (SAL-13).
   Future<api.DocumentTerms?> documentTerms(String id) => apiCall(() => api.DocumentsApi(_client).getDocumentTerms(id));
 

@@ -33,6 +33,7 @@ type Receipts interface {
 	PDF(ctx context.Context, c Caller, id string) ([]byte, error)
 	Mine(ctx context.Context, c Caller) ([]Invoice, error)
 	Report(ctx context.Context, c Caller, p Period) (Report, error)
+	Quotes
 }
 
 // HTTPHandler serves the receipts on the JSON API (api/openapi.yaml, tag billing).
@@ -58,6 +59,7 @@ func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/reports/receipts", h.staff(h.report))
 	mux.HandleFunc("GET /me/receipts", h.mine)
 	mux.HandleFunc("GET /me/receipts/{id}/pdf", h.minePDF)
+	h.quoteRoutes(mux)
 }
 
 // lineJSON, receiptJSON and the request types are the ReceiptLine, Receipt, IssueReceiptRequest, ReceiptPick and

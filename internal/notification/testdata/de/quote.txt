@@ -1,0 +1,7 @@
+Subject: Ein Kostenvoranschlag zu Ihrem Termin liegt vor
+
+Ein Kostenvoranschlag für die Behandlung zu Ihrem Termin bei Synthetic clinic liegt vor. Es ist ein Angebot, keine Rechnung: Es wurde nichts berechnet.
+Datum und Uhrzeit: Montag, 7. Januar 2030, 10:00 Uhr (Europe/Sarajevo)
+
+Um ihn zu lesen, öffnen Sie die Salus-App:
+https://patient.example.test/quotes

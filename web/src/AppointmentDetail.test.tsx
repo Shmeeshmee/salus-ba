@@ -159,7 +159,32 @@ describe('AppointmentDetail', () => {
     // A fulfilled one may be corrected within 30 days (SAL-36, docs/plans/appointments.md Q6), and nothing else.
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
     expect(await screen.findByText('Fulfilled')).toBeTruthy()
-    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Issue receipt', 'Correct to no-show'])
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Issue receipt', 'Write a quote', 'Show quotes', 'Correct to no-show'])
+  })
+
+  it("lets the visit's practitioner write its patient a quote and then shows the visit's quotes (clinic-cms X1)", async () => {
+    const exam = 'c1000000-0000-4000-8000-000000000001'
+    const services = [{ id: exam, name: 'Placeholder examination', priceMinor: 5000, currency: 'BAM', modes: ['in-person'], active: true, translations: [], versionId: 1 }]
+    const sent = { id: 'f1000000-0000-4000-8000-000000000001', organizationId: org, patientId, appointmentId: id, issuedAt: '2026-11-09T08:40:00Z', validUntil: '2026-12-09T08:40:00Z', state: 'sent', note: '', currency: 'BAM', totalMinor: 5000, lines: [] }
+    let body: unknown
+    renderDetail(practitioner, {
+      [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }),
+      [patientRead]: () => outcome(404, 'not-found'),
+      'GET /clinic/services': () => Response.json(services),
+      'POST /clinic/quotes': async (r) => {
+        body = await r.json()
+        return Response.json(sent, { status: 201 })
+      },
+      'GET /clinic/quotes': () => Response.json([sent]),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Write a quote' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'New quote' }))
+    fireEvent.change(await dialog.findByLabelText('Service'), { target: { value: exam } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Send quote' }))
+    expect(await screen.findByText('The quote was sent to the patient.')).toBeTruthy()
+    expect(body).toEqual({ patientId, appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Show quotes' }))
+    expect(await screen.findByText('Sent')).toBeTruthy()
   })
 
   describe('issue receipt (clinic-cms C)', () => {

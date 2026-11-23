@@ -1,0 +1,7 @@
+È disponibile un preventivo del suo appuntamento
+
+È disponibile un preventivo di cura del suo appuntamento presso {{.Clinic}}. È un preventivo, non una fattura: non è stato addebitato nulla.
+Data e ora: {{.When}}
+
+Per leggerlo, apra l'app Salus:
+{{.Link}}

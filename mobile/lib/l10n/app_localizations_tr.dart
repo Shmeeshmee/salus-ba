@@ -2052,4 +2052,25 @@ class AppLocalizationsTr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Bu sorular artık sorulmuyor, bu yüzden yanıtları kaldırıldı: $items. Yanıtlarınızı kontrol edip yeniden gönderin.';
   }
+
+  @override
+  String get myQuotes => 'Fiyat tekliflerim';
+
+  @override
+  String get quotesIntro =>
+      'Kliniklerin randevudan sonra size gönderdiği tedavi fiyat teklifleri. Teklif bir makbuz değildir: hiçbir ücret alınmadı. Devam ederseniz ödemeyi klinikte yaparsınız.';
+
+  @override
+  String get noQuotes => 'Henüz fiyat teklifiniz yok.';
+
+  @override
+  String get quoteTitle => 'Fiyat teklifi';
+
+  @override
+  String quoteValidUntil(String date) {
+    return '$date tarihine kadar geçerli';
+  }
+
+  @override
+  String get quoteExpired => 'Süresi doldu';
 }

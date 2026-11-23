@@ -27,5 +27,9 @@
   "csv_currency": "Valuta",
   "csv_row_total": "Ukupno",
   "csv_row_payment_method": "Način plaćanja",
-  "csv_row_service": "Usluga"
+  "csv_row_service": "Usluga",
+  "quote": "Ponuda",
+  "quote_valid_until": "Važi do",
+  "quote_note": "Napomena",
+  "quote_not_receipt": "Ovo je ponuda, a ne račun. Ništa nije naplaćeno."
 }

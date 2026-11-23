@@ -1,0 +1,6 @@
+A quote from your appointment is ready
+
+A treatment quote from your appointment at {{.Clinic}} on {{.When}} is ready. It is a quote, not a bill: nothing has been charged.
+
+To read it, open the Salus app:
+{{.Link}}

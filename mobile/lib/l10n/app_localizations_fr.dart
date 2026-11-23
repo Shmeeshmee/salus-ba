@@ -2077,4 +2077,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Ces questions ne sont plus posées, leurs réponses ont donc été supprimées : $items. Vérifiez vos réponses et envoyez-les à nouveau.';
   }
+
+  @override
+  String get myQuotes => 'Mes devis';
+
+  @override
+  String get quotesIntro =>
+      'Les devis de soins que des cliniques vous ont envoyés après un rendez-vous. Un devis n\'est pas un reçu : rien n\'a été facturé. Si vous donnez suite, vous payez à la clinique.';
+
+  @override
+  String get noQuotes => 'Vous n\'avez pas encore de devis.';
+
+  @override
+  String get quoteTitle => 'Devis';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Valable jusqu\'au $date';
+  }
+
+  @override
+  String get quoteExpired => 'Expiré';
 }

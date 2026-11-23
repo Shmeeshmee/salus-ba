@@ -6775,6 +6775,8 @@ paths:
       security:
         - sessionCookie: []
         - bearerAuth: []
+      parameters:
+        - {name: appointmentId, in: query, required: false, description: Only the quotes written at this visit., schema: {type: string, format: uuid}}
       responses:
         "200":
           description: The quotes.
@@ -6817,7 +6819,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Quote"}
         "400":
-          description: "`invalid_request`, or `invalid_quote`: no lines, a service the price list does not have, or a discount above its line."
+          description: "`invalid_request`, or `invalid_quote`: no visit (a quote is written at a visit, package X1), no lines, a service the price list does not have, or a discount above its line."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -6829,7 +6831,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such patient or visit the caller may see."
+          description: "`not_found`: no such visit the caller may see, a patient not the visit's, or a patient without the clinic's active care consent."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}

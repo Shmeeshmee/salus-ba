@@ -3311,6 +3311,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'These questions are no longer asked, so their answers were removed: {items}. Check your answers and submit again.'**
   String answersNotEnabled(String items);
+
+  /// Clinic system, package X1: home button and screen title of the patient's treatment quotes.
+  ///
+  /// In en, this message translates to:
+  /// **'My quotes'**
+  String get myQuotes;
+
+  /// [legal] Clinic system, package X1: above the patient's quotes; a quote is not a receipt and charges nothing. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Treatment quotes clinics sent you after a visit. A quote is not a receipt: nothing has been charged. If you go ahead, you pay at the clinic.'**
+  String get quotesIntro;
+
+  /// Clinic system, package X1: the patient has no quotes.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no quotes yet.'**
+  String get noQuotes;
+
+  /// Clinic system, package X1: a quote's heading and its PDF file name.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote'**
+  String get quoteTitle;
+
+  /// Clinic system, package X1: the last day the quote is valid; a long date.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until {date}'**
+  String quoteValidUntil(String date);
+
+  /// Clinic system, package X1: the quote is no longer valid.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get quoteExpired;
 }
 
 class _AppLocalizationsDelegate

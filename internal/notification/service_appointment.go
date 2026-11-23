@@ -7,6 +7,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/organization"
 )
 
@@ -46,6 +47,9 @@ var (
 	}
 	// signedEmail applies in every status: a document is signed during the consultation or after it.
 	signedEmail = appointmentEmail{agent: composition.SignedEmailArgs{}.Kind(), template: "signed"}
+	// quoteEmail tells the patient a treatment quote from the visit is in the app (clinic-cms X1), in every status:
+	// a quote is written at the visit or after it. It names no service and no amount.
+	quoteEmail = appointmentEmail{agent: invoice.QuoteEmailArgs{}.Kind(), template: "quote", path: "/quotes"}
 )
 
 // appointmentEmail is one of the appointment e-mails: sent only while the appointment is in the status it
@@ -53,6 +57,7 @@ var (
 type appointmentEmail struct {
 	agent             string
 	template          string
+	path              string // the app's page the e-mail links to; "" for the appointments
 	applies           appointment.Status
 	asksQuestionnaire bool
 }
@@ -80,6 +85,12 @@ func (s *Service) SendAppointmentRescheduled(ctx context.Context, id, org string
 // content is never in the e-mail (docs/consultation/SPEC.md "Patient documents").
 func (s *Service) SendDocumentSigned(ctx context.Context, id, org string) error {
 	return s.sendAppointment(ctx, signedEmail, id, org)
+}
+
+// SendQuote tells the patient of the appointment id of the clinic org that a treatment quote from it is in the app
+// (the quote_email job), whatever the appointment's status: which services or what amount is never in the e-mail.
+func (s *Service) SendQuote(ctx context.Context, id, org string) error {
+	return s.sendAppointment(ctx, quoteEmail, id, org)
 }
 
 // SendAppointmentReminder sends the reminder of the appointment id of the clinic org to its patient, 24 hours
@@ -125,7 +136,11 @@ func (s *Service) sendAppointment(ctx context.Context, e appointmentEmail, id, o
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)
 	}
-	data := whereToCome(letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + "/appointments", Questionnaire: outstanding}, n.Appointment.Mode, clinic)
+	path := e.path
+	if path == "" {
+		path = "/appointments"
+	}
+	data := whereToCome(letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + path, Questionnaire: outstanding}, n.Appointment.Mode, clinic)
 	msg, err := l.message(to, e.template, data)
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)

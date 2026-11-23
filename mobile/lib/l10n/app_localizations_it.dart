@@ -2067,4 +2067,25 @@ class AppLocalizationsIt extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: $items. Controlli le risposte e invii di nuovo.';
   }
+
+  @override
+  String get myQuotes => 'I miei preventivi';
+
+  @override
+  String get quotesIntro =>
+      'Preventivi di cura che le cliniche le hanno inviato dopo un appuntamento. Un preventivo non è una ricevuta: non è stato addebitato nulla. Se decide di procedere, paga presso la clinica.';
+
+  @override
+  String get noQuotes => 'Non ha ancora preventivi.';
+
+  @override
+  String get quoteTitle => 'Preventivo';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Valido fino al $date';
+  }
+
+  @override
+  String get quoteExpired => 'Scaduto';
 }

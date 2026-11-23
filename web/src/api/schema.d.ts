@@ -13912,7 +13912,10 @@ export interface operations {
     };
     listClinicQuotes: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Only the quotes written at this visit. */
+                appointmentId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -13959,7 +13962,7 @@ export interface operations {
                     "application/json": components["schemas"]["Quote"];
                 };
             };
-            /** @description `invalid_request`, or `invalid_quote`: no lines, a service the price list does not have, or a discount above its line. */
+            /** @description `invalid_request`, or `invalid_quote`: no visit (a quote is written at a visit, package X1), no lines, a service the price list does not have, or a discount above its line. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13978,7 +13981,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such patient or visit the caller may see. */
+            /** @description `not_found`: no such visit the caller may see, a patient not the visit's, or a patient without the clinic's active care consent. */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -532,5 +532,11 @@
   "receiptReversal": "Storno ranijeg računa",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Odabrat ću u ustanovi",
-  "answersNotEnabled": "Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: {items}. Provjerite odgovore i ponovo pošaljite."
+  "answersNotEnabled": "Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: {items}. Provjerite odgovore i ponovo pošaljite.",
+  "myQuotes": "Moje ponude",
+  "quotesIntro": "Ponude za liječenje koje su vam ustanove poslale nakon termina. Ponuda nije račun: ništa nije naplaćeno. Ako nastavite, plaćate u ustanovi.",
+  "noQuotes": "Još nemate ponuda.",
+  "quoteTitle": "Ponuda",
+  "quoteValidUntil": "Vrijedi do {date}",
+  "quoteExpired": "Istekla"
 }

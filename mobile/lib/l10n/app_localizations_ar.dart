@@ -2118,4 +2118,25 @@ class AppLocalizationsAr extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'لم تعد هذه الأسئلة مطروحة، لذلك حُذفت إجاباتها: $items. راجع إجاباتك وأرسلها مرة أخرى.';
   }
+
+  @override
+  String get myQuotes => 'عروض الأسعار';
+
+  @override
+  String get quotesIntro =>
+      'عروض أسعار العلاج التي أرسلتها إليك العيادات بعد موعد. عرض السعر ليس إيصالًا: لم يتم تحصيل أي مبلغ. إذا قررت المتابعة، تدفع في العيادة.';
+
+  @override
+  String get noQuotes => 'ليس لديك عروض أسعار بعد.';
+
+  @override
+  String get quoteTitle => 'عرض سعر';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'صالح حتى $date';
+  }
+
+  @override
+  String get quoteExpired => 'منتهي الصلاحية';
 }

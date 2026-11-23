@@ -21,6 +21,8 @@ type stub struct {
 	id      string
 	caller  invoice.Caller
 	method  invoice.PaymentMethod
+	quote   invoice.Quote
+	qdraft  invoice.QuoteDraft
 	receipt invoice.Invoice
 	report  invoice.Report
 }

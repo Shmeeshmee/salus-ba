@@ -532,5 +532,11 @@
   "receiptReversal": "Storno di una ricevuta precedente",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Sceglierò presso la struttura",
-  "answersNotEnabled": "Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: {items}. Controlli le risposte e invii di nuovo."
+  "answersNotEnabled": "Queste domande non vengono più poste, quindi le loro risposte sono state rimosse: {items}. Controlli le risposte e invii di nuovo.",
+  "myQuotes": "I miei preventivi",
+  "quotesIntro": "Preventivi di cura che le cliniche le hanno inviato dopo un appuntamento. Un preventivo non è una ricevuta: non è stato addebitato nulla. Se decide di procedere, paga presso la clinica.",
+  "noQuotes": "Non ha ancora preventivi.",
+  "quoteTitle": "Preventivo",
+  "quoteValidUntil": "Valido fino al {date}",
+  "quoteExpired": "Scaduto"
 }

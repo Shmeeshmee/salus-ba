@@ -1,0 +1,7 @@
+Ponuda s vašeg termina spremna je
+
+Ponuda za liječenje s vašeg termina u ustanovi {{.Clinic}} spremna je. To je ponuda, a ne račun: ništa nije naplaćeno.
+Datum i vrijeme: {{.When}}
+
+Za čitanje otvorite aplikaciju Salus:
+{{.Link}}

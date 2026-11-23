@@ -1,0 +1,7 @@
+Subject: Ponuda s vašeg termina spremna je
+
+Ponuda za liječenje s vašeg termina u ustanovi Synthetic clinic spremna je. To je ponuda, a ne račun: ništa nije naplaćeno.
+Datum i vrijeme: ponedjeljak, 7. siječnja 2030. u 10:00 (Europe/Sarajevo)
+
+Za čitanje otvorite aplikaciju Salus:
+https://patient.example.test/quotes
