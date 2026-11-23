@@ -148,7 +148,7 @@ func (s *Service) IsClinicAdmin(ctx context.Context, sess Session) (bool, error)
 }
 
 // ClinicMember returns what the account signed in with sess is in the session's clinic: its admin, its
-// practitioner, or nothing (a patient, another clinic's account, an account that is gone). Not audited, like
+// practitioner, its receptionist, or nothing (a patient, another clinic's account, an account that is gone). Not audited, like
 // IsClinicAdmin.
 func (s *Service) ClinicMember(ctx context.Context, sess Session) (Member, error) {
 	a, err := s.repo.ByID(ctx, sess.AccountID)
@@ -163,6 +163,8 @@ func (s *Service) ClinicMember(ctx context.Context, sess Session) (Member, error
 		return Member{Admin: true, TermReviewer: a.TermReviewer}, nil
 	case a.Role == RolePractitioner:
 		return Member{PractitionerID: a.PractitionerID, TermReviewer: a.TermReviewer}, nil
+	case a.Role == RoleReception:
+		return Member{Reception: true}, nil // never an admin, a practitioner or a reviewer of the term list
 	}
 	return Member{}, nil
 }
@@ -325,8 +327,8 @@ func (s *Service) setUpAccount(ctx context.Context, a Account, inv Invite, secre
 	return s.repo.SetPractitioner(ctx, a.ID, p.ID)
 }
 
-// validInvite normalises in and checks it: a plain e-mail; an admin, or a practitioner with a given and a
-// family name.
+// validInvite normalises in and checks it: a plain e-mail; an admin or a receptionist, or a practitioner with a
+// given and a family name.
 func validInvite(in Invite) (Invite, error) {
 	in.Email = normaliseEmail(in.Email)
 	in.GivenName, in.FamilyName = strings.TrimSpace(in.GivenName), strings.TrimSpace(in.FamilyName)
@@ -341,6 +343,10 @@ func validInvite(in Invite) (Invite, error) {
 	case RolePractitioner:
 		if !validName(in.GivenName) || !validName(in.FamilyName) {
 			return Invite{}, ErrInvalidName
+		}
+	case RoleReception:
+		if err := validReception(in); err != nil {
+			return Invite{}, err
 		}
 	default:
 		return Invite{}, ErrInvalidRole

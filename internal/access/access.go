@@ -47,6 +47,9 @@ const (
 	RolePatient Role = iota + 1
 	RolePractitioner
 	RoleAdmin
+	// RoleReception is the clinic's front desk (docs/clinic-cms, F1): Desk's view of a patient, and no rule of the care
+	// record (staffOf leaves it out).
+	RoleReception
 )
 
 // Viewer is who asks.

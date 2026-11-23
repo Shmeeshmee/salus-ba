@@ -152,6 +152,18 @@ describe('App', () => {
     expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
   })
 
+  it('gives a receptionist no clinical screen and no link to one (clinic-cms F1)', async () => {
+    const reception: Account = { ...admin, role: 'reception' }
+    for (const path of ['/', '/availability', '/practitioners', '/questionnaires', '/waitlist', '/analytics', '/receipts', '/clinic', '/appointments/x']) {
+      const { requests } = renderAt(path, staff(reception))
+      expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+      expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull()
+      expect(requests.filter((r) => !r.url.endsWith('/auth/me')).map((r) => r.url)).toEqual([])
+      cleanup()
+    }
+  })
+
   it('says when a page does not exist', async () => {
     renderAt('/nowhere', staff(admin))
 

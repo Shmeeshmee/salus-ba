@@ -2555,3 +2555,26 @@ F1, F2, O1, O2, X1 and X2 fill them, and each of those adds its own block here. 
 | A forged "who did it" | `appointment_guard_staff` and `consent_guard_in_person`: the booking and recording account is staff of the row's clinic, in its scope; a patient never marks an arrival |
 | A sent quote changed | No `UPDATE` grant; `quote_line_guard_insert` adds lines only in the quote's own transaction, from its clinic's price list |
 | Signup enumerates e-mails | `POST /signup` answers 202 whatever the address (O1, tested); rate limited |
+
+### Package F1: the reception role and what it may see (no migration)
+
+**Processing added.** An admin invites a receptionist by e-mail (`POST /invites`, `role: reception`; no name, no
+Practitioner); the account signs in with a password and TOTP, as all staff, with a 12-hour session. The account holds
+the e-mail and the languages, as any staff account; nothing new is collected.
+
+**What a receptionist sees.** `access.Desk` is W2's rule (name, birth date, phone, appointments with their service and
+visit type, for the clinic's patients with an active care consent or a visit before a revocation), for F2's desk routes
+to use. Every other rule of `access` refuses a receptionist (`staffOf` leaves the role out; a test runs every rule over
+every consent, appointment and clinic). In `internal/api` the appointment caller gives a receptionist no clinic, so the
+care record's domains built on it (appointments, documents, receipts, the waitlist) refuse them as a stranger.
+
+**Proof.** `internal/api/reception_routes_test.go` classifies every operation of `api/openapi.yaml` (public, own, desk,
+refused, a patient's own, machine), fails on an operation that is not classified, and sends each as a signed-in
+receptionist against a clinic with a patient, a consent and a booked visit: a refused route answers 403 or 404 (or a
+malformed-request 400 before any access), the same for the clinic's own appointment or patient as for an unknown id,
+with none of the patient's data; refusals are audited with the receptionist as the agent.
+
+| Risk | Measure |
+| --- | --- |
+| A new route opens clinical content to the desk | The route test fails until the route is classified |
+| A receptionist tells a real patient from an unknown id | Refusals compared byte for byte with an unknown id's |

@@ -105,12 +105,13 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
   }
   const account = me.account
   const staff = account.role !== 'patient'
+  const clinical = staff && account.role !== 'reception' // the front desk sees no clinical content (clinic-cms F1)
   return (
     <>
       <header className="bar">
         <Logo />
-        {staff && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} reviewer={account.termReviewer === true} />}
-        {staff && <Cheatsheet api={api} />}
+        {clinical && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} reviewer={account.termReviewer === true} />}
+        {clinical && <Cheatsheet api={api} />}
         {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
           <SignOutIcon />
@@ -207,6 +208,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (account.role === 'patient') {
     return <p className="panel">{t('shell.patientsUseApp')}</p>
   }
+  if (account.role === 'reception') return <p className="panel">{t('shell.notFound')}</p> // the desk (clinic-cms F3) opens here
   const call = callPath.exec(path)
   if (call) return <Call api={api} fhir={fhir} id={decodeURIComponent(call[1])} />
   const appointment = appointmentPath.exec(path)
