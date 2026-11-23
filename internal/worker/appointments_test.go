@@ -19,6 +19,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
@@ -203,6 +204,30 @@ func TestNotifier_SendsTheDocumentSignedEmailToThePatient(t *testing.T) {
 		}
 	}
 	unknown := composition.SignedEmailArgs{AppointmentID: "e9000000-0000-4000-8000-0000000000e9", OrganizationID: clinicID}
+	if state := runEmailJob(t, app, unknown); state != rivertype.JobStateCancelled {
+		t.Errorf("unknown appointment: job state %s, want cancelled", state)
+	}
+}
+
+// clinic-cms X1: the notifier tells the patient a treatment quote from their visit is in the app, linking to the app's
+// quotes, with no service or amount; an unknown appointment cancels the job.
+func TestNotifier_SendsTheQuoteEmailToThePatient(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	b := seedBooking(t, owner)
+	if state := runEmailJob(t, app, invoice.QuoteEmailArgs{AppointmentID: b.past, OrganizationID: clinicID}); state != rivertype.JobStateCompleted {
+		t.Fatalf("job state %s, want completed", state)
+	}
+	text := mailpitText(t, b.email)
+	if !strings.Contains(text, "A treatment quote from your appointment at Synthetic clinic") || !strings.Contains(text, "https://patient.example.test/quotes") {
+		t.Errorf("the e-mail lacks the clinic or the link:\n%s", text)
+	}
+	for _, never := range []string{"Ana", "Cy", b.past, "BAM"} {
+		if strings.Contains(text, never) {
+			t.Errorf("the e-mail holds %q:\n%s", never, text)
+		}
+	}
+	unknown := invoice.QuoteEmailArgs{AppointmentID: "e9000000-0000-4000-8000-0000000000e9", OrganizationID: clinicID}
 	if state := runEmailJob(t, app, unknown); state != rivertype.JobStateCancelled {
 		t.Errorf("unknown appointment: job state %s, want cancelled", state)
 	}

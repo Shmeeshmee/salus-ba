@@ -88,5 +88,25 @@
   "practice.video": "Video",
   "practice.former": "Former practitioner",
   "practice.loadFailed": "The report could not be loaded. Reload the page to try again.",
-  "practice.inPerson": "At the clinic"
+  "practice.inPerson": "At the clinic",
+  "quote.write": "Write a quote",
+  "quote.show": "Show quotes",
+  "quote.hide": "Hide quotes",
+  "quote.dialogTitle": "New quote",
+  "quote.note": "Note for the patient",
+  "quote.effect": {
+    "defaultMessage": "The patient gets an e-mail and sees the quote in the app. It is valid for 30 days. A quote is not a receipt: nothing is charged, and a sent quote cannot be changed.",
+    "description": "legal"
+  },
+  "quote.send": "Send quote",
+  "quote.sending": "Sending…",
+  "quote.invalid": "Check the lines: each needs a service, a quantity of at least 1 and a discount no larger than its line.",
+  "quote.refused": "A quote cannot be sent to this patient from this visit.",
+  "quote.sent": "The quote was sent to the patient.",
+  "quote.empty": "No quotes from this visit.",
+  "quote.loadFailed": "The quotes could not be loaded. Reload the page to try again.",
+  "quote.state.sent": "Sent",
+  "quote.state.expired": "Expired",
+  "quote.item": "{issued}: {total}, valid until {until}",
+  "quote.noServices": "The price list has no active services. Add one before writing a quote."
 }

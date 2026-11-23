@@ -12,6 +12,7 @@ import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
 import { NoShowCorrection, NoShowFlag } from './NoShows'
+import { QuoteDialog, VisitQuotes } from './QuoteDialog'
 import { ReceiptDialog } from './ReceiptDialog'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
@@ -141,6 +142,9 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       <ChangesToggle api={api} id={appt.id} zone={zone} />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
       {(own || admin) && appt.status !== 'cancelled' && appt.status !== 'noshow' && <IssueReceipt api={api} appointmentId={appt.id} serviceId={serviceOf(appt)} />}
+      {(own || admin) && patientId && appt.status !== 'cancelled' && appt.status !== 'noshow' && (
+        <WriteQuote api={api} appointmentId={appt.id} patientId={patientId} serviceId={serviceOf(appt)} zone={zone} />
+      )}
       {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}
     </>
   )
@@ -171,6 +175,45 @@ function IssueReceipt({ api, appointmentId, serviceId }: { api: ApiClient; appoi
         />
       )}
     </div>
+  )
+}
+
+// WriteQuote opens the quote dialog for this visit (clinic-cms X1), for the clinic's admin and the visit's own
+// practitioner, and shows the visit's quotes on request: opening a booking does not read (and audit) its quotes. The
+// server decides again who may send one.
+function WriteQuote({ api, appointmentId, patientId, serviceId, zone }: { api: ApiClient; appointmentId: string; patientId: string; serviceId?: string; zone: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const [shown, setShown] = useState(false)
+  const [sent, setSent] = useState(0) // reloads the shown list after a quote is sent
+  const [notice, setNotice] = useState<string>()
+  return (
+    <>
+      <div className="actions quote">
+        <button type="button" onClick={() => setOpen(true)}>
+          {t('receipts.quote.write')}
+        </button>
+        <button type="button" className="quiet" aria-expanded={shown} onClick={() => setShown(!shown)}>
+          {t(shown ? 'receipts.quote.hide' : 'receipts.quote.show')}
+        </button>
+        <Notice message={notice} />
+      </div>
+      {shown && <VisitQuotes key={sent} api={api} appointmentId={appointmentId} zone={zone} />}
+      {open && (
+        <QuoteDialog
+          api={api}
+          appointmentId={appointmentId}
+          patientId={patientId}
+          serviceId={serviceId}
+          onClose={() => setOpen(false)}
+          onSent={() => {
+            setOpen(false)
+            setSent((n) => n + 1)
+            setNotice(t('receipts.quote.sent'))
+          }}
+        />
+      )}
+    </>
   )
 }
 

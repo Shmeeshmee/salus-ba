@@ -366,8 +366,9 @@ func clinicWave3Rules() []Rule {
 		{
 			Table: "quote",
 			Basis: "A treatment quote the clinic gives its patient (GDPR Art. 6(1)(b), Art. 9(2)(h): which care at what price is " +
-				"health data): kept as the clinic's pre-contractual record; the period needs a legal decision before production, " +
-				"and the rule that removes quotes comes with its applier (docs/clinic-cms, package X1)",
+				"health data): kept as the clinic's pre-contractual record. No period without a legal decision (docs/clinic-cms, " +
+				"X1, waiting on a person): until it is taken nothing removes a quote, and the rule that does comes with its applier " +
+				"and the DELETE grant in its own migration",
 			Then: ThenKeep,
 		},
 		{

@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -121,6 +122,9 @@ func addEmailWorkers(workers *river.Workers, mail *notification.Service, members
 	}})
 	river.AddWorker(workers, &appointmentEmailWorker[composition.SignedEmailArgs]{send: func(ctx context.Context, a composition.SignedEmailArgs) error {
 		return mail.SendDocumentSigned(ctx, a.AppointmentID, a.OrganizationID)
+	}})
+	river.AddWorker(workers, &appointmentEmailWorker[invoice.QuoteEmailArgs]{send: func(ctx context.Context, a invoice.QuoteEmailArgs) error {
+		return mail.SendQuote(ctx, a.AppointmentID, a.OrganizationID)
 	}})
 }
 

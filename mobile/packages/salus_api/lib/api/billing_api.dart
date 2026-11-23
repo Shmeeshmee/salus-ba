@@ -987,7 +987,13 @@ class BillingApi {
   /// Newest first, with their state. For the clinic's admin and its practitioners (their own patients'). Built in package X1. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] appointmentId:
+  ///   Only the quotes written at this visit.
   Future<Response> listClinicQuotesWithHttpInfo({
+    String? appointmentId,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -999,6 +1005,10 @@ class BillingApi {
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
+
+    if (appointmentId != null) {
+      queryParams.addAll(_queryParams('', 'appointmentId', appointmentId));
+    }
 
     const contentTypes = <String>[];
 
@@ -1017,10 +1027,17 @@ class BillingApi {
   /// The clinic's treatment quotes
   ///
   /// Newest first, with their state. For the clinic's admin and its practitioners (their own patients'). Built in package X1. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] appointmentId:
+  ///   Only the quotes written at this visit.
   Future<List<Quote>?> listClinicQuotes({
+    String? appointmentId,
     Future<void>? abortTrigger,
   }) async {
     final response = await listClinicQuotesWithHttpInfo(
+      appointmentId: appointmentId,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

@@ -37,3 +37,19 @@ func (j *riverJobs) EnqueueFiscalize(ctx context.Context, invoiceID, org string)
 	}
 	return nil
 }
+
+// emailQueue is the queue the notifier works (ADR 0007: e-mail is sent by the notifier).
+const emailQueue = "email"
+
+// EnqueueQuoteEmail enqueues quote_email on the email queue in the transaction in ctx.
+func (j *riverJobs) EnqueueQuoteEmail(ctx context.Context, appointmentID, org string) error {
+	tx, ok := postgres.Tx(ctx)
+	if !ok {
+		return postgres.ErrNoTx
+	}
+	args := QuoteEmailArgs{AppointmentID: appointmentID, OrganizationID: org}
+	if _, err := j.client.InsertTx(ctx, tx, args, &river.InsertOpts{Queue: emailQueue}); err != nil {
+		return fmt.Errorf("invoice: enqueue %s: %w", args.Kind(), err)
+	}
+	return nil
+}

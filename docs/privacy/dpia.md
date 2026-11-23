@@ -2555,3 +2555,25 @@ F1, F2, O1, O2, X1 and X2 fill them, and each of those adds its own block here. 
 | A forged "who did it" | `appointment_guard_staff` and `consent_guard_in_person`: the booking and recording account is staff of the row's clinic, in its scope; a patient never marks an arrival |
 | A sent quote changed | No `UPDATE` grant; `quote_line_guard_insert` adds lines only in the quote's own transaction, from its clinic's price list |
 | Signup enumerates e-mails | `POST /signup` answers 202 whatever the address (O1, tested); rate limited |
+
+## Package X1: treatment quotes (docs/clinic-cms)
+
+- **What is processed.** A quote names the services a clinic offered its patient at a visit, with prices, discounts and
+  a note from staff: health data (Art. 9), the basis Art. 6(1)(b) (steps before a contract at the patient's request)
+  and Art. 9(2)(h). Written only at a visit, by the clinic's admin or the visit's practitioner, for the visit's patient
+  while the clinic holds their active care consent (checked in the service and by `quote_clinic`). No new field: the
+  tables are 3.0's.
+- **Who sees it.** The patient (`/me/quotes`, the PDF) and their clinic: its admin every quote, a practitioner the
+  quotes they sent. Every list, read, PDF and send is an `AuditEvent` (`Quote/<id>`), also when refused.
+- **The e-mail.** `quote_email` carries the visit's and the clinic's ids only. The e-mail says a quote from the visit
+  at the clinic is in the app and that nothing was charged; it names no service, amount, practitioner or note.
+- **Not a receipt.** A quote takes no number from `invoice_sequence`, enqueues no `invoice_fiscalize` job, never
+  reaches the tax authority, the receipts report or `/me/receipts` (tested at the service and against the database).
+- **Retention.** Kept, with no period until a legal decision (waiting on a person, `PROGRESS.md`); the rule that
+  removes quotes comes with its applier and a `DELETE` grant in its own migration.
+
+| Risk | Measure |
+| --- | --- |
+| A quote sent to a patient who revoked their care consent | The service checks the active consent; `quote_clinic` refuses the row |
+| A quote mistaken for a bill | The PDF, the e-mail, the app and the dialog say it is a quote, not a receipt, and nothing was charged |
+| The e-mail discloses care | It names the clinic and the visit's time only, as the other appointment e-mails |

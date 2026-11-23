@@ -296,3 +296,158 @@ func text(u pgtype.UUID) string {
 func optional(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
 
 func timestamp(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
+
+func (r *postgresRepository) InsertQuote(ctx context.Context, q Quote) (Quote, error) {
+	p := invoicedb.InsertQuoteParams{
+		IssuedAt: timestamp(q.IssuedAt), ValidUntil: timestamp(q.ValidUntil), TotalMinor: q.TotalMinor, Currency: q.Currency, Note: q.Note,
+	}
+	for _, f := range []struct {
+		to       *pgtype.UUID
+		id       string
+		required bool
+	}{
+		{&p.OrganizationID, q.OrganizationID, true}, {&p.PatientID, q.PatientID, true},
+		{&p.CreatedByAccountID, q.CreatedByAccountID, true}, {&p.AppointmentID, q.AppointmentID, false},
+	} {
+		if f.id == "" && !f.required {
+			continue
+		}
+		u, ok := parse(f.id)
+		if !ok {
+			return Quote{}, ErrInvalid // an id that is no UUID names nothing
+		}
+		*f.to = u
+	}
+	db := r.q(ctx)
+	id, err := db.InsertQuote(ctx, p)
+	if err != nil {
+		return Quote{}, quoteInsertError(err)
+	}
+	q.ID = id.String()
+	q.Lines = append([]Line(nil), q.Lines...)
+	for i, l := range q.Lines {
+		lp := invoicedb.InsertQuoteLineParams{
+			QuoteID: id, Position: int32(i + 1), Name: l.Name, Quantity: l.Quantity, UnitPriceMinor: l.UnitPriceMinor,
+			DiscountMinor: l.DiscountMinor, TotalMinor: l.TotalMinor,
+		}
+		if l.ChargeItemDefinitionID != "" {
+			u, ok := parse(l.ChargeItemDefinitionID)
+			if !ok {
+				return Quote{}, ErrInvalid
+			}
+			lp.ChargeItemDefinitionID = u
+		}
+		if l.VATRateBP != nil {
+			lp.VatRateBp = pgtype.Int4{Int32: *l.VATRateBP, Valid: true}
+		}
+		lineID, err := db.InsertQuoteLine(ctx, lp)
+		if err != nil {
+			return Quote{}, quoteInsertError(err)
+		}
+		q.Lines[i].ID = lineID.String()
+	}
+	return q, nil
+}
+
+// quoteInsertError maps the schema's refusals of a quote: a patient without the clinic's active care consent or an
+// account not the clinic's (row-level security), and a line or a visit that is not the clinic's.
+func quoteInsertError(err error) error {
+	var pgErr *pgconn.PgError
+	switch {
+	case !errors.As(err, &pgErr):
+		return err
+	case pgErr.Code == "42501": // row-level security: the quote_clinic policy
+		return ErrNotFound
+	case pgErr.Code == "23503", pgErr.Code == "23514": // a foreign key, a check or the line's guard
+		return ErrInvalid
+	}
+	return err
+}
+
+func (r *postgresRepository) QuoteByID(ctx context.Context, id string) (Quote, error) {
+	u, ok := parse(id)
+	if !ok {
+		return Quote{}, ErrNotFound
+	}
+	row, err := r.q(ctx).QuoteByID(ctx, u)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Quote{}, ErrNotFound
+	case err != nil:
+		return Quote{}, err
+	}
+	out, err := r.quoteLines(ctx, []Quote{fromQuoteRow(row)})
+	if err != nil {
+		return Quote{}, err
+	}
+	return out[0], nil
+}
+
+func (r *postgresRepository) QuotesOf(ctx context.Context, org string) ([]Quote, error) {
+	u, ok := parse(org)
+	if !ok {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).QuotesOfOrganization(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	return r.quotes(ctx, rows)
+}
+
+func (r *postgresRepository) QuotesOfPatient(ctx context.Context, patientID string) ([]Quote, error) {
+	u, ok := parse(patientID)
+	if !ok {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).QuotesOfPatient(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	return r.quotes(ctx, rows)
+}
+
+// quotes maps the collected rows and reads their lines.
+func (r *postgresRepository) quotes(ctx context.Context, rows []invoicedb.Quote) ([]Quote, error) {
+	out := make([]Quote, len(rows))
+	for i, row := range rows {
+		out[i] = fromQuoteRow(row)
+	}
+	return r.quoteLines(ctx, out)
+}
+
+// quoteLines returns the quotes with their lines, read in one query after the quotes' rows were collected.
+func (r *postgresRepository) quoteLines(ctx context.Context, list []Quote) ([]Quote, error) {
+	if len(list) == 0 {
+		return list, nil
+	}
+	ids, at := make([]pgtype.UUID, len(list)), make(map[string]int, len(list))
+	for i, q := range list {
+		ids[i], _ = parse(q.ID)
+		at[q.ID] = i
+	}
+	lines, err := r.q(ctx).QuoteLines(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range lines {
+		q := &list[at[l.QuoteID.String()]]
+		line := Line{
+			ID: l.ID.String(), ChargeItemDefinitionID: text(l.ChargeItemDefinitionID), Name: l.Name, UnitPriceMinor: l.UnitPriceMinor,
+			DiscountMinor: l.DiscountMinor, TotalMinor: l.TotalMinor, Quantity: l.Quantity,
+		}
+		if l.VatRateBp.Valid {
+			line.VATRateBP = &l.VatRateBp.Int32
+		}
+		q.Lines = append(q.Lines, line)
+	}
+	return list, nil
+}
+
+func fromQuoteRow(q invoicedb.Quote) Quote {
+	return Quote{
+		IssuedAt: q.IssuedAt.Time, ValidUntil: q.ValidUntil.Time, ID: q.ID.String(), OrganizationID: q.OrganizationID.String(),
+		PatientID: q.PatientID.String(), AppointmentID: text(q.AppointmentID), CreatedByAccountID: q.CreatedByAccountID.String(),
+		Note: q.Note, Currency: q.Currency, TotalMinor: q.TotalMinor,
+	}
+}

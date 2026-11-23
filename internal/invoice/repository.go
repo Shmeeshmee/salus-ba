@@ -34,10 +34,24 @@ type Repository interface {
 	SetFiscalized(ctx context.Context, id string, f fiscal.Fiscalized) error
 	// SetFailed marks a pending receipt's report failed; any other receipt is left as it is.
 	SetFailed(ctx context.Context, id string) error
+
+	// InsertQuote stores the quote and its lines, in their order, and returns it with their ids. It takes no number
+	// and touches no receipt. ErrInvalid for a line the clinic's price list does not hold or a visit not the patient's
+	// at the clinic; ErrNotFound for a patient without the clinic's active care consent (row-level security).
+	InsertQuote(ctx context.Context, q Quote) (Quote, error)
+	// QuoteByID returns the quote with its lines, or ErrNotFound (also outside the scope, or for an id that is no UUID).
+	QuoteByID(ctx context.Context, id string) (Quote, error)
+	// QuotesOf returns the clinic org's quotes, newest first, with their lines.
+	QuotesOf(ctx context.Context, org string) ([]Quote, error)
+	// QuotesOfPatient returns the patient's quotes, newest first, with their lines.
+	QuotesOfPatient(ctx context.Context, patientID string) ([]Quote, error)
 }
 
 // Jobs enqueues the receipt's fiscal report in the transaction in ctx (River's InsertTx): invoice_fiscalize, opaque
 // ids only.
 type Jobs interface {
 	EnqueueFiscalize(ctx context.Context, invoiceID, org string) error
+	// EnqueueQuoteEmail enqueues quote_email on the email queue in the transaction in ctx: the patient of the visit
+	// appointmentID hears that a quote is in the app.
+	EnqueueQuoteEmail(ctx context.Context, appointmentID, org string) error
 }

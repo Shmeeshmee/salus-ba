@@ -152,6 +152,26 @@ type Quote struct {
 	CreatedByAccountID string
 	Note               string
 	Currency           string
+	State              QuoteState // read, never stored: from ValidUntil and the clock
 	Lines              []Line
 	TotalMinor         int64
 }
+
+// QuoteState is where a quote stands: sent until it is valid no more, then expired.
+type QuoteState string
+
+// The quote states.
+const (
+	QuoteSent    QuoteState = "sent"
+	QuoteExpired QuoteState = "expired"
+)
+
+// QuoteEmailArgs is the quote_email job on the notifier's email queue, enqueued with every quote: the patient's
+// e-mail that a quote from the visit is in the app, which names no service and no amount. Opaque ids only.
+type QuoteEmailArgs struct {
+	AppointmentID  string `json:"appointment_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (QuoteEmailArgs) Kind() string { return "quote_email" }

@@ -88,5 +88,25 @@
   "practice.video": "Video",
   "practice.former": "Bivši doktor",
   "practice.loadFailed": "Izvještaj se nije mogao učitati. Ponovo učitajte stranicu i pokušajte opet.",
-  "practice.inPerson": "U klinici"
+  "practice.inPerson": "U klinici",
+  "quote.write": "Napiši ponudu",
+  "quote.show": "Prikaži ponude",
+  "quote.hide": "Sakrij ponude",
+  "quote.dialogTitle": "Nova ponuda",
+  "quote.note": "Napomena za pacijenta",
+  "quote.effect": {
+    "defaultMessage": "Pacijent dobija e-mail i vidi ponudu u aplikaciji. Ponuda vrijedi 30 dana. Ponuda nije račun: ništa se ne naplaćuje, a poslana ponuda se ne može mijenjati.",
+    "description": "legal"
+  },
+  "quote.send": "Pošalji ponudu",
+  "quote.sending": "Slanje…",
+  "quote.invalid": "Provjerite stavke: svaka treba uslugu, količinu od najmanje 1 i popust koji nije veći od stavke.",
+  "quote.refused": "Ovom pacijentu se ne može poslati ponuda s ovog termina.",
+  "quote.sent": "Ponuda je poslana pacijentu.",
+  "quote.empty": "Nema ponuda s ovog termina.",
+  "quote.loadFailed": "Ponude se nisu mogle učitati. Ponovo učitajte stranicu i pokušajte opet.",
+  "quote.state.sent": "Poslana",
+  "quote.state.expired": "Istekla",
+  "quote.item": "{issued}: {total}, vrijedi do {until}",
+  "quote.noServices": "Cjenovnik nema aktivnih usluga. Dodajte jednu prije pisanja ponude."
 }

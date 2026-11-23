@@ -2078,4 +2078,25 @@ class AppLocalizationsDe extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: $items. Prüfen Sie Ihre Antworten und senden Sie sie erneut.';
   }
+
+  @override
+  String get myQuotes => 'Meine Kostenvoranschläge';
+
+  @override
+  String get quotesIntro =>
+      'Kostenvoranschläge für Behandlungen, die Ihnen Kliniken nach einem Termin geschickt haben. Ein Kostenvoranschlag ist keine Rechnung: Es wurde nichts berechnet. Wenn Sie fortfahren, bezahlen Sie in der Klinik.';
+
+  @override
+  String get noQuotes => 'Sie haben noch keine Kostenvoranschläge.';
+
+  @override
+  String get quoteTitle => 'Kostenvoranschlag';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Gültig bis $date';
+  }
+
+  @override
+  String get quoteExpired => 'Abgelaufen';
 }

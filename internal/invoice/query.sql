@@ -66,3 +66,32 @@ WHERE id = @id AND fiscal_status IN ('pending', 'failed');
 
 -- name: SetInvoiceFailed :execrows
 UPDATE invoice SET fiscal_status = 'failed' WHERE id = @id AND fiscal_status = 'pending';
+
+-- Treatment quotes (docs/clinic-cms, package X1): their own tables, never numbered and never reported.
+
+-- name: InsertQuote :one
+INSERT INTO quote (organization_id, patient_id, appointment_id, created_by_account_id, issued_at, valid_until,
+                   total_minor, currency, note)
+VALUES (@organization_id, @patient_id, @appointment_id, @created_by_account_id, @issued_at, @valid_until,
+        @total_minor, @currency, @note)
+RETURNING id;
+
+-- name: InsertQuoteLine :one
+INSERT INTO quote_line (quote_id, position, charge_item_definition_id, name, quantity, unit_price_minor,
+                        discount_minor, vat_rate_bp, total_minor)
+VALUES (@quote_id, @position, @charge_item_definition_id, @name, @quantity, @unit_price_minor, @discount_minor,
+        @vat_rate_bp, @total_minor)
+RETURNING id;
+
+-- name: QuoteByID :one
+SELECT * FROM quote WHERE id = @id;
+
+-- name: QuotesOfOrganization :many
+SELECT * FROM quote WHERE organization_id = @organization_id ORDER BY issued_at DESC, id;
+
+-- name: QuotesOfPatient :many
+SELECT * FROM quote WHERE patient_id = @patient_id ORDER BY issued_at DESC, id;
+
+-- name: QuoteLines :many
+-- The lines of the quotes, each quote's in the order they were entered.
+SELECT * FROM quote_line WHERE quote_id = ANY(@quote_ids::uuid[]) ORDER BY quote_id, position;
