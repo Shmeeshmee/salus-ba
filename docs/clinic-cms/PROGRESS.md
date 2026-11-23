@@ -12,7 +12,7 @@ writes under its own heading here.
 | E | wave 2, not started (after wave 1 is on main) | |
 | H | wave 2, not started (after wave 1 is on main) | |
 | I | wave 2, not started (after wave 1 is on main) | |
-| L | wave 2, not started | |
+| L | done 2026-11-23 | `cms(L)` on `wt/cms/L` |
 | Q1 | wave 2, not started | |
 | Q2 | wave 2, not started | |
 | Q3 | wave 2, not started | |
@@ -362,6 +362,40 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 ## I: membership invoice document and the suspended listing
 
 ## L: landing page
+
+Done 2026-11-23, one commit `cms(L)` on `wt/cms/L`. Only `landing/` changed, plus this entry. Tests first: the
+headline, section order, prerendered headings, pricing and the new section's tests were changed or written and seen
+failing before the copy and components.
+
+**Built.**
+
+- The page sells Salus as the clinic system with telemedicine built in: new hero eyebrow and headline ("Your clinic,
+  in person and online."), highlights, four product cards (front desk, doctors and admins, patients, online hours from
+  home; a new receipt icon in the same stroke), "From booking to receipt" steps, and the page title and description in
+  `index.html`.
+- A new short section "Patients abroad" (`sections/Abroad`, `content/abroad.ts`, anchor `#abroad`) between "How it
+  works" and "Standards": ten app languages, live translation as a paid add-on per use, and prepaid booking from abroad
+  tagged "Coming".
+- Pricing: two plans, Basic and Pro, `[PRICE]` per practitioner per month, a note on the 30-day trial and paying only
+  for active practitioners, and that patients pay at the clinic. The yearly plan and the `[X]%` share are gone; a test
+  keeps "year", "%" and "share" out of the pricing copy.
+- Structure, look and language (English) unchanged; the nav keeps its four links.
+
+**Decisions.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| What Basic and Pro hold | Pro adds video visits and online hours, live transcription and AI drafts | The plan's Q2 default: `pro` is video, transcription and AI |
+| Fiscal wording | "Built for the new FBiH fiscalization law; reporting to the Tax Administration through ESET is coming" | No certification claim; G (ESET adapter) is on hold |
+| No nav link for the new section | Nav unchanged | "Structure stays"; four links fit at 390 px |
+| Product grid | Two columns (`minmax(min(100%, 440px), 1fr)`) | Four cards in three columns left one alone |
+
+**Checks.** `make landing-lint`, `landing-typecheck`, `landing-test` (18 files, 48 tests), `landing-build`: pass. Walked
+the built page at 1440 and 390 px (headless Chromium, reduced motion): no horizontal scroll; the plan's unit wrapped
+mid-phrase at 390 px and was fixed.
+
+**Left.** CLAUDE.md's landing row still lists the `[X]` placeholder, which the page no longer has (outside this
+package's files). The new copy waits for the owner's approval.
 
 ## Q1: questionnaire branching, rules and server
 

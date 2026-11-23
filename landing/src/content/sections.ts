@@ -4,6 +4,7 @@ export const ids = {
   page: 'page',
   product: 'product',
   how: 'how',
+  abroad: 'abroad',
   standards: 'standards',
   pricing: 'pricing',
   demo: 'demo',
