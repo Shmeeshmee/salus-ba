@@ -1,0 +1,5 @@
+Salus üyelik faturası no. {{.Number}}
+
+{{.Clinic}} için Salus üyelik faturası no. {{.Number}} PDF olarak ektedir.
+
+Fatura ve ödeme bilgileri Salus'taki Üyelik sayfasında da bulunur. Ödeme, açıklamaya fatura numarası yazılarak banka havalesiyle yapılır.

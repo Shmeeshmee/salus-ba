@@ -155,7 +155,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log)}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log)},
 			[]func(*http.ServeMux){invoiceRoutes(invoicePorts{pool: pool, audit: audit, tx: tx, jobs: jobs, clinics: clinics, appointments: appointments, consents: consents, care: appointment.NewFacts(appointmentRepo), prices: prices, accounts: accounts, patients: patients}, log)}, // receipts (clinic-cms C)
-			subscriptionRoutes(pool, audit, tx, accounts, log), // membership (clinic-cms D)
+			subscriptionRoutes(pool, audit, tx, accounts, clinics, cfg.Seller, log), // membership (clinic-cms D)
 			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id

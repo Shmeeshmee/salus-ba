@@ -2466,3 +2466,29 @@ personal-data field and no new table: the answers are stored as before (`questio
 response that still holds answers to items hidden on the path the patient took, so a submitted response holds only
 the answers the patient's own path asked for; the files of hidden attachment items are still removed on submit, as
 before. The refusal names only `linkId`s, never an answer, and is audited like every other refused submit.
+
+### Package I: the membership invoice document and the suspended listing (migration 00064)
+
+**Processing added.** Salus's monthly invoice to a clinic as a PDF: the seller (the owner's company, `SELLER_*` in the
+configuration, `[SELLER]` placeholders until Q3), the clinic as the buyer (its legal name, tax id and address), the
+month, the seat count, the amount and the bank account to pay into. The admin downloads it
+(`GET /clinic/subscription/invoices/{id}/pdf`) and it is e-mailed to the clinic's billing e-mail when it is issued
+(the `subscription_invoice_email` job, opaque ids only, on the notifier's queue; SMTP through the relay already in
+`docs/privacy/processors.md`). A clinic whose membership is suspended or cancelled is no longer in the public directory:
+the directory's row-level policy on `organization` reads the membership. Lawful basis: the contract between Salus and
+the clinic (Art. 6(1)(b)).
+
+**Personal data added.** None. The PDF names no practitioner and no patient; the seat count is a number. The billing
+e-mail is the clinic's address for invoices (package D).
+
+**Who sees what.** The PDF: the clinic's admin, in the clinic's scope; never its other staff, a patient or another
+clinic (service and api tests). The directory scope reads only whether a clinic's membership is stopped (the policy
+`clinic_subscription_directory`), never its plan, dates or invoices.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Hiding a clinic from the directory cuts care | Only the directory scope changes (`app.directory = 'public'`); the clinic's, the patients' and the shared scopes do not, so existing appointments, records, documents, exports and subject rights go on (`migrations/directory_membership_test.go`, `TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
+| The billing e-mail or an amount in a log or a job's error | The job carries ids only; the notification errors carry no address; the SMTP error keeps the server's code only |
+| The app changes an invoice | Still no `UPDATE` grant on `subscription_invoice`: the e-mail is not recorded on the invoice; River keeps the job's state |

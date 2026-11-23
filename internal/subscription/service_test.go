@@ -202,7 +202,7 @@ func newWorld(t *testing.T) *world {
 		},
 		audit: &fakeAudit{}, clock: &clock.Fixed{T: dec1.Add(2 * time.Hour)}, seats: fakeSeats{orgA: 3, orgB: 1},
 	}
-	w.svc = subscription.NewService(subscription.Ports{Repo: w.repo, Audit: w.audit, Tx: fakeTx{}, Clock: w.clock, Clinics: fakeClinics{}, Seats: w.seats})
+	w.svc = subscription.NewService(subscription.Ports{Repo: w.repo, Audit: w.audit, Tx: fakeTx{}, Clock: w.clock, Clinics: fakeClinics{}, Seats: w.seats, Jobs: &fakeJobs{}})
 	w.repo.subs[orgA] = subscription.Subscription{OrganizationID: orgA, PlanCode: "basic", Status: subscription.StatusTrial, TrialEndsAt: dec1.AddDate(0, 0, -5)}
 	return w
 }

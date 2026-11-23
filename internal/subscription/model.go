@@ -97,3 +97,22 @@ type MonthlyArgs struct {
 
 // Kind names the job in river_job.
 func (MonthlyArgs) Kind() string { return "subscription_monthly" }
+
+// InvoiceEmailArgs is the subscription_invoice_email job, on the notifier's email queue: send the invoice to the
+// clinic's billing e-mail with its PDF (package I). Enqueued in the transaction that issues the invoice. Opaque ids only.
+type InvoiceEmailArgs struct {
+	InvoiceID      string `json:"invoice_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (InvoiceEmailArgs) Kind() string { return "subscription_invoice_email" }
+
+// Seller is who invoices the clinics: the owner's company (SELLER_* in internal/config, [SELLER] placeholders until
+// the owner answers Q3), with the account the clinics pay into.
+type Seller struct {
+	Name    string
+	TaxID   string
+	Address string
+	Account string // the bank account (IBAN) of the transfer
+}

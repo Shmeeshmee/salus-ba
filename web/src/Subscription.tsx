@@ -97,7 +97,7 @@ function Invoices({ api, zone }: { api: ApiClient; zone: string }) {
       {state.name === 'failed' && <Alert message={t('subscription.invoicesLoadFailed')} />}
       {state.name === 'loaded' && state.value.length === 0 && <p className="muted">{t('subscription.invoicesEmpty')}</p>}
       {state.name === 'loaded' && state.value.length > 0 && (
-        <table className="plain-table">
+        <table className="plain-table membership-table">
           <thead>
             <tr>
               <th scope="col">{t('subscription.col.number')}</th>
@@ -106,17 +106,25 @@ function Invoices({ api, zone }: { api: ApiClient; zone: string }) {
               <th scope="col">{t('subscription.col.amount')}</th>
               <th scope="col">{t('subscription.col.due')}</th>
               <th scope="col">{t('subscription.col.status')}</th>
+              <th scope="col">{t('subscription.col.document')}</th>
             </tr>
           </thead>
           <tbody>
             {state.value.map((inv) => (
               <tr key={inv.id}>
-                <td>{inv.number}</td>
-                <td>{t('subscription.periodRange', { from: f.calendarDate(inv.periodStart), to: f.calendarDate(lastDay(inv.periodEnd)) })}</td>
-                <td>{f.number(inv.seats)}</td>
-                <td>{f.money(inv.amountMinor, inv.currency)}</td>
-                <td>{f.date(new Date(inv.dueAt), zone, 'short')}</td>
-                <td>{t(`subscription.invoice.${inv.status}`)}</td>
+                <td data-label={t('subscription.col.number')}>{inv.number}</td>
+                <td data-label={t('subscription.col.period')}>
+                  {t('subscription.periodRange', { from: f.calendarDate(inv.periodStart), to: f.calendarDate(lastDay(inv.periodEnd)) })}
+                </td>
+                <td data-label={t('subscription.col.seats')}>{f.number(inv.seats)}</td>
+                <td data-label={t('subscription.col.amount')}>{f.money(inv.amountMinor, inv.currency)}</td>
+                <td data-label={t('subscription.col.due')}>{f.date(new Date(inv.dueAt), zone, 'short')}</td>
+                <td data-label={t('subscription.col.status')}>{t(`subscription.invoice.${inv.status}`)}</td>
+                <td data-label={t('subscription.col.document')}>
+                  <a href={invoicePdfURL(inv.id)} aria-label={t('subscription.downloadLabel', { number: inv.number })}>
+                    {t('subscription.download')}
+                  </a>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -124,6 +132,11 @@ function Invoices({ api, zone }: { api: ApiClient; zone: string }) {
       )}
     </section>
   )
+}
+
+// invoicePdfURL is the invoice's PDF on the api's origin, sent with the session cookie (package I).
+function invoicePdfURL(id: string): string {
+  return `${globalThis.location.origin}/clinic/subscription/invoices/${encodeURIComponent(id)}/pdf`
 }
 
 // lastDay is the day before the exclusive end date ("2027-01-01" gives "2026-12-31").

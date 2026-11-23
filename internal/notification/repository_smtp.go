@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -40,6 +41,11 @@ func (s *smtpSender) Send(ctx context.Context, m Message) error {
 	if strings.ContainsAny(m.To, "\r\n") || strings.ContainsAny(m.Subject, "\r\n") {
 		return errors.New("notification: a header holds a line break")
 	}
+	if a := m.Attachment; a != nil {
+		if !isASCII(a.Name) || strings.ContainsAny(a.Name+a.ContentType, "\r\n\"") {
+			return errors.New("notification: an attachment's name or type is not a plain header value")
+		}
+	}
 	if !isASCII(m.To) {
 		return ErrRecipientNotASCII
 	}
@@ -61,7 +67,11 @@ func (s *smtpSender) Send(ctx context.Context, m Message) error {
 	if err := s.secure(c); err != nil {
 		return smtpError(err)
 	}
-	if err := deliver(c, s.from, s.header(m), m.To, m.Body); err != nil {
+	header, body := s.header(m), m.Body
+	if m.Attachment != nil {
+		header, body = mixed(header, m)
+	}
+	if err := deliver(c, s.from, header, m.To, body); err != nil {
 		return smtpError(err)
 	}
 	return smtpError(c.Quit())
@@ -143,6 +153,28 @@ func (s *smtpSender) header(m Message) string {
 	return from + "\r\nTo: " + m.To + "\r\n" + subject +
 		"\r\nDate: " + s.clock.Now().Format(time.RFC1123Z) + "\r\nMessage-ID: <" + rand.Text() + "@" + domain + ">" +
 		"\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n"
+}
+
+// mixed turns the plain text message m with its header into multipart/mixed: the text, then the attachment in
+// base64 in lines of 76. The boundary is random, so no text or file holds it.
+func mixed(header string, m Message) (string, string) {
+	boundary := "salus-" + rand.Text()
+	header = strings.Replace(header, "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n",
+		"Content-Type: multipart/mixed; boundary=\""+boundary+"\"\r\n", 1)
+	var b strings.Builder
+	b.WriteString("--" + boundary + "\nContent-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: 8bit\n\n" + m.Body + "\n")
+	if a := m.Attachment; a != nil {
+		b.WriteString("--" + boundary + "\nContent-Type: " + a.ContentType + "\nContent-Transfer-Encoding: base64\n" +
+			"Content-Disposition: attachment; filename=\"" + a.Name + "\"\n\n")
+		enc := base64.StdEncoding.EncodeToString(a.Data)
+		for len(enc) > maxLine {
+			b.WriteString(enc[:maxLine] + "\n")
+			enc = enc[maxLine:]
+		}
+		b.WriteString(enc + "\n")
+	}
+	b.WriteString("--" + boundary + "--\n")
+	return header, b.String()
 }
 
 // maxLine is RFC 2047's limit on a header line that holds an encoded word.

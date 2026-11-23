@@ -17,6 +17,7 @@ import (
 type stubMemberships struct {
 	err      error
 	invoices []subscription.Invoice
+	pdfID    string
 	caller   subscription.Caller
 	current  subscription.Subscription
 }
@@ -24,6 +25,11 @@ type stubMemberships struct {
 func (s *stubMemberships) Current(_ context.Context, c subscription.Caller) (subscription.Subscription, error) {
 	s.caller = c
 	return s.current, s.err
+}
+
+func (s *stubMemberships) PDF(_ context.Context, c subscription.Caller, id string) ([]byte, error) {
+	s.caller, s.pdfID = c, id
+	return []byte("%PDF-synthetic"), s.err
 }
 
 func (s *stubMemberships) Invoices(_ context.Context, c subscription.Caller) ([]subscription.Invoice, error) {
@@ -94,5 +100,24 @@ func TestHTTPHandler_MapsRefusalsToCodes(t *testing.T) {
 				t.Errorf("%s %s = %d %s, want %d %s", name, path, rec.Code, body, tc.code, tc.want)
 			}
 		}
+	}
+}
+
+// The admin downloads an invoice's PDF; the service's refusals map to their codes.
+func TestHTTPHandler_ServesTheInvoicePDF(t *testing.T) {
+	svc := &stubMemberships{}
+	rec := serve(t, svc, true, nil, &bytes.Buffer{}, "/clinic/subscription/invoices/inv-1/pdf")
+	if rec.Code != http.StatusOK || rec.Body.String() != "%PDF-synthetic" || rec.Header().Get("Content-Type") != "application/pdf" ||
+		rec.Header().Get("Cache-Control") != "no-store" || svc.pdfID != "inv-1" || svc.caller != admin {
+		t.Errorf("GET pdf = %d %q %v, id %q", rec.Code, rec.Body, rec.Header(), svc.pdfID)
+	}
+	for err, code := range map[error]int{subscription.ErrNotFound: http.StatusNotFound, subscription.ErrForbidden: http.StatusForbidden, errors.New("down"): http.StatusInternalServerError} {
+		svc.err = err
+		if rec := serve(t, svc, true, nil, &bytes.Buffer{}, "/clinic/subscription/invoices/inv-1/pdf"); rec.Code != code {
+			t.Errorf("%v: %d, want %d", err, rec.Code, code)
+		}
+	}
+	if rec := serve(t, svc, false, nil, &bytes.Buffer{}, "/clinic/subscription/invoices/inv-1/pdf"); rec.Code != http.StatusUnauthorized {
+		t.Errorf("signed out: %d, want 401", rec.Code)
 	}
 }

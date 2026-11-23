@@ -503,6 +503,75 @@ class BillingApi {
     return null;
   }
 
+  /// A membership invoice as a PDF
+  ///
+  /// Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getSubscriptionInvoicePdfWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path =
+        r'/clinic/subscription/invoices/{id}/pdf'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// A membership invoice as a PDF
+  ///
+  /// Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<String?> getSubscriptionInvoicePdf(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getSubscriptionInvoicePdfWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
+    }
+    return null;
+  }
+
   /// Issue a receipt for a visit or on its own
   ///
   /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
