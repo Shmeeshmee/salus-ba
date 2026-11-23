@@ -131,6 +131,20 @@ describe('App', () => {
     expect(await screen.findByText('This page does not exist.')).toBeTruthy()
   })
 
+  it('gives the admin and the receptionist the front desk, and a practitioner none (clinic-cms F3)', async () => {
+    const desk = { 'GET /clinic/desk/today': () => Response.json({ date: '2026-11-23', visits: [] }) }
+    renderAt('/', { ...staff(admin), ...desk })
+    fireEvent.click(await screen.findByRole('link', { name: 'Front desk' }))
+    expect(await screen.findByRole('heading', { name: 'Front desk' })).toBeTruthy()
+    cleanup()
+    renderAt('/desk', { ...staff({ ...admin, role: 'reception' }), ...desk })
+    expect(await screen.findByText('No visits today.')).toBeTruthy()
+    cleanup()
+    renderAt('/desk', staff({ ...admin, role: 'practitioner' }))
+    expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Front desk' })).toBeNull()
+  })
+
   it('gives a practitioner no clinic settings', async () => {
     renderAt('/clinic', staff({ ...admin, role: 'practitioner' }))
 

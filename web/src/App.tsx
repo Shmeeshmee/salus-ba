@@ -12,6 +12,7 @@ import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
 import { ClinicReports } from './ClinicReports'
+import { Desk } from './Desk'
 import { OnlinePractice } from './OnlinePractice'
 import { PriceList } from './PriceList'
 import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
@@ -26,7 +27,7 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -109,7 +110,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
     <>
       <header className="bar">
         <Logo />
-        {staff && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} reviewer={account.termReviewer === true} />}
+        {staff && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} desk={deskRoles.has(account.role)} reviewer={account.termReviewer === true} />}
         {staff && <Cheatsheet api={api} />}
         {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
@@ -129,10 +130,16 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
 }
 
 // The chat is the doctors' who take part in it (SAL-27): an admin reads no conversation, so has no Messages.
-function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practitioner: boolean; reviewer: boolean }) {
+function Navigation({ admin, practitioner, desk, reviewer }: { admin: boolean; practitioner: boolean; desk: boolean; reviewer: boolean }) {
   const t = useT()
   return (
     <nav aria-label={t('shell.mainNav')}>
+      {desk && (
+        <Link to="/desk">
+          <DeskIcon />
+          {t('desk.nav')}
+        </Link>
+      )}
       <Link to="/">
         <CalendarIcon />
         {t('shell.calendar')}
@@ -184,6 +191,9 @@ function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practit
     </nav>
   )
 }
+
+// The front desk is the clinic's admin's and its receptionists' (clinic-cms F3).
+const deskRoles = new Set<Account['role']>(['admin', 'reception'])
 
 const appointmentPath = /^\/appointments\/([^/]+)$/
 const callPath = /^\/appointments\/([^/]+)\/call$/
@@ -238,6 +248,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
       </>
     )
   }
+  if (path === '/desk' && deskRoles.has(account.role)) return <Desk api={api} fhir={fhir} account={account} />
   if (path === '/price-list' && account.role === 'admin') return <PriceList api={api} />
   return <p className="panel">{t('shell.notFound')}</p>
 }
