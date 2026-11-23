@@ -68,6 +68,35 @@ func (r *postgresRepository) Grant(ctx context.Context, kind Kind, patientID, or
 	return toConsent(kind, row, err, ErrActive)
 }
 
+func (r *postgresRepository) GrantInPerson(ctx context.Context, patientID, organizationID, accountID string, at time.Time) (Consent, error) {
+	var p, o, a pgtype.UUID
+	if p.Scan(patientID) != nil {
+		return Consent{}, ErrNotFound
+	}
+	if err := o.Scan(organizationID); err != nil {
+		return Consent{}, errors.New("consent: the clinic id is not a UUID")
+	}
+	if err := a.Scan(accountID); err != nil {
+		return Consent{}, errors.New("consent: the account id is not a UUID")
+	}
+	row, err := consentdb.New(postgres.Conn(ctx, r.db)).GrantInPersonConsent(ctx, consentdb.GrantInPersonConsentParams{
+		PatientID: p, OrganizationID: o, DateTime: pgtype.Timestamptz{Time: at, Valid: true}, RecordedByAccountID: a,
+	})
+	// consent_guard_in_person: not a patient the clinic registered (its existence is not disclosed).
+	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == checkViolation && pgErr.ConstraintName == "" {
+		return Consent{}, ErrNotFound
+	}
+	c, err := toConsent(KindCare, consentdb.GrantConsentRow(row), err, ErrActive)
+	if err != nil {
+		return Consent{}, err
+	}
+	c.GivenInPerson, c.RecordedBy = true, accountID
+	return c, nil
+}
+
+// checkViolation is Postgres's check_violation, which consent_guard_in_person raises.
+const checkViolation = "23514"
+
 func (r *postgresRepository) ByID(ctx context.Context, id string) (Consent, error) {
 	var u pgtype.UUID
 	if u.Scan(id) != nil {

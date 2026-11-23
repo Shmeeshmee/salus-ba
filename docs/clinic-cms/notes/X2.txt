@@ -1,0 +1,2 @@
+Package X2. Migration, only if needed: 00071. A suspended clinic stays hidden from the directory (I's policy): the
+profile must not open another way to it.

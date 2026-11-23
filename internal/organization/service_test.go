@@ -34,6 +34,7 @@ type fakeRepository struct {
 	err       error // returned by ByID and Listed when set
 	updateErr error // returned by Update when set
 	orgs      map[string]organization.Organization
+	profiles  map[string]organization.Profile
 	clinic    string   // set by SetOrganization
 	calls     []string // the calls, "outside:" prefixed when made outside a transaction
 	shared    []string // other clinics the scope shows through organization_shared (the history)
@@ -66,7 +67,7 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (organization.Orga
 		return organization.Organization{}, r.err
 	}
 	o, ok := r.orgs[id]
-	if !ok || (id != r.clinic && !slices.Contains(r.shared, id)) {
+	if !ok || (id != r.clinic && !slices.Contains(r.shared, id) && (!r.directory || !o.Listed)) {
 		return organization.Organization{}, organization.ErrNotFound
 	}
 	return o, nil
@@ -127,6 +128,24 @@ func TestRead_GivesStaffTheirOwnClinicThroughItsScope(t *testing.T) {
 	}
 }
 
+// The front desk reads its own clinic (its time zone, docs/clinic-cms F3), audited as a read with the receptionist as
+// the agent; staff reads of the clinic are not audited (nothing in a clinic is personal data).
+func TestRead_AuditsTheReceptionistsReadOfTheirClinic(t *testing.T) {
+	desk := organization.Caller{AccountID: "a3000000-0000-4000-8000-0000000000a3", OrganizationID: clinicA, Reception: true}
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	if got, err := newService(repo, audit).Read(t.Context(), desk, clinicA); err != nil || got != repo.orgs[clinicA] {
+		t.Fatalf("Read() as the receptionist = %+v, %v; want clinic A", got, err)
+	}
+	if len(audit.events) != 1 || audit.events[0].Subtype.Code != auditevent.CodeRead || audit.events[0].AgentAccountID != desk.AccountID ||
+		audit.events[0].EntityReference != "Organization/"+clinicA || audit.events[0].Outcome != auditevent.OutcomeSuccess {
+		t.Errorf("audit events %+v, want one read of clinic A by the receptionist", audit.events)
+	}
+	audit.events = nil
+	if _, err := newService(newFakeRepository(), audit).Read(t.Context(), practitioner, clinicA); err != nil || len(audit.events) != 0 {
+		t.Errorf("a practitioner's Read() = %v with %d audit events, want none", err, len(audit.events))
+	}
+}
+
 func TestRead_HidesAClinicFromAnyoneOutsideIt(t *testing.T) {
 	for _, c := range []organization.Caller{otherAdmin, patient} {
 		repo := newFakeRepository()
@@ -168,13 +187,25 @@ func TestUpdate_RejectsABlankOrOverlongName(t *testing.T) {
 	for i := range long {
 		long[i] = 'é'
 	}
-	for _, name := range []string{"", "   ", string(long)} {
+	// A clinic's name goes into the e-mails Salus sends (invites, signup): one line of text, never a link.
+	for _, name := range []string{"", "   ", string(long), "Synthetic\nclinic", "Verify at https://example.test"} {
 		repo, audit := newFakeRepository(), &fakeAuditor{}
 		_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: name}, 2)
 		if !errors.Is(err, organization.ErrInvalidName) || len(repo.calls) != 0 || len(audit.events) != 0 {
 			t.Errorf("Update(%d characters) = %v, calls %v, events %d; want ErrInvalidName before any access",
 				len([]rune(name)), err, repo.calls, len(audit.events))
 		}
+	}
+}
+
+// A signed-up clinic is listed by the operator's approval (00066's trigger): its admin's listing is refused, audited.
+func TestUpdate_RefusesToListAClinicTheOperatorHasNotApproved(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	repo.updateErr = organization.ErrNotApproved
+	listed := true
+	_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Synthetic clinic", Listed: &listed}, 2)
+	if !errors.Is(err, organization.ErrNotApproved) || len(audit.events) != 1 || audit.events[0].Outcome != auditevent.OutcomeMinorFailure {
+		t.Errorf("Update(listed) before approval = %v, events %+v; want ErrNotApproved, audited as refused", err, audit.events)
 	}
 }
 

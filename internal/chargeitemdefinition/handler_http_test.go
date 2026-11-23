@@ -22,7 +22,15 @@ type stubService struct {
 	language string
 	mode     schedule.VisitMode
 	out      []chargeitemdefinition.Definition
+	rows     []chargeitemdefinition.ImportRow
+	file     chargeitemdefinition.ImportFile
 	saved    chargeitemdefinition.Definition
+	save     bool
+}
+
+func (s *stubService) Import(_ context.Context, c chargeitemdefinition.Caller, f chargeitemdefinition.ImportFile, save bool) ([]chargeitemdefinition.ImportRow, error) {
+	s.caller, s.file, s.save = c, f, save
+	return s.rows, s.err
 }
 
 func (s *stubService) List(_ context.Context, c chargeitemdefinition.Caller) ([]chargeitemdefinition.Definition, error) {

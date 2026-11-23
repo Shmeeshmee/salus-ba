@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -43,20 +44,20 @@ type stubPublic struct {
 	out   schedule.Schedule
 }
 
-func (s *stubPublic) Read(_ context.Context, id string) (schedule.Schedule, error) {
-	s.asked = append(s.asked, "read:"+id)
+func (s *stubPublic) ReadFor(_ context.Context, org, id string) (schedule.Schedule, error) {
+	s.asked = append(s.asked, org+"read:"+id)
 	return s.out, s.err
 }
 
-func (s *stubPublic) ByActor(_ context.Context, roleID string) (schedule.Schedule, error) {
-	s.asked = append(s.asked, "actor:"+roleID)
+func (s *stubPublic) ByActorFor(_ context.Context, org, roleID string) (schedule.Schedule, error) {
+	s.asked = append(s.asked, org+"actor:"+roleID)
 	return s.out, s.err
 }
 
 func getSchedule(t *testing.T, svc *stubPublic, log *bytes.Buffer, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
-	schedule.NewHandler(svc, "https://api.example.test/fhir/R4", slog.New(slog.NewJSONHandler(log, nil))).Routes(mux)
+	schedule.NewHandler(svc, staffClinic, "https://api.example.test/fhir/R4", slog.New(slog.NewJSONHandler(log, nil))).Routes(mux)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 	return rec
@@ -125,5 +126,33 @@ func TestHandler_SendsAFixedOperationOutcomeOnAnError(t *testing.T) {
 		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "db down") || log.Len() == 0 {
 			t.Errorf("GET %s = %d %s, log %q; want 500 without the error, the error logged", path, rec.Code, rec.Body, log.String())
 		}
+	}
+}
+
+// clinicKey marks a request as the signed-in staff's of a clinic, for staffClinic.
+type clinicKey struct{}
+
+// staffClinic is the handler's clinic: the one the request's context names, empty for anyone else.
+func staffClinic(ctx context.Context) string {
+	org, _ := ctx.Value(clinicKey{}).(string)
+	return org
+}
+
+// The clinic's own staff read its schedules in its own scope (the front desk, docs/clinic-cms F3): the handler passes
+// the signed-in staff's clinic to the service.
+func TestHandler_PassesTheStaffsClinic(t *testing.T) {
+	svc := &stubPublic{out: scheduleOfA2}
+	mux := http.NewServeMux()
+	schedule.NewHandler(svc, staffClinic, "https://api.example.test/fhir/R4", slog.New(slog.DiscardHandler)).Routes(mux)
+	for _, path := range []string{"/fhir/R4/Schedule/" + scheduleA2, "/fhir/R4/Schedule?actor=PractitionerRole/" + roleA2} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.WithValue(t.Context(), clinicKey{}, clinicA), http.MethodGet, path, nil)
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("GET %s = %d %s", path, rec.Code, rec.Body)
+		}
+	}
+	if want := []string{clinicA + "read:" + scheduleA2, clinicA + "actor:" + roleA2}; !slices.Equal(svc.asked, want) {
+		t.Errorf("asked %v, want %v", svc.asked, want)
 	}
 }

@@ -13,12 +13,15 @@ import (
 	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
-// Status is Appointment.status, the four the product uses.
+// Status is Appointment.status, the five the product uses.
 type Status string
 
 // The statuses.
 const (
-	StatusBooked    Status = "booked"
+	StatusBooked Status = "booked"
+	// StatusArrived is an in-person visit's patient checked in at the desk: between booked and fulfilled (W6 of
+	// docs/clinic-cms). Set from package F2; nothing sets it before.
+	StatusArrived   Status = "arrived"
 	StatusCancelled Status = "cancelled"
 	StatusFulfilled Status = "fulfilled"
 	StatusNoShow    Status = "noshow"
@@ -44,6 +47,7 @@ type Appointment struct {
 	CancelledAt        time.Time // zero unless cancelled
 	LastUpdated        time.Time // meta.lastUpdated
 	ConfirmedAt        time.Time // when the patient confirmed it; zero while unconfirmed (docs/plans/appointments.md)
+	ArrivedAt          time.Time // when the patient arrived at the desk (StatusArrived, docs/clinic-cms W6); zero for none
 	ID                 string
 	PatientID          string // the patient participant
 	PractitionerRoleID string // the practitioner role participant
@@ -51,6 +55,7 @@ type Appointment struct {
 	SlotID             string // Appointment.slot
 	ServiceID          string // the price-list service named at booking; empty for none (docs/plans/clinic-cms.md, E)
 	CancelledBy        string // the account that cancelled; empty for none or a job
+	BookedBy           string // the staff account that booked it (docs/clinic-cms F2); empty for the patient's own
 	Status             Status
 	Reason             Reason             // Appointment.cancelationReason; empty unless cancelled
 	ConfirmedVia       Via                // ViaApp or ViaLink once confirmed; empty while unconfirmed
@@ -199,8 +204,9 @@ type Caller struct {
 	PractitionerID string // the practitioner a staff account is; empty for an admin
 	// Via is how a patient acts when not in their app: ViaLink for a reminder's one-time link (SAL-34), whose
 	// changes are recorded and audited as the link's; empty for the app, or staff.
-	Via   Via
-	Admin bool
+	Via       Via
+	Admin     bool
+	Reception bool // the clinic's receptionist (docs/clinic-cms F1)
 }
 
 func (c Caller) patient() bool { return c.OrganizationID == "" }

@@ -115,6 +115,35 @@ func TestLookup_GivesTheAppointmentInTheCallersScopeUnaudited(t *testing.T) {
 	}
 }
 
+// PatientHasAccount tells a service that e-mails about an appointment (a quote, invoice) whether its patient has an
+// account, in the caller's transaction and scope, unaudited: a patient the clinic registered has none
+// (docs/clinic-cms W1).
+func TestPatientHasAccount_TellsAPatientTheClinicRegisteredFromOneWithAnAccount(t *testing.T) {
+	const registered = "ab000000-0000-4000-8000-0000000000ab"
+	f := staffFixture(booked(apptA, patientA, roleA1, clinicA, start), booked(registered, patientC, roleA1, clinicA, start))
+	for id, want := range map[string]bool{apptA: true, registered: false} {
+		var got bool
+		err := inClinic(t, f, clinicA, func(ctx context.Context) error {
+			var err error
+			got, err = f.svc.PatientHasAccount(ctx, id)
+			return err
+		})
+		if err != nil || got != want {
+			t.Errorf("PatientHasAccount(%s) = %v, %v; want %v", id, got, err, want)
+		}
+	}
+	err := inClinic(t, f, clinicB, func(ctx context.Context) error {
+		_, err := f.svc.PatientHasAccount(ctx, apptA)
+		return err
+	})
+	if !errors.Is(err, appointment.ErrNotFound) {
+		t.Errorf("PatientHasAccount() in clinic B = %v, want ErrNotFound", err)
+	}
+	if len(f.audit.events) != 0 {
+		t.Errorf("audited %v, want nothing", f.audit.events)
+	}
+}
+
 // LookupLocked gives a questionnaire request or answer the appointment in the caller's transaction and scope,
 // locked against a change until it ends (the repository's share lock), unaudited: the caller audits its own
 // write. ErrNotFound when the scope may not lock it: another clinic, or the clinic after a revocation.

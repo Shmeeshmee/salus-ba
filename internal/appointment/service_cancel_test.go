@@ -289,3 +289,35 @@ func sortedEvents(e []auditevent.AuditEvent) []auditevent.AuditEvent {
 	})
 	return e
 }
+
+// A patient the clinic registered has no account (docs/clinic-cms W1): a cancellation by staff, by the clinic's admin
+// or by a revocation enqueues no e-mail for them; the rest of what follows a cancellation still happens.
+func TestCancel_EnqueuesNoEmailForAPatientWithoutAnAccount(t *testing.T) {
+	const id = "ab000000-0000-4000-8000-0000000000ab"
+	for name, cancel := range map[string]func(*fixture) error{
+		"by the desk": func(f *fixture) error {
+			_, err := f.svc.CancelForPatient(t.Context(), desk, id, 1)
+			return err
+		},
+		"by the admin": func(f *fixture) error {
+			_, err := f.svc.Cancel(t.Context(), admin, id)
+			return err
+		},
+		"by a revocation": func(f *fixture) error {
+			f.consents.state[patientC+clinicA] = access.Consent{RevokedAt: now.Add(-time.Minute)}
+			_, err := f.svc.CancelForRevokedConsent(t.Context(), patientC, clinicA)
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := staffFixture(booked(id, patientC, roleA1, clinicA, start))
+			if err := cancel(f); err != nil || f.repo.appts[0].Status != appointment.StatusCancelled {
+				t.Fatalf("cancel = %v, %+v; want it cancelled", err, f.repo.appts[0])
+			}
+			want := []string{"access_end " + id + " " + clinicA, "questionnaire_discard " + id + " " + clinicA, "slot_freed 51" + id[2:] + " " + clinicA}
+			if !slices.Equal(sortedCopy(f.jobs.enqueued), sortedCopy(want)) {
+				t.Errorf("enqueued %v, want %v and no e-mail", f.jobs.enqueued, want)
+			}
+		})
+	}
+}

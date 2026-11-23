@@ -97,13 +97,14 @@ func TestReschedule_MovesTheAppointmentOnceAndTheExclusionConstraintGuards(t *te
 	if !errors.Is(err, appointment.ErrSlotUnavailable) {
 		t.Errorf("Reschedule() onto a booked time = %v, want ErrSlotUnavailable", err)
 	}
-	// The clinic's scope may not move it.
+	// The clinic's scope moves it too, with the patient's consent, from the wave 3 contract (docs/clinic-cms, 3.0):
+	// staff move a patient's booked visit (package F2), under the same guard of the period, slot and count.
 	err = inSelf(t, app, asClinic, func(ctx context.Context, r appointment.SelfServiceRepository) error {
 		_, err := r.Reschedule(ctx, a.ID, appointment.Move{Start: start.Add(5 * time.Hour), End: start.Add(330 * time.Minute), SlotID: slotU, From: 1}, now)
 		return err
 	})
-	if err == nil {
-		t.Error("Reschedule() in the clinic's scope succeeded")
+	if err != nil {
+		t.Errorf("Reschedule() in the clinic's scope = %v, want moved", err)
 	}
 }
 

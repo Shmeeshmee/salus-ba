@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -30,7 +31,7 @@ func (s services) subscriptionCommand(ctx context.Context, args []string, stdout
 	case args[0] == "plan":
 		return s.subscriptionPlan(ctx, args[1:], stdout)
 	case args[0] == "start-trial" && len(args) == 2:
-		sub, err := s.members.StartTrial(ctx, args[1])
+		sub, err := s.members.StartTrial(ctx, auditevent.AgentOperator, args[1])
 		if err != nil {
 			return err
 		}

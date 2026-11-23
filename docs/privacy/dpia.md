@@ -2516,3 +2516,138 @@ admin only (revenue per practitioner), audited with the clinic as the entity, an
 | A booking names another clinic's service | Composite foreign key to `charge_item_definition (id, organization_id)`; the service checks the slot's clinic offers it, active, in the slot's mode (tested) |
 | The report shows a practitioner another's revenue | Admin only, in the clinic's scope; a practitioner is refused and audited (tested) |
 | The service a patient booked in a log | Handlers log through `httpx.InternalError` only; the id is opaque and no name reaches a log line |
+
+### Package 3.0: the wave 3 contract (migration 00065)
+
+**Processing added.** None yet: 3.0 adds the tables, columns, policies and routes; the services refuse until packages
+F1, F2, O1, O2, X1 and X2 fill them, and each of those adds its own block here. What the contract prepares:
+
+- **The reception role** (`account.role`, `invite.role` gain `reception`; owner, 2026-11-23). A receptionist is staff
+  of one clinic with MFA, and sees the desk's data only (W2: name, birth date, phone, appointments with their service
+  and visit type, the price list, receipts), never questionnaire answers, documents, history, transcripts, chat or
+  analytics. F1 builds the rules in `access` and proves them on every route.
+- **A patient the clinic registers** (W1): `patient.account_id` becomes nullable and
+  `patient.registered_by_organization_id` names the clinic of a profile without an account. Row-level security: the
+  registering clinic reads, registers and corrects it (`patient_registered`); no other clinic ever sees it, whatever
+  consent or appointment it might have (`patient_registered_only_there`, restrictive). A patient's own profile is
+  unchanged. Lawful basis: care (Art. 9(2)(h)) on the patient's care consent, given in person and recorded by staff:
+  `consent.given_in_person` and `consent.recorded_by_account_id`, insertable by the clinic only for a patient it
+  registered (`consent_clinic_in_person`). **Needs the lawyer's word before production** (W1). Without an account the patient
+  cannot use the app's subject-rights features: the clinic receives their requests (access, export, rectification,
+  erasure) in person and acts on them through its staff; F2 records how, and the profile is kept by the `patient`
+  retention rule while the clinic keeps the record.
+- **Arrival and staff bookings**: `appointment.arrived_at` (an in-person visit only, by check) and
+  `appointment.booked_by_account_id` (who of the staff booked; null for the patient's own); a staff booking needs the
+  clinic's active care consent (`appointment_clinic_insert`). Kept with the appointment.
+- **Clinic signup** (`clinic_signup`): the admin's e-mail, the clinic's name and language, the verification token's
+  hash (never the token). Not clinic-scoped before verification (as `account`); the app cannot set `approved_at`.
+  Retention kept until O1 adds the deletion of unverified signups with its applier.
+- **Treatment quotes** (`quote`, `quote_line`): which care a clinic offered a patient at what price, health data (Art.
+  9); the patient's own and their clinic's only; no `UPDATE` grant. Retention kept until X1's decision and applier.
+- **The clinic's profile** (`organization.languages`, `profile_description`, `welcomes_international`,
+  `organization_profile_translation`): not personal data.
+
+| Risk | Measure |
+| --- | --- |
+| A clinic-registered profile seen by another clinic | Restrictive policy on `patient`: a registered profile is visible only in its clinic's scope |
+| A clinic grants itself access to a patient with an account | Staff record an in-person consent only for a patient their clinic registered (`consent_clinic_in_person`) |
+| A receptionist reads clinical content | No route opens before F1's `access` rules; F1's table-driven test covers every staff route |
+| A forged "who did it" | `appointment_guard_staff` and `consent_guard_in_person`: the booking and recording account is staff of the row's clinic, in its scope; a patient never marks an arrival |
+| A sent quote changed | No `UPDATE` grant; `quote_line_guard_insert` adds lines only in the quote's own transaction, from its clinic's price list |
+| Signup enumerates e-mails | `POST /signup` answers 202 whatever the address (O1, tested); rate limited |
+
+### Package F1: the reception role and what it may see (no migration)
+
+**Processing added.** An admin invites a receptionist by e-mail (`POST /invites`, `role: reception`; no name, no
+Practitioner); the account signs in with a password and TOTP, as all staff, with a 12-hour session. The account holds
+the e-mail and the languages, as any staff account; nothing new is collected.
+
+**What a receptionist sees.** `access.Desk` is W2's rule (name, birth date, phone, appointments with their service and
+visit type, for the clinic's patients with an active care consent or a visit before a revocation), for F2's desk routes
+to use. Every other rule of `access` refuses a receptionist (`staffOf` leaves the role out; a test runs every rule over
+every consent, appointment and clinic). In `internal/api` the appointment caller gives a receptionist no clinic, so the
+care record's domains built on it (appointments, documents, receipts, the waitlist) refuse them as a stranger.
+
+**Proof.** `internal/api/reception_routes_test.go` classifies every operation of `api/openapi.yaml` (public, own, desk,
+refused, a patient's own, machine), fails on an operation that is not classified, and sends each as a signed-in
+receptionist against a clinic with a patient, a consent and a booked visit: a refused route answers 403 or 404 (or a
+malformed-request 400 before any access), the same for the clinic's own appointment or patient as for an unknown id,
+with none of the patient's data; refusals are audited with the receptionist as the agent.
+
+| Risk | Measure |
+| --- | --- |
+| A new route opens clinical content to the desk | The route test fails until the route is classified |
+| A receptionist tells a real patient from an unknown id | Refusals compared byte for byte with an unknown id's |
+
+### Package F2: patients registered by the clinic and bookings by staff
+
+**Processing added.** The clinic's admin and receptionists register a patient who has no Salus account (given and
+family name, birth date, optional phone: what the desk needs to recognise and call the patient, W2) and record, in the
+same transaction, the care consent the patient gave in person (`given_in_person`, `recorded_by_account_id`). Staff
+search the clinic's patients by name and birth date (those it registered and those with its active care consent; a
+practitioner only those with an appointment with their role), book a free slot for a patient with the clinic's active
+care consent (`booked_by_account_id`), cancel a visit and mark an in-person arrival. The desk's day lists the clinic's
+visits with each patient's name, birth date and phone, nothing clinical. Every search, read and write is audited with
+the staff account, refusals included; a search audits each patient it returns.
+
+**Notifications.** A patient without an account gets no e-mail, no push and, for now, no SMS: no reminder is scheduled
+for a booking staff make for them, and an appointment e-mail job finds no account and sends nothing. SMS reminders for
+them wait for a later package (a delivery without an account, under the clinic's SMS option).
+
+**Subject rights.** Without an account the patient cannot use the app; the clinic receives their requests in person
+and acts through its staff (as 3.0 recorded). Rectification of a registered profile by staff and revocation of the
+in-person consent by the clinic are not built yet (F2's deferred items in `docs/clinic-cms/PROGRESS.md`).
+
+| Risk | Measure |
+| --- | --- |
+| A search reveals another clinic's patients | The query names the caller's clinic and row-level security shows only its scope (`patient_registered_only_there`); tested against Postgres |
+| A wildcard search lists every patient | `%`, `_` and `\` in the name are taken literally; at least 2 characters; 50 rows at most |
+| An e-mail to nobody, or to the wrong account | A notice without an account sends nothing; no reminder is scheduled for a patient without an account |
+| A practitioner books or reads beyond their patients | A practitioner books only their own role's slots and finds only patients with an appointment with their role |
+
+### Package O1: clinic signup and setup wizard (migration 00066)
+
+**Processing added.** Anyone may sign a clinic up (W3): `POST /signup` stores the admin's e-mail, the clinic's name and
+a staff language in `clinic_signup` with the hash of a verification token, and the notifier sends the verification
+e-mail (the existing SMTP relay of `docs/privacy/processors.md`: the address, the clinic's name and a link; nothing
+else). The token travels in the link's fragment, is issued anew for each e-mail and is never stored. On verification
+the API creates the clinic unlisted, invites its admin and starts the trial, through the same service path as
+`salusctl create-clinic`; the operator lists the clinic in the public directory (`salusctl signup approve`).
+`clinic_setup_step` holds the setup wizard's progress (which steps are done or skipped): not personal data.
+
+- **Lawful basis**: steps at the request of the clinic before a contract (Art. 6(1)(b)). No health data.
+- **Minimisation**: the e-mail is the admin's future login and the clinic's name is the clinic's; nothing else is
+  asked. `salusctl signup list` prints opaque ids and dates only.
+- **Retention**: an unverified signup is deleted 30 days after it was made (`clinic_signup` rule, its purger as
+  `salus_retention`); a verified one stays with its clinic as the record of its request.
+- **Database**: `salus_app` may insert a clinic only in that clinic's own scope (`organization_clinic`'s check), so a
+  signup cannot write into another clinic.
+
+| Risk | Measure |
+| --- | --- |
+| Signup enumerates e-mails | `POST /signup` answers 202 for every valid request; every request is a new signup (tested) |
+| Mass signups or e-mail bombing | 5 signups an hour per client address, 3 a day per e-mail, 20 verifications an hour per address (Redis, HMAC-named keys); 429 beyond |
+| A leaked verification link | 72 hours; replaced by each new e-mail; used once (`FOR UPDATE`, `verified_at IS NULL`) |
+| A self-signed-up clinic shown to patients before review | Created unlisted; only the operator lists it (`organization_guard_signup_listed` refuses its admin), tested |
+
+## Package X1: treatment quotes (docs/clinic-cms)
+
+- **What is processed.** A quote names the services a clinic offered its patient at a visit, with prices, discounts and
+  a note from staff: health data (Art. 9), the basis Art. 6(1)(b) (steps before a contract at the patient's request)
+  and Art. 9(2)(h). Written only at a visit, by the clinic's admin or the visit's practitioner, for the visit's patient
+  while the clinic holds their active care consent (checked in the service and by `quote_clinic`). No new field: the
+  tables are 3.0's.
+- **Who sees it.** The patient (`/me/quotes`, the PDF) and their clinic: its admin every quote, a practitioner the
+  quotes they sent. Every list, read, PDF and send is an `AuditEvent` (`Quote/<id>`), also when refused.
+- **The e-mail.** `quote_email` carries the visit's and the clinic's ids only. The e-mail says a quote from the visit
+  at the clinic is in the app and that nothing was charged; it names no service, amount, practitioner or note.
+- **Not a receipt.** A quote takes no number from `invoice_sequence`, enqueues no `invoice_fiscalize` job, never
+  reaches the tax authority, the receipts report or `/me/receipts` (tested at the service and against the database).
+- **Retention.** Kept, with no period until a legal decision (waiting on a person, `PROGRESS.md`); the rule that
+  removes quotes comes with its applier and a `DELETE` grant in its own migration.
+
+| Risk | Measure |
+| --- | --- |
+| A quote sent to a patient who revoked their care consent | The service checks the active consent; `quote_clinic` refuses the row |
+| A quote mistaken for a bill | The PDF, the e-mail, the app and the dialog say it is a quote, not a receipt, and nothing was charged |
+| The e-mail discloses care | It names the clinic and the visit's time only, as the other appointment e-mails |

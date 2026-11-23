@@ -19,6 +19,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/push/pushtest"
@@ -208,6 +209,30 @@ func TestNotifier_SendsTheDocumentSignedEmailToThePatient(t *testing.T) {
 	}
 }
 
+// clinic-cms X1: the notifier tells the patient a treatment quote from their visit is in the app, linking to the app's
+// quotes, with no service or amount; an unknown appointment cancels the job.
+func TestNotifier_SendsTheQuoteEmailToThePatient(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	b := seedBooking(t, owner)
+	if state := runEmailJob(t, app, invoice.QuoteEmailArgs{AppointmentID: b.past, OrganizationID: clinicID}); state != rivertype.JobStateCompleted {
+		t.Fatalf("job state %s, want completed", state)
+	}
+	text := mailpitText(t, b.email)
+	if !strings.Contains(text, "A treatment quote from your appointment at Synthetic clinic") || !strings.Contains(text, "https://patient.example.test/quotes") {
+		t.Errorf("the e-mail lacks the clinic or the link:\n%s", text)
+	}
+	for _, never := range []string{"Ana", "Cy", b.past, "BAM"} {
+		if strings.Contains(text, never) {
+			t.Errorf("the e-mail holds %q:\n%s", never, text)
+		}
+	}
+	unknown := invoice.QuoteEmailArgs{AppointmentID: "e9000000-0000-4000-8000-0000000000e9", OrganizationID: clinicID}
+	if state := runEmailJob(t, app, unknown); state != rivertype.JobStateCancelled {
+		t.Errorf("unknown appointment: job state %s, want cancelled", state)
+	}
+}
+
 // After a revocation the clinic's scope no longer shows the cancelled appointment; the job's does, and the
 // patient gets the cancellation. A reminder of it then sends nothing, and an unknown appointment cancels the
 // job.
@@ -234,6 +259,33 @@ func TestNotifier_MailsACancellationAfterARevocationAndNothingThatNoLongerApplie
 	unknown := appointment.BookedEmailArgs{AppointmentID: "e9000000-0000-4000-8000-0000000000e9", OrganizationID: clinicID}
 	if state := runEmailJob(t, app, unknown); state != rivertype.JobStateCancelled {
 		t.Errorf("an unknown appointment: job state %s, want cancelled", state)
+	}
+}
+
+// clinic-cms W1: a patient the clinic registered has no account. Every appointment e-mail job of theirs, enqueued
+// before they had none or by a path that does not know it, completes (no retry) and sends nothing.
+func TestNotifier_CompletesEveryAppointmentEmailOfAPatientWithoutAnAccountSendingNothing(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	b := seedBooking(t, owner)
+	if _, err := owner.Exec(t.Context(), `UPDATE patient SET account_id = NULL, registered_by_organization_id = $2 WHERE id = $1`,
+		b.patient, clinicID); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range []river.JobArgs{
+		appointment.BookedEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.ReminderEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.RescheduledEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		appointment.CancelledEmailArgs{AppointmentID: b.future, OrganizationID: clinicID},
+		composition.SignedEmailArgs{AppointmentID: b.past, OrganizationID: clinicID},
+		invoice.QuoteEmailArgs{AppointmentID: b.past, OrganizationID: clinicID},
+	} {
+		if state := runEmailJob(t, app, args); state != rivertype.JobStateCompleted {
+			t.Errorf("%s: job state %s, want completed", args.Kind(), state)
+		}
+	}
+	if n := mailpitCount(t, b.email); n != 0 {
+		t.Errorf("%d e-mails to the address of the account the patient no longer has, want none", n)
 	}
 }
 

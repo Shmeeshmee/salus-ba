@@ -12,21 +12,25 @@ import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
 import { ClinicReports } from './ClinicReports'
+import { Desk } from './Desk'
 import { OnlinePractice } from './OnlinePractice'
 import { PriceList } from './PriceList'
 import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
+import { ClinicProfile } from './ClinicProfile'
 import { Practitioners } from './Practitioners'
 import { Questionnaires } from './Questionnaires'
 import { Receipts } from './Receipts'
 import { Waitlist } from './Waitlist'
 import { SignIn } from './SignIn'
+import { Signup, VerifySignup } from './Signup'
+import { SetupBanner, SetupWizard } from './SetupWizard'
 import { Subscription, SubscriptionBanner } from './Subscription'
 import type { Account, ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, ListIcon, Logo, PeopleIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -35,11 +39,14 @@ import { Alert, Link, Notice } from './ui'
 
 type Clients = { api: ApiClient; fhir: FhirClient }
 
-// App picks the screen from the path: sign in and accept invite are open; everything else needs a session.
+// App picks the screen from the path: sign in, accept invite and a clinic's sign-up are open; everything else needs a
+// session.
 export default function App({ api, fhir }: Clients) {
   const path = usePath()
   if (path === '/sign-in') return <SignIn api={api} onSignedIn={() => navigate('/', true)} />
   if (path === '/invite') return <AcceptInvite api={api} onDone={() => navigate('/', true)} />
+  if (path === '/signup') return <Signup api={api} /> // clinic-cms O1
+  if (path === '/signup/verify') return <VerifySignup api={api} />
   return <SignedIn api={api} fhir={fhir} path={path} />
 }
 
@@ -105,12 +112,14 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
   }
   const account = me.account
   const staff = account.role !== 'patient'
+  const clinical = staff && account.role !== 'reception' // the front desk sees no clinical content (clinic-cms F1)
   return (
     <>
       <header className="bar">
         <Logo />
-        {staff && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} reviewer={account.termReviewer === true} />}
-        {staff && <Cheatsheet api={api} />}
+        {clinical && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} desk={deskRoles.has(account.role)} reviewer={account.termReviewer === true} />}
+        {account.role === 'reception' && <ReceptionNavigation />}
+        {clinical && <Cheatsheet api={api} />}
         {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
         <button type="button" className="quiet" onClick={signOut}>
           <SignOutIcon />
@@ -122,6 +131,7 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
         <Alert message={languageSave === 'failed' ? t('common.somethingWrong') : undefined} />
         <Notice message={languageSave === 'saved' ? t('shell.languageSaved') : undefined} />
         {account.role === 'admin' && <SubscriptionBanner api={api} fhir={fhir} account={account} />}
+        {account.role === 'admin' && path !== '/setup' && <SetupBanner api={api} />}
         <Screen api={api} fhir={fhir} path={path} account={account} />
       </main>
     </>
@@ -129,10 +139,16 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
 }
 
 // The chat is the doctors' who take part in it (SAL-27): an admin reads no conversation, so has no Messages.
-function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practitioner: boolean; reviewer: boolean }) {
+function Navigation({ admin, practitioner, desk, reviewer }: { admin: boolean; practitioner: boolean; desk: boolean; reviewer: boolean }) {
   const t = useT()
   return (
     <nav aria-label={t('shell.mainNav')}>
+      {desk && (
+        <Link to="/desk">
+          <DeskIcon />
+          {t('desk.nav')}
+        </Link>
+      )}
       <Link to="/">
         <CalendarIcon />
         {t('shell.calendar')}
@@ -185,6 +201,28 @@ function Navigation({ admin, practitioner, reviewer }: { admin: boolean; practit
   )
 }
 
+// A receptionist's menu is the front desk alone: they open nothing else (clinic-cms F1, F3).
+function ReceptionNavigation() {
+  const t = useT()
+  return (
+    <nav aria-label={t('shell.mainNav')}>
+      <Link to="/desk">
+        <DeskIcon />
+        {t('desk.nav')}
+      </Link>
+    </nav>
+  )
+}
+
+// ToDesk sends a receptionist who opens the app's root to the front desk, their home screen.
+function ToDesk() {
+  useEffect(() => navigate('/desk', true), [])
+  return null
+}
+
+// The front desk is the clinic's admin's and its receptionists' (clinic-cms F3).
+const deskRoles = new Set<Account['role']>(['admin', 'reception'])
+
 const appointmentPath = /^\/appointments\/([^/]+)$/
 const callPath = /^\/appointments\/([^/]+)\/call$/
 const questionnairePath = /^\/questionnaires\/([^/]+)$/
@@ -206,6 +244,12 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   const t = useT()
   if (account.role === 'patient') {
     return <p className="panel">{t('shell.patientsUseApp')}</p>
+  }
+  // A receptionist sees the front desk only and lands there (clinic-cms F1, F3).
+  if (account.role === 'reception') {
+    if (path === '/desk') return <Desk api={api} fhir={fhir} account={account} />
+    if (path === '/') return <ToDesk />
+    return <p className="panel">{t('shell.notFound')}</p>
   }
   const call = callPath.exec(path)
   if (call) return <Call api={api} fhir={fhir} id={decodeURIComponent(call[1])} />
@@ -235,9 +279,12 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
           platform={account.features?.includes('analytics_platform') === true}
         />
         <ClinicSettingsWaitlist api={api} />
+        <ClinicProfile api={api} />
       </>
     )
   }
+  if (path === '/desk' && deskRoles.has(account.role)) return <Desk api={api} fhir={fhir} account={account} />
   if (path === '/price-list' && account.role === 'admin') return <PriceList api={api} />
+  if (path === '/setup' && account.role === 'admin') return <SetupWizard api={api} /> // clinic-cms O1
   return <p className="panel">{t('shell.notFound')}</p>
 }

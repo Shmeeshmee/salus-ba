@@ -159,6 +159,26 @@ describe('Practitioners', () => {
     expect(await post.json()).toEqual({ email: 'second@example.test', role: 'admin' })
   })
 
+  it('invites a receptionist with the e-mail only and lists the invite', async () => {
+    const deskInvite = { id: 'a5000000-0000-4000-8000-000000000003', email: 'desk@example.test', role: 'reception', expiresAt: '2026-11-07T09:30:00Z' }
+    const { requests } = renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [] }),
+      'GET /specialties': specialties,
+      'POST /invites': () => Response.json(deskInvite, { status: 201 }),
+    })
+
+    fireEvent.click(await screen.findByLabelText('Reception'))
+    expect(screen.queryByLabelText('Given name')).toBeNull()
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'desk@example.test' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send invite' }))
+
+    await screen.findByRole('status')
+    const post = requests.find((r) => r.method === 'POST')!
+    expect(await post.json()).toEqual({ email: 'desk@example.test', role: 'reception' })
+    expect(within(screen.getByRole('list', { name: 'Open invites' })).getByText(/Reception · Expires/)).toBeTruthy()
+  })
+
   it('replaces an open invite for the same e-mail instead of listing it twice', async () => {
     renderPractitioners(admin, {
       [search]: () => fhirJSON(bundle),

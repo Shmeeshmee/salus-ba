@@ -103,6 +103,82 @@ func (q *Queries) InsertInvoiceLine(ctx context.Context, arg InsertInvoiceLinePa
 	return id, err
 }
 
+const insertQuote = `-- name: InsertQuote :one
+
+INSERT INTO quote (organization_id, patient_id, appointment_id, created_by_account_id, issued_at, valid_until,
+                   total_minor, currency, note)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9)
+RETURNING id
+`
+
+type InsertQuoteParams struct {
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	AppointmentID      pgtype.UUID
+	CreatedByAccountID pgtype.UUID
+	IssuedAt           pgtype.Timestamptz
+	ValidUntil         pgtype.Timestamptz
+	TotalMinor         int64
+	Currency           string
+	Note               string
+}
+
+// Treatment quotes (docs/clinic-cms, package X1): their own tables, never numbered and never reported.
+func (q *Queries) InsertQuote(ctx context.Context, arg InsertQuoteParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertQuote,
+		arg.OrganizationID,
+		arg.PatientID,
+		arg.AppointmentID,
+		arg.CreatedByAccountID,
+		arg.IssuedAt,
+		arg.ValidUntil,
+		arg.TotalMinor,
+		arg.Currency,
+		arg.Note,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertQuoteLine = `-- name: InsertQuoteLine :one
+INSERT INTO quote_line (quote_id, position, charge_item_definition_id, name, quantity, unit_price_minor,
+                        discount_minor, vat_rate_bp, total_minor)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9)
+RETURNING id
+`
+
+type InsertQuoteLineParams struct {
+	QuoteID                pgtype.UUID
+	Position               int32
+	ChargeItemDefinitionID pgtype.UUID
+	Name                   string
+	Quantity               int32
+	UnitPriceMinor         int64
+	DiscountMinor          int64
+	VatRateBp              pgtype.Int4
+	TotalMinor             int64
+}
+
+func (q *Queries) InsertQuoteLine(ctx context.Context, arg InsertQuoteLineParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, insertQuoteLine,
+		arg.QuoteID,
+		arg.Position,
+		arg.ChargeItemDefinitionID,
+		arg.Name,
+		arg.Quantity,
+		arg.UnitPriceMinor,
+		arg.DiscountMinor,
+		arg.VatRateBp,
+		arg.TotalMinor,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const invoiceByID = `-- name: InvoiceByID :one
 
 SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
@@ -411,6 +487,137 @@ func (q *Queries) NextInvoiceNumber(ctx context.Context, organizationID pgtype.U
 	var last_number int64
 	err := row.Scan(&last_number)
 	return last_number, err
+}
+
+const quoteByID = `-- name: QuoteByID :one
+SELECT id, created_at, organization_id, patient_id, appointment_id, created_by_account_id, issued_at, valid_until, total_minor, currency, note FROM quote WHERE id = $1
+`
+
+func (q *Queries) QuoteByID(ctx context.Context, id pgtype.UUID) (Quote, error) {
+	row := q.db.QueryRow(ctx, quoteByID, id)
+	var i Quote
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.PatientID,
+		&i.AppointmentID,
+		&i.CreatedByAccountID,
+		&i.IssuedAt,
+		&i.ValidUntil,
+		&i.TotalMinor,
+		&i.Currency,
+		&i.Note,
+	)
+	return i, err
+}
+
+const quoteLines = `-- name: QuoteLines :many
+SELECT id, quote_id, position, charge_item_definition_id, name, quantity, unit_price_minor, discount_minor, vat_rate_bp, total_minor FROM quote_line WHERE quote_id = ANY($1::uuid[]) ORDER BY quote_id, position
+`
+
+// The lines of the quotes, each quote's in the order they were entered.
+func (q *Queries) QuoteLines(ctx context.Context, quoteIds []pgtype.UUID) ([]QuoteLine, error) {
+	rows, err := q.db.Query(ctx, quoteLines, quoteIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []QuoteLine
+	for rows.Next() {
+		var i QuoteLine
+		if err := rows.Scan(
+			&i.ID,
+			&i.QuoteID,
+			&i.Position,
+			&i.ChargeItemDefinitionID,
+			&i.Name,
+			&i.Quantity,
+			&i.UnitPriceMinor,
+			&i.DiscountMinor,
+			&i.VatRateBp,
+			&i.TotalMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const quotesOfOrganization = `-- name: QuotesOfOrganization :many
+SELECT id, created_at, organization_id, patient_id, appointment_id, created_by_account_id, issued_at, valid_until, total_minor, currency, note FROM quote WHERE organization_id = $1 ORDER BY issued_at DESC, id
+`
+
+func (q *Queries) QuotesOfOrganization(ctx context.Context, organizationID pgtype.UUID) ([]Quote, error) {
+	rows, err := q.db.Query(ctx, quotesOfOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Quote
+	for rows.Next() {
+		var i Quote
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.AppointmentID,
+			&i.CreatedByAccountID,
+			&i.IssuedAt,
+			&i.ValidUntil,
+			&i.TotalMinor,
+			&i.Currency,
+			&i.Note,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const quotesOfPatient = `-- name: QuotesOfPatient :many
+SELECT id, created_at, organization_id, patient_id, appointment_id, created_by_account_id, issued_at, valid_until, total_minor, currency, note FROM quote WHERE patient_id = $1 ORDER BY issued_at DESC, id
+`
+
+func (q *Queries) QuotesOfPatient(ctx context.Context, patientID pgtype.UUID) ([]Quote, error) {
+	rows, err := q.db.Query(ctx, quotesOfPatient, patientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Quote
+	for rows.Next() {
+		var i Quote
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.AppointmentID,
+			&i.CreatedByAccountID,
+			&i.IssuedAt,
+			&i.ValidUntil,
+			&i.TotalMinor,
+			&i.Currency,
+			&i.Note,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setInvoiceFailed = `-- name: SetInvoiceFailed :execrows

@@ -1,0 +1,2 @@
+Package F2. Migration, only if needed: 00067. Go only: the screens are F3's. A patient without an account gets no
+e-mail and no push; SMS only where the clinic's SMS option allows (pkg/sms is still the fake).

@@ -132,10 +132,15 @@ type fakeReminders struct {
 	mode                        schedule.VisitMode
 	links                       []appointment.Link
 	taken, dispatched           int
+	noAccount                   bool // the patient's profile was registered by the clinic, without an account (docs/clinic-cms W1)
 }
 
 func (f *fakeReminders) notice() appointment.ReminderNotice {
-	return appointment.ReminderNotice{Start: f.start, ReminderID: reminderID, AppointmentID: remindAppt, OrganizationID: remindClin, PatientID: patientID, AccountID: patientAccount, Mode: f.mode}
+	account := patientAccount
+	if f.noAccount {
+		account = ""
+	}
+	return appointment.ReminderNotice{Start: f.start, ReminderID: reminderID, AppointmentID: remindAppt, OrganizationID: remindClin, PatientID: patientID, AccountID: account, Mode: f.mode}
 }
 
 func (f *fakeReminders) TakeReminder(_ context.Context, _, org, id string) (appointment.ReminderNotice, error) {

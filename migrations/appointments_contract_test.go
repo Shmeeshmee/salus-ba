@@ -165,8 +165,9 @@ func TestAppointment_ARescheduleMovesThePeriodAndTheSlot(t *testing.T) {
 }
 
 // The trigger says who may change the period, the slot, the count and the confirmation (review, finding 1), under
-// every UPDATE policy: only the patient moves their booked appointment, counting once; the clinic never moves one nor
-// confirms; a confirmation is never cleared.
+// every UPDATE policy: the patient moves their booked appointment, counting once, and from the wave 3 contract the
+// clinic with the patient's consent does too (docs/clinic-cms, 3.0); the clinic never confirms; a confirmation is never
+// cleared.
 func TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
@@ -196,7 +197,8 @@ func TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment(t *test
 		id      string
 		ok      bool
 	}{
-		{name: "clinic A moves its consenting patient's", scope: map[string]string{"app.organization_id": clinicA}, q: moveOnce, id: a.aFuture},
+		// Staff move a booked visit for its patient from the wave 3 contract (docs/clinic-cms, 3.0; package F2).
+		{name: "clinic A moves its consenting patient's", scope: map[string]string{"app.organization_id": clinicA}, q: moveOnce, id: a.aFuture, ok: true},
 		{name: "clinic B moves a past one after the revocation", scope: map[string]string{"app.organization_id": clinicB}, q: moveOnce, id: a.bPast},
 		{name: "the patient moves without counting", scope: own, q: moveFree, id: a.aFuture},
 		{name: "the patient counts twice", scope: own, q: moveTwice, id: a.aFuture},

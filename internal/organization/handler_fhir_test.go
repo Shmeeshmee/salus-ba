@@ -41,12 +41,19 @@ type stubClinics struct {
 	err     error
 	caller  organization.Caller
 	id      string
+	speaks  string // the language ListListedSpeaking was asked for
 	changes organization.Changes
 	org     organization.Organization
 	all     []organization.Organization // what ListListed gives
 	calls   int
 	listed  int // calls of ListListed
 	version int32
+}
+
+func (s *stubClinics) ListListedSpeaking(_ context.Context, language string) ([]organization.Organization, error) {
+	s.calls++
+	s.speaks = language
+	return s.all, s.err
 }
 
 func (s *stubClinics) Read(_ context.Context, c organization.Caller, id string) (organization.Organization, error) {
@@ -222,7 +229,8 @@ func TestHandlerSearch_SendsTheListedClinicsToAnyone(t *testing.T) {
 }
 
 func TestHandlerSearch_RejectsAnyOtherSearchWithoutCallingTheService(t *testing.T) {
-	for _, query := range []string{"", "listed=false", "listed=", "listed=true&listed=true", "listed=true&name=x", "active=true", "listed:missing=true"} {
+	for _, query := range []string{"", "listed=false", "listed=", "listed=true&listed=true", "listed=true&name=x", "active=true", "listed:missing=true",
+		"language=de", "listed=true&language=de&language=bs", "listed=true&language="} {
 		s := newOrgServer(&stubClinics{})
 
 		rec := s.do(t, http.MethodGet, "/fhir/R4/Organization?"+query, "", "")
@@ -232,6 +240,28 @@ func TestHandlerSearch_RejectsAnyOtherSearchWithoutCallingTheService(t *testing.
 		}
 		assertGolden(t, "unsupported_search.json", rec.Body.Bytes())
 	}
+}
+
+// Organization?listed=true&language=de is the directory's language filter (package X2 of docs/clinic-cms): the listed
+// clinics whose staff speak the language.
+func TestHandlerSearch_FiltersTheListedClinicsByALanguageSpoken(t *testing.T) {
+	listed := clinic(4)
+	listed.Listed = true
+	s := newOrgServer(&stubClinics{all: []organization.Organization{listed}})
+
+	rec := s.do(t, http.MethodGet, "/fhir/R4/Organization?listed=true&language=de", "", "")
+
+	if rec.Code != http.StatusOK || s.svc.speaks != "de" || s.svc.listed != 0 {
+		t.Fatalf("status = %d %s asked for %q, want 200 from ListListedSpeaking(de)", rec.Code, rec.Body, s.svc.speaks)
+	}
+	assertGolden(t, "search_listed_language.json", rec.Body.Bytes())
+
+	s = newOrgServer(&stubClinics{err: organization.ErrInvalidProfile})
+	rec = s.do(t, http.MethodGet, "/fhir/R4/Organization?listed=true&language=xx", "", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("an unknown language: status = %d, want 400", rec.Code)
+	}
+	assertGolden(t, "invalid_search_language.json", rec.Body.Bytes())
 }
 
 func TestHandlerSearch_SendsAFixedOperationOutcomeOnAServiceError(t *testing.T) {
@@ -302,6 +332,7 @@ func TestHandler_MapsTheServiceErrors(t *testing.T) {
 		{err: organization.ErrForbidden, method: http.MethodPut, status: http.StatusForbidden, golden: "forbidden.json"},
 		{err: organization.ErrInvalidName, method: http.MethodPut, status: http.StatusUnprocessableEntity, golden: "invalid_name.json"},
 		{err: organization.ErrInvalidTimeZone, method: http.MethodPut, status: http.StatusBadRequest, golden: "invalid_time_zone.json"},
+		{err: organization.ErrNotApproved, method: http.MethodPut, status: http.StatusConflict, golden: "not_approved.json"},
 	}
 	for _, tt := range tests {
 		s := newOrgServer(&stubClinics{err: tt.err})

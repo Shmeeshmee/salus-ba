@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -209,7 +210,7 @@ func (r *fakeRepository) change(ctx context.Context, call, id string, fn func(*a
 		return appointment.Appointment{}, r.err
 	}
 	for i, a := range r.appts {
-		if a.ID == id && r.visible(a) && a.Status == appointment.StatusBooked {
+		if a.ID == id && r.visible(a) && (a.Status == appointment.StatusBooked || a.Status == appointment.StatusArrived) {
 			fn(&a)
 			a.VersionID++
 			r.appts[i] = a
@@ -245,6 +246,38 @@ func (r *fakeRepository) AddChange(ctx context.Context, c appointment.Change) (s
 		}
 	}
 	return "", appointment.ErrNotFound
+}
+
+func (r *fakeRepository) Arrive(ctx context.Context, id string, at time.Time) (appointment.Appointment, error) {
+	r.seen(ctx, "Arrive")
+	if r.err != nil {
+		return appointment.Appointment{}, r.err
+	}
+	for i, a := range r.appts {
+		if a.ID == id && r.visible(a) {
+			if a.Status != appointment.StatusBooked || a.Mode != schedule.ModeInPerson {
+				return appointment.Appointment{}, appointment.ErrClosed
+			}
+			a.Status, a.ArrivedAt, a.VersionID, a.LastUpdated = appointment.StatusArrived, at, a.VersionID+1, at
+			r.appts[i] = a
+			return a, nil
+		}
+	}
+	return appointment.Appointment{}, appointment.ErrClosed
+}
+
+func (r *fakeRepository) Desk(ctx context.Context, org string, from, to time.Time) ([]appointment.Appointment, error) {
+	r.seen(ctx, "Desk")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []appointment.Appointment
+	for _, a := range r.appts {
+		if a.OrganizationID == org && r.visible(a) && a.Status != appointment.StatusCancelled && !a.Start.Before(from) && a.Start.Before(to) {
+			out = append(out, a)
+		}
+	}
+	return out, nil
 }
 
 func (r *fakeRepository) Changes(ctx context.Context, id string) ([]appointment.Change, error) {
@@ -308,7 +341,13 @@ type fakeSlots struct {
 	bookable map[string]slot.Bookable
 	held     []string
 	released []string
+	inClinic []string // "<org>/<slot>" of each BookableInClinic
 }
+
+// fakeStops is the clinics whose new bookings are stopped (a suspended or cancelled membership).
+type fakeStops map[string]bool
+
+func (s fakeStops) BookingsStopped(_ context.Context, org string) (bool, error) { return s[org], nil }
 
 func (s *fakeSlots) Bookable(ctx context.Context, id string) (slot.Bookable, error) {
 	if ctx.Value(txKey{}) != nil {
@@ -316,6 +355,19 @@ func (s *fakeSlots) Bookable(ctx context.Context, id string) (slot.Bookable, err
 	}
 	b, ok := s.bookable[id] // the directory may still offer a slot another booking holds
 	if !ok {
+		return slot.Bookable{}, slot.ErrUnavailable
+	}
+	return b, s.err
+}
+
+// BookableInClinic gives a free slot of the clinic org, listed or not, outside the booking's transaction.
+func (s *fakeSlots) BookableInClinic(ctx context.Context, org, id string) (slot.Bookable, error) {
+	if ctx.Value(txKey{}) != nil {
+		return slot.Bookable{}, errors.New("BookableInClinic inside the booking's transaction")
+	}
+	s.inClinic = append(s.inClinic, org+"/"+id)
+	b, ok := s.bookable[id]
+	if !ok || b.OrganizationID != org || slices.Contains(s.held, id) {
 		return slot.Bookable{}, slot.ErrUnavailable
 	}
 	return b, s.err
@@ -362,6 +414,8 @@ func (p *fakePatients) Lookup(ctx context.Context, id string) (patient.Patient, 
 		return patient.Patient{ID: patientA, AccountID: accountA, GivenName: "Ada", FamilyName: "Example"}, nil
 	case patientB:
 		return patient.Patient{ID: patientB, AccountID: accountB, GivenName: "Bo", FamilyName: "Example"}, nil
+	case patientC: // registered by clinic A, without an account (docs/clinic-cms F2)
+		return patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example"}, nil
 	}
 	return patient.Patient{}, patient.ErrNotFound
 }
@@ -390,7 +444,16 @@ var knownRoles = map[string]practitionerrole.PractitionerRole{
 	roleA1: {ID: roleA1, OrganizationID: clinicA, PractitionerID: practA1, Active: true},
 	roleA2: {ID: roleA2, OrganizationID: clinicA, PractitionerID: practA2, Active: true},
 	roleB:  {ID: roleB, OrganizationID: clinicB, PractitionerID: practB, Active: true},
+	roleU:  {ID: roleU, OrganizationID: clinicU, PractitionerID: practU, Active: true},
+	roleAx: {ID: roleAx, OrganizationID: clinicA, PractitionerID: practAx}, // no longer active
 }
+
+const (
+	practU  = "p4000000-0000-4000-8000-0000000000c1"
+	roleAx  = "r1000000-0000-4000-8000-0000000000a9" // clinic A's, inactive
+	practAx = "p1000000-0000-4000-8000-0000000000a9"
+	slotAx  = "51000000-0000-4000-8000-0000000000a9" // a free slot of the inactive role
+)
 
 func (r *fakeRoles) Read(_ context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error) {
 	return r.find(c.OrganizationID, func(p practitionerrole.PractitionerRole) bool { return p.ID == id })
@@ -520,6 +583,7 @@ type fixture struct {
 	reminders *fakeReminders
 	rules     *fakeRules
 	audit     *fakeAuditor
+	stops     fakeStops
 	svc       *appointment.Service
 }
 
@@ -541,9 +605,10 @@ func newFixture(appts ...appointment.Appointment) *fixture {
 			slotPast: slotAt(slotPast, roleA1, clinicA, now.Add(-time.Minute)),
 			slotU:    slotAt(slotU, roleU, clinicU, start),
 			slotB:    slotAt(slotB, roleB, clinicB, start),
+			slotAx:   slotAt(slotAx, roleAx, clinicA, start),
 		}},
 		clinics: &fakeClinics{}, roles: &fakeRoles{}, jobs: &fakeJobs{}, tokens: &fakeTokens{}, stats: &fakeStatsQueue{},
-		audit: &fakeAuditor{},
+		audit: &fakeAuditor{}, stops: fakeStops{},
 	}
 	f.repo = &fakeRepository{consents: f.consents, appts: appts}
 	f.patients = &fakePatients{repo: f.repo}
@@ -551,7 +616,7 @@ func newFixture(appts ...appointment.Appointment) *fixture {
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,
-		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats, Reminders: f.reminders, Rules: f.rules,
+		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats, Reminders: f.reminders, Rules: f.rules, Stops: f.stops,
 	})
 	return f
 }

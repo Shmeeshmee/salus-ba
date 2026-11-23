@@ -154,9 +154,77 @@ class BillingApi {
     return null;
   }
 
+  /// A quote of the clinic
+  ///
+  /// Built in package X1. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getClinicQuoteWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/quotes/{id}'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// A quote of the clinic
+  ///
+  /// Built in package X1. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Quote?> getClinicQuote(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getClinicQuoteWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Quote',
+      ) as Quote;
+    }
+    return null;
+  }
+
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin and the practitioner who issued it. Audited.
+  /// For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -193,7 +261,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin and the practitioner who issued it. Audited.
+  /// For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
   ///
   /// Parameters:
   ///
@@ -343,6 +411,74 @@ class BillingApi {
         await _decodeBodyBytes(response),
         'Subscription',
       ) as Subscription;
+    }
+    return null;
+  }
+
+  /// The patient's own quote as a PDF
+  ///
+  /// It says it is a quote, not a receipt. Built in package X1. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getMyQuotePdfWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/quotes/{id}/pdf'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The patient's own quote as a PDF
+  ///
+  /// It says it is a quote, not a receipt. Built in package X1. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<String?> getMyQuotePdf(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getMyQuotePdfWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -650,9 +786,112 @@ class BillingApi {
     return null;
   }
 
+  /// Import a price list from a file
+  ///
+  /// A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [MultipartFile] file (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [bool] save:
+  Future<Response> importClinicServicesWithHttpInfo(
+    MultipartFile file, {
+    String? xSalusCSRF,
+    bool? save,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/services/import';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (save != null) {
+      queryParams.addAll(_queryParams('', 'save', save));
+    }
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['multipart/form-data'];
+
+    bool hasFields = false;
+    final mp = MultipartRequest('POST', Uri.parse(path));
+    if (file != null) {
+      hasFields = true;
+      mp.fields[r'file'] = file.field;
+      mp.files.add(file);
+    }
+    if (hasFields) {
+      postBody = mp;
+    }
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Import a price list from a file
+  ///
+  /// A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
+  ///
+  /// Parameters:
+  ///
+  /// * [MultipartFile] file (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [bool] save:
+  Future<ServiceImport?> importClinicServices(
+    MultipartFile file, {
+    String? xSalusCSRF,
+    bool? save,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await importClinicServicesWithHttpInfo(
+      file,
+      xSalusCSRF: xSalusCSRF,
+      save: save,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'ServiceImport',
+      ) as ServiceImport;
+    }
+    return null;
+  }
+
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+  /// By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -704,7 +943,7 @@ class BillingApi {
 
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+  /// By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
   ///
   /// Parameters:
   ///
@@ -739,6 +978,81 @@ class BillingApi {
         await _decodeBodyBytes(response),
         'Receipt',
       ) as Receipt;
+    }
+    return null;
+  }
+
+  /// The clinic's treatment quotes
+  ///
+  /// Newest first, with their state. For the clinic's admin and its practitioners (their own patients'). Built in package X1. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] appointmentId:
+  ///   Only the quotes written at this visit.
+  Future<Response> listClinicQuotesWithHttpInfo({
+    String? appointmentId,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/quotes';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (appointmentId != null) {
+      queryParams.addAll(_queryParams('', 'appointmentId', appointmentId));
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The clinic's treatment quotes
+  ///
+  /// Newest first, with their state. For the clinic's admin and its practitioners (their own patients'). Built in package X1. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] appointmentId:
+  ///   Only the quotes written at this visit.
+  Future<List<Quote>?> listClinicQuotes({
+    String? appointmentId,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listClinicQuotesWithHttpInfo(
+      appointmentId: appointmentId,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<Quote>')
+              as List)
+          .cast<Quote>()
+          .toList(growable: false);
     }
     return null;
   }
@@ -875,6 +1189,64 @@ class BillingApi {
       return (await apiClient.deserializeAsync(responseBody, 'List<Service>')
               as List)
           .cast<Service>()
+          .toList(growable: false);
+    }
+    return null;
+  }
+
+  /// The patient's own quotes
+  ///
+  /// From every clinic, newest first. Built in package X1. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  Future<Response> listMyQuotesWithHttpInfo({
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/me/quotes';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The patient's own quotes
+  ///
+  /// From every clinic, newest first. Built in package X1. Audited.
+  Future<List<Quote>?> listMyQuotes({
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await listMyQuotesWithHttpInfo(
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<Quote>')
+              as List)
+          .cast<Quote>()
           .toList(growable: false);
     }
     return null;
@@ -1253,6 +1625,87 @@ class BillingApi {
         await _decodeBodyBytes(response),
         'Receipt',
       ) as Receipt;
+    }
+    return null;
+  }
+
+  /// Send a patient a treatment quote
+  ///
+  /// Lines from the price list with quantities and discounts, a note, valid 30 days (W4 of docs/clinic-cms). Not a receipt: never numbered, reported or charged. The patient gets an e-mail. By the clinic's admin or the patient's practitioner. Built in package X1. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [SendQuoteRequest] sendQuoteRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> sendQuoteWithHttpInfo(
+    SendQuoteRequest sendQuoteRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/quotes';
+
+    // ignore: prefer_final_locals
+    Object? postBody = sendQuoteRequest;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Send a patient a treatment quote
+  ///
+  /// Lines from the price list with quantities and discounts, a note, valid 30 days (W4 of docs/clinic-cms). Not a receipt: never numbered, reported or charged. The patient gets an e-mail. By the clinic's admin or the patient's practitioner. Built in package X1. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [SendQuoteRequest] sendQuoteRequest (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Quote?> sendQuote(
+    SendQuoteRequest sendQuoteRequest, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await sendQuoteWithHttpInfo(
+      sendQuoteRequest,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Quote',
+      ) as Quote;
     }
     return null;
   }

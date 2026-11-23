@@ -11,6 +11,9 @@ var (
 	ErrForbidden = errors.New("organization: forbidden")
 	// ErrConflict is returned for an update of a version that is not the current one.
 	ErrConflict = errors.New("organization: version conflict")
+	// ErrNotApproved is returned when a signed-up clinic's admin lists it before the operator approved the signup
+	// (00066).
+	ErrNotApproved = errors.New("organization: listed only after the operator's approval")
 	// ErrInvalidName is returned for a name that is blank or longer than 200 characters.
 	ErrInvalidName = errors.New("organization: invalid name")
 	// ErrInvalidTimeZone is returned for a time zone that is not an IANA zone name.
@@ -36,3 +39,8 @@ var (
 // ErrInvalidBillingDetails is returned for billing details with a tax id that is not 12 or 13 digits, an e-mail that
 // is not an address, or a legal name that is too long.
 var ErrInvalidBillingDetails = errors.New("organization: invalid billing details")
+
+// ErrInvalidProfile is returned for a clinic profile with a language that is not of the language enum or given twice,
+// a description or translation over 2000 characters, a blank translation, a translation given twice, or translations
+// of no description; and for a directory search by a language that is not of the enum.
+var ErrInvalidProfile = errors.New("organization: invalid profile")

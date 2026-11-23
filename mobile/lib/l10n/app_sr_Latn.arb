@@ -532,5 +532,17 @@
   "receiptReversal": "Storno ranijeg računa",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Odabraću u ustanovi",
-  "answersNotEnabled": "Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: {items}. Provjerite odgovore i ponovo pošaljite."
+  "answersNotEnabled": "Ova pitanja se više ne postavljaju, pa su njihovi odgovori uklonjeni: {items}. Provjerite odgovore i ponovo pošaljite.",
+  "myQuotes": "Moje ponude",
+  "quotesIntro": "Ponude za liječenje koje su vam ustanove poslale nakon termina. Ponuda nije račun: ništa nije naplaćeno. Ako nastavite, plaćate u ustanovi.",
+  "noQuotes": "Još nemate ponuda.",
+  "quoteTitle": "Ponuda",
+  "quoteValidUntil": "Važi do {date}",
+  "quoteExpired": "Istekla",
+  "clinicLanguageFilter": "Jezik koji se govori",
+  "anyLanguage": "Bilo koji jezik",
+  "noClinicsSpeak": "Nijedna klinika na spisku još ne govori ovaj jezik.",
+  "welcomesInternational": "Prima pacijente iz inostranstva",
+  "languagesSpoken": "Jezici koji se govore: {languages}",
+  "clinicServices": "Usluge i cijene"
 }

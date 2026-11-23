@@ -277,12 +277,18 @@ func joinNotFound(err error) error {
 	return communication.ErrNotFound
 }
 
-type fakePatients struct{ asked []string }
+type fakePatients struct {
+	asked     []string
+	noAccount bool // the patient's profile was registered by the clinic, without an account (docs/clinic-cms W1)
+}
 
 func (p *fakePatients) NoticeAccount(_ context.Context, agent, org, id string) (string, error) {
 	p.asked = append(p.asked, agent+"/"+org+"/"+id)
-	if id != patientID || org != clinicID {
+	switch {
+	case id != patientID || org != clinicID:
 		return "", patient.ErrNotFound
+	case p.noAccount:
+		return "", nil
 	}
 	return patientAccount, nil
 }

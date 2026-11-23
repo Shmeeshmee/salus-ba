@@ -2703,5 +2703,63 @@
         "type": "String"
       }
     }
+  },
+  "myQuotes": "My quotes",
+  "@myQuotes": {
+    "description": "Clinic system, package X1: home button and screen title of the patient's treatment quotes."
+  },
+  "quotesIntro": "Treatment quotes clinics sent you after a visit. A quote is not a receipt: nothing has been charged. If you go ahead, you pay at the clinic.",
+  "@quotesIntro": {
+    "description": "[legal] Clinic system, package X1: above the patient's quotes; a quote is not a receipt and charges nothing. Draft, waiting for the owner."
+  },
+  "noQuotes": "You have no quotes yet.",
+  "@noQuotes": {
+    "description": "Clinic system, package X1: the patient has no quotes."
+  },
+  "quoteTitle": "Quote",
+  "@quoteTitle": {
+    "description": "Clinic system, package X1: a quote's heading and its PDF file name."
+  },
+  "quoteValidUntil": "Valid until {date}",
+  "@quoteValidUntil": {
+    "description": "Clinic system, package X1: the last day the quote is valid; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "quoteExpired": "Expired",
+  "@quoteExpired": {
+    "description": "Clinic system, package X1: the quote is no longer valid."
+  },
+  "clinicLanguageFilter": "Language spoken",
+  "@clinicLanguageFilter": {
+    "description": "Label of the clinic list's language filter."
+  },
+  "anyLanguage": "Any language",
+  "@anyLanguage": {
+    "description": "The language filter's choice for every clinic."
+  },
+  "noClinicsSpeak": "No listed clinic speaks this language yet.",
+  "@noClinicsSpeak": {
+    "description": "Empty list under a language filter."
+  },
+  "welcomesInternational": "Welcomes patients from abroad",
+  "@welcomesInternational": {
+    "description": "On a clinic's profile."
+  },
+  "languagesSpoken": "Languages spoken: {languages}",
+  "@languagesSpoken": {
+    "description": "On a clinic's profile; the languages by their own names.",
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "clinicServices": "Services and prices",
+  "@clinicServices": {
+    "description": "Heading above a clinic's services on its profile."
   }
 }

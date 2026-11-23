@@ -1,0 +1,7 @@
+Ein Kostenvoranschlag zu Ihrem Termin liegt vor
+
+Ein Kostenvoranschlag für die Behandlung zu Ihrem Termin bei {{.Clinic}} liegt vor. Es ist ein Angebot, keine Rechnung: Es wurde nichts berechnet.
+Datum und Uhrzeit: {{.When}}
+
+Um ihn zu lesen, öffnen Sie die Salus-App:
+{{.Link}}

@@ -134,6 +134,24 @@ func TestDispatchReminder_DeliversAndMarksTheReminderDispatched(t *testing.T) {
 	}
 }
 
+// A patient the clinic registered has no account (docs/clinic-cms W1): their reminder is dispatched with no delivery
+// on any channel and no send job, and no account is read; the job completes.
+func TestDispatchReminder_DeliversNothingToAPatientWithoutAnAccount(t *testing.T) {
+	f := newReminderFixture(afterChange.Add(-time.Hour), afterChange, fakeRules{sms: true})
+	f.reminders.noAccount = true
+	if err := f.svc.DispatchReminder(t.Context(), appointment.ReminderArgs{ReminderID: reminderID, OrganizationID: remindClin}); err != nil {
+		t.Fatalf("DispatchReminder() = %v, want nil", err)
+	}
+	if f.reminders.dispatched != 1 || len(f.deliveries.deliveries) != 0 || len(f.jobs.enqueued) != 0 || len(f.audit.events) != 0 {
+		t.Errorf("dispatched %d with %v, jobs %v, audit %+v; want it dispatched with nothing to send and no account read",
+			f.reminders.dispatched, deliveries(f), f.jobs.enqueued, f.audit.events)
+	}
+	if err := f.svc.Deliver(t.Context(), notification.KindWaitlistOffer, reminderID, remindClin, "", notification.Content{Deadline: afterChange}); err != nil ||
+		len(f.deliveries.deliveries) != 0 || len(f.jobs.enqueued) != 0 {
+		t.Errorf("Deliver(no account) = %v with %v, jobs %v; want nothing", err, deliveries(f), f.jobs.enqueued)
+	}
+}
+
 // dispatched is a fixture whose reminder has its deliveries, the patient in Dubai with SMS on at a clinic with SMS.
 func dispatched(t *testing.T, now time.Time) *reminderFixture {
 	t.Helper()

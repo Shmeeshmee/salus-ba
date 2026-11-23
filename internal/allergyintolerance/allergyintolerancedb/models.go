@@ -276,6 +276,8 @@ type Appointment struct {
 	BookedVia            string
 	VisitMode            string
 	ServiceID            pgtype.UUID
+	ArrivedAt            pgtype.Timestamptz
+	BookedByAccountID    pgtype.UUID
 }
 
 type AppointmentActionToken struct {
@@ -441,6 +443,25 @@ type ClinicDiagnosisStat struct {
 	Code               string
 }
 
+type ClinicSetupStep struct {
+	OrganizationID pgtype.UUID
+	Step           string
+	State          string
+	UpdatedAt      pgtype.Timestamptz
+}
+
+type ClinicSignup struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	VerifiedAt     pgtype.Timestamptz
+	ApprovedAt     pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	Email          string
+	ClinicName     string
+	Language       Language
+	TokenHash      []byte
+}
+
 type ClinicSubscription struct {
 	OrganizationID     pgtype.UUID
 	CreatedAt          pgtype.Timestamptz
@@ -503,15 +524,17 @@ type Condition struct {
 }
 
 type Consent struct {
-	ID             pgtype.UUID
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
-	DateTime       pgtype.Timestamptz
-	RevokedAt      pgtype.Timestamptz
-	PatientID      pgtype.UUID
-	OrganizationID pgtype.UUID
-	VersionID      int32
-	Status         string
+	ID                  pgtype.UUID
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+	DateTime            pgtype.Timestamptz
+	RevokedAt           pgtype.Timestamptz
+	PatientID           pgtype.UUID
+	OrganizationID      pgtype.UUID
+	VersionID           int32
+	Status              string
+	RecordedByAccountID pgtype.UUID
+	GivenInPerson       bool
 }
 
 type Conversation struct {
@@ -789,6 +812,9 @@ type Organization struct {
 	TaxID                 pgtype.Text
 	VatRegistered         bool
 	BillingEmail          pgtype.Text
+	Languages             []string
+	ProfileDescription    string
+	WelcomesInternational bool
 }
 
 type OrganizationAppointmentSetting struct {
@@ -815,16 +841,23 @@ type OrganizationChatSetting struct {
 	Hours             []byte
 }
 
+type OrganizationProfileTranslation struct {
+	OrganizationID pgtype.UUID
+	Language       Language
+	Description    string
+}
+
 type Patient struct {
-	ID         pgtype.UUID
-	CreatedAt  pgtype.Timestamptz
-	UpdatedAt  pgtype.Timestamptz
-	AccountID  pgtype.UUID
-	VersionID  int32
-	BirthDate  pgtype.Date
-	GivenName  string
-	FamilyName string
-	Phone      pgtype.Text
+	ID                         pgtype.UUID
+	CreatedAt                  pgtype.Timestamptz
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
 }
 
 type Place struct {
@@ -918,6 +951,33 @@ type QuestionnaireTranslation struct {
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
 	Texts           []byte
+}
+
+type Quote struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	AppointmentID      pgtype.UUID
+	CreatedByAccountID pgtype.UUID
+	IssuedAt           pgtype.Timestamptz
+	ValidUntil         pgtype.Timestamptz
+	TotalMinor         int64
+	Currency           string
+	Note               string
+}
+
+type QuoteLine struct {
+	ID                     pgtype.UUID
+	QuoteID                pgtype.UUID
+	Position               int32
+	ChargeItemDefinitionID pgtype.UUID
+	Name                   string
+	Quantity               int32
+	UnitPriceMinor         int64
+	DiscountMinor          int64
+	VatRateBp              pgtype.Int4
+	TotalMinor             int64
 }
 
 type RiverJob struct {

@@ -532,5 +532,17 @@
   "receiptReversal": "Storno eines früheren Belegs",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "Ich wähle in der Praxis",
-  "answersNotEnabled": "Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: {items}. Prüfen Sie Ihre Antworten und senden Sie sie erneut."
+  "answersNotEnabled": "Diese Fragen werden nicht mehr gestellt, daher wurden ihre Antworten entfernt: {items}. Prüfen Sie Ihre Antworten und senden Sie sie erneut.",
+  "myQuotes": "Meine Kostenvoranschläge",
+  "quotesIntro": "Kostenvoranschläge für Behandlungen, die Ihnen Kliniken nach einem Termin geschickt haben. Ein Kostenvoranschlag ist keine Rechnung: Es wurde nichts berechnet. Wenn Sie fortfahren, bezahlen Sie in der Klinik.",
+  "noQuotes": "Sie haben noch keine Kostenvoranschläge.",
+  "quoteTitle": "Kostenvoranschlag",
+  "quoteValidUntil": "Gültig bis {date}",
+  "quoteExpired": "Abgelaufen",
+  "clinicLanguageFilter": "Gesprochene Sprache",
+  "anyLanguage": "Jede Sprache",
+  "noClinicsSpeak": "Noch keine eingetragene Klinik spricht diese Sprache.",
+  "welcomesInternational": "Empfängt Patientinnen und Patienten aus dem Ausland",
+  "languagesSpoken": "Gesprochene Sprachen: {languages}",
+  "clinicServices": "Leistungen und Preise"
 }

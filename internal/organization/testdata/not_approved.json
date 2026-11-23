@@ -1,0 +1,1 @@
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"business-rule","diagnostics":"The clinic is listed once Salus approves its signup."}]}

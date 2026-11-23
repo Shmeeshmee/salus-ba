@@ -220,6 +220,27 @@ func TestOffered_ShowsTheActiveServicesOfAListedClinicInTheModeAndLanguage(t *te
 	}
 }
 
+// A staff booking and the desk read the clinic's whole price list in its own scope, listed or not (docs/clinic-cms F2):
+// another clinic's services are dropped even if the scope showed them.
+func TestOfClinic_GivesTheClinicsPriceListInItsScope(t *testing.T) {
+	repo := &fakeRepository{rows: []chargeitemdefinition.Definition{
+		{ID: "1", OrganizationID: clinicA, Name: "Pregled", Active: true},
+		{ID: "4", OrganizationID: clinicA, Name: "Ukinuto"},
+		{ID: "5", OrganizationID: clinicB, Name: "Tuđe", Active: true},
+	}}
+	got, err := newService(repo, &fakeAuditor{}).OfClinic(t.Context(), clinicA)
+	if err != nil || len(got) != 2 || got[0].ID != "1" || got[1].ID != "4" {
+		t.Errorf("OfClinic() = %+v, %v; want clinic A's two services, the inactive one included", got, err)
+	}
+	if repo.outside || repo.directory || repo.clinic != clinicA {
+		t.Error("the services were not read in the clinic's scope in a transaction")
+	}
+	repo.err = errors.New("synthetic failure")
+	if _, err := newService(repo, &fakeAuditor{}).OfClinic(t.Context(), clinicA); err == nil {
+		t.Error("OfClinic() = nil error on a failing repository")
+	}
+}
+
 // A receipt copies its lines: the name, unit price and VAT rate as they are now, and the line's total.
 func TestLines_PricesThePicksFromTheClinicsActiveServices(t *testing.T) {
 	repo := &fakeRepository{rows: []chargeitemdefinition.Definition{

@@ -86,7 +86,13 @@ type Caller struct {
 	PractitionerID string
 	PatientID      string // empty for staff
 	Admin          bool
+	// Reception is the clinic's receptionist (docs/clinic-cms W2): issues a receipt for any visit of the clinic and reads
+	// and prints the receipts they issued; the list of all receipts, reversals, retries, reports and quotes are not theirs.
+	Reception bool
 }
+
+// issuesAny reports whether c issues a receipt for any visit of the clinic, or on its own: its admin and its front desk.
+func (c Caller) issuesAny() bool { return c.Admin || c.Reception }
 
 // Period is a report's half-open range [From, To).
 type Period struct {
@@ -138,3 +144,40 @@ type FiscalizeArgs struct {
 
 // Kind names the job in river_job.
 func (FiscalizeArgs) Kind() string { return "invoice_fiscalize" }
+
+// Quote is a treatment quote a clinic gives its patient (W4 of docs/clinic-cms, package X1): priced lines from the
+// price list, valid 30 days by default. Not a receipt: never numbered, never reported, never charged. A sent quote
+// never changes.
+type Quote struct {
+	IssuedAt           time.Time
+	ValidUntil         time.Time
+	ID                 string
+	OrganizationID     string
+	PatientID          string
+	AppointmentID      string // the visit it was written at; empty for none
+	CreatedByAccountID string
+	Note               string
+	Currency           string
+	State              QuoteState // read, never stored: from ValidUntil and the clock
+	Lines              []Line
+	TotalMinor         int64
+}
+
+// QuoteState is where a quote stands: sent until it is valid no more, then expired.
+type QuoteState string
+
+// The quote states.
+const (
+	QuoteSent    QuoteState = "sent"
+	QuoteExpired QuoteState = "expired"
+)
+
+// QuoteEmailArgs is the quote_email job on the notifier's email queue, enqueued with every quote: the patient's
+// e-mail that a quote from the visit is in the app, which names no service and no amount. Opaque ids only.
+type QuoteEmailArgs struct {
+	AppointmentID  string `json:"appointment_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// Kind names the job in river_job.
+func (QuoteEmailArgs) Kind() string { return "quote_email" }

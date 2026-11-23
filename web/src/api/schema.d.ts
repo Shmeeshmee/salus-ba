@@ -2684,7 +2684,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a receipt for a visit or on its own
-         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
+         * @description By the clinic's admin, its receptionists (the front desk, clinic-cms F1) or the practitioner of the visit. The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
          */
         post: operations["issueReceipt"];
         delete?: never;
@@ -2702,7 +2702,7 @@ export interface paths {
         };
         /**
          * A receipt of the clinic
-         * @description For the clinic's admin and the practitioner who issued it. Audited.
+         * @description For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
          */
         get: operations["getClinicReceipt"];
         put?: never;
@@ -2930,6 +2930,402 @@ export interface paths {
          * @description By the clinic's admin. Built in package D. Audited, also when refused.
          */
         put: operations["setBillingDetails"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the clinic's patients
+         * @description By name and, when given, birth date: the patients with the clinic's care consent and those it registered. For the clinic's admin, its receptionists and its practitioners (their own patients). Built in package F2 of docs/clinic-cms. Audited.
+         */
+        get: operations["searchClinicPatients"];
+        put?: never;
+        /**
+         * Register a patient who has no Salus account
+         * @description The profile is the clinic's and seen by it only; the care consent is recorded as given in person, by the caller (W1 of docs/clinic-cms). For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+         */
+        post: operations["registerClinicPatient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book a visit for a patient
+         * @description Staff book any free slot of the clinic for a patient with the clinic's care consent, optionally with a service of its own price list (active, offered in the slot's mode); the appointment records who booked it. The slot is read in the clinic's own scope, listed or not; a clinic whose membership is suspended or cancelled books nothing (`slot_unavailable`). For the clinic's admin, its receptionists and a practitioner for their own patients. Built in package F2. Audited, also when refused.
+         */
+        post: operations["bookForPatient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/appointments/{id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a patient's visit to another slot
+         * @description To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in package F2. Audited, also when refused.
+         */
+        post: operations["rescheduleForPatient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/appointments/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a patient's visit
+         * @description Cancelled by staff (`prov`), as a cancellation from the calendar. Built in package F2. Audited, also when refused.
+         */
+        post: operations["cancelForPatient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/appointments/{id}/arrive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The patient arrived at the desk
+         * @description Sets an in-person visit `arrived` (W6 of docs/clinic-cms), with the time; a video visit is refused. For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.
+         */
+        post: operations["markArrived"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/desk/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The desk's visits of a day
+         * @description Every visit of the clinic on the day (today in the clinic's zone when no date is given), by practitioner and time, with its visit mode, service and the patient's name, birth date and phone (W2). For the clinic's admin and its receptionists; the screen is package F3's. Built in package F2. Audited.
+         */
+        get: operations["getDeskDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign a clinic up
+         * @description Public. Records the request and sends a verification e-mail to the address given. The answer is the same whether or not the address is known, so it enumerates nothing (W3 of docs/clinic-cms). Rate limited. Built in package O1.
+         */
+        post: operations["startSignup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/signup/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify a clinic's signup
+         * @description Public, with the token of the e-mailed link. Creates the clinic unlisted, invites its admin (the invite e-mail follows) and starts the trial. The clinic is listed once the operator approves it (`salusctl signup approve`). Rate limited. Built in package O1.
+         */
+        post: operations["verifySignup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The setup wizard's progress
+         * @description Each step open, done or skipped. For the clinic's admin only (a practitioner or a receptionist is refused). Built in package O1. Not personal data; not audited.
+         */
+        get: operations["getClinicSetup"];
+        /**
+         * Save the setup wizard's progress
+         * @description By the clinic's admin; a step's own data is saved through its own route. Built in package O1.
+         */
+        put: operations["saveClinicSetup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/services/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a price list from a file
+         * @description A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of services (name, code, price, duration, VAT rate, visit modes). With `save` false (the default) nothing is stored: every row comes back with its errors. With `save` true all rows are stored or, when any row has an error, none (`saved` false). By the clinic's admin. Built in package O2. Not personal data; audited as a price-list change.
+         */
+        post: operations["importClinicServices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for the clinic's data export
+         * @description The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a job. By the clinic's admin. Built in package O2. Audited.
+         */
+        post: operations["requestClinicExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/export/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where an export stands
+         * @description By the clinic's admin. Built in package O2.
+         */
+        get: operations["getClinicExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/export/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a ready export
+         * @description By the clinic's admin, until it expires. Built in package O2. Audited.
+         */
+        get: operations["downloadClinicExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's treatment quotes
+         * @description Newest first, with their state. For the clinic's admin and its practitioners (their own patients'). Built in package X1. Audited.
+         */
+        get: operations["listClinicQuotes"];
+        put?: never;
+        /**
+         * Send a patient a treatment quote
+         * @description Lines from the price list with quantities and discounts, a note, valid 30 days (W4 of docs/clinic-cms). Not a receipt: never numbered, reported or charged. The patient gets an e-mail. By the clinic's admin or the patient's practitioner. Built in package X1. Audited, also when refused.
+         */
+        post: operations["sendQuote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/quotes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A quote of the clinic
+         * @description Built in package X1. Audited.
+         */
+        get: operations["getClinicQuote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own quotes
+         * @description From every clinic, newest first. Built in package X1. Audited.
+         */
+        get: operations["listMyQuotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/quotes/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own quote as a PDF
+         * @description It says it is a quote, not a receipt. Built in package X1. Audited.
+         */
+        get: operations["getMyQuotePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's profile for patients abroad
+         * @description For the clinic's staff. Built in package X2. Not personal data; not audited.
+         */
+        get: operations["getClinicProfile"];
+        /**
+         * Save the clinic's profile
+         * @description By the clinic's admin, with the organization's version. Built in package X2. Audited as an organization change.
+         */
+        put: operations["saveClinicProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A listed clinic's profile for patients
+         * @description Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+         */
+        get: operations["getOrganizationProfile"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -3232,6 +3628,157 @@ export interface components {
             /** Format: email */
             billingEmail?: string;
         };
+        /** @description A patient as the clinic's staff find them (package F2 of docs/clinic-cms): what the desk needs (W2), nothing clinical. Health data: it shows the person is the clinic's patient. */
+        ClinicPatient: {
+            /** Format: uuid */
+            id: string;
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description E.164; absent when none was given. */
+            phone?: string;
+            /** @description The clinic registered the profile; the patient has no Salus account. */
+            registeredByClinic: boolean;
+            /** Format: int32 */
+            versionId: number;
+            /** Format: date-time */
+            lastUpdated: string;
+        };
+        RegisterPatientRequest: {
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description E.164; omitted for none. */
+            phone?: string;
+            /** @description The patient gave the clinic their care consent in person; the caller records it. Must be true (`invalid_request` otherwise). */
+            consentGivenInPerson: boolean;
+        };
+        StaffBookingRequest: {
+            /** Format: uuid */
+            patientId: string;
+            /** Format: uuid */
+            slotId: string;
+            /**
+             * Format: uuid
+             * @description The price-list service; omitted for none.
+             */
+            serviceId?: string;
+        };
+        StaffRescheduleRequest: {
+            /** Format: uuid */
+            slotId: string;
+        };
+        DeskDay: {
+            /** Format: date */
+            date: string;
+            /** @description By practitioner, then start. */
+            visits: components["schemas"]["DeskVisit"][];
+        };
+        /** @description One visit on the desk's list. Health data. */
+        DeskVisit: {
+            appointment: components["schemas"]["Appointment"];
+            patient: components["schemas"]["ClinicPatient"];
+            /** @description The booked service's name; absent for none. */
+            serviceName?: string;
+        };
+        SignupRequest: {
+            /** @description The clinic admin's; becomes their login. */
+            email: string;
+            clinicName: string;
+            language: components["schemas"]["Language"];
+        };
+        VerifySignupRequest: {
+            token: string;
+        };
+        /** @enum {string} */
+        SetupStepState: "open" | "done" | "skipped";
+        /** @description The setup wizard's steps, in order; each skippable and resumable (package O1). */
+        ClinicSetup: {
+            details: components["schemas"]["SetupStepState"];
+            billing: components["schemas"]["SetupStepState"];
+            hours: components["schemas"]["SetupStepState"];
+            practitioner: components["schemas"]["SetupStepState"];
+            services: components["schemas"]["SetupStepState"];
+        };
+        ServiceImport: {
+            /** @description Every row was stored; false for a preview or when any row has an error. */
+            saved: boolean;
+            rows: components["schemas"]["ServiceImportRow"][];
+        };
+        ServiceImportRow: {
+            /**
+             * Format: int32
+             * @description The row's line in the file
+             */
+            line: number;
+            /** @description The service the row would store; absent for a row with errors. */
+            service?: components["schemas"]["SaveServiceRequest"];
+            /** @description Codes of what is wrong with the row; empty when it is valid. */
+            errors: ("name_missing" | "name_invalid" | "code_invalid" | "price_invalid" | "duration_invalid" | "vat_invalid" | "mode_invalid" | "duplicate")[];
+        };
+        /** @enum {string} */
+        ClinicExportStatus: "queued" | "ready" | "failed" | "expired";
+        ClinicExport: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ClinicExportStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            /**
+             * Format: date-time
+             * @description When a ready archive stops being downloadable.
+             */
+            expiresAt?: string;
+        };
+        /** @enum {string} */
+        QuoteState: "sent" | "expired";
+        /** @description A treatment quote (W4 of docs/clinic-cms, package X1). Not a receipt: never numbered, reported or charged. Health data: it shows which care the patient was offered. */
+        Quote: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            patientId: string;
+            /**
+             * Format: uuid
+             * @description The visit it was written at; absent for none.
+             */
+            appointmentId?: string;
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: date-time */
+            validUntil: string;
+            state: components["schemas"]["QuoteState"];
+            note?: string;
+            currency: string;
+            /** Format: int64 */
+            totalMinor: number;
+            lines: components["schemas"]["ReceiptLine"][];
+        };
+        SendQuoteRequest: {
+            /** Format: uuid */
+            patientId: string;
+            /** Format: uuid */
+            appointmentId?: string;
+            note?: string;
+            lines: components["schemas"]["ReceiptPick"][];
+        };
+        ClinicProfileTranslation: {
+            language: components["schemas"]["Language"];
+            description: string;
+        };
+        /** @description How a clinic describes itself to patients abroad (package X2). Not personal data. */
+        ClinicProfile: {
+            /** @description The languages the clinic's staff speak. */
+            languages: components["schemas"]["Language"][];
+            /** @description In the clinic's default language; empty for none. */
+            description: string;
+            translations: components["schemas"]["ClinicProfileTranslation"][];
+            welcomesInternational: boolean;
+        };
         LoginRequest: {
             email: string;
             password: string;
@@ -3286,7 +3833,7 @@ export interface components {
         InviteRequest: {
             email: string;
             /** @enum {string} */
-            role: "admin" | "practitioner";
+            role: "admin" | "practitioner" | "reception";
             /** @description Required for a practitioner; absent for an admin. */
             givenName?: string;
             /** @description Required for a practitioner; absent for an admin. */
@@ -3297,7 +3844,7 @@ export interface components {
             id: string;
             email: string;
             /** @enum {string} */
-            role: "admin" | "practitioner";
+            role: "admin" | "practitioner" | "reception";
             givenName?: string;
             familyName?: string;
             /** Format: date-time */
@@ -3329,7 +3876,7 @@ export interface components {
             id: string;
             email: string;
             /** @enum {string} */
-            role: "admin" | "practitioner" | "patient";
+            role: "admin" | "practitioner" | "reception" | "patient";
             /**
              * Format: uuid
              * @description The clinic of a staff account; absent for a patient.
@@ -3749,8 +4296,16 @@ export interface components {
             start: string;
             /** Format: date-time */
             end: string;
-            /** @enum {string} */
-            status: "booked" | "cancelled" | "fulfilled" | "noshow";
+            /**
+             * @description `arrived`: an in-person visit's patient checked in at the desk (package F2 of docs/clinic-cms).
+             * @enum {string}
+             */
+            status: "booked" | "arrived" | "cancelled" | "fulfilled" | "noshow";
+            /**
+             * Format: date-time
+             * @description When the patient checked in at the desk; absent unless they did (package F2).
+             */
+            arrivedAt?: string;
             /**
              * @description http://terminology.hl7.org/CodeSystem/appointment-cancellation-reason: `pat` the patient (also by revoking consent), `prov` staff. Absent unless cancelled.
              * @enum {string}
@@ -4007,7 +4562,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person";
             /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -5077,9 +5632,9 @@ export interface components {
             /** Format: date-time */
             to_end?: string;
             /** @enum {string} */
-            from_status?: "booked" | "cancelled" | "fulfilled" | "noshow";
+            from_status?: "booked" | "arrived" | "cancelled" | "fulfilled" | "noshow";
             /** @enum {string} */
-            to_status?: "booked" | "cancelled" | "fulfilled" | "noshow";
+            to_status?: "booked" | "arrived" | "cancelled" | "fulfilled" | "noshow";
         };
         AppointmentChangeList: {
             changes: components["schemas"]["AppointmentChange"][];
@@ -12678,6 +13233,965 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    searchClinicPatients: {
+        parameters: {
+            query: {
+                name: string;
+                birthDate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matching patients, by family and given name. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicPatient"][];
+                };
+            };
+            /** @description `invalid_request`: no name, or a malformed birth date. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    registerClinicPatient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPatientRequest"];
+            };
+        };
+        responses: {
+            /** @description The profile registered, with its consent recorded. */
+            201: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicPatient"];
+                };
+            };
+            /** @description `invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin or receptionist. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    bookForPatient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffBookingRequest"];
+            };
+        };
+        responses: {
+            /** @description The appointment booked. */
+            201: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_service`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`, or `consent_required`: the patient has no active care consent with the clinic. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such patient the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    rescheduleForPatient: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffRescheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description The appointment moved. */
+            200: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `invalid_request`, or `if_match_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment or slot the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `slot_unavailable`, `appointment_closed` or `version_conflict`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelForPatient: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The appointment cancelled. */
+            200: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            /** @description `if_match_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `appointment_closed` or `version_conflict`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    markArrived: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: components["parameters"]["AppointmentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The appointment, arrived. */
+            200: {
+                headers: {
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Appointment"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such appointment the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_in_person`: a video visit; `appointment_closed`: not booked any more. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getDeskDay: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The day. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeskDay"];
+                };
+            };
+            /** @description `invalid_request`: a malformed date. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin or receptionist. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    startSignup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted; the e-mail is on its way if the request is valid. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_request` or `invalid_signup`: no plain e-mail, no clinic name, or a language that is not a staff language. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    verifySignup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifySignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Verified; the admin's invite is on its way. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_request`, or `invalid_verification`: the token is unknown, used or expired. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The progress. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicSetup"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveClinicSetup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClinicSetup"];
+            };
+        };
+        responses: {
+            /** @description The progress saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicSetup"];
+                };
+            };
+            /** @description `invalid_request`: an unknown step or state. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    importClinicServices: {
+        parameters: {
+            query?: {
+                save?: boolean;
+            };
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The rows read, and whether they were saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImport"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_import`: not a CSV or XLSX file, no header row, or too many rows. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `too_large`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    requestClinicExport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export, queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicExport"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicExport"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such export of the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    downloadClinicExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such export of the clinic, not ready, or expired. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicQuotes: {
+        parameters: {
+            query?: {
+                /** @description Only the quotes written at this visit. */
+                appointmentId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The quotes. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    sendQuote: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendQuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description The quote sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_quote`: no visit (a quote is written at a visit, package X1), no lines, a service the price list does not have, or a discount above its line. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such visit the caller may see, a patient not the visit's, or a patient without the clinic's active care consent. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicQuote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The quote. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such quote the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyQuotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The quotes. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMyQuotePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such quote of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile. */
+            200: {
+                headers: {
+                    /** @description The organization's version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicProfile"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    saveClinicProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClinicProfile"];
+            };
+        };
+        responses: {
+            /** @description The profile saved. */
+            200: {
+                headers: {
+                    /** @description The organization's version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicProfile"];
+                };
+            };
+            /** @description `invalid_request`, `if_match_required`, or `invalid_profile`: an unknown language or a description too long. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `version_conflict`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getOrganizationProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicProfile"];
+                };
+            };
+            /** @description `not_found`: no such listed clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

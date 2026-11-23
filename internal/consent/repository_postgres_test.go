@@ -567,3 +567,44 @@ func TestChat_RefusesAGrantForAnotherPatientOrAnotherClinicThanTheRoles(t *testi
 		t.Error("a grant naming another clinic than the role's: accepted")
 	}
 }
+
+func TestGrantInPerson_StoresTheClinicsCareConsentForAPatientItRegisteredOnly(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	const patientC, staffA = "d3000000-0000-4000-8000-0000000000d3", "a1000000-0000-4000-8000-0000000000a1"
+	if _, err := owner.Exec(t.Context(), `INSERT INTO patient (id, registered_by_organization_id, given_name, family_name, birth_date)
+		VALUES ($1, $2, 'Cy', 'Example', '1980-03-04')`, patientC, clinicA); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), `INSERT INTO account (id, email, password_hash, role, organization_id)
+		VALUES ($1, 'desk.a@example.test', 'h', 'admin', $2)`, staffA, clinicA); err != nil {
+		t.Fatal(err)
+	}
+	repo := consent.NewPostgresRepository(app)
+	grant := func(patientID string) (consent.Consent, error) {
+		var c consent.Consent
+		err := in(t, app, func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, func(ctx context.Context) error {
+			var err error
+			c, err = repo.GrantInPerson(ctx, patientID, clinicA, staffA, granted)
+			return err
+		})
+		return c, err
+	}
+	got, err := grant(patientC)
+	if err != nil || got.ID == "" || got.Kind != consent.KindCare || got.Status != consent.StatusActive || !got.GivenInPerson || got.RecordedBy != staffA ||
+		!got.DateTime.Equal(granted) || got.PatientID != patientC {
+		t.Fatalf("GrantInPerson = %+v, %v; want the active in-person consent", got, err)
+	}
+	var inPerson bool
+	var by string
+	if err := owner.QueryRow(t.Context(), "SELECT given_in_person, recorded_by_account_id FROM consent WHERE id = $1", got.ID).Scan(&inPerson, &by); err != nil || !inPerson || by != staffA {
+		t.Errorf("stored given_in_person %v by %q (%v), want true by staff A", inPerson, by, err)
+	}
+	if _, err := grant(patientC); !errors.Is(err, consent.ErrActive) {
+		t.Errorf("a second one: %v, want ErrActive", err)
+	}
+	if _, err := grant(patientB); !errors.Is(err, consent.ErrNotFound) {
+		t.Errorf("a patient with an account: %v, want ErrNotFound", err)
+	}
+}

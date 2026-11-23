@@ -86,6 +86,7 @@ func TestInvite_RejectsAnInvalidInviteBeforeAnyAccess(t *testing.T) {
 		{auth.ErrInvalidEmail, auth.Invite{Email: "not an e-mail", Role: auth.RoleAdmin}},
 		{auth.ErrInvalidRole, auth.Invite{Email: "cy@example.test", Role: auth.RolePatient}},
 		{auth.ErrInvalidRole, auth.Invite{Email: "cy@example.test"}},
+		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RoleReception, GivenName: "Cy"}},
 		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: "Cy"}},
 		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: " ", FamilyName: "Example"}},
 		{auth.ErrInvalidName, auth.Invite{Email: "cy@example.test", Role: auth.RolePractitioner, GivenName: long, FamilyName: "Example"}},
@@ -138,10 +139,10 @@ func TestInvite_FailsWhenTheJobCannotBeEnqueued(t *testing.T) {
 	}
 }
 
-func TestInviteAdmin_InvitesAClinicsFirstAdminAsTheOperatorCommand(t *testing.T) {
+func TestInviteAdmin_InvitesAClinicsFirstAdminAsItsAgent(t *testing.T) {
 	f := newFixture()
 
-	got, err := f.svc.InviteAdmin(t.Context(), clinicID, "Dee@example.test")
+	got, err := f.svc.InviteAdmin(t.Context(), auditevent.AgentSignup, clinicID, "Dee@example.test")
 
 	want := auth.Invite{ID: got.ID, OrganizationID: clinicID, Email: "dee@example.test", Role: auth.RoleAdmin, CreatedAt: now, ExpiresAt: now.Add(inviteLifetime)}
 	if err != nil || got != want || f.repo.clinic != clinicID {
@@ -151,11 +152,11 @@ func TestInviteAdmin_InvitesAClinicsFirstAdminAsTheOperatorCommand(t *testing.T)
 		t.Errorf("jobs %+v, want the invite's e-mail enqueued in the transaction", f.jobs.jobs)
 	}
 	e := inviteEvent(create, auditevent.ActionCreate, "", "Invite/"+got.ID, auditevent.OutcomeSuccess)
-	e.AgentName = auditevent.AgentOperator
+	e.AgentName = auditevent.AgentSignup
 	if got := f.onlyEvent(t); got != e {
 		t.Errorf("audit event %+v,\nwant %+v", got, e)
 	}
-	if _, err := f.svc.InviteAdmin(t.Context(), clinicID, "not an e-mail"); !errors.Is(err, auth.ErrInvalidEmail) {
+	if _, err := f.svc.InviteAdmin(t.Context(), auditevent.AgentOperator, clinicID, "not an e-mail"); !errors.Is(err, auth.ErrInvalidEmail) {
 		t.Errorf("InviteAdmin(invalid e-mail) = %v, want ErrInvalidEmail", err)
 	}
 }
@@ -318,6 +319,24 @@ func TestAcceptInvite_CreatesNoDirectoryEntryForAnAdmin(t *testing.T) {
 	}
 	if f.repo.accounts[accountID].Role != auth.RoleAdmin || len(f.practitioners.practitioners) != 0 || len(f.practitioners.roles) != 0 || len(f.repo.links) != 0 {
 		t.Errorf("account %+v, directory %+v: want an admin and no Practitioner", f.repo.accounts[accountID], f.practitioners)
+	}
+}
+
+// A receptionist is invited by e-mail alone, as an admin (docs/clinic-cms, F1), and gets no directory entry.
+func TestInvite_InvitesAReceptionistWhoAcceptsWithoutADirectoryEntry(t *testing.T) {
+	f := newFixture(staff())
+	got, err := f.svc.Invite(t.Context(), adminSession(), auth.Invite{Email: " Rea@Example.TEST ", Role: auth.RoleReception})
+	if err != nil || got.Role != auth.RoleReception || got.Email != "rea@example.test" {
+		t.Fatalf("Invite() = %+v, %v; want the receptionist's invite", got, err)
+	}
+
+	f = newFixture()
+	_, token := invited(t, f, auth.Invite{Email: "rea@example.test", Role: auth.RoleReception})
+	if _, err := f.svc.AcceptInvite(t.Context(), token, password, "", ""); err != nil {
+		t.Fatalf("AcceptInvite() error = %v", err)
+	}
+	if f.repo.accounts[accountID].Role != auth.RoleReception || len(f.practitioners.practitioners) != 0 || len(f.repo.links) != 0 {
+		t.Errorf("account %+v, directory %+v: want a receptionist and no Practitioner", f.repo.accounts[accountID], f.practitioners)
 	}
 }
 
@@ -496,6 +515,8 @@ func TestClinicMember_GivesTheAdminFlagAndThePractitionerOfTheSessionsClinicAndA
 	const practitionerID = "a3000000-0000-4000-8000-0000000000a1"
 	practitionerAccount := staff()
 	practitionerAccount.Role, practitionerAccount.PractitionerID = auth.RolePractitioner, practitionerID
+	receptionist := staff()
+	receptionist.Role, receptionist.TermReviewer = auth.RoleReception, true // the reviewer flag is staff's who review terms, never a receptionist's
 	tests := []struct {
 		name    string
 		account auth.Account
@@ -504,6 +525,7 @@ func TestClinicMember_GivesTheAdminFlagAndThePractitionerOfTheSessionsClinicAndA
 	}{
 		{name: "the clinic's admin", account: staff(), sess: adminSession(), want: auth.Member{Admin: true}},
 		{name: "a practitioner", account: practitionerAccount, sess: adminSession(), want: auth.Member{PractitionerID: practitionerID}},
+		{name: "a receptionist", account: receptionist, sess: adminSession(), want: auth.Member{Reception: true}},
 		{name: "a patient", account: patientWithoutMFA(), sess: auth.Session{ID: sessionID, AccountID: accountID}},
 		{name: "a session of another clinic", account: practitionerAccount, sess: auth.Session{ID: sessionID, AccountID: accountID, OrganizationID: "d0000000-0000-4000-8000-00000000000d"}},
 		{name: "an account that is gone", account: auth.Account{ID: "0b6c8a52-0000-4000-8000-000000000000"}, sess: adminSession()},

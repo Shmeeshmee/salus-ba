@@ -83,7 +83,7 @@ func (s *Service) Sign(ctx context.Context, c appointment.Caller, id string, val
 				return err
 			}
 		}
-		return s.Jobs.EnqueueSigned(ctx, enc.AppointmentID, enc.OrganizationID)
+		return s.signedEmail(ctx, enc)
 	})
 	if err := wrapErr("sign", err, refused); err != nil {
 		_ = s.Store.Delete(context.WithoutCancel(ctx), ObjectKey(d.DocumentReferenceID))
@@ -275,4 +275,16 @@ func document(d Draft) pdfdoc.Document {
 		doc.Sections = append(doc.Sections, sec)
 	}
 	return doc
+}
+
+// signedEmail enqueues the patient's e-mail of a signed document, in the signing's transaction, unless the patient has
+// no account (a profile the clinic registered, docs/clinic-cms W1), who gets none.
+func (s *Service) signedEmail(ctx context.Context, enc encounter.Encounter) error {
+	if s.Accounts != nil {
+		has, err := s.Accounts.PatientHasAccount(ctx, enc.AppointmentID)
+		if err != nil || !has {
+			return err
+		}
+	}
+	return s.Jobs.EnqueueSigned(ctx, enc.AppointmentID, enc.OrganizationID)
 }

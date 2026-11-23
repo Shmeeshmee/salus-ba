@@ -24,8 +24,13 @@ const (
 	doctor   = "acct-doctor"
 	patientA = "patient-a"
 	visit    = "appt-1"
-	exam     = "svc-exam"
-	lab      = "svc-lab"
+	// revokedVisit is a visit whose patient revoked their care consent since.
+	revokedVisit = "appt-revoked"
+	// registeredVisit is a visit of a patient the clinic registered, without an account (docs/clinic-cms W1), with an
+	// active care consent.
+	registeredVisit = "appt-registered"
+	exam            = "svc-exam"
+	lab             = "svc-lab"
 )
 
 var (
@@ -48,11 +53,13 @@ func (t fakeTx) WithTx(ctx context.Context, fn func(ctx context.Context) error) 
 	}
 	t.repo.depth++
 	invoices, last, enqueued := slices.Clone(t.repo.invoices), t.repo.last, slices.Clone(t.jobs.enqueued)
+	quotes, emails := slices.Clone(t.repo.quotes), slices.Clone(t.jobs.emails)
 	err := fn(ctx)
 	t.repo.depth--
 	t.repo.scopeOrg, t.repo.scopePatient = "", ""
 	if err != nil {
 		t.repo.invoices, t.repo.last, t.jobs.enqueued = invoices, last, enqueued
+		t.repo.quotes, t.jobs.emails = quotes, emails
 	}
 	return err
 }
@@ -63,6 +70,7 @@ type fakeRepo struct {
 	scopeOrg     string
 	scopePatient string
 	invoices     []invoice.Invoice
+	quotes       []invoice.Quote
 	last         int64
 	depth        int
 }
@@ -158,6 +166,45 @@ func (r *fakeRepo) SetFailed(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *fakeRepo) InsertQuote(_ context.Context, q invoice.Quote) (invoice.Quote, error) {
+	q.ID = fmt.Sprintf("quote-%d", len(r.quotes)+1)
+	r.quotes = append(r.quotes, q)
+	return q, nil
+}
+
+func (r *fakeRepo) seenQuote(q invoice.Quote) bool {
+	return (r.scopeOrg != "" && q.OrganizationID == r.scopeOrg) || (r.scopePatient != "" && q.PatientID == r.scopePatient)
+}
+
+func (r *fakeRepo) QuoteByID(_ context.Context, id string) (invoice.Quote, error) {
+	for _, q := range r.quotes {
+		if q.ID == id && r.seenQuote(q) {
+			return q, nil
+		}
+	}
+	return invoice.Quote{}, invoice.ErrNotFound
+}
+
+func (r *fakeRepo) QuotesOf(_ context.Context, clinic string) ([]invoice.Quote, error) {
+	var out []invoice.Quote
+	for _, q := range slices.Backward(r.quotes) {
+		if q.OrganizationID == clinic && r.seenQuote(q) {
+			out = append(out, q)
+		}
+	}
+	return out, nil
+}
+
+func (r *fakeRepo) QuotesOfPatient(_ context.Context, patientID string) ([]invoice.Quote, error) {
+	var out []invoice.Quote
+	for _, q := range slices.Backward(r.quotes) {
+		if q.PatientID == patientID && r.seenQuote(q) {
+			out = append(out, q)
+		}
+	}
+	return out, nil
+}
+
 // fakePrices is the price list package B builds: two synthetic services of the clinic, the second with VAT.
 type fakePrices struct{}
 
@@ -190,19 +237,33 @@ func (fakeClinics) Clinic(context.Context, string) (organization.Organization, e
 	return organization.Organization{ID: org, Name: "Synthetic clinic", TimeZone: "Europe/Sarajevo", DefaultLanguage: "en"}, nil
 }
 
-// fakeVisits holds one visit of the clinic: the doctor's, with patientA.
+// fakeVisits holds two visits of the clinic, both the doctor's: with patientA, and with a patient who revoked their
+// care consent.
 type fakeVisits struct{}
 
 func (fakeVisits) Lookup(_ context.Context, id string) (appointment.Appointment, error) {
-	if id != visit {
-		return appointment.Appointment{}, appointment.ErrNotFound
+	switch id {
+	case visit:
+		return appointment.Appointment{ID: visit, OrganizationID: org, PatientID: patientA}, nil
+	case revokedVisit:
+		return appointment.Appointment{ID: revokedVisit, OrganizationID: org, PatientID: "patient-revoked"}, nil
+	case registeredVisit:
+		return appointment.Appointment{ID: registeredVisit, OrganizationID: org, PatientID: "patient-registered"}, nil
 	}
-	return appointment.Appointment{ID: visit, OrganizationID: org, PatientID: patientA}, nil
+	return appointment.Appointment{}, appointment.ErrNotFound
 }
 
 func (fakeVisits) LookupPractitioner(context.Context, string) (string, error) { return "pract-1", nil }
 
-// fakeCare: the clinic treats patientA (a visit) and "patient-consented" (an active care consent), nobody else.
+func (fakeVisits) PatientHasAccount(_ context.Context, id string) (bool, error) {
+	if id == registeredVisit {
+		return false, nil
+	}
+	return true, nil
+}
+
+// fakeCare: the clinic treats patientA (a visit and an active care consent) and "patient-consented" (an active care
+// consent), nobody else.
 type fakeCare struct{}
 
 func (fakeCare) Visits(_ context.Context, patientID, _ string) ([]access.Visit, error) {
@@ -213,10 +274,18 @@ func (fakeCare) Visits(_ context.Context, patientID, _ string) ([]access.Visit, 
 }
 
 func (fakeCare) State(_ context.Context, patientID, _ string) (access.Consent, error) {
-	return access.Consent{Active: patientID == "patient-consented"}, nil
+	return access.Consent{Active: patientID == "patient-consented" || patientID == patientA || patientID == "patient-registered"}, nil
 }
 
-type fakeJobs struct{ enqueued []string }
+type fakeJobs struct {
+	enqueued []string // the fiscal reports' receipts
+	emails   []string // the quote e-mails' visits
+}
+
+func (j *fakeJobs) EnqueueQuoteEmail(_ context.Context, appointmentID, _ string) error {
+	j.emails = append(j.emails, appointmentID)
+	return nil
+}
 
 func (j *fakeJobs) EnqueueFiscalize(_ context.Context, id, _ string) error {
 	j.enqueued = append(j.enqueued, id)
@@ -247,8 +316,10 @@ type fixture struct {
 	reporter *fiscaltest.Reporter
 }
 
-func newFixture(seller invoice.Seller) fixture {
-	clk := clock.Fixed{T: at}
+func newFixture(seller invoice.Seller) fixture { return newFixtureAt(seller, clock.Fixed{T: at}) }
+
+// newFixtureAt is newFixture on the clock clk.
+func newFixtureAt(seller invoice.Seller, clk clock.Fixed) fixture {
 	f := fixture{repo: &fakeRepo{}, jobs: &fakeJobs{}, audit: &fakeAudit{}, reporter: &fiscaltest.Reporter{Clock: clk}}
 	f.svc = invoice.NewService(invoice.Ports{
 		Repo: f.repo, Prices: fakePrices{}, Reporter: f.reporter, Sellers: fakeSellers{seller}, Clinics: fakeClinics{},

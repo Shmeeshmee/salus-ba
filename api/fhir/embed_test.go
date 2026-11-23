@@ -83,7 +83,7 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 		"Consent":             "read ",
 		"DocumentReference":   "read search-type param:encounter:reference ",
 		"Encounter":           "read search-type param:appointment:reference param:patient:reference param:practitioner:reference ",
-		"Organization":        "read update search-type param:listed:token versioning:versioned-update",
+		"Organization":        "read update search-type param:listed:token param:language:token versioning:versioned-update",
 		"Patient":             "read ",
 		"Practitioner":        "read ",
 		"PractitionerRole":    "read search-type param:organization:reference include:PractitionerRole:practitioner ",
@@ -126,6 +126,21 @@ func TestCapabilityStatement_DefinesListedByItsSearchParameter(t *testing.T) {
 	}
 	if !strings.Contains(fhir.CapabilityStatement(), `"definition": "`+sp.URL+`"`) {
 		t.Errorf("the CapabilityStatement does not define listed by %s", sp.URL)
+	}
+	raw, err = os.ReadFile("SearchParameter-organization-language.json")
+	var lang struct {
+		ResourceType string   `json:"resourceType"`
+		URL          string   `json:"url"`
+		Code         string   `json:"code"`
+		Type         string   `json:"type"`
+		Base         []string `json:"base"`
+	}
+	if err != nil || json.Unmarshal(raw, &lang) != nil {
+		t.Fatalf("SearchParameter-organization-language.json: %v", err)
+	}
+	if lang.ResourceType != "SearchParameter" || lang.Code != "language" || lang.Type != "token" || len(lang.Base) != 1 || lang.Base[0] != "Organization" ||
+		!strings.Contains(fhir.CapabilityStatement(), `"definition": "`+lang.URL+`"`) {
+		t.Errorf("SearchParameter = %+v, want the token language on Organization, defined in the CapabilityStatement", lang)
 	}
 	for _, name := range []string{"listed", "timezone", "default-language"} {
 		var sd struct {

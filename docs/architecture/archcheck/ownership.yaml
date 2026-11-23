@@ -23,6 +23,8 @@ tables:
   chat_consent: {owner: consent, personal_data: true}
   clinic_appointment_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
   clinic_diagnosis_stat: {owner: clinicstats, personal_data: true} # 00048, SAL-20
+  clinic_signup: {owner: signup, personal_data: true} # a clinic's self-signup: the admin's e-mail (00065, O1)
+  clinic_setup_step: {owner: signup, personal_data: false} # the setup wizard's progress (00066, O1)
   clinic_subscription: {owner: subscription, personal_data: false} # the clinic's plan and status (00059)
   communication: {owner: communication, personal_data: true}
   communication_revision: {owner: communication, personal_data: true}
@@ -50,6 +52,7 @@ tables:
   organization: {owner: organization, personal_data: false}
   organization_appointment_settings: {owner: organization, personal_data: false} # reminder, reschedule, waitlist, no-show rules (00054)
   organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00047)
+  organization_profile_translation: {owner: organization, personal_data: false} # the profile for patients abroad (00065, X2)
   patient: {owner: patient, personal_data: true}
   place: {owner: terminology, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
@@ -59,6 +62,8 @@ tables:
   questionnaire_default: {owner: questionnaire, personal_data: false}
   questionnaire_response: {owner: questionnaireresponse, personal_data: true}
   questionnaire_translation: {owner: questionnaire, personal_data: false}
+  quote: {owner: invoice, personal_data: true} # a treatment quote to a patient: what care at what price (00065, X1)
+  quote_line: {owner: invoice, personal_data: true} # a quote's lines (00065, X1)
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}

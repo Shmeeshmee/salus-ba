@@ -258,3 +258,24 @@ func TestJobArguments_HoldIDsOnly(t *testing.T) {
 		}
 	}
 }
+
+// A patient the clinic registered has no account (docs/clinic-cms W1): a practitioner's message enqueues no unread
+// e-mail check and no push for them, only the rest of the fan-out; an unread check enqueued for them before completes
+// without sending anything.
+func TestMessageSent_TellsAPatientWithoutAnAccountNothing(t *testing.T) {
+	f := newChatFixture(t)
+	f.patients.noAccount = true
+	f.repo.endpoints["e1000000-0000-4000-8000-0000000000e1"] = notification.Endpoint{ID: "e1000000-0000-4000-8000-0000000000e1", OrganizationID: clinicID, Events: []string{notification.EventMessageCreated}}
+	practSent := sentArgs
+	practSent.SenderParticipantID = practPart
+	if err := f.svc.MessageSent(t.Context(), practSent); err != nil {
+		t.Fatalf("MessageSent() = %v", err)
+	}
+	if len(f.jobs.pushes) != 0 || len(f.jobs.emails) != 0 || len(f.jobs.webhooks) != 1 {
+		t.Errorf("pushes %+v, checks %+v, webhooks %d; want the clinic's webhook only", f.jobs.pushes, f.jobs.emails, len(f.jobs.webhooks))
+	}
+	err := f.svc.UnreadEmail(t.Context(), notification.ChatUnreadEmailArgs{ParticipantID: patientPart, ConversationID: convID, OrganizationID: clinicID, Seq: 2})
+	if err != nil || len(f.mail.sent) != 0 || len(f.accounts.asked) != 0 {
+		t.Errorf("UnreadEmail(no account) = %v, sent %+v after asking %v; want nil, nothing sent, no account read", err, f.mail.sent, f.accounts.asked)
+	}
+}

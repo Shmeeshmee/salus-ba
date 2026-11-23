@@ -83,6 +83,7 @@ type Caller struct {
 	// exists. Only the chat hours read it.
 	PatientID string
 	Admin     bool // the caller is an admin of that clinic
+	Reception bool // the caller is its receptionist (docs/clinic-cms F1): their read of the clinic is audited
 }
 
 // ChatHour is one stretch of a weekday in which the clinic answers chat messages, in its time zone: Day is the
@@ -140,4 +141,19 @@ type AppointmentSettings struct {
 	NoShowFlagWindowDays   int   `json:"noshow_flag_window_days"`
 	SMSReminders           bool  `json:"sms_reminders"`
 	WaitlistEnabled        bool  `json:"waitlist_enabled"`
+}
+
+// Profile is how a clinic describes itself to patients abroad (package X2 of docs/clinic-cms). Not personal data.
+type Profile struct {
+	Languages             []string      // BCP 47 tags of the language enum the clinic's staff speak
+	Description           string        // in the clinic's default language; empty for none
+	Translations          []Translation // the description in other languages
+	VersionID             int32         // the organization's version (its If-Match)
+	WelcomesInternational bool
+}
+
+// Translation is the profile's description in one more language.
+type Translation struct {
+	Language    string // a BCP 47 tag of the language enum
+	Description string
 }

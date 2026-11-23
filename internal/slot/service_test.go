@@ -54,6 +54,7 @@ type fakeRepository struct {
 	keep     []slot.Period
 	inserted []slot.Period
 	released bool
+	busy     bool // ByID gives the slot busy
 }
 
 func (r *fakeRepository) SetOrganization(ctx context.Context, id string) error {
@@ -93,7 +94,11 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (slot.Slot, error)
 	if id != slotA1 {
 		return slot.Slot{}, slot.ErrUnavailable
 	}
-	return slot.Slot{ID: id, ScheduleID: scheduleA1, OrganizationID: clinicA, Status: slot.StatusFree, Period: slot.Period{Start: now, End: now.Add(time.Hour)}}, nil
+	status := slot.StatusFree
+	if r.busy {
+		status = slot.StatusBusy
+	}
+	return slot.Slot{ID: id, ScheduleID: scheduleA1, OrganizationID: clinicA, Status: status, Period: slot.Period{Start: now, End: now.Add(time.Hour)}}, nil
 }
 
 func (r *fakeRepository) Hold(ctx context.Context, id string, at time.Time) (slot.Slot, error) {

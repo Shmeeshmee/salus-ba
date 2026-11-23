@@ -207,7 +207,8 @@ class Booking {
   /// The bytes of the patient's clean file [binaryId] and its content type, to hand to the device (SAL-39).
   Future<(Uint8List, String)> file(String binaryId) async {
     final response = await apiCall(
-      () => _client.invokeAPI('/binaries/${Uri.encodeComponent(binaryId)}/content', 'GET', const [], null, {}, {}, null),
+      () =>
+          _client.invokeAPI('/binaries/${Uri.encodeComponent(binaryId)}/content', 'GET', const [], null, {}, {}, null),
     );
     if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
     return (response.bodyBytes, response.headers['content-type'] ?? 'application/octet-stream');
@@ -228,6 +229,14 @@ class Booking {
     return list ?? const <api.OfferedService>[];
   }
 
+  /// The listed clinic [clinicId]'s profile for patients abroad (docs/clinic-cms, package X2): the languages its staff
+  /// speak, its description with every translation, whether it welcomes patients from abroad.
+  Future<api.ClinicProfile> clinicProfile(String clinicId) async {
+    final got = await apiCall(() => api.DirectoryApi(_client).getOrganizationProfile(clinicId));
+    if (got == null) throw const ApiFailure(status: HttpStatus.badGateway);
+    return got;
+  }
+
   /// The patient's own receipts from every clinic, newest first (docs/plans/clinic-cms.md, package H).
   Future<List<api.Receipt>> receipts() async {
     final list = await apiCall(() => api.BillingApi(_client).listMyReceipts());
@@ -239,6 +248,29 @@ class Booking {
     final response = await apiCall(
       () => _client.invokeAPI(
         '/me/receipts/${Uri.encodeComponent(id)}/pdf',
+        'GET',
+        const [],
+        null,
+        {'Accept': 'application/pdf'},
+        {},
+        null,
+      ),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return response.bodyBytes;
+  }
+
+  /// The patient's own treatment quotes from every clinic, newest first (docs/clinic-cms, package X1). Never charged.
+  Future<List<api.Quote>> quotes() async {
+    final list = await apiCall(() => api.BillingApi(_client).listMyQuotes());
+    return list ?? const <api.Quote>[];
+  }
+
+  /// The PDF of the patient's own quote [id], as the clinic printed it: it says it is no receipt.
+  Future<Uint8List> quotePdf(String id) async {
+    final response = await apiCall(
+      () => _client.invokeAPI(
+        '/me/quotes/${Uri.encodeComponent(id)}/pdf',
         'GET',
         const [],
         null,

@@ -115,3 +115,28 @@ func TestDocument_ACompanysInvoiceInCroatianIsARacun(t *testing.T) {
 		}
 	}
 }
+
+// A quote's PDF: the clinic's name, "Quote", the date of issue and the validity in the clinic's zone, the lines, the
+// total, the note, and that it is no receipt and nothing was charged. No number, no fiscal data, no patient.
+func TestQuoteDocument_SaysItIsNoReceipt(t *testing.T) {
+	inv := sample()
+	q := Quote{
+		IssuedAt: inv.IssuedAt, ValidUntil: inv.IssuedAt.Add(30 * 24 * time.Hour), ID: "quote-1", OrganizationID: "org-1",
+		PatientID: "patient-a", Note: "Placeholder note", Currency: "BAM", Lines: inv.Lines, TotalMinor: inv.TotalMinor,
+	}
+	got := printed(quoteDocument(q, clinic))
+	for _, want := range []string{
+		"Synthetic clinic", "Quote", "Issued: 21.11.2026 10:00", "Valid until: 21.12.2026",
+		"Placeholder examination: 2 × 50.00, discount 5.00, VAT exempt = 95.00 BAM", "Total\n106.70 BAM",
+		"Placeholder note", "This is a quote, not a receipt. Nothing has been charged.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the quote lacks %q:\n%s", want, got)
+		}
+	}
+	for _, not := range []string{"patient-a", "Receipt no.", "Fiscal", "tax authority", "Payment"} {
+		if strings.Contains(got, not) {
+			t.Errorf("the quote prints %q:\n%s", not, got)
+		}
+	}
+}

@@ -14,3 +14,7 @@ var (
 	// rate out of range.
 	ErrInvalid = errors.New("chargeitemdefinition: invalid service")
 )
+
+// ErrInvalidImport is returned for a price-list file that is not a CSV (UTF-8 or Windows-1250) or XLSX file, has no
+// header row naming at least the name and price columns, or has no rows or more than 1000.
+var ErrInvalidImport = errors.New("chargeitemdefinition: invalid import")

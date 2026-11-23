@@ -82,7 +82,8 @@ export interface Patient {
   telecom?: { system: string; value: string; use?: string }[]
 }
 
-export type AppointmentStatus = 'booked' | 'cancelled' | 'fulfilled' | 'noshow'
+// arrived: an in-person visit's patient checked in at the desk (docs/clinic-cms, set from package F2).
+export type AppointmentStatus = 'booked' | 'arrived' | 'cancelled' | 'fulfilled' | 'noshow'
 
 export interface Appointment {
   resourceType: 'Appointment'

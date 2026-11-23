@@ -126,6 +126,15 @@ func TestHandlerRead_SendsAPastAppointmentAtTheNameLevelWithoutItsDetails(t *tes
 	}
 }
 
+// The desk's arrival (W6) is a status a search may ask for, as FHIR R4's Appointment.status names it.
+func TestHandlerSearch_TakesTheArrivedStatus(t *testing.T) {
+	var log bytes.Buffer
+	svc := &stubReader{}
+	if rec := getAppt(t, svc, as(admin), &log, "/fhir/R4/Appointment?status=arrived"); rec.Code != http.StatusOK || svc.filter.Status != appointment.StatusArrived {
+		t.Errorf("status=arrived = %d %s with filter %+v, want 200 searching arrived visits", rec.Code, rec.Body, svc.filter)
+	}
+}
+
 func TestHandlerSearch_PassesTheFilterAndSendsASearchset(t *testing.T) {
 	from, to := time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC), time.Date(2030, 1, 14, 0, 0, 0, 0, time.UTC)
 	query := "practitioner=Practitioner/" + practA1 + "&date=ge2030-01-07T00:00:00Z&date=" + url.QueryEscape("lt2030-01-14T01:00:00+01:00") +

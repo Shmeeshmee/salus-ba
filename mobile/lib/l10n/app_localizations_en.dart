@@ -2048,4 +2048,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String answersNotEnabled(String items) {
     return 'These questions are no longer asked, so their answers were removed: $items. Check your answers and submit again.';
   }
+
+  @override
+  String get myQuotes => 'My quotes';
+
+  @override
+  String get quotesIntro =>
+      'Treatment quotes clinics sent you after a visit. A quote is not a receipt: nothing has been charged. If you go ahead, you pay at the clinic.';
+
+  @override
+  String get noQuotes => 'You have no quotes yet.';
+
+  @override
+  String get quoteTitle => 'Quote';
+
+  @override
+  String quoteValidUntil(String date) {
+    return 'Valid until $date';
+  }
+
+  @override
+  String get quoteExpired => 'Expired';
+
+  @override
+  String get clinicLanguageFilter => 'Language spoken';
+
+  @override
+  String get anyLanguage => 'Any language';
+
+  @override
+  String get noClinicsSpeak => 'No listed clinic speaks this language yet.';
+
+  @override
+  String get welcomesInternational => 'Welcomes patients from abroad';
+
+  @override
+  String languagesSpoken(String languages) {
+    return 'Languages spoken: $languages';
+  }
+
+  @override
+  String get clinicServices => 'Services and prices';
 }

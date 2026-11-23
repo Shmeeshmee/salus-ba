@@ -38,7 +38,7 @@ func NewScheduler(pool *pgxpool.Pool, platform bool, log *slog.Logger) (*river.C
 func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.PeriodicSchedule, platform bool) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{}, nil)
-	addEmailWorkers(workers, nil, nil)
+	addEmailWorkers(workers, nil, nil, nil)
 	addChatWorkers(workers, nil)
 	addReminderWorkers(workers, nil)
 	addWebhookWorkers(workers, nil)

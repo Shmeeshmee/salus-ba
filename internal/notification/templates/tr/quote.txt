@@ -1,0 +1,8 @@
+Randevunuza ait bir fiyat teklifi hazır
+
+Randevunuza ait bir tedavi fiyat teklifi hazır. Bu bir tekliftir, fatura değildir: hiçbir ücret alınmadı.
+Klinik: {{.Clinic}}
+Tarih ve saat: {{.When}}
+
+Teklifi okumak için Salus uygulamasını açın:
+{{.Link}}

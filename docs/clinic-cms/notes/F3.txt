@@ -1,0 +1,2 @@
+Package F3. Web only, against 3.0's generated client with a fake API in tests. Reuse C's ReceiptDialog and E's
+booked service. Leave the wiring to real F1 and F2 behaviour to the integration session and say what it must check.

@@ -86,8 +86,12 @@ class Fhir {
 
   final ApiClient _client;
 
-  Future<List<Organization>> listedClinics() async => [
-    for (final r in await _search('Organization', [const QueryParam('listed', 'true')]))
+  /// The listed clinics; with [language], only those whose staff speak it (docs/clinic-cms, package X2).
+  Future<List<Organization>> listedClinics({String? language}) async => [
+    for (final r in await _search('Organization', [
+      const QueryParam('listed', 'true'),
+      if (language != null) QueryParam('language', language),
+    ]))
       Organization(id: _string(r['id']), name: _string(r['name']), timeZone: _zone(r['extension'])),
   ];
 
@@ -126,12 +130,7 @@ class Fhir {
       QueryParam('start', 'ge${_instant(from)}'),
       QueryParam('start', 'lt${_instant(to)}'),
     ]))
-      Slot(
-        id: _string(r['id']),
-        start: _time(r['start']),
-        end: _time(r['end']),
-        inPerson: _inPerson(r['extension']),
-      ),
+      Slot(id: _string(r['id']), start: _time(r['start']), end: _time(r['end']), inPerson: _inPerson(r['extension'])),
   ];
 
   Future<List<Appointment>> appointments(String patientId) async => [

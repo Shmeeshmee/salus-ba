@@ -49,13 +49,28 @@ func (s *fakeServices) Offered(_ context.Context, org string, mode schedule.Visi
 	return out, nil
 }
 
+// OfClinic is clinic A's whole price list, read in its own scope whether or not it is listed (a staff booking).
+func (s *fakeServices) OfClinic(_ context.Context, org string) ([]chargeitemdefinition.Definition, error) {
+	s.asked = append(s.asked, org+" all")
+	if s.err != nil || org != clinicA {
+		return nil, s.err
+	}
+	return []chargeitemdefinition.Definition{
+		{ID: serviceVideo, OrganizationID: clinicA, Name: "Synthetic video exam", Active: true, Modes: []schedule.VisitMode{schedule.ModeVideo, schedule.ModeInPerson}},
+		{ID: serviceInPerson, OrganizationID: clinicA, Name: "Synthetic exam", Active: true, Modes: []schedule.VisitMode{schedule.ModeInPerson}},
+		{ID: serviceRetired, OrganizationID: clinicA, Name: "Synthetic retired exam", Modes: []schedule.VisitMode{schedule.ModeVideo, schedule.ModeInPerson}},
+	}, nil
+}
+
+const serviceRetired = "c1000000-0000-4000-8000-000000000003" // clinic A's, no longer active
+
 func serviceFixture() (*fixture, *fakeServices) {
 	services := &fakeServices{}
 	f := newFixture()
 	f.svc = appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
 		Consents: f.consents, Slots: f.slots, Patients: f.patients, Clinics: f.clinics, Roles: f.roles, Jobs: f.jobs,
-		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats, Reminders: f.reminders, Rules: f.rules, Services: services,
+		Tokens: f.tokens, LinkURL: linkURL, Stats: f.stats, Reminders: f.reminders, Rules: f.rules, Services: services, Stops: f.stops,
 	})
 	return f, services
 }

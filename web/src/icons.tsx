@@ -189,3 +189,14 @@ export function ReceiptIcon() {
     </svg>
   )
 }
+
+// DeskIcon is the front desk (clinic-cms F3): a counter with a bell.
+export function DeskIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M2.5 15.5h15" />
+      <path d="M4.5 13a5.5 5.5 0 0 1 11 0z" />
+      <path d="M10 7.5V6M8.8 6h2.4" />
+    </svg>
+  )
+}

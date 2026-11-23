@@ -8,6 +8,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/patient"
 )
 
 // Attendance is an appointment with what the caller is to it, for the consultation (docs/consultation/SPEC.md
@@ -98,6 +99,25 @@ func (s *Service) LookupPractitioner(ctx context.Context, id string) (string, er
 		return "", fmt.Errorf("appointment: lookup practitioner: %w", err)
 	}
 	return practitionerID, nil
+}
+
+// PatientHasAccount tells whether the patient of the appointment id has a Salus account, read in the caller's
+// transaction and scope, unaudited, for a service that enqueues an e-mail about it and audits its own write: a profile
+// the clinic registered has none and gets no e-mail and no push (docs/clinic-cms W1). ErrNotFound when the scope does
+// not show the appointment or its patient.
+func (s *Service) PatientHasAccount(ctx context.Context, id string) (bool, error) {
+	a, err := s.Lookup(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	p, err := s.Patients.Lookup(ctx, a.PatientID)
+	switch {
+	case errors.Is(err, patient.ErrNotFound):
+		return false, ErrNotFound
+	case err != nil:
+		return false, fmt.Errorf("appointment: patient has account: %w", err)
+	}
+	return p.AccountID != "", nil
 }
 
 // RecordConsultationOutcome records the end of the appointment's consultation (docs/consultation/SPEC.md §2

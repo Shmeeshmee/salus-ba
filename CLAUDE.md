@@ -59,7 +59,7 @@ directory when something goes in it.
 | `docs/` | `architecture/`, ADRs (`docs/adr/NNNN-title.md`), and one folder per feature (see "Working on a feature") |
 | `web/` | React + TypeScript (Vite) app for practitioners and admins |
 | `mobile/` | Flutter app (iOS and Android) for patients only |
-| `landing/` | Marketing landing page: React + TypeScript (Vite), its own app beside `web/`, prerendered to static HTML at build time (`scripts/prerender.ts`) and served with its `nginx.conf` by the `landing` compose service. Copy and data in `src/content/`, one folder per page section in `src/sections/`. No third-party requests (fonts are bundled from npm). Not deployed yet: fill in the `[PRICE]`, `[YOUR EMAIL]`, `[Hosting]` and `[Certification]` placeholders in `src/content/` before it is |
+| `landing/` | Marketing landing page: React + TypeScript (Vite), its own app beside `web/`, prerendered to static HTML at build time (`scripts/prerender.ts`) and served with its `nginx.conf` by the `landing` compose service. Copy and data in `src/content/`, one folder per page section in `src/sections/`. No third-party requests (fonts are bundled from npm). Not deployed yet: fill in the `[PRICE]`, `[YOUR EMAIL]`, `[Hosting]` and `[Certification]` placeholders in `src/content/`, and `[APP URL]` (the sign-up link's web app address, set at build time with `VITE_APP_URL`), before it is |
 
 Never: `/src`, `internal/utils`, `internal/common`, `internal/shared`, `internal/helpers`, or top-level
 technical-layer packages (`internal/services`, `internal/repositories`, `internal/handlers`).
@@ -313,8 +313,9 @@ B2B: the customers are private clinics in Bosnia and Herzegovina, on a monthly m
 practitioner (docs/plans/clinic-cms.md, ADR 0016). Salus is the system a clinic runs on, with telemedicine built in:
 in-person and video visits, the price list, the receipts the fiscal law requires, and online hours a clinic's doctors
 can work from home after hours. Patients pay at the clinic, not in the app; live translation is a paid add-on per use,
-and a transaction fee applies only to prepaid bookings by diaspora and international patients (later). Practitioners
-and clinic admins work in `web/` (schedules, calendar, the price list, receipts, the questionnaire builder,
+and a transaction fee applies only to prepaid bookings by diaspora and international patients (later). Practitioners,
+clinic admins and the clinic's receptionists (the `reception` role: the front desk, no clinical content; owner,
+2026-11-23) work in `web/` (schedules, calendar, the price list, receipts, the desk, the questionnaire builder,
 consultations); patients only ever see `mobile/` (find a clinic, book, fill in questionnaires, join the consultation).
 Video consultations come with live transcription, and AI features are meant to grow across the platform from there;
 anything AI reads or writes is personal data under "GDPR and health data".

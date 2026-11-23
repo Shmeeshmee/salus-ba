@@ -1,0 +1,8 @@
+Subject: Potvrdite prijavu ustanove na Salus
+
+Zatražili ste prijavu ustanove Synthetic clinic na platformu Salus.
+
+Da biste potvrdili svoju imejl adresu, otvorite ovaj link:
+https://app.example.test/signup/verify#c2Vzc2lvbiB0b2tlbiBvZiAzMiBzeW50aGV0aWMgYnl0ZXM
+
+Nakon potvrde poslaćemo vam pozivnicu za otvaranje administratorskog naloga ustanove. Link ističe 72 sata nakon prijave. Ako se niste prijavili, možete zanemariti ovu poruku.

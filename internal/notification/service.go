@@ -49,7 +49,8 @@ type Ports struct {
 	Tx           Transactor
 	Clock        clock.Clock
 
-	// WebBaseURL is WEB_BASE_URL: invite links point at <WebBaseURL>/invite#<token>.
+	// WebBaseURL is WEB_BASE_URL: invite links point at <WebBaseURL>/invite#<token>, signup verification links at
+	// <WebBaseURL>/signup/verify#<token>.
 	WebBaseURL string
 	// PatientAppURL is PATIENT_APP_URL: appointment e-mails link to <PatientAppURL>/appointments.
 	PatientAppURL string

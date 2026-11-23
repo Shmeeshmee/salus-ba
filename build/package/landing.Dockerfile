@@ -7,6 +7,8 @@ WORKDIR /src
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# The web app's address for the sign-up link (src/content/nav.ts); unset, the page shows the [APP URL] placeholder.
+ARG VITE_APP_URL=""
 RUN npm run build
 
 # The base image's Alpine packages can lag behind Alpine's security fixes (a critical brotli fix in 2026-11),

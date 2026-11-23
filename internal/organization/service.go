@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -14,6 +15,13 @@ import (
 )
 
 const maxName = 200 // characters
+
+// validName reports whether name (trimmed) is a clinic's name: 1 to 200 characters on one line, without a link. It
+// goes into the e-mails Salus sends in the clinic's name (invites, the signup), as the signup's own check says.
+func validName(name string) bool {
+	return name != "" && utf8.RuneCountInString(name) <= maxName && !strings.ContainsFunc(name, unicode.IsControl) &&
+		!strings.Contains(name, "://")
+}
 
 // staffLanguages are the languages a clinic's default language may be (docs/i18n/SPEC.md §3 "Tags").
 var staffLanguages = []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en"}
@@ -46,7 +54,8 @@ func NewService(repo Repository, audit Auditor, tx Transactor, clk clock.Clock, 
 	return &Service{repo: repo, audit: audit, tx: tx, clock: clk, places: places}
 }
 
-// Read returns the clinic id to a member of it, or ErrNotFound to anyone else.
+// Read returns the clinic id to a member of it, or ErrNotFound to anyone else. A receptionist's read is audited (the
+// front desk's reads are, docs/clinic-cms F1); other reads are not: nothing in a clinic is personal data.
 func (s *Service) Read(ctx context.Context, c Caller, id string) (Organization, error) {
 	if c.OrganizationID == "" || c.OrganizationID != id {
 		return Organization{}, ErrNotFound
@@ -57,8 +66,10 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Organization, 
 			return err
 		}
 		var err error
-		o, err = s.repo.ByID(ctx, id)
-		return err
+		if o, err = s.repo.ByID(ctx, id); err != nil || !c.Reception {
+			return err
+		}
+		return s.audit.Record(ctx, event(auditevent.CodeRead, auditevent.ActionRead, c, id, auditevent.OutcomeSuccess))
 	})
 	switch {
 	case errors.Is(err, ErrNotFound):
@@ -72,12 +83,13 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Organization, 
 	return o, nil
 }
 
-// Create adds a clinic. Only the operator command calls it (cmd/salusctl, connected as the owner: the
-// application role may not insert a clinic); its audit event names the operator command as the agent. The
-// name is trimmed; a blank one or one over 200 characters gives ErrInvalidName.
-func (s *Service) Create(ctx context.Context, name string) (Organization, error) {
+// Create adds a clinic, unlisted, through signup.Service's clinic creation: from salusctl create-clinic (as the owner)
+// or a verified signup (as salus_app, only in the new clinic's own scope). Its audit event names agent, which is no
+// account (auditevent.AgentOperator or AgentSignup). The name is trimmed; a blank one or one over 200 characters gives
+// ErrInvalidName.
+func (s *Service) Create(ctx context.Context, agent, name string) (Organization, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || utf8.RuneCountInString(name) > maxName {
+	if !validName(name) {
 		return Organization{}, ErrInvalidName
 	}
 	var o Organization
@@ -87,13 +99,35 @@ func (s *Service) Create(ctx context.Context, name string) (Organization, error)
 			return err
 		}
 		e := event(auditevent.CodeCreate, auditevent.ActionCreate, Caller{OrganizationID: o.ID}, o.ID, auditevent.OutcomeSuccess)
-		e.AgentName = auditevent.AgentOperator
+		e.AgentName = agent
 		return s.audit.Record(ctx, e)
 	})
 	if err != nil {
 		return Organization{}, fmt.Errorf("organization: create: %w", err)
 	}
 	return o, nil
+}
+
+// List puts the unlisted clinic id in the public directory: the operator's approval of a clinic that signed itself up
+// (salusctl signup approve, docs/clinic-cms O1). A clinic that does not exist or is listed already gives ErrNotFound.
+// Audited as the operator command.
+func (s *Service) List(ctx context.Context, id string) error {
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		ok, err := s.repo.List(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrNotFound
+		}
+		e := event(auditevent.CodeUpdate, auditevent.ActionUpdate, Caller{OrganizationID: id}, id, auditevent.OutcomeSuccess)
+		e.AgentName = auditevent.AgentOperator
+		return s.audit.Record(ctx, e)
+	})
+	if err != nil {
+		return fmt.Errorf("organization: list: %w", err)
+	}
+	return nil
 }
 
 // DefaultLanguage returns the clinic's default language (a staff language): for a new questionnaire's
@@ -205,7 +239,7 @@ func (s *Service) ListListed(ctx context.Context) ([]Organization, error) {
 // an address line or a postal code that is too long, or left to a clinic without a city, ErrInvalidLocation.
 func (s *Service) Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error) {
 	ch.Name = strings.TrimSpace(ch.Name)
-	if ch.Name == "" || utf8.RuneCountInString(ch.Name) > maxName {
+	if !validName(ch.Name) {
 		return Organization{}, ErrInvalidName
 	}
 	if ch.TimeZone != nil && !validTimeZone(*ch.TimeZone) {
@@ -298,6 +332,9 @@ func (s *Service) update(ctx context.Context, id string, ch Changes, version int
 	o, err = s.repo.Update(ctx, next, s.clock.Now())
 	if errors.Is(err, ErrConflict) { // changed since the read
 		return cur, ErrConflict, nil
+	}
+	if errors.Is(err, ErrNotApproved) {
+		return cur, ErrNotApproved, nil
 	}
 	return o, nil, err
 }

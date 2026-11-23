@@ -88,7 +88,7 @@ a { color: var(--color-brand); }
 form { display: grid; gap: 16px; }
 .field { display: grid; gap: 6px; }
 .field label, legend { font-size: 14px; font-weight: 600; }
-input[type='email'], input[type='password'], input[type='number'], input[type='time'], input[type='text'], input:not([type]), select, textarea {
+input[type='email'], input[type='password'], input[type='number'], input[type='time'], input[type='date'], input[type='tel'], input[type='text'], input:not([type]), select, textarea {
   width: 100%;
   font: inherit;
   color: inherit;
@@ -644,3 +644,28 @@ p.hint.join { margin-bottom: 20px; }
   .items .item.in-branch.nested { margin-left: calc(10px + var(--branch, 0) * 10px); }
   .preview-sheet { padding: 14px; }
 }
+
+/* The front desk (clinic-cms F3): today's visits by practitioner, the check-in and the walk-in dialog. */
+.desk .toolbar { align-items: center; justify-content: space-between; }
+.desk .toolbar h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.desk-practitioner + .desk-practitioner { margin-top: 24px; }
+.desk-practitioner h3 { margin: 0 0 8px; font-size: 15px; }
+.desk .rows li { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.desk .rows .tag { margin-left: 4px; white-space: nowrap; }
+.desk .rows .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.desk .rows .actions .alert { flex-basis: 100%; margin: 0; }
+@media (max-width: 520px) {
+  .desk .rows li { grid-template-columns: minmax(0, 1fr); }
+  .desk .rows .actions { justify-content: flex-start; }
+}
+.tag.desk-arrived { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
+.tag.desk-cancelled, .tag.desk-noshow { border-style: dashed; }
+.desk-dialog form { display: grid; gap: 14px; }
+.desk-dialog select { width: 100%; }
+.desk-patient { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.patient-option { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; }
+.patient-register { display: grid; gap: 12px; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+.patient-picker { display: grid; gap: 12px; }
+.patient-picker .toolbar { margin-bottom: 0; }
+.desk-dialog { display: grid; gap: 14px; align-content: start; }
+.desk-dialog h2 { margin: 0; }

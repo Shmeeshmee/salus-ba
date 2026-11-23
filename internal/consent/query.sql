@@ -10,6 +10,13 @@ VALUES (@patient_id, @organization_id, 'active', @date_time, @date_time)
 ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
 RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
 
+-- A care consent a clinic-registered patient gave in person, recorded by staff (docs/clinic-cms F2).
+-- name: GrantInPersonConsent :one
+INSERT INTO consent (patient_id, organization_id, status, date_time, updated_at, given_in_person, recorded_by_account_id)
+VALUES (@patient_id, @organization_id, 'active', @date_time, @date_time, true, @recorded_by_account_id)
+ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
+
 -- name: GrantTranscriptionConsent :one
 INSERT INTO transcription_consent (patient_id, organization_id, status, date_time, updated_at)
 VALUES (@patient_id, @organization_id, 'active', @date_time, @date_time)

@@ -28,10 +28,11 @@ var start = time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC)
 
 // fakeAppointments gives the appointment of a notice, in the status set.
 type fakeAppointments struct {
-	err    error
-	status appointment.Status
-	mode   schedule.VisitMode
-	asked  []string // agent, clinic, appointment
+	err       error
+	status    appointment.Status
+	mode      schedule.VisitMode
+	asked     []string // agent, clinic, appointment
+	noAccount bool     // the notice of a patient the clinic registered, without an account (docs/clinic-cms F2)
 }
 
 func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (appointment.Notice, error) {
@@ -39,12 +40,16 @@ func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (app
 	if f.err != nil {
 		return appointment.Notice{}, f.err
 	}
+	account := accountID
+	if f.noAccount {
+		account = ""
+	}
 	return appointment.Notice{
 		Appointment: appointment.Appointment{
 			ID: id, OrganizationID: org, PatientID: "aa000000-0000-4000-8000-0000000000aa", PractitionerRoleID: "a4000000-0000-4000-8000-0000000000a1",
 			Start: start, End: start.Add(30 * time.Minute), Status: f.status, Mode: f.mode,
 		},
-		AccountID: accountID,
+		AccountID: account,
 	}, nil
 }
 
@@ -207,6 +212,21 @@ func TestAppointmentEmails_SendNothingThatNoLongerApplies(t *testing.T) {
 	}
 }
 
+func TestAppointmentEmails_SendAPatientWithoutAnAccountNothing(t *testing.T) {
+	accounts, sender := &fakeAccounts{language: "en"}, &fakeSender{}
+	mail := newMail(&fakeAppointments{status: appointment.StatusBooked, noAccount: true}, accounts, zonedClinics{}, sender)
+	for name, send := range map[string]func(context.Context, string, string) error{
+		"booked": mail.SendAppointmentBooked, "reminder": mail.SendAppointmentReminder,
+	} {
+		if err := send(t.Context(), apptID, clinicID); err != nil {
+			t.Errorf("%s: error = %v, want nil", name, err)
+		}
+	}
+	if len(sender.sent) != 0 || accounts.asked != nil {
+		t.Errorf("sent %v after reading the account %v, want nothing", sender.sent, accounts.asked)
+	}
+}
+
 func TestAppointmentEmails_StopAtTheFirstFailureWithoutLeakingTheMessage(t *testing.T) {
 	down := errors.New("down")
 	for name, s := range map[string]struct {
@@ -341,5 +361,26 @@ func TestAppointmentEmails_OfAnInPersonVisitSayWhereToCome(t *testing.T) {
 	if err := newMail(appts, &fakeAccounts{language: "en"}, zonedClinics{}, sender).SendAppointmentCancelled(t.Context(), apptID, clinicID); err != nil ||
 		len(sender.sent) != 1 || strings.Contains(sender.sent[0].Body, clinicAddress) {
 		t.Errorf("the cancellation: %v, %+v; want one e-mail without the address", err, sender.sent)
+	}
+}
+
+// Every appointment e-mail job of a patient the clinic registered, without an account (docs/clinic-cms W1), completes
+// without error (no retry) and sends nothing: the cancellation, the reschedule, a signed document and a quote too, in
+// whatever status the appointment is.
+func TestAppointmentEmails_EveryKindCompletesForAPatientWithoutAnAccount(t *testing.T) {
+	for _, status := range []appointment.Status{appointment.StatusBooked, appointment.StatusCancelled, appointment.StatusFulfilled} {
+		accounts, sender := &fakeAccounts{language: "en"}, &fakeSender{}
+		mail := newMail(&fakeAppointments{status: status, noAccount: true}, accounts, zonedClinics{}, sender)
+		for name, send := range map[string]func(context.Context, string, string) error{
+			"booked": mail.SendAppointmentBooked, "cancelled": mail.SendAppointmentCancelled, "reminder": mail.SendAppointmentReminder,
+			"rescheduled": mail.SendAppointmentRescheduled, "signed": mail.SendDocumentSigned, "quote": mail.SendQuote,
+		} {
+			if err := send(t.Context(), apptID, clinicID); err != nil {
+				t.Errorf("%s while %s: error = %v, want nil", name, status, err)
+			}
+		}
+		if len(sender.sent) != 0 || accounts.asked != nil {
+			t.Errorf("while %s: sent %v after reading the account %v, want nothing", status, sender.sent, accounts.asked)
+		}
 	}
 }

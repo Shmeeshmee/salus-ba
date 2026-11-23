@@ -1,0 +1,2 @@
+Package X1. Migration, only if needed: 00070. A quote must never enter invoice_sequence or the fiscal job; test both.
+Reuse H's PDF catalogs for the labels.

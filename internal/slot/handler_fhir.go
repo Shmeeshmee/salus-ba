@@ -10,23 +10,26 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
-// Searcher finds the free slots of the public directory, for anyone (Service).
+// Searcher finds the free slots of the public directory, for anyone, and of the caller's own clinic org for its staff
+// (empty org for anyone else) whether or not it is listed (Service).
 type Searcher interface {
-	Search(ctx context.Context, scheduleID string, from, to time.Time) ([]Slot, error)
+	SearchFor(ctx context.Context, org, scheduleID string, from, to time.Time) ([]Slot, error)
 }
 
 // Handler serves the Slot search of the FHIR API (api/fhir/CapabilityStatement.json): the free future slots
-// of a schedule of the public directory, to anyone, signed in or not, unaudited (SPEC.md "FHIR reads and
-// searches").
+// of a schedule of the public directory, to anyone, signed in or not, and of its own clinic's schedules to its staff
+// (the front desk, docs/clinic-cms F3); unaudited (SPEC.md "FHIR reads and searches").
 type Handler struct {
-	svc  Searcher
-	log  *slog.Logger
-	base string // the FHIR API's absolute base URL (FHIR_BASE_URL)
+	svc    Searcher
+	clinic func(ctx context.Context) string // the signed-in staff's clinic; empty for anyone else
+	log    *slog.Logger
+	base   string // the FHIR API's absolute base URL (FHIR_BASE_URL)
 }
 
-// NewHandler returns the handler on svc. base is the FHIR API's absolute base URL (https://…/fhir/R4).
-func NewHandler(svc Searcher, base string, log *slog.Logger) *Handler {
-	return &Handler{svc: svc, base: base, log: log}
+// NewHandler returns the handler on svc. clinic gives the signed-in staff's clinic (empty for anyone else); base is
+// the FHIR API's absolute base URL (https://…/fhir/R4).
+func NewHandler(svc Searcher, clinic func(ctx context.Context) string, base string, log *slog.Logger) *Handler {
+	return &Handler{svc: svc, clinic: clinic, base: base, log: log}
 }
 
 // Routes declares the Slot routes on mux.
@@ -69,7 +72,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 			"Search by one schedule, status=free and start=lt<instant>, optionally start=ge<instant>.")
 		return
 	}
-	all, err := h.svc.Search(r.Context(), scheduleID, from, to)
+	all, err := h.svc.SearchFor(r.Context(), h.clinic(r.Context()), scheduleID, from, to)
 	if err != nil {
 		fhir.InternalError(w, r, h.log, err)
 		return

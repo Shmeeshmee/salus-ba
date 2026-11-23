@@ -18,7 +18,8 @@ requests, this file wins.
 | --- | --- | --- |
 | 1 | A, B, C, D | Built 2026-11-21. Each owns its own files (`docs/plans/clinic-cms.md`, the file ownership table); integration order A, B, C, D |
 | 2 | E, H, I, L, Q1, Q2, Q3 | Disjoint files (the table under "Wave 2 packages"); shared files get one appended block each; migrations numbered apart. Integration order Q1, Q2, Q3, H, I, E, L |
-| later | F (Q1 of the owner's questions), G (Q6) | On hold for the owner |
+| 3 | 3.0 alone, then F1, F2, F3, O1, O2, X1, X2 | 3.0 lands the shared contract (migration, role, OpenAPI, clients), as step 0 did; after it the seven own disjoint files ("Wave 3 packages"). Integration order F1, F2, F3, O1, O2, X1, X2 |
+| later | O3 (after F2), X3 (a payment provider), G (the ESET specification) | On hold |
 
 Migration numbers after wave 1's integration (A `00060`, D `00061`): E `00062`, H `00063`, I `00064`, Q1 `00065`. A
 package that needs no migration leaves its number unused.
@@ -73,7 +74,16 @@ the compose stack is stopped.
 | Q1 | nothing | go | Publishing accepts the full branching model and refuses broken logic; a response holds only answers on the path taken |
 | Q2 | nothing (FHIR `enableWhen` is the contract) | web | The builder sets branches on the question answered, shows the tree and the join, warns on broken dependencies, and previews live |
 | Q3 | nothing (FHIR `enableWhen` is the contract) | mobile | The app shows and hides branches live, warns before discarding answers, submits only the path taken |
-| F | C, the owner's Q1 | go, web | Hold |
+| 3.0 | wave 2 on main | go, web, mobile | The contract below is on the branch: migration, types, refusing skeletons, OpenAPI of every wave 3 route, regenerated clients |
+| F1 | 3.0 | go, web | An admin invites a receptionist; a receptionist reaches the desk's data and no clinical content, on every route |
+| F2 | 3.0 | go | Staff register a patient who has no account and book, move and cancel visits for patients |
+| F3 | 3.0 | web, e2e | The desk shows today, checks patients in, books a walk-in and issues the receipt |
+| O1 | 3.0 | go, web, e2e | A clinic signs itself up, verifies its e-mail and is led through setup; it is listed only once the operator approves |
+| O2 | 3.0 | go, web | An admin imports a price list from a file and downloads the clinic's data |
+| X1 | 3.0 | go, web, mobile | A practitioner sends a patient a priced treatment quote; the patient sees it in the app |
+| X2 | 3.0 | go, web, mobile | A clinic describes itself for patients abroad; the app shows it and can filter by language spoken |
+| O3 | F2 on main | go, web | Hold |
+| X3 | a payment provider | go, mobile | Hold |
 | G | C, the owner's Q6 | go | Hold |
 
 Check set `landing`: `make landing-lint`, `make landing-typecheck`, `make landing-test`, `make landing-build`.
@@ -157,3 +167,104 @@ is the next unconditional item; a condition names only an earlier question. No e
 
 The integration session runs Q1's vectors against `enableWhen.ts` and `enable_when.dart`, fixes any difference, and
 adds the e2e of both paths of the gynaecology example and the changed-answer case.
+
+## Wave 3 packages
+
+Epics: SAL-46 (F1, F2, F3), SAL-49 (O1, O2, O3), SAL-48 (X1, X2, X3). The owner said yes to the reception role on
+2026-11-23. Everything else below is the agent's default, for the owner to confirm; 3.0 records them in PROGRESS.md.
+
+| # | Open point | Default that applies |
+| --- | --- | --- |
+| W1 | A patient the clinic registers has no Salus account | Yes: a profile owned by the clinic, seen only by that clinic, with the care consent recorded by staff as given in person. Linking it to an account the patient opens later is a later package. Needs the lawyer's word before production |
+| W2 | What a receptionist sees | Name, birth date, phone, appointments with their service and visit type, the price list, receipts. Never questionnaire answers, documents, history, transcripts, chat or analytics |
+| W3 | Who may sign a clinic up | Anyone, with a verified e-mail; the trial starts at once; the clinic is unlisted until the operator approves it in `salusctl` |
+| W4 | A quote | Not a fiscal document: priced lines from the price list, valid 30 days, never charged, turned into a receipt by hand at the visit |
+| W5 | Paying from abroad in advance (X3) | On hold until a payment provider is chosen and has its DPA |
+| W6 | Arrival | `arrived` is a new appointment status between booked and fulfilled, set at the desk, for in-person visits only |
+
+Migration numbers: 3.0 `00065`; F1 `00066`, F2 `00067`, O1 `00068`, O2 `00069`, X1 `00070`, X2 `00071`, each only if
+needed.
+
+| Package | Its own files | Touches, appending its own block |
+| --- | --- | --- |
+| 3.0 | the migration, `api/openapi.yaml`, generated clients, the skeleton files of the packages below | `auth` (the role), `appointment` (the status), `ownership.yaml`, retention rules, DPIA, CLAUDE.md and `docs/accounts/SPEC.md` (roles) |
+| F1 | `internal/access/reception.go`, `internal/auth/service_invite_reception.go`; web `StaffInvite` additions | `access`, `auth` core files; every domain's authorization tests; web `App.tsx` (what a receptionist's menu shows), `Practitioners.tsx` or the staff screen |
+| F2 | `internal/patient/service_clinic.go`, `internal/consent/service_inperson.go`, `internal/appointment/service_staff.go` and its handler | `patient`, `consent`, `appointment` core files |
+| F3 | web `Desk.tsx`, `DeskCheckIn.tsx`, `DeskWalkIn.tsx`, `PatientPicker.tsx` | web `App.tsx` (the route), the `desk` catalogs; `test/e2e` |
+| O1 | `internal/signup/*` (a new domain in `identity`), web `Signup.tsx`, `SetupWizard.tsx`; `cmd/salusctl` approve command | `organization` (created unlisted), `subscription` (the trial), `landing/` (the sign-up link only) |
+| O2 | `internal/chargeitemdefinition/service_import.go`, `internal/datarequest` or `internal/organization/service_export.go` as the code fits; web `PriceListImport.tsx`, `ClinicExport.tsx` | web `PriceList.tsx`, `ClinicSettings.tsx` (links) |
+| X1 | `internal/invoice/service_quote.go` and its handler; web `QuoteDialog.tsx`; mobile `quotes_screen.dart` | `invoice` core files (kind `quote`), web `AppointmentDetail.tsx` (the action) |
+| X2 | `internal/organization/service_profile.go` and its handler; web `ClinicProfile.tsx`; mobile `clinic_profile.dart` | `organization` core files, the public directory's query, mobile clinic list (the language filter) |
+
+### 3.0: the contract
+
+As step 0 (`docs/plans/clinic-cms.md` "Contract" and its record): one migration with every table, column and value
+the wave needs; the Go types and the services' exported methods, refusing with `errors.ErrUnsupported` and a test
+that says so; the OpenAPI of every route below with `x-salus-package`; `make gen-clients`. Where the code shows a
+better fit than this text, build the better fit and list the change. Add PROGRESS.md headings and table rows for the
+wave 3 packages.
+
+- Role `reception` on `auth.Role`, the account and invite checks; CLAUDE.md "Product" and `docs/accounts/SPEC.md`
+  "Roles" amended (the owner's decision of 2026-11-23).
+- `patient`: `registered_by_organization_id` (null for a patient's own profile) and a nullable account; row-level
+  security shows a clinic-registered profile to that clinic only.
+- `consent`: a care consent may carry `recorded_by_account_id` and `given_in_person`.
+- `appointment`: status `arrived` with `arrived_at`; `booked_by_account_id` for a booking made by staff.
+- `signup`: `clinic_signup` (e-mail, clinic name, verification token hash, verified_at, approved_at, organization_id).
+- `invoice`: kind `quote`, `valid_until`; a quote is never numbered in the receipt sequence and never reported.
+- `organization`: profile fields for patients abroad: languages spoken (`language[]`), a short description with
+  translations, whether it welcomes patients from abroad.
+- Routes: `/clinic/staff/invites` for a receptionist; `/clinic/patients` (search, register), `/clinic/appointments`
+  (staff books, moves, cancels), `/clinic/appointments/{id}/arrive`; `/clinic/desk/today`; `/signup`,
+  `/signup/verify`, `/clinic/setup`; `/clinic/services/import`, `/clinic/export`; `/clinic/quotes`, `/me/quotes`;
+  `/clinic/profile`, the profile on the public clinic read.
+
+### F1: reception role and what it may see (SAL-46)
+
+An admin invites a receptionist by e-mail (password and TOTP, as other staff). `access` gains the reception rules of
+W2. The proof is a table-driven test over every staff route: a receptionist gets the desk's routes and is refused
+(as a stranger would be, without revealing existence) on every route that returns clinical content. Every read by a
+receptionist is audited like any staff read. The web menu shows a receptionist only what they may open.
+
+### F2: patients registered by the clinic and bookings by staff (SAL-46)
+
+Staff (admin, receptionist, the practitioner for their own patients) search the clinic's patients by name and birth
+date, register a patient who has no account (name, birth date, phone), record the care consent as given in person,
+and book, move and cancel a visit for a patient in any free slot, with the service. Reminders go by SMS or not at
+all for a patient without an account. Every such write is audited with the staff account. Concurrency tests as the
+booking's. The DPIA gains the clinic-registered profile and its consent.
+
+### F3: the front desk screen (SAL-46)
+
+`/desk` for the admin and the receptionist: today's visits by practitioner and time with visit type and service;
+"Arrived" for an in-person visit; a walk-in (pick or register the patient, pick the slot and service); "Issue
+receipt" from the row (C's dialog). Built against 3.0's contract with a fake API; the integration wires F1 and F2.
+Walked at desktop width and 390 px.
+
+### O1: clinic signup and setup wizard (SAL-49)
+
+`/signup` (public): clinic name and the admin's e-mail; a verification e-mail; on verification the organization is
+created unlisted, the admin invited, the trial started (`subscription`). Rate limits and no enumeration of existing
+e-mails. The wizard at first sign-in: clinic details and address, billing details, working hours, the first
+practitioner invite, the price list (or its import), each step skippable and resumable. `salusctl signup list |
+approve` lists the clinic publicly. The landing page's button points at `/signup`.
+
+### O2: price list import and the clinic data export (SAL-49)
+
+Import: a CSV or XLSX of services (name, code, price, duration, VAT rate, visit types), with a preview that shows
+every row's errors before anything is saved; all rows or none. Export: the admin downloads the clinic's price list,
+staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a
+job; the download is audited and expires.
+
+### X1: treatment quotes (SAL-48)
+
+From an appointment, the practitioner or admin writes a quote: lines from the price list with quantities and
+discounts, a note, valid 30 days. The patient gets an e-mail and sees the quote and its PDF in the app. Nothing is
+charged and nothing is reported; a quote is not a receipt and says so. The clinic sees its quotes and their state
+(sent, expired).
+
+### X2: clinic profile for patients abroad (SAL-48)
+
+The admin fills in the profile: languages the clinic speaks, a short description (translatable, as questionnaires),
+whether it welcomes patients from abroad. The patient app shows the profile with the services and prices, and
+filters the clinic list by a language spoken.

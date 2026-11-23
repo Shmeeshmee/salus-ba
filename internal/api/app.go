@@ -98,9 +98,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
 	})
 	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
+	stops := memberships(pool, audit, tx) // a suspended or cancelled membership stops new bookings (clinic-cms Q4)
 	appointmentPorts := appointment.Ports{
-		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{},
-		Consents: consents, Slots: slots, Patients: patients, Clinics: bookableClinics{Service: clinics, memberships: memberships(pool, audit, tx)}, Roles: roles,
+		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{}, Stops: stops,
+		Consents: consents, Slots: slots, Patients: patients, Clinics: bookableClinics{Service: clinics, memberships: stops}, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
 		// A booking schedules its reminders by the clinic's offsets, a cancellation cancels them (SAL-33); the patient's
 		// confirmation, rescheduling and one-time links (SAL-34) read the same rules, and count the link lookups in Redis
@@ -120,7 +121,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies).WithFeatures(features(cfg.Analytics))
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners, roles, appointment.NewFacts(appointmentRepo))
-	consultAPI, consultStream, documents, signatures := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter}, appointmentCaller(accounts, patients), fhirBase, log)
+	consultAPI, consultStream, documents, signatures := newConsultRecord(consultPorts{pool: pool, rdb: rdb, audit: audit, tx: tx, encounters: encounters, consents: consents, clinics: clinics, jobs: jobs, files: files, kek: kek, drafter: drafter, appointments: appointments}, appointmentCaller(accounts, patients), fhirBase, log)
 	questionnaireAPI, streams, timeline := questionnaireRoutes(questionnairePorts{
 		pool: pool, audit: audit, tx: tx, jobs: jobs, roles: roles, clinics: clinics, accounts: accounts, appointments: appointments, patients: patients, encounters: encounters,
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
@@ -136,27 +137,32 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Routes: append([]func(*http.ServeMux){
 			authHandler.Routes,
 			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).Routes,
+			organization.NewProfileHandler(clinics, organizationCaller(accounts), log).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
 			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			patient.NewFHIRHandler(patients, patientReadCaller(accounts, roles), log).Routes,
-			consent.NewHandler(newSharing(consents, encounters, documents, roles, clinics), consentCaller(patients), log).Routes,
-			consent.NewFHIRHandler(consents, consentCaller(patients), log).Routes,
+			patient.NewClinicHandler(patients, patientReadCaller(accounts, roles), log).Routes, // clinic-cms F2
+			consent.NewHandler(newSharing(consents, encounters, documents, roles, clinics), consentCaller(accounts, patients), log).Routes,
+			consent.NewFHIRHandler(consents, consentCaller(accounts, patients), log).Routes,
 			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
-			schedule.NewHandler(schedules, fhirBase, log).Routes,
-			slot.NewHandler(slots, fhirBase, log).Routes,
+			schedule.NewHandler(schedules, sessionClinic, fhirBase, log).Routes,
+			slot.NewHandler(slots, sessionClinic, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 			appointment.NewWaitlistHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewActionsHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewLinkHandler(appointments, cfg.TrustedProxies, log).Routes,
 			appointment.NewNoShowHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
+			appointment.NewStaffHandler(appointments, deskCaller(accounts, patients), log).Routes, // clinic-cms F2
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
 		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log)},
 			[]func(*http.ServeMux){invoiceRoutes(invoicePorts{pool: pool, audit: audit, tx: tx, jobs: jobs, clinics: clinics, appointments: appointments, consents: consents, care: appointment.NewFacts(appointmentRepo), prices: prices, accounts: accounts, patients: patients}, log)}, // receipts (clinic-cms C)
 			subscriptionRoutes(pool, audit, tx, accounts, clinics, cfg.Seller, log), // membership (clinic-cms D)
+			[]func(*http.ServeMux){signupRoutes(signupPorts{pool: pool, jobs: jobs, counters: auth.NewRedisCounters(rdb), audit: audit, tx: tx,
+				clinics: clinics, accounts: accounts, rateLimitKey: cfg.RateLimitKey, trustedProxies: cfg.TrustedProxies}, log)}, // self-signup (clinic-cms O1)
 			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
@@ -296,17 +302,18 @@ func newConsultation(pool *pgxpool.Pool, lk config.LiveKit, jobs *river.Client[p
 
 // consultPorts are what the consultation's record is built on: its transcript and its documents.
 type consultPorts struct {
-	drafter    llm.Drafter // config.LoadLLM's engine (cmd/api)
-	pool       *pgxpool.Pool
-	rdb        *goredis.Client
-	audit      *auditevent.Service
-	tx         *postgres.Transactor
-	encounters *encounter.Service
-	consents   *consent.Service
-	clinics    *organization.Service
-	jobs       *river.Client[pgx.Tx]
-	kek        *envelope.KEK
-	files      config.ObjectStore
+	drafter      llm.Drafter // config.LoadLLM's engine (cmd/api)
+	pool         *pgxpool.Pool
+	rdb          *goredis.Client
+	audit        *auditevent.Service
+	tx           *postgres.Transactor
+	encounters   *encounter.Service
+	consents     *consent.Service
+	clinics      *organization.Service
+	jobs         *river.Client[pgx.Tx]
+	kek          *envelope.KEK
+	appointments *appointment.Service // whether a document's patient has an account to e-mail (clinic-cms W1)
+	files        config.ObjectStore
 }
 
 // newConsultRecord builds the encounter's live events (its Redis Stream), its stored transcript, and its
@@ -327,6 +334,7 @@ func newConsultRecord(p consultPorts, caller func(ctx context.Context) (appointm
 		Stats:      clinicstats.NewRiverQueue(p.jobs),                             // and, with diagnoses, its clinic-day's statistics (SAL-20)
 		Conditions: condition.NewService(condition.NewPostgresRepository(p.pool)), // the diagnoses of a signature (SAL-19)
 		Audit:      p.audit, Tx: p.tx, Clock: clock.System{}, KEK: p.kek, Log: log, Tagger: terms,
+		Accounts: p.appointments, // a patient the clinic registered gets no e-mail (clinic-cms W1)
 	})
 	suggestions := suggestion.NewService(suggestion.Ports{
 		Repo: suggestion.NewPostgresRepository(p.pool), Encounters: p.encounters, Consents: p.consents, Records: transcripts,
@@ -411,6 +419,13 @@ func absoluteURL(s string) (string, error) {
 	return strings.TrimSuffix(s, "/"), nil
 }
 
+// sessionClinic is the signed-in staff's clinic, empty for a patient or anyone signed out: the Schedule and Slot
+// searches show a clinic's own staff its free times in its own scope, listed or not (the front desk, docs/clinic-cms F3).
+func sessionClinic(ctx context.Context) string {
+	s, _ := auth.SessionFrom(ctx)
+	return s.OrganizationID
+}
+
 // organizationCaller is the directory's view of the signed-in session, with whether the account is the
 // clinic's admin as read from the database (the session does not hold the role).
 func organizationCaller(accounts *auth.Service) func(ctx context.Context) (organization.Caller, bool, error) {
@@ -419,11 +434,16 @@ func organizationCaller(accounts *auth.Service) func(ctx context.Context) (organ
 		if !ok {
 			return organization.Caller{}, false, nil
 		}
-		admin, err := accounts.IsClinicAdmin(ctx, s)
+		c := organization.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID == "" {
+			return c, true, nil
+		}
+		m, err := accounts.ClinicMember(ctx, s)
 		if err != nil {
 			return organization.Caller{}, false, err
 		}
-		return organization.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, Admin: admin}, true, nil
+		c.Admin, c.Reception = m.Admin, m.Reception
+		return c, true, nil
 	}
 }
 
@@ -525,7 +545,7 @@ func patientReadCaller(accounts *auth.Service, roles *practitionerrole.Service) 
 		if err != nil {
 			return patient.Caller{}, false, err
 		}
-		c.Admin = m.Admin
+		c.Admin, c.Reception = m.Admin, m.Reception
 		if m.PractitionerID == "" {
 			return c, true, nil
 		}
@@ -585,7 +605,7 @@ func clinicStatsCaller(accounts *auth.Service, roles *practitionerrole.Service) 
 
 // consentCaller is the consent domain's view of the signed-in session: for a patient, with their profile's
 // id, read (and audited) through the patient service; empty before the profile exists.
-func consentCaller(patients *patient.Service) func(ctx context.Context) (consent.Caller, bool, error) {
+func consentCaller(accounts *auth.Service, patients *patient.Service) func(ctx context.Context) (consent.Caller, bool, error) {
 	return func(ctx context.Context) (consent.Caller, bool, error) {
 		s, ok := auth.SessionFrom(ctx)
 		if !ok {
@@ -593,6 +613,13 @@ func consentCaller(patients *patient.Service) func(ctx context.Context) (consent
 		}
 		c := consent.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
 		if c.OrganizationID != "" {
+			m, err := accounts.ClinicMember(ctx, s)
+			if err != nil {
+				return consent.Caller{}, false, err
+			}
+			if m.Reception { // the front desk reads no consent (docs/clinic-cms W2): a stranger, with no profile
+				return consent.Caller{AccountID: s.AccountID}, true, nil
+			}
 			return c, true, nil
 		}
 		p, err := patients.Me(ctx, patient.Caller{AccountID: s.AccountID})
@@ -609,8 +636,19 @@ func consentCaller(patients *patient.Service) func(ctx context.Context) (consent
 
 // appointmentCaller is the appointment domain's view of the signed-in session: for staff, with whether the
 // account is the clinic's admin and which practitioner it is, as read from the database; for a patient, with
-// their profile's id, read (and audited) through the patient service, empty before the profile exists.
+// their profile's id, read (and audited) through the patient service, empty before the profile exists. The care
+// record's domains take this view: to them a receptionist is no one of the clinic, refused as a stranger.
 func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(ctx context.Context) (appointment.Caller, bool, error) {
+	return sessionCaller(accounts, patients, false)
+}
+
+// deskCaller is appointmentCaller for the front desk's own routes (docs/clinic-cms F2, F3) and the receipts: a
+// receptionist with their clinic and the Reception flag, which only the desk's rules read.
+func deskCaller(accounts *auth.Service, patients *patient.Service) func(ctx context.Context) (appointment.Caller, bool, error) {
+	return sessionCaller(accounts, patients, true)
+}
+
+func sessionCaller(accounts *auth.Service, patients *patient.Service, desk bool) func(ctx context.Context) (appointment.Caller, bool, error) {
 	return func(ctx context.Context) (appointment.Caller, bool, error) {
 		s, ok := auth.SessionFrom(ctx)
 		if !ok {
@@ -621,6 +659,14 @@ func appointmentCaller(accounts *auth.Service, patients *patient.Service) func(c
 			m, err := accounts.ClinicMember(ctx, s)
 			if err != nil {
 				return appointment.Caller{}, false, err
+			}
+			switch {
+			case m.Reception && desk:
+				return appointment.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID, Reception: true}, true, nil
+			case m.Reception:
+				// The front desk sees no clinical content (docs/clinic-cms W2): to the care record's domains a
+				// receptionist is no one of the clinic, refused as a stranger.
+				return appointment.Caller{AccountID: s.AccountID}, true, nil
 			}
 			c.PractitionerID, c.Admin = m.PractitionerID, m.Admin
 			return c, true, nil

@@ -437,6 +437,32 @@ func TestReadAndByActor_ShowTheDirectorysSchedulesWithoutAuditing(t *testing.T) 
 	}
 }
 
+// The clinic's own staff read its schedules in its scope, listed or not (the front desk, docs/clinic-cms F3); another
+// clinic's, or anyone without a clinic, as the directory shows them. Not audited.
+func TestReadForAndByActorFor_GiveStaffTheirClinicsSchedulesInItsScope(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	if got, err := f.svc.ReadFor(t.Context(), clinicA, scheduleA2); err != nil || got.ID != scheduleA2 {
+		t.Errorf("ReadFor(clinic A) = %+v, %v; want schedule A2", got, err)
+	}
+	if got, err := f.svc.ByActorFor(t.Context(), clinicA, roleA2); err != nil || got.ID != scheduleA2 {
+		t.Errorf("ByActorFor(clinic A) = %+v, %v; want schedule A2", got, err)
+	}
+	if want := []string{"SetOrganization", "ByID", "SetOrganization", "ByRole"}; !slices.Equal(f.calls, want) || len(f.audit.events) != 0 {
+		t.Errorf("calls = %v with %d events, want %v in the clinic's scope and none", f.calls, len(f.audit.events), want)
+	}
+	g := newFixture()
+	if got, err := g.svc.ReadFor(t.Context(), clinicA, scheduleB); err != nil || got.ID != scheduleB {
+		t.Errorf("ReadFor(another clinic's) = %+v, %v; want schedule B from the directory", got, err)
+	}
+	if _, err := g.svc.ByActorFor(t.Context(), "", roleA2); err != nil {
+		t.Errorf("ByActorFor(no clinic) = %v", err)
+	}
+	if want := []string{"SetOrganization", "ByID", "SetDirectory", "ByID", "SetDirectory", "ByRole"}; !slices.Equal(g.calls, want) {
+		t.Errorf("calls = %v, want %v", g.calls, want)
+	}
+}
+
 func TestForGeneration_LocksTheScheduleInItsClinic(t *testing.T) {
 	t.Parallel()
 	f := newFixture()

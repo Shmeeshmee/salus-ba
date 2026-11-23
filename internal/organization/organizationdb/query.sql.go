@@ -95,9 +95,14 @@ func (q *Queries) ChatSettings(ctx context.Context, organizationID pgtype.UUID) 
 }
 
 const createOrganization = `-- name: CreateOrganization :one
-INSERT INTO organization (name) VALUES ($1)
+INSERT INTO organization (id, name) VALUES ($1, $2)
 RETURNING id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 `
+
+type CreateOrganizationParams struct {
+	ID   pgtype.UUID
+	Name string
+}
 
 type CreateOrganizationRow struct {
 	ID                    pgtype.UUID
@@ -118,9 +123,9 @@ type CreateOrganizationRow struct {
 	PostalCode            pgtype.Text
 }
 
-// The operator command only (salusctl, as the owner): salus_app has no INSERT on organization.
-func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOrganizationRow, error) {
-	row := q.db.QueryRow(ctx, createOrganization, name)
+// salusctl create-clinic (as the owner) and a verified signup (as salus_app, in the new clinic's scope: 00066).
+func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (CreateOrganizationRow, error) {
+	row := q.db.QueryRow(ctx, createOrganization, arg.ID, arg.Name)
 	var i CreateOrganizationRow
 	err := row.Scan(
 		&i.ID,
@@ -141,6 +146,15 @@ func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOr
 		&i.PostalCode,
 	)
 	return i, err
+}
+
+const deleteOrganizationProfileTranslations = `-- name: DeleteOrganizationProfileTranslations :exec
+DELETE FROM organization_profile_translation WHERE organization_id = $1
+`
+
+func (q *Queries) DeleteOrganizationProfileTranslations(ctx context.Context, organizationID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteOrganizationProfileTranslations, organizationID)
+	return err
 }
 
 const insertAppointmentSettings = `-- name: InsertAppointmentSettings :one
@@ -185,6 +199,22 @@ func (q *Queries) InsertAppointmentSettings(ctx context.Context, arg InsertAppoi
 	return version, err
 }
 
+const insertOrganizationProfileTranslation = `-- name: InsertOrganizationProfileTranslation :exec
+INSERT INTO organization_profile_translation (organization_id, language, description)
+VALUES ($1, $2, $3)
+`
+
+type InsertOrganizationProfileTranslationParams struct {
+	OrganizationID pgtype.UUID
+	Language       Language
+	Description    string
+}
+
+func (q *Queries) InsertOrganizationProfileTranslation(ctx context.Context, arg InsertOrganizationProfileTranslationParams) error {
+	_, err := q.db.Exec(ctx, insertOrganizationProfileTranslation, arg.OrganizationID, arg.Language, arg.Description)
+	return err
+}
+
 const listLocationsForStats = `-- name: ListLocationsForStats :many
 SELECT id, time_zone, region_id, city_id, location_since, analytics_contributes, contributes_since
 FROM organization ORDER BY id
@@ -227,6 +257,20 @@ func (q *Queries) ListLocationsForStats(ctx context.Context) ([]ListLocationsFor
 		return nil, err
 	}
 	return items, nil
+}
+
+const listOrganization = `-- name: ListOrganization :execrows
+UPDATE organization SET listed = true, version_id = version_id + 1, updated_at = now()
+WHERE id = $1 AND NOT listed
+`
+
+// salusctl signup approve (as the owner): the clinic appears in the public directory.
+func (q *Queries) ListOrganization(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, listOrganization, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listedOrganizations = `-- name: ListedOrganizations :many
@@ -279,6 +323,68 @@ func (q *Queries) ListedOrganizations(ctx context.Context) ([]ListedOrganization
 	return items, nil
 }
 
+const listedOrganizationsSpeaking = `-- name: ListedOrganizationsSpeaking :many
+SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy
+FROM organization
+WHERE listed AND $1::text = ANY (languages)
+ORDER BY name, id
+`
+
+type ListedOrganizationsSpeakingRow struct {
+	ID                    pgtype.UUID
+	UpdatedAt             pgtype.Timestamptz
+	VersionID             int32
+	Active                bool
+	Listed                bool
+	Name                  string
+	TimeZone              string
+	DefaultLanguage       Language
+	PatientTranscriptCopy bool
+}
+
+// Organization?listed=true&language=: the listed clinics whose staff speak the language (package X2 of
+// docs/clinic-cms); row-level security shows only listed clinics in the directory scope.
+func (q *Queries) ListedOrganizationsSpeaking(ctx context.Context, language string) ([]ListedOrganizationsSpeakingRow, error) {
+	rows, err := q.db.Query(ctx, listedOrganizationsSpeaking, language)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListedOrganizationsSpeakingRow
+	for rows.Next() {
+		var i ListedOrganizationsSpeakingRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.VersionID,
+			&i.Active,
+			&i.Listed,
+			&i.Name,
+			&i.TimeZone,
+			&i.DefaultLanguage,
+			&i.PatientTranscriptCopy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const newOrganizationID = `-- name: NewOrganizationID :one
+SELECT gen_random_uuid()::uuid
+`
+
+func (q *Queries) NewOrganizationID(ctx context.Context) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, newOrganizationID)
+	var column_1 pgtype.UUID
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const organizationByID = `-- name: OrganizationByID :one
 SELECT id, updated_at, version_id, active, listed, name, time_zone, default_language, patient_transcript_copy, region_id, city_id, location_since, analytics_contributes, contributes_since, address_line, postal_code
 FROM organization
@@ -326,6 +432,64 @@ func (q *Queries) OrganizationByID(ctx context.Context, id pgtype.UUID) (Organiz
 		&i.PostalCode,
 	)
 	return i, err
+}
+
+const organizationProfile = `-- name: OrganizationProfile :one
+SELECT version_id, languages, profile_description, welcomes_international
+FROM organization
+WHERE id = $1
+`
+
+type OrganizationProfileRow struct {
+	VersionID             int32
+	Languages             []string
+	ProfileDescription    string
+	WelcomesInternational bool
+}
+
+// The clinic's profile for patients abroad (X2), at the organization's version. Not personal data.
+func (q *Queries) OrganizationProfile(ctx context.Context, id pgtype.UUID) (OrganizationProfileRow, error) {
+	row := q.db.QueryRow(ctx, organizationProfile, id)
+	var i OrganizationProfileRow
+	err := row.Scan(
+		&i.VersionID,
+		&i.Languages,
+		&i.ProfileDescription,
+		&i.WelcomesInternational,
+	)
+	return i, err
+}
+
+const organizationProfileTranslations = `-- name: OrganizationProfileTranslations :many
+SELECT language, description
+FROM organization_profile_translation
+WHERE organization_id = $1
+ORDER BY language
+`
+
+type OrganizationProfileTranslationsRow struct {
+	Language    Language
+	Description string
+}
+
+func (q *Queries) OrganizationProfileTranslations(ctx context.Context, organizationID pgtype.UUID) ([]OrganizationProfileTranslationsRow, error) {
+	rows, err := q.db.Query(ctx, organizationProfileTranslations, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationProfileTranslationsRow
+	for rows.Next() {
+		var i OrganizationProfileTranslationsRow
+		if err := rows.Scan(&i.Language, &i.Description); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const putChatSettings = `-- name: PutChatSettings :exec
@@ -515,4 +679,38 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		&i.PostalCode,
 	)
 	return i, err
+}
+
+const updateOrganizationProfile = `-- name: UpdateOrganizationProfile :one
+
+UPDATE organization
+SET languages = $1, profile_description = $2, welcomes_international = $3,
+    version_id = version_id + 1, updated_at = $4
+WHERE id = $5 AND version_id = $6
+RETURNING version_id
+`
+
+type UpdateOrganizationProfileParams struct {
+	Languages             []string
+	ProfileDescription    string
+	WelcomesInternational bool
+	UpdatedAt             pgtype.Timestamptz
+	ID                    pgtype.UUID
+	VersionID             int32
+}
+
+// the enum's order
+// Optimistic locking, as UpdateOrganization: only the current version changes.
+func (q *Queries) UpdateOrganizationProfile(ctx context.Context, arg UpdateOrganizationProfileParams) (int32, error) {
+	row := q.db.QueryRow(ctx, updateOrganizationProfile,
+		arg.Languages,
+		arg.ProfileDescription,
+		arg.WelcomesInternational,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.VersionID,
+	)
+	var version_id int32
+	err := row.Scan(&version_id)
+	return version_id, err
 }

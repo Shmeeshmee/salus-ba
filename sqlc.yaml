@@ -140,6 +140,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/signup/query.sql
+    gen:
+      go:
+        package: signupdb
+        out: internal/signup/signupdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/subscription/query.sql
     gen:
       go:

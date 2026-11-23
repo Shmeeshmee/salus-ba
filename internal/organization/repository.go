@@ -19,8 +19,19 @@ type Repository interface {
 	// Update sets the name, listing, time zone and default language of the clinic o.ID at version o.VersionID, moving it to the
 	// next version, last updated at at; or returns ErrConflict when that version is not the current one.
 	Update(ctx context.Context, o Organization, at time.Time) (Organization, error)
-	// Create stores a new active clinic and returns it. Only the owner may (the operator command).
+	// ListedSpeaking returns the listed clinics the scope shows whose staff speak language, by name.
+	ListedSpeaking(ctx context.Context, language string) ([]Organization, error)
+	// ProfileOf returns the profile of the clinic id at its version, or ErrNotFound for one the scope does not show.
+	ProfileOf(ctx context.Context, id string) (Profile, error)
+	// PutProfile replaces the profile of the clinic id at version p.VersionID, moving the clinic to the next version,
+	// last updated at at; or returns ErrConflict when that version is not the current one.
+	PutProfile(ctx context.Context, id string, p Profile, at time.Time) (Profile, error)
+	// Create stores a new active, unlisted clinic and returns it, setting its scope on the transaction in ctx: the
+	// operator command as the owner, or a verified signup as salus_app (00066).
 	Create(ctx context.Context, name string) (Organization, error)
+	// List puts the unlisted clinic id in the public directory; false when there is no such unlisted clinic. Only the
+	// owner may (salusctl signup approve).
+	List(ctx context.Context, id string) (bool, error)
 }
 
 // ChatRepository stores the clinics' chat settings (migration 00047), row-level secured like the clinics: every

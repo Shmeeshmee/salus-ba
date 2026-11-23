@@ -131,12 +131,18 @@ func TestSetOrganization_NeedsATransaction(t *testing.T) {
 	}
 }
 
-// Clinics are created by the operator command, which connects as the owner; salus_app may not (migrations).
+// The operator command creates a clinic as the owner. Create sets the new clinic's scope, so it needs a transaction
+// (00066: a verified signup creates its clinic as salus_app, TestCreate_AsTheAppInTheNewClinicsScopeUnlisted).
 func TestCreate_StoresAnActiveClinicAtVersionOne(t *testing.T) {
 	t.Parallel()
 	owner := pgtest.NewDatabase(t)
 
-	got, err := organization.NewPostgresRepository(owner).Create(t.Context(), "Synthetic clinic C")
+	var got organization.Organization
+	err := postgres.NewTransactor(owner).WithTx(t.Context(), func(ctx context.Context) error {
+		var err error
+		got, err = organization.NewPostgresRepository(owner).Create(ctx, "Synthetic clinic C")
+		return err
+	})
 
 	if err != nil || got.ID == "" || got.Name != "Synthetic clinic C" || got.VersionID != 1 || !got.Active || got.DefaultLanguage != "bs" || got.LastUpdated.IsZero() {
 		t.Errorf("Create() = %+v, %v; want the new clinic at version 1, in Bosnian", got, err)
@@ -206,5 +212,27 @@ func TestUpdate_RefusesACityOutsideItsRegion(t *testing.T) {
 	})
 	if !errors.Is(err, organization.ErrInvalidLocation) {
 		t.Errorf("Update() = %v, want ErrInvalidLocation", err)
+	}
+}
+
+// A signed-up clinic's admin cannot list it before the operator approves the signup (00066's trigger): the repository
+// gives ErrNotApproved, which the handler answers as a client error, not a 500.
+func TestUpdate_GivesErrNotApprovedForASignedUpClinicWaitingForTheOperator(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	for _, q := range []string{`INSERT INTO organization (id, name) VALUES ($1, 'Synthetic clinic A')`,
+		`INSERT INTO clinic_signup (email, clinic_name, language, token_hash, verified_at, organization_id)
+		VALUES ('admin@example.test', 'Synthetic clinic A', 'en', sha256('a'), now(), $1)`} {
+		if _, err := owner.Exec(t.Context(), q, clinicA); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repo := organization.NewPostgresRepository(app)
+	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+		_, err := repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Synthetic clinic A", Listed: true, TimeZone: "UTC", DefaultLanguage: "en", VersionID: 1}, now)
+		return err
+	})
+	if !errors.Is(err, organization.ErrNotApproved) {
+		t.Errorf("Update(listed) before approval = %v, want ErrNotApproved", err)
 	}
 }

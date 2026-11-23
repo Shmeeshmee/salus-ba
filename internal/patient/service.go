@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
@@ -35,8 +36,10 @@ type Auditor interface {
 
 // Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope
 // (consent.Service).
+// and records the care consent a clinic-registered patient gave in person, in the caller's transaction.
 type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+	RecordInPerson(ctx context.Context, c consent.Caller, patientID string) (consent.Consent, error)
 }
 
 // Appointments gives the patient's appointments in a clinic, in the caller's transaction and scope (the
@@ -202,8 +205,11 @@ func (s *Service) readAsStaff(ctx context.Context, c Caller, id string) (Patient
 		return Patient{}, false, err
 	}
 	viewer := access.Viewer{Role: access.RolePractitioner, Clinic: c.OrganizationID, PractitionerRole: c.PractitionerRoleID}
-	if c.Admin {
+	switch {
+	case c.Admin:
 		viewer = access.Viewer{Role: access.RoleAdmin, Clinic: c.OrganizationID}
+	case c.Reception: // the front desk: access gives them no profile (docs/clinic-cms W2)
+		viewer = access.Viewer{Role: access.RoleReception, Clinic: c.OrganizationID}
 	}
 	facts := access.Facts{Patient: id, Clinic: c.OrganizationID, Consent: state, Visits: visits}
 	if access.Profile(viewer, facts) != access.Full {
@@ -274,6 +280,8 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 		action = auditevent.ActionCreate
 	case auditevent.CodeUpdate:
 		action = auditevent.ActionUpdate
+	case auditevent.CodeSearchType:
+		action = auditevent.ActionExecute
 	}
 	purpose := auditevent.CodePATRQT
 	if !c.patient() {

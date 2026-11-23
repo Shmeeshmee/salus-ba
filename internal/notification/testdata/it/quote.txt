@@ -1,0 +1,7 @@
+Subject: È disponibile un preventivo del suo appuntamento
+
+È disponibile un preventivo di cura del suo appuntamento presso Synthetic clinic. È un preventivo, non una fattura: non è stato addebitato nulla.
+Data e ora: lunedì 7 gennaio 2030, ore 10:00 (Europe/Sarajevo)
+
+Per leggerlo, apra l'app Salus:
+https://patient.example.test/quotes

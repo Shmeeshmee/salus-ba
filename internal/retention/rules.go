@@ -73,7 +73,7 @@ func tableRules() []Rule {
 		},
 		{
 			Table: "patient",
-			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
+			Basis: "Provision of health care (GDPR Art. 9(2)(h)) and the contract with the patient (Art. 6(1)(b)) while the account exists or, for a profile a clinic registered without an account (docs/clinic-cms, W1), while the clinic keeps the patient's record; erasure comes with the subject-rights feature (docs/booking/SPEC.md section 4)",
 			Then:  ThenKeep,
 		},
 		{
@@ -121,7 +121,7 @@ func tableRules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -356,6 +356,33 @@ func appointmentRules() []Rule {
 				"hours and device time zone, replaced on each change and deleted with the account (foreign key; erasure " +
 				"comes with the subject-rights feature)",
 			Then: ThenKeep,
+		},
+	}
+}
+
+// clinicWave3Rules are the rules of the clinic system's wave 3 tables (docs/clinic-cms, 3.0).
+func clinicWave3Rules() []Rule {
+	return []Rule{
+		{
+			Table: "quote",
+			Basis: "A treatment quote the clinic gives its patient (GDPR Art. 6(1)(b), Art. 9(2)(h): which care at what price is " +
+				"health data): kept as the clinic's pre-contractual record. No period without a legal decision (docs/clinic-cms, " +
+				"X1, waiting on a person): until it is taken nothing removes a quote, and the rule that does comes with its applier " +
+				"and the DELETE grant in its own migration",
+			Then: ThenKeep,
+		},
+		{
+			Table: "quote_line",
+			Basis: "The lines of a quote (GDPR Art. 6(1)(b), Art. 9(2)(h)): kept with their quote",
+			Then:  ThenKeep,
+		},
+		{
+			Table: "clinic_signup",
+			Basis: "The request of a clinic to sign up (GDPR Art. 6(1)(b), steps before a contract): the admin's e-mail and the " +
+				"clinic's name. An unverified signup is deleted 30 days after it was made (its link works for 72 hours); a " +
+				"verified one is the record of the clinic's own request and stays with the clinic (docs/clinic-cms, O1)",
+			Keep: 30 * day, // after created_at, unverified signups only
+			Then: ThenDelete,
 		},
 	}
 }

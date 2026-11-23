@@ -27,5 +27,9 @@
   "csv_currency": "Currency",
   "csv_row_total": "Total",
   "csv_row_payment_method": "Payment method",
-  "csv_row_service": "Service"
+  "csv_row_service": "Service",
+  "quote": "Quote",
+  "quote_valid_until": "Valid until",
+  "quote_note": "Note",
+  "quote_not_receipt": "This is a quote, not a receipt. Nothing has been charged."
 }

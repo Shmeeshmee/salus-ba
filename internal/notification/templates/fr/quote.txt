@@ -1,0 +1,7 @@
+Un devis de votre rendez-vous est disponible
+
+Un devis de soins de votre rendez-vous chez {{.Clinic}} est disponible. Il s'agit d'un devis, pas d'une facture : rien n'a été facturé.
+Date et heure : {{.When}}
+
+Pour le consulter, ouvrez l'application Salus :
+{{.Link}}

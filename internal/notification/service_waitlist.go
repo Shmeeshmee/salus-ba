@@ -35,10 +35,14 @@ var agentOfferSend = map[Channel]string{
 // Reach tells the job agent whether an offer would reach the account's patient at at: Reachable when a channel of theirs
 // carries it (e-mail on, push on with a device, SMS opted into at a clinic that offers it), Quiet while inside their
 // quiet hours (their zone, else the clinic org's) until QuietUntil (appointment.Reachability: either passes the entry
-// over). The reads of their settings and devices are audited with the agent; the clinic's scope is kept.
+// over). The reads of their settings and devices are audited with the agent; the clinic's scope is kept. No channel
+// reaches a patient without an account (a profile the clinic registered, docs/clinic-cms W1), and nothing is read.
 func (s *Service) Reach(ctx context.Context, agent, org, accountID string, at time.Time) (appointment.Reach, error) {
 	if err := s.delivers(false); err != nil {
 		return appointment.Reach{}, err
+	}
+	if accountID == "" {
+		return appointment.Reach{}, nil
 	}
 	p, err := s.preferencesOf(ctx, agent, org, accountID)
 	if err != nil {

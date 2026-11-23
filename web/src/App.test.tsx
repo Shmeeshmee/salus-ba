@@ -131,6 +131,20 @@ describe('App', () => {
     expect(await screen.findByText('This page does not exist.')).toBeTruthy()
   })
 
+  it('gives the admin and the receptionist the front desk, and a practitioner none (clinic-cms F3)', async () => {
+    const desk = { 'GET /clinic/desk/today': () => Response.json({ date: '2026-11-23', visits: [] }) }
+    renderAt('/', { ...staff(admin), ...desk })
+    fireEvent.click(await screen.findByRole('link', { name: 'Front desk' }))
+    expect(await screen.findByRole('heading', { name: 'Front desk' })).toBeTruthy()
+    cleanup()
+    renderAt('/desk', { ...staff({ ...admin, role: 'reception' }), ...desk })
+    expect(await screen.findByText('No visits today.')).toBeTruthy()
+    cleanup()
+    renderAt('/desk', staff({ ...admin, role: 'practitioner' }))
+    expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Front desk' })).toBeNull()
+  })
+
   it('gives a practitioner no clinic settings', async () => {
     renderAt('/clinic', staff({ ...admin, role: 'practitioner' }))
 
@@ -150,6 +164,26 @@ describe('App', () => {
 
     expect(await screen.findByText('This page does not exist.')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Messages' })).toBeNull()
+  })
+
+  it('gives a receptionist no clinical screen and no link to one (clinic-cms F1)', async () => {
+    const reception: Account = { ...admin, role: 'reception' }
+    for (const path of ['/availability', '/practitioners', '/questionnaires', '/waitlist', '/analytics', '/receipts', '/clinic', '/price-list', '/appointments/x']) {
+      const { requests } = renderAt(path, staff(reception))
+      expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+      const links = within(screen.getByRole('navigation', { name: 'Main' })).getAllByRole('link')
+      expect(links.map((l) => l.textContent)).toEqual(['Front desk'])
+      expect(requests.filter((r) => !r.url.endsWith('/auth/me')).map((r) => r.url)).toEqual([])
+      cleanup()
+    }
+  })
+
+  it('lands a receptionist on the front desk (clinic-cms F1, F3)', async () => {
+    renderAt('/', { ...staff({ ...admin, role: 'reception' }), 'GET /clinic/desk/today': () => Response.json({ date: '2026-11-23', visits: [] }) })
+
+    expect(await screen.findByRole('heading', { name: 'Front desk' })).toBeTruthy()
+    expect(window.location.pathname).toBe('/desk')
   })
 
   it('says when a page does not exist', async () => {

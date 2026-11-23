@@ -83,6 +83,9 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	if foreignKeyViolation(err) {
 		return Organization{}, ErrInvalidLocation
 	}
+	if notApproved(err) {
+		return Organization{}, ErrNotApproved
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Organization{}, ErrConflict
 	}
@@ -92,12 +95,30 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	return toOrganization(organizationdb.OrganizationByIDRow(row)), nil
 }
 
+// Create sets the new clinic's scope on the transaction in ctx before it inserts the clinic: salus_app may insert
+// only the clinic of its scope (00066).
 func (r *postgresRepository) Create(ctx context.Context, name string) (Organization, error) {
-	row, err := r.q(ctx).CreateOrganization(ctx, name)
+	id, err := r.q(ctx).NewOrganizationID(ctx)
+	if err != nil {
+		return Organization{}, err
+	}
+	if err := r.SetOrganization(ctx, id.String()); err != nil {
+		return Organization{}, err
+	}
+	row, err := r.q(ctx).CreateOrganization(ctx, organizationdb.CreateOrganizationParams{ID: id, Name: name})
 	if err != nil {
 		return Organization{}, err
 	}
 	return toOrganization(organizationdb.OrganizationByIDRow(row)), nil
+}
+
+func (r *postgresRepository) List(ctx context.Context, id string) (bool, error) {
+	var u pgtype.UUID
+	if err := u.Scan(id); err != nil {
+		return false, nil
+	}
+	n, err := r.q(ctx).ListOrganization(ctx, u)
+	return n == 1, err
 }
 
 func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
@@ -108,6 +129,82 @@ func toOrganization(row organizationdb.OrganizationByIDRow) Organization {
 		LocationSince: row.LocationSince.Time, AnalyticsContributes: row.AnalyticsContributes, ContributesSince: row.ContributesSince.Time,
 		AddressLine: row.AddressLine.String, PostalCode: row.PostalCode.String,
 	}
+}
+
+func (r *postgresRepository) ListedSpeaking(ctx context.Context, language string) ([]Organization, error) {
+	rows, err := r.q(ctx).ListedOrganizationsSpeaking(ctx, language)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Organization, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toOrganization(organizationdb.OrganizationByIDRow{
+			ID: row.ID, UpdatedAt: row.UpdatedAt, VersionID: row.VersionID, Active: row.Active, Listed: row.Listed, Name: row.Name,
+			TimeZone: row.TimeZone, DefaultLanguage: row.DefaultLanguage, PatientTranscriptCopy: row.PatientTranscriptCopy,
+		}))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ProfileOf(ctx context.Context, id string) (Profile, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Profile{}, ErrNotFound
+	}
+	row, err := r.q(ctx).OrganizationProfile(ctx, u)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Profile{}, ErrNotFound
+	}
+	if err != nil {
+		return Profile{}, err
+	}
+	rows, err := r.q(ctx).OrganizationProfileTranslations(ctx, u)
+	if err != nil {
+		return Profile{}, err
+	}
+	p := Profile{
+		Languages: row.Languages, Description: row.ProfileDescription, VersionID: row.VersionID,
+		WelcomesInternational: row.WelcomesInternational, Translations: make([]Translation, 0, len(rows)),
+	}
+	for _, t := range rows {
+		p.Translations = append(p.Translations, Translation{Language: string(t.Language), Description: t.Description})
+	}
+	return p, nil
+}
+
+func (r *postgresRepository) PutProfile(ctx context.Context, id string, p Profile, at time.Time) (Profile, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Profile{}, ErrConflict
+	}
+	langs := p.Languages
+	if langs == nil {
+		langs = []string{}
+	}
+	q := r.q(ctx)
+	version, err := q.UpdateOrganizationProfile(ctx, organizationdb.UpdateOrganizationProfileParams{
+		ID: u, VersionID: p.VersionID, Languages: langs, ProfileDescription: p.Description,
+		WelcomesInternational: p.WelcomesInternational, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Profile{}, ErrConflict
+	}
+	if err != nil {
+		return Profile{}, err
+	}
+	if err := q.DeleteOrganizationProfileTranslations(ctx, u); err != nil {
+		return Profile{}, err
+	}
+	for _, t := range p.Translations {
+		err := q.InsertOrganizationProfileTranslation(ctx, organizationdb.InsertOrganizationProfileTranslationParams{
+			OrganizationID: u, Language: organizationdb.Language(t.Language), Description: t.Description,
+		})
+		if err != nil {
+			return Profile{}, err
+		}
+	}
+	p.Languages, p.VersionID = langs, version
+	return p, nil
 }
 
 // NewPostgresChatRepository returns the ChatRepository on db, as salus_app: row-level security shows only the
@@ -255,6 +352,13 @@ func (r *postgresRepository) PutAppointmentSettings(ctx context.Context, org str
 
 // foreignKeyViolation reports whether err is Postgres refusing a location that is not a city of a leaf region
 // (organization_region_fkey, organization_city_fkey).
+// notApproved reports whether err is 00066's organization_guard_signup_listed: a signed-up clinic listed before the
+// operator's approval (a check violation raised by the trigger, which names no constraint).
+func notApproved(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23514" && pgErr.ConstraintName == ""
+}
+
 func foreignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23503"

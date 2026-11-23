@@ -532,5 +532,17 @@
   "receiptReversal": "إلغاء إيصال سابق",
   "receiptLine": "{name} × {quantity}",
   "serviceAtClinic": "سأختار في العيادة",
-  "answersNotEnabled": "لم تعد هذه الأسئلة مطروحة، لذلك حُذفت إجاباتها: {items}. راجع إجاباتك وأرسلها مرة أخرى."
+  "answersNotEnabled": "لم تعد هذه الأسئلة مطروحة، لذلك حُذفت إجاباتها: {items}. راجع إجاباتك وأرسلها مرة أخرى.",
+  "myQuotes": "عروض الأسعار",
+  "quotesIntro": "عروض أسعار العلاج التي أرسلتها إليك العيادات بعد موعد. عرض السعر ليس إيصالًا: لم يتم تحصيل أي مبلغ. إذا قررت المتابعة، تدفع في العيادة.",
+  "noQuotes": "ليس لديك عروض أسعار بعد.",
+  "quoteTitle": "عرض سعر",
+  "quoteValidUntil": "صالح حتى {date}",
+  "quoteExpired": "منتهي الصلاحية",
+  "clinicLanguageFilter": "اللغة المحكية",
+  "anyLanguage": "أي لغة",
+  "noClinicsSpeak": "لا توجد عيادة مدرجة تتحدث هذه اللغة حتى الآن.",
+  "welcomesInternational": "ترحب بالمرضى من الخارج",
+  "languagesSpoken": "اللغات المحكية: {languages}",
+  "clinicServices": "الخدمات والأسعار"
 }

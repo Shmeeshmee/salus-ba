@@ -137,16 +137,20 @@ func (s *Chat) MessageSent(ctx context.Context, a communication.MessageSentArgs)
 }
 
 // tell enqueues the participant p's notifications of a: the unread check at at and, for the patient, a push per
-// device. Staff register no devices (the app is the patients').
+// device. Staff register no devices (the app is the patients'). A patient without an account (a profile the clinic
+// registered, docs/clinic-cms W1) gets neither.
 func (s *Chat) tell(ctx context.Context, a communication.MessageSentArgs, p communication.Participant, at time.Time) error {
-	err := s.Jobs.EnqueueUnreadEmail(ctx, ChatUnreadEmailArgs{
+	unread := ChatUnreadEmailArgs{
 		ParticipantID: p.ID, ConversationID: a.ConversationID, OrganizationID: a.OrganizationID, ReadSeq: p.ReadSeq, Seq: a.Seq,
-	}, at)
-	if err != nil || p.Role != communication.RolePatient {
-		return err
+	}
+	if p.Role != communication.RolePatient {
+		return s.Jobs.EnqueueUnreadEmail(ctx, unread, at)
 	}
 	account, err := s.Patients.NoticeAccount(ctx, agentSent, a.OrganizationID, p.PatientID)
-	if err != nil {
+	if err != nil || account == "" {
+		return err
+	}
+	if err := s.Jobs.EnqueueUnreadEmail(ctx, unread, at); err != nil {
 		return err
 	}
 	devices, err := s.Repo.Devices(ctx, account)
@@ -320,6 +324,9 @@ func (s *Chat) recipient(ctx context.Context, org string, p communication.Partic
 		account, err := s.Patients.NoticeAccount(ctx, agentUnread, org, p.PatientID)
 		if err != nil {
 			return "", "", "", "", err
+		}
+		if account == "" { // a profile the clinic registered (docs/clinic-cms W1): nobody to write to
+			return "", "", "", "", patient.ErrNotFound
 		}
 		to, language, err = s.Accounts.AccountEmail(ctx, agentUnread, account)
 		return to, language, "chat_unread", s.PatientAppURL + "/chat", err
