@@ -168,7 +168,7 @@ func TestBooking_ARevocationEndsTheClinicsAccessAtOnceAndItsJobCancelsTheFuture(
 	pract := appointment.Caller{AccountID: c.practitionerAccount, OrganizationID: inviteClinic, PractitionerID: c.practitioner}
 	practForProfile := patient.Caller{AccountID: c.practitionerAccount, OrganizationID: inviteClinic, PractitionerRoleID: c.role}
 
-	future, err := b.appointments.Book(t.Context(), me, c.slots[0])
+	future, err := b.appointments.Book(t.Context(), me, c.slots[0], "")
 	if err != nil {
 		t.Fatalf("Book() = %v", err)
 	}
@@ -246,7 +246,7 @@ func bookAndCancel(t *testing.T, b booking, patients []appointment.Caller, slots
 			})
 		}
 		wg.Go(func() {
-			a, err := b.appointments.Book(t.Context(), patients[(i+round)%2], sl)
+			a, err := b.appointments.Book(t.Context(), patients[(i+round)%2], sl, "")
 			switch {
 			case errors.Is(err, appointment.ErrSlotUnavailable):
 			case err != nil:

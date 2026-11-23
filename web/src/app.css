@@ -429,6 +429,12 @@ p.hint.join { margin-bottom: 20px; }
   visibility: hidden; opacity: 0; transition: opacity .12s;
 }
 .tip:hover [role='tooltip'], .tip:focus-within [role='tooltip'] { visibility: visible; opacity: 1; }
+.has-hint { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+/* Centred under its column heading and never wider than the screen, so it stays in view at 390 px. */
+.report-table th .tip [role='tooltip'] {
+  font-weight: 400; white-space: normal; right: auto; left: 50%; transform: translateX(-50%);
+  max-width: min(260px, calc(100vw - 32px));
+}
 .tag.active { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
 .tag.retired { color: var(--color-text-muted); background: var(--color-page); }
 .builder { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
@@ -609,4 +615,32 @@ p.hint.join { margin-bottom: 20px; }
 .membership-invoices { min-width: 0; }
 @media (max-width: 480px) {
   .plain-table { display: block; overflow-x: auto; }
+  /* The membership invoices stack as one card per invoice, each cell under its column's name: no sideways scroll. */
+  .plain-table.membership-table { display: table; width: 100%; overflow: visible; }
+  .membership-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .membership-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
+  .membership-table td { display: block; padding: 0; border: 0; }
+  .membership-table td::before { content: attr(data-label); display: block; font-size: 0.8em; color: var(--color-text-muted); }
+}
+
+/* Questionnaire branching (SAL-43): branches indented by depth, the join marked, the preview. */
+.items .item.in-branch { margin-left: calc(var(--branch, 0) * 24px); border-left: 3px solid var(--color-mint); }
+.items .item.in-branch.nested { margin-left: calc(20px + var(--branch, 0) * 24px); }
+.join-marker { margin: 0; padding: 4px 12px; font-size: 12px; color: var(--color-brand-hover); border-bottom: 1px dashed var(--color-mint); }
+.conditions { display: grid; gap: 12px; }
+.branches { border: 0; padding: 0; margin: 0; }
+.branches legend { font-weight: 600; margin-bottom: 6px; }
+.branches ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.branch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.branch-dependents { margin: 0; }
+.q-preview { display: grid; gap: 16px; margin-top: 16px; }
+.preview-sheet { border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); padding: 20px; display: grid; gap: 12px; max-width: 640px; }
+.preview-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.preview-section { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 12px 16px; }
+.preview-section legend { font-weight: 600; }
+.q-preview .field .tag, .q-preview .choice .tag { margin-left: 8px; }
+@media (max-width: 600px) {
+  .items .item.in-branch { margin-left: calc(var(--branch, 0) * 10px); }
+  .items .item.in-branch.nested { margin-left: calc(10px + var(--branch, 0) * 10px); }
+  .preview-sheet { padding: 14px; }
 }

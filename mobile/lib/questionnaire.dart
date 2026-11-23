@@ -1,9 +1,12 @@
 import 'package:salus_api/api.dart' as api;
 
+import 'enable_when.dart';
 import 'file_prep.dart' show FileKind;
 import 'l10n/app_localizations.dart';
 import 'l10n/language.dart' show languages;
 import 'messages.dart';
+
+export 'enable_when.dart' show Condition, EnableBehavior, Operator, discarded, enabled;
 
 // The questionnaires the patient fills in (docs/questionnaire/SPEC.md §2 "Item model", "Patient flow"): the FHIR
 // Questionnaire and QuestionnaireResponse as the app reads them, the conditions evaluated as the server evaluates
@@ -12,15 +15,6 @@ import 'messages.dart';
 /// The item types of SPEC §2 "Item model", with `attachment` (docs/attachments/SPEC.md §2 "Item model"). A type the
 /// app does not know is [unsupported] and not shown: the list of types is not assumed closed.
 enum ItemType { group, display, string, text, boolean, choice, integer, decimal, date, attachment, unsupported }
-
-/// An item's `enableWhen`: shown only when [question] was answered with [boolean], or with the option [string].
-class Condition {
-  const Condition(this.question, {this.boolean, this.string});
-
-  final String question;
-  final bool? boolean;
-  final String? string;
-}
 
 class Item {
   const Item({
@@ -32,7 +26,8 @@ class Item {
     this.options = const [],
     this.labels = const [],
     this.help,
-    this.condition,
+    this.enableWhen = const [],
+    this.enableBehavior = EnableBehavior.all,
     this.items = const [],
     this.accept = const {},
     this.maxFiles = 1,
@@ -52,7 +47,10 @@ class Item {
 
   /// The text of the item's `help` display child.
   final String? help;
-  final Condition? condition;
+
+  /// Shown only when these hold, all or any of them as [enableBehavior] says (enable_when.dart).
+  final List<Condition> enableWhen;
+  final EnableBehavior enableBehavior;
 
   /// A section's questions and instructions.
   final List<Item> items;
@@ -201,35 +199,27 @@ class Response {
   }
 }
 
-/// Which items are shown with [answers], by linkId: an item is enabled when its section is and its condition
-/// holds on the answer to an enabled item. A condition names an earlier item, so one pass in document order
-/// decides every item.
-Map<String, bool> enabled(List<Item> items, Answers answers) {
-  final on = <String, bool>{};
-  void walk(List<Item> items, bool shown) {
-    for (final it in items) {
-      final e = shown && _holds(it.condition, on, answers);
-      on[it.linkId] = e;
-      walk(it.items, e);
-    }
-  }
-
-  walk(items, true);
-  return on;
-}
-
-bool _holds(Condition? c, Map<String, bool> on, Answers answers) {
-  if (c == null) return true;
-  if (on[c.question] != true) return false;
-  return (answers[c.question] ?? const []).any((v) => c.boolean != null ? v == c.boolean : v == c.string);
-}
-
 /// Every item in document order, sections before their items.
 Iterable<Item> flatten(List<Item> items) sync* {
   for (final it in items) {
     yield it;
     yield* flatten(it.items);
   }
+}
+
+/// By linkId, how many sections inside a section an item sits in: 0 at the top level and in a top-level section, 1
+/// in a branch inside a section, and so on. The form indents an item by it, so a nested branch reads as one.
+Map<String, int> nesting(List<Item> items) {
+  final out = <String, int>{};
+  void walk(List<Item> items, int depth) {
+    for (final it in items) {
+      out[it.linkId] = depth < 1 ? 0 : depth - 1;
+      walk(it.items, depth + 1);
+    }
+  }
+
+  walk(items, 0);
+  return out;
 }
 
 /// The shown required questions without an answer, in document order, as the server names them on submit.
@@ -289,13 +279,20 @@ final _decimal = RegExp(r'^-?(0|[1-9][0-9]*)(\.[0-9]+)?$');
   return (value: n, error: null);
 }
 
-/// The answers as the JSON API takes them, in document order, each value in its item's type. Files are added and
-/// removed through their own calls, never with the answers.
-List<api.Answer> toApi(List<Item> items, Answers answers) => [
-  for (final it in flatten(items))
-    if (it.isQuestion && it.type != ItemType.attachment && (answers[it.linkId] ?? const []).isNotEmpty)
-      api.Answer(linkId: it.linkId, values: [for (final v in answers[it.linkId]!) _toValue(it.type, v)]),
-];
+/// The shown questions' answers as the JSON API takes them, in document order, each value in its item's type: the
+/// server refuses an answer to a hidden item (SAL-43). Files are added and removed through their own calls, never
+/// with the answers.
+List<api.Answer> toApi(List<Item> items, Answers answers) {
+  final on = enabled(items, answers);
+  return [
+    for (final it in flatten(items))
+      if (it.isQuestion &&
+          it.type != ItemType.attachment &&
+          on[it.linkId]! &&
+          (answers[it.linkId] ?? const []).isNotEmpty)
+        api.Answer(linkId: it.linkId, values: [for (final v in answers[it.linkId]!) _toValue(it.type, v)]),
+  ];
+}
 
 api.AnswerValue _toValue(ItemType type, Object v) => switch (type) {
   ItemType.boolean => api.AnswerValue(valueBoolean: v as bool),
@@ -337,7 +334,6 @@ Item _item(Map it, String? tag) {
   final options = ((it['answerOption'] as List?) ?? const []).cast<Map>();
   final children = (it['item'] as List?) ?? const [];
   final help = children.cast<Map>().where(_isHelp).firstOrNull;
-  final when = (it['enableWhen'] as List?)?.firstOrNull as Map?;
   return Item(
     linkId: _string(it['linkId']),
     type: ItemType.values.firstWhere((t) => t.name == it['type'], orElse: () => ItemType.unsupported),
@@ -347,18 +343,22 @@ Item _item(Map it, String? tag) {
     options: [for (final o in options) _string(o['valueString'])],
     labels: tag == null ? const [] : [for (final o in options) _text(o, 'valueString', tag)],
     help: help == null ? null : _text(help, 'text', tag),
-    condition: when == null
-        ? null
-        : Condition(
-            _string(when['question']),
-            boolean: when['answerBoolean'] as bool?,
-            string: when['answerString'] as String?,
-          ),
+    enableWhen: [for (final w in ((it['enableWhen'] as List?) ?? const []).cast<Map>()) _condition(w)],
+    enableBehavior: it['enableBehavior'] == 'any' ? EnableBehavior.any : EnableBehavior.all,
     items: _items(children, tag),
     accept: {for (final e in _extensions(it, _mimeType)) ?kindOf(_string(e['valueCode']))},
     maxFiles: _extensions(it, _maxOccurs).map((e) => e['valueInteger']).whereType<int>().firstOrNull ?? 1,
   );
 }
+
+/// An `enableWhen` with its `answer[x]` in the type an answer has.
+Condition _condition(Map w) => Condition(
+  _string(w['question']),
+  operatorOf(w['operator']),
+  w['answerDate'] is String
+      ? parseDate(w['answerDate'] as String)
+      : w['answerBoolean'] ?? w['answerInteger'] ?? w['answerDecimal'] ?? w['answerString'],
+);
 
 Iterable<Map> _extensions(Map it, String url) =>
     ((it['extension'] as List?) ?? const []).cast<Map>().where((e) => e['url'] == url);

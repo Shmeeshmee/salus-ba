@@ -20,7 +20,7 @@ class Error {
 
   ErrorErrorEnum error;
 
-  /// With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order.
+  /// With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order.
   List<String> linkIds;
 
   /// With `translation_incomplete` only, the translation that is incomplete.
@@ -222,6 +222,8 @@ enum ErrorErrorEnum {
   alreadyReversed._(r'already_reversed'),
   billingDetailsMissing._(r'billing_details_missing'),
   fiscalReportFailed._(r'fiscal_report_failed'),
+  answerNotEnabled._(r'answer_not_enabled'),
+  fiscalReportNotFailed._(r'fiscal_report_not_failed'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -429,6 +431,10 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.billingDetailsMissing;
         case r'fiscal_report_failed':
           return ErrorErrorEnum.fiscalReportFailed;
+        case r'answer_not_enabled':
+          return ErrorErrorEnum.answerNotEnabled;
+        case r'fiscal_report_not_failed':
+          return ErrorErrorEnum.fiscalReportNotFailed;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

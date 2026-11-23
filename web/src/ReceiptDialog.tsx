@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
@@ -16,6 +16,8 @@ type Props = {
   api: ApiClient
   // appointmentId is the visit the receipt is for; without one the receipt is a cash sale or a company's invoice.
   appointmentId?: string
+  // serviceId is the service the visit's booking named: the first line starts with it (clinic-cms E).
+  serviceId?: string
   onIssued: (receipt: Receipt) => void
   onClose: () => void
 }
@@ -24,17 +26,25 @@ type Props = {
 // quantity and a discount, how it was paid, and who it is for: the visit's patient, a company, or nobody (a cash
 // sale). The total shown is the price list's; the server prices the lines again at issue. An issued receipt never
 // changes, which the dialog says before the button.
-export function ReceiptDialog({ api, appointmentId, onIssued, onClose }: Props) {
+export function ReceiptDialog({ api, appointmentId, serviceId, onIssued, onClose }: Props) {
   const t = useT()
   const { language } = useLanguage()
   const id = useId()
-  const [lines, setLines] = useState<Line[]>([{ key: 0, serviceId: '', quantity: '1', discount: '' }])
+  const [lines, setLines] = useState<Line[]>([{ key: 0, serviceId: serviceId ?? '', quantity: '1', discount: '' }])
   const [buyer, setBuyer] = useState<Buyer>(appointmentId ? 'patient' : 'cash')
   const [companyName, setCompanyName] = useState('')
   const [companyTaxId, setCompanyTaxId] = useState('')
   const [method, setMethod] = useState<PaymentMethod>('cash')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  // One key for every attempt of this receipt as it stands: a double click or a retry after a lost answer issues it
+  // once; a receipt changed after a failed attempt is another receipt and gets a new key (the server answers a known
+  // key with the receipt it first issued).
+  const sentKey = useRef({ draft: '', key: '' })
+  const keyFor = (draft: string) => {
+    if (sentKey.current.draft !== draft) sentKey.current = { draft, key: crypto.randomUUID() }
+    return sentKey.current.key
+  }
   const { state } = useLoad(async () => {
     const res = await attempt(api.GET('/clinic/services'))
     if (!res.ok) throw new Error('services')
@@ -54,18 +64,15 @@ export function ReceiptDialog({ api, appointmentId, onIssued, onClose }: Props) 
     if (busy || !valid) return
     setBusy(true)
     setError(undefined)
-    const res = await attempt(
-      api.POST('/clinic/receipts', {
-        body: {
-          kind: buyer === 'company' ? 'invoice' : 'receipt',
-          paymentMethod: method,
-          appointmentId,
-          companyName: buyer === 'company' ? companyName.trim() : undefined,
-          companyTaxId: buyer === 'company' && companyTaxId !== '' ? companyTaxId : undefined,
-          lines: picks.map((p) => ({ serviceId: p!.serviceId, quantity: p!.quantity, discountMinor: p!.discountMinor })),
-        },
-      }),
-    )
+    const body = {
+      kind: buyer === 'company' ? ('invoice' as const) : ('receipt' as const),
+      paymentMethod: method,
+      appointmentId,
+      companyName: buyer === 'company' ? companyName.trim() : undefined,
+      companyTaxId: buyer === 'company' && companyTaxId !== '' ? companyTaxId : undefined,
+      lines: picks.map((p) => ({ serviceId: p!.serviceId, quantity: p!.quantity, discountMinor: p!.discountMinor })),
+    }
+    const res = await attempt(api.POST('/clinic/receipts', { params: { header: { 'Idempotency-Key': keyFor(JSON.stringify(body)) } }, body }))
     setBusy(false)
     if (res.ok) onIssued(res.data)
     else setError(message(t, res.code))

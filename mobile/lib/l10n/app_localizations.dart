@@ -3239,6 +3239,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You pay at the clinic. Nothing is charged in the app.'**
   String get pricesPaidAtClinic;
+
+  /// SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides.
+  ///
+  /// In en, this message translates to:
+  /// **'Change this answer?'**
+  String get discardTitle;
+
+  /// SAL-43, package Q3: a changed answer hides questions already answered; their answers are removed if the patient goes on.
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, one{This change skips {n} question you already answered. Its answer will be removed.} other{This change skips {n} questions you already answered. Their answers will be removed.}}'**
+  String discardBody(int n);
+
+  /// SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides.
+  ///
+  /// In en, this message translates to:
+  /// **'Change and remove'**
+  String get discardConfirm;
+
+  /// Clinic system, package H: home button and screen title of the patient's receipts.
+  ///
+  /// In en, this message translates to:
+  /// **'My receipts'**
+  String get myReceipts;
+
+  /// [legal] Clinic system, package H: above the patient's receipts; receipts are kept as the fiscal law requires. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'The receipts clinics issued to you for the services you paid for at the clinic. Clinics keep receipts for as long as the fiscal law requires.'**
+  String get receiptsIntro;
+
+  /// Clinic system, package H: the patient has no receipts.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no receipts yet.'**
+  String get noReceipts;
+
+  /// Clinic system, package H: a receipt's heading and PDF file name; the clinic's receipt number.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt no. {number}'**
+  String receiptNumber(int number);
+
+  /// Clinic system, package H: when the receipt was issued; a long date.
+  ///
+  /// In en, this message translates to:
+  /// **'Issued on {date}'**
+  String receiptIssuedOn(String date);
+
+  /// Clinic system, package H: the receipt reverses (cancels) an earlier one.
+  ///
+  /// In en, this message translates to:
+  /// **'Reversal of an earlier receipt'**
+  String get receiptReversal;
+
+  /// Clinic system, package H: one line of a receipt: the service as on the clinic's price list, and the quantity (negative on a reversal).
+  ///
+  /// In en, this message translates to:
+  /// **'{name} × {quantity}'**
+  String receiptLine(String name, int quantity);
+
+  /// Clinic system, package E: booking, the first choice above the services: the patient names no service and leaves it to the clinic. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'I will choose at the clinic'**
+  String get serviceAtClinic;
+
+  /// SAL-43, wave 2 integration: a submit refused because answers belong to questions the patient's answers now hide; the app removed them. items: the questions' texts, comma separated. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'These questions are no longer asked, so their answers were removed: {items}. Check your answers and submit again.'**
+  String answersNotEnabled(String items);
 }
 
 class _AppLocalizationsDelegate

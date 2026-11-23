@@ -123,7 +123,7 @@ func (q *Queries) ActiveWaitlistEntries(ctx context.Context, arg ActiveWaitlistE
 
 const appointmentByID = `-- name: AppointmentByID :one
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = $1
@@ -147,6 +147,7 @@ type AppointmentByIDRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -172,6 +173,7 @@ func (q *Queries) AppointmentByID(ctx context.Context, id pgtype.UUID) (Appointm
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -180,7 +182,7 @@ func (q *Queries) AppointmentByID(ctx context.Context, id pgtype.UUID) (Appointm
 
 const appointmentByIDForShare = `-- name: AppointmentByIDForShare :one
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = $1
@@ -205,6 +207,7 @@ type AppointmentByIDForShareRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -232,6 +235,7 @@ func (q *Queries) AppointmentByIDForShare(ctx context.Context, id pgtype.UUID) (
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -241,7 +245,7 @@ func (q *Queries) AppointmentByIDForShare(ctx context.Context, id pgtype.UUID) (
 const appointmentByIDForUpdate = `-- name: AppointmentByIDForUpdate :one
 
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE id = $1
@@ -266,6 +270,7 @@ type AppointmentByIDForUpdateRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -294,6 +299,7 @@ func (q *Queries) AppointmentByIDForUpdate(ctx context.Context, id pgtype.UUID) 
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -306,7 +312,7 @@ SET status = 'cancelled', cancelled_at = $1, cancellation_reason = $2, cancelled
     updated_at = $1, version_id = version_id + 1
 WHERE id = $4 AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -335,6 +341,7 @@ type CancelAppointmentRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -366,6 +373,7 @@ func (q *Queries) CancelAppointment(ctx context.Context, arg CancelAppointmentPa
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -384,6 +392,54 @@ func (q *Queries) CancelReminders(ctx context.Context, appointmentID pgtype.UUID
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const clinicVisits = `-- name: ClinicVisits :many
+SELECT id, practitioner_role_id, visit_mode, status
+FROM appointment
+WHERE organization_id = $1
+  AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+ORDER BY lower(period), id
+`
+
+type ClinicVisitsParams struct {
+	OrganizationID pgtype.UUID
+	FromAt         pgtype.Timestamptz
+	ToAt           pgtype.Timestamptz
+}
+
+type ClinicVisitsRow struct {
+	ID                 pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	VisitMode          string
+	Status             string
+}
+
+// The clinic's appointments starting in [from_at, to_at), in the clinic's scope: the online practice report
+// (clinicstats, package E of docs/plans/clinic-cms.md). Opaque ids, the mode and the status only.
+func (q *Queries) ClinicVisits(ctx context.Context, arg ClinicVisitsParams) ([]ClinicVisitsRow, error) {
+	rows, err := q.db.Query(ctx, clinicVisits, arg.OrganizationID, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClinicVisitsRow
+	for rows.Next() {
+		var i ClinicVisitsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PractitionerRoleID,
+			&i.VisitMode,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const closeWaitlistEntry = `-- name: CloseWaitlistEntry :one
@@ -499,7 +555,7 @@ UPDATE appointment
 SET confirmed_at = $1, confirmed_via = $2, updated_at = $1, version_id = version_id + 1
 WHERE id = $3 AND status = 'booked' AND confirmed_at IS NULL
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -527,6 +583,7 @@ type ConfirmAppointmentRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -553,6 +610,7 @@ func (q *Queries) ConfirmAppointment(ctx context.Context, arg ConfirmAppointment
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -565,7 +623,7 @@ UPDATE appointment
 SET status = $1::text, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = $4::text AND status IN ('fulfilled', 'noshow') AND $1::text IN ('fulfilled', 'noshow')
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -594,6 +652,7 @@ type CorrectAppointmentStatusRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -627,6 +686,7 @@ func (q *Queries) CorrectAppointmentStatus(ctx context.Context, arg CorrectAppoi
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -700,11 +760,11 @@ func (q *Queries) CountNoShowsSince(ctx context.Context, arg CountNoShowsSincePa
 
 const createAppointment = `-- name: CreateAppointment :one
 INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period, created_at, updated_at, booked_via,
-                         visit_mode)
+                         visit_mode, service_id)
 VALUES ($1, $2, $3, $4, tstzrange($5::timestamptz, $6::timestamptz),
-        $7, $7, $8, $9)
+        $7, $7, $8, $9, $10)
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -718,6 +778,7 @@ type CreateAppointmentParams struct {
 	CreatedAt          pgtype.Timestamptz
 	BookedVia          string
 	VisitMode          string
+	ServiceID          pgtype.UUID
 }
 
 type CreateAppointmentRow struct {
@@ -738,6 +799,7 @@ type CreateAppointmentRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -755,6 +817,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		arg.CreatedAt,
 		arg.BookedVia,
 		arg.VisitMode,
+		arg.ServiceID,
 	)
 	var i CreateAppointmentRow
 	err := row.Scan(
@@ -775,6 +838,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -1675,7 +1739,7 @@ SET period = tstzrange($1::timestamptz, $2::timestamptz), slot_id = $3, reschedu
     updated_at = $4, version_id = version_id + 1
 WHERE id = $5 AND status = 'booked' AND reschedule_count = $6
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -1706,6 +1770,7 @@ type RescheduleAppointmentRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -1741,6 +1806,7 @@ func (q *Queries) RescheduleAppointment(ctx context.Context, arg RescheduleAppoi
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)
@@ -1749,7 +1815,7 @@ func (q *Queries) RescheduleAppointment(ctx context.Context, arg RescheduleAppoi
 
 const searchAppointments = `-- name: SearchAppointments :many
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE ($1::uuid IS NULL OR patient_id = $1::uuid)
@@ -1788,6 +1854,7 @@ type SearchAppointmentsRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -1828,6 +1895,7 @@ func (q *Queries) SearchAppointments(ctx context.Context, arg SearchAppointments
 			&i.RescheduleCount,
 			&i.BookedVia,
 			&i.VisitMode,
+			&i.ServiceID,
 			&i.StartAt,
 			&i.EndAt,
 		); err != nil {
@@ -1846,7 +1914,7 @@ UPDATE appointment
 SET status = $1, updated_at = $2, version_id = version_id + 1
 WHERE id = $3 AND status = 'booked'
 RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
-          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id,
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 `
 
@@ -1874,6 +1942,7 @@ type SetAppointmentStatusRow struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 	StartAt              pgtype.Timestamptz
 	EndAt                pgtype.Timestamptz
 }
@@ -1899,6 +1968,7 @@ func (q *Queries) SetAppointmentStatus(ctx context.Context, arg SetAppointmentSt
 		&i.RescheduleCount,
 		&i.BookedVia,
 		&i.VisitMode,
+		&i.ServiceID,
 		&i.StartAt,
 		&i.EndAt,
 	)

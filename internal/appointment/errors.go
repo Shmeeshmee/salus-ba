@@ -24,6 +24,9 @@ var (
 	ErrClosed = errors.New("appointment: no longer booked")
 	// ErrNotStarted is returned when an appointment is marked fulfilled or no-show before its start.
 	ErrNotStarted = errors.New("appointment: not started")
+	// ErrInvalidService is returned for a booking that names a service its clinic does not offer, active, in the
+	// slot's visit mode (docs/plans/clinic-cms.md, E).
+	ErrInvalidService = errors.New("appointment: invalid service")
 	// ErrInvalidStatus is returned for a status a practitioner may not set (only fulfilled and noshow).
 	ErrInvalidStatus = errors.New("appointment: invalid status")
 	// ErrRescheduleWindowClosed is returned when a patient reschedules inside the clinic's notice (SAL-34).

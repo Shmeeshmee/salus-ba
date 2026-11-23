@@ -2408,6 +2408,28 @@ and the fiscal data, and a company's name on an invoice.
 
 Every issue, reversal, read, list, report and PDF writes an `AuditEvent` in its transaction, a refusal one of its own.
 
+### Package H: receipts follow-ups (migration 00063)
+
+**Processing added.** A receipt's lines keep the order they were entered (`invoice_line.position`); the PDF's labels and
+the accountant's CSV headers come from catalogs in the five staff languages; the clinic's admin reports a receipt whose
+fiscal report failed once more (`POST /clinic/receipts/{id}/retry`, the same `invoice_fiscalize` job); the receipt
+dialog sends an `Idempotency-Key` (`invoice.idempotency_key`), so a request repeated issues one receipt; the patient
+sees their receipts and saves or shares a receipt's PDF in the app (`GET /me/receipts`, `/me/receipts/{id}/pdf`, built
+in package C). Lawful basis as in package C.
+
+**Personal data added.** None. The idempotency key is a random UUID the browser makes, unique per clinic and kept with
+its receipt (as long as the receipt, by the receipt's retention rule); the position is a line's index. The patient's
+screen shows what `GET /me/receipts` already returned (number, date, lines, total, a reversal), not the clinic's or
+anyone else's data; the PDF goes to the device's share sheet only when the patient asks.
+
+| Risk | Measure |
+| --- | --- |
+| A double click or a lost answer issues two receipts to one patient | One key per receipt in the dialog; the service looks the key up before and again after taking the clinic's number (the sequence row is locked), so two requests with one key issue one receipt; a unique index on (clinic, key) holds it in the schema |
+| Another staff member reads a receipt by replaying a key | A key issued by another account is refused (`invalid_receipt`); a replay is audited as a read of the receipt |
+| A retry reports a receipt twice | Only a `failed` receipt is retried; the job locks the receipt and skips a fiscalized one, and reports the same reference |
+
+The retry writes an `AuditEvent` (update of the receipt), a refusal one of its own; a replayed issue writes a read.
+
 ### Package D: the clinic's membership (migration 00061)
 
 **Processing added.** A clinic's plan, trial and status; Salus's monthly invoice to the clinic (its seats, the count of
@@ -2432,3 +2454,65 @@ owner (`salusctl`) edits a plan or marks an invoice paid.
 | A clinic that does not pay loses access to its patients' records, or a patient to theirs | Only a new booking and a new waitlist entry ask the membership (`bookableClinics` in `internal/api`); existing appointments, records, documents, exports and subject rights never do (`TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
 | The app marks its own invoices paid or edits a plan | No `UPDATE` grant on `subscription_invoice`, no write grant on `subscription_plan`; tested as the app role |
 | Billing details in a log | The handlers log through `httpx.InternalError` only; the api test checks the log for them |
+
+### Package Q1: questionnaire branching, rules and server (no migration)
+
+**Processing changed.** A questionnaire's items may now carry several FHIR R4 `enableWhen` conditions on earlier
+answers (yes/no, choice, number, date, answered or not), combined with `enableBehavior` `all` or `any`, and branches
+are sections nested in sections. The conditions are the clinic's own wording and settings, not personal data. No new
+personal-data field and no new table: the answers are stored as before (`questionnaire_response.answers`).
+
+**Data minimisation.** The server evaluates the conditions on submit and refuses (422 `answer_not_enabled`) a
+response that still holds answers to items hidden on the path the patient took, so a submitted response holds only
+the answers the patient's own path asked for; the files of hidden attachment items are still removed on submit, as
+before. The refusal names only `linkId`s, never an answer, and is audited like every other refused submit.
+
+### Package I: the membership invoice document and the suspended listing (migration 00064)
+
+**Processing added.** Salus's monthly invoice to a clinic as a PDF: the seller (the owner's company, `SELLER_*` in the
+configuration, `[SELLER]` placeholders until Q3), the clinic as the buyer (its legal name, tax id and address), the
+month, the seat count, the amount and the bank account to pay into. The admin downloads it
+(`GET /clinic/subscription/invoices/{id}/pdf`) and it is e-mailed to the clinic's billing e-mail when it is issued
+(the `subscription_invoice_email` job, opaque ids only, on the notifier's queue; SMTP through the relay already in
+`docs/privacy/processors.md`). A clinic whose membership is suspended or cancelled is no longer in the public directory:
+the directory's row-level policy on `organization` reads the membership. Lawful basis: the contract between Salus and
+the clinic (Art. 6(1)(b)).
+
+**Personal data added.** None. The PDF names no practitioner and no patient; the seat count is a number. The billing
+e-mail is the clinic's address for invoices (package D).
+
+**Who sees what.** The PDF: the clinic's admin, in the clinic's scope; never its other staff, a patient or another
+clinic (service and api tests). The directory scope reads only whether a clinic's membership is stopped (the policy
+`clinic_subscription_directory`), never its plan, dates or invoices.
+
+**Risks and measures.**
+
+| Risk | Measure |
+| --- | --- |
+| Hiding a clinic from the directory cuts care | Only the directory scope changes (`app.directory = 'public'`); the clinic's, the patients' and the shared scopes do not, so existing appointments, records, documents, exports and subject rights go on (`migrations/directory_membership_test.go`, `TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn`) |
+| The billing e-mail or an amount in a log or a job's error | The job carries ids only; the notification errors carry no address; the SMTP error keeps the server's code only |
+| The app changes an invoice | Still no `UPDATE` grant on `subscription_invoice`: the e-mail is not recorded on the invoice; River keeps the job's state |
+
+### Package E: the service on a booking and the online practice report (migration 00062)
+
+**Processing added.** A patient may name one service of the clinic's price list when booking (`POST /appointments`
+`serviceId`, optional): it is kept on the appointment (`appointment.service_id`), shown to the clinic on the FHIR
+Appointment (the `appointment-service` extension, a reference to the ChargeItemDefinition) and starts the visit's
+receipt. The clinic's admin reads the online practice report (`GET /clinic/reports/practice`): per practitioner role and
+visit mode, the minutes offered by the availability, the visits held and the amount receipted for them.
+
+**Personal data added.** `appointment.service_id`: which service a patient booked at a clinic, health data as the
+appointment is (Art. 9; it can name the kind of care). Needed so the clinic prepares the visit and receipts it; kept and
+erased with the appointment's row (its retention rule; no new table). The report holds no patient data: counts and sums
+per practitioner role, from opaque appointment ids and receipt totals that never leave the service.
+
+**Who sees what.** The service on an appointment: whoever sees the appointment (the patient, and the clinic's staff
+through access); at the name level after a revocation it is left out with the other details. The report: the clinic's
+admin only (revenue per practitioner), audited with the clinic as the entity, and the receipts it reads are audited by
+`invoice` as well; a refusal is audited.
+
+| Risk | Measure |
+| --- | --- |
+| A booking names another clinic's service | Composite foreign key to `charge_item_definition (id, organization_id)`; the service checks the slot's clinic offers it, active, in the slot's mode (tested) |
+| The report shows a practitioner another's revenue | Admin only, in the clinic's scope; a practitioner is refused and audited (tested) |
+| The service a patient booked in a log | Handlers log through `httpx.InternalError` only; the id is opaque and no name reaches a log line |

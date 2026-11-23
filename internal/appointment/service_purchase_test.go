@@ -37,7 +37,7 @@ func pricedFixture(amount int64) (*fixture, *paymentstest.Provider) {
 // Without a price nothing is charged: today's booking (review, finding 4).
 func TestPurchase_ChargesNothingWithoutAPrice(t *testing.T) {
 	f, provider := pricedFixture(0)
-	if _, err := f.svc.Book(t.Context(), me, slotFree); err != nil {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); err != nil {
 		t.Fatal(err)
 	}
 	if got := provider.Charged(); len(got) != 0 {
@@ -48,7 +48,7 @@ func TestPurchase_ChargesNothingWithoutAPrice(t *testing.T) {
 // A priced booking is charged before its transaction under the patient's and the slot's key.
 func TestPurchase_ChargesAPricedBookingBeforeItsTransaction(t *testing.T) {
 	f, provider := pricedFixture(5000)
-	if _, err := f.svc.Book(t.Context(), me, slotFree); err != nil {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); err != nil {
 		t.Fatal(err)
 	}
 	got := provider.Charged()
@@ -61,7 +61,7 @@ func TestPurchase_ChargesAPricedBookingBeforeItsTransaction(t *testing.T) {
 func TestPurchase_RefundsWhenTheBookingThenFailsAndRefusesADeclinedPayment(t *testing.T) {
 	f, provider := pricedFixture(5000)
 	delete(f.consents.state, patientA+clinicA) // no active consent: refused inside the transaction
-	if _, err := f.svc.Book(t.Context(), me, slotFree); !errors.Is(err, appointment.ErrConsentRequired) {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); !errors.Is(err, appointment.ErrConsentRequired) {
 		t.Fatalf("Book() = %v, want ErrConsentRequired", err)
 	}
 	got := provider.Charged()
@@ -71,14 +71,14 @@ func TestPurchase_RefundsWhenTheBookingThenFailsAndRefusesADeclinedPayment(t *te
 
 	f, provider = pricedFixture(5000)
 	provider.Decline = true
-	if _, err := f.svc.Book(t.Context(), me, slotFree); !errors.Is(err, appointment.ErrPaymentDeclined) || len(f.repo.appts) != 0 {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); !errors.Is(err, appointment.ErrPaymentDeclined) || len(f.repo.appts) != 0 {
 		t.Errorf("Book() = %v with %d appointments, want ErrPaymentDeclined and none", err, len(f.repo.appts))
 	}
 	checkEvents(t, "declined", f.audit, event(me, auditevent.CodeCreate, "", "", auditevent.OutcomeMinorFailure))
 
 	f, provider = pricedFixture(5000)
 	provider.Err = errors.New("the provider is down")
-	if _, err := f.svc.Book(t.Context(), me, slotFree); err == nil || errors.Is(err, appointment.ErrPaymentDeclined) || len(f.repo.appts) != 0 {
+	if _, err := f.svc.Book(t.Context(), me, slotFree, ""); err == nil || errors.Is(err, appointment.ErrPaymentDeclined) || len(f.repo.appts) != 0 {
 		t.Errorf("Book() with the provider down = %v, want a failure and no appointment", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestPurchase_RefundsEvenWhenTheRequestIsCancelled(t *testing.T) {
 		Prices: fakePrices{amount: 5000}, Payments: provider,
 	})
 	delete(f.consents.state, patientA+clinicA)
-	if _, err := f.svc.Book(ctx, me, slotFree); !errors.Is(err, appointment.ErrConsentRequired) {
+	if _, err := f.svc.Book(ctx, me, slotFree, ""); !errors.Is(err, appointment.ErrConsentRequired) {
 		t.Fatalf("Book() = %v, want ErrConsentRequired", err)
 	}
 	got := provider.Charged()

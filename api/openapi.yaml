@@ -1217,7 +1217,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Appointment"}
         "400":
-          description: "`invalid_request`."
+          description: "`invalid_request`; `invalid_service`: the service named is not one its clinic offers, active, in the slot's visit mode."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5718,13 +5718,20 @@ paths:
         By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from
         the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by
         a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is
-        a reversal. Audited, also when refused.
+        a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the
+        same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double
+        click or a retried request issues one receipt.
       tags: [billing]
       security:
         - sessionCookie: []
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CSRF"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: A UUID the client makes once per receipt it means to issue. Unique per clinic.
+          schema: {type: string, format: uuid}
       requestBody:
         required: true
         content:
@@ -5737,7 +5744,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Receipt"}
         "400":
-          description: "`invalid_request`: unreadable or a field unknown; `invalid_receipt`: no lines, a patient and a company together, or a service not on the clinic's active price list."
+          description: "`invalid_request`: unreadable, a field unknown, or an `Idempotency-Key` that is no UUID; `invalid_receipt`: no lines, a patient and a company together, a service not on the clinic's active price list, or an `Idempotency-Key` another account issued with."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5838,6 +5845,44 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/receipts/{id}/retry:
+    post:
+      operationId: retryReceiptReport
+      x-salus-package: cms-h
+      summary: Report a receipt whose fiscal report failed once more
+      description: >-
+        Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts
+        it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited,
+        also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "202":
+          description: The receipt as it is, still `failed` until its report runs.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Receipt"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such receipt of the caller's clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`fiscal_report_not_failed`: the receipt is pending (its report is still running) or fiscalized."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/receipts/{id}/pdf:
     get:
       operationId: getClinicReceiptPdf
@@ -5894,7 +5939,13 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/ReceiptsReport"}
             text/csv:
-              schema: {type: string}
+              schema:
+                type: string
+                description: >-
+                  A header in the clinic's language, then the total, a row per payment method and a row per service;
+                  fields separated by semicolons and amounts as decimals with a comma (106,70), not minor units, as
+                  Excel reads a file with Bosnian settings; a field holding a semicolon, a quote or a line break is
+                  quoted (RFC 4180 with `;`). Packages H and the wave 2 integration.
         "400":
           description: "`invalid_request`: a time missing, or `to` not after `from`."
           content:
@@ -5906,6 +5957,42 @@ paths:
           $ref: "#/components/responses/ClinicAdminOnly"
         "404":
           $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/reports/practice:
+    get:
+      operationId: getPracticeReport
+      x-salus-package: cms-e
+      summary: The online practice report, per practitioner and visit mode
+      description: >-
+        Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer,
+        the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits
+        (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor
+        units. For the clinic's admin. Audited.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: The report.
+          headers:
+            Cache-Control: {schema: {type: string, const: "private, no-store"}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PracticeReport"}
+        "400":
+          description: "`invalid_request`: a time missing or malformed, `to` not after `from`, or a range over ten years."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
         "500":
           $ref: "#/components/responses/InternalError"
   /me/receipts:
@@ -6020,6 +6107,40 @@ paths:
           $ref: "#/components/responses/ClinicAdminOnly"
         "404":
           $ref: "#/components/responses/ClinicNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/subscription/invoices/{id}/pdf:
+    get:
+      operationId: getSubscriptionInvoicePdf
+      x-salus-package: cms-i
+      summary: A membership invoice as a PDF
+      description: >-
+        Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to
+        pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued.
+        Not personal data.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such invoice of the clinic, or no clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
   /clinic/billing-details:
@@ -6467,7 +6588,9 @@ components:
         "Limits"), an answer is given to an attachment item (files go through
         `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question
         is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is
-        refused without being named).
+        refused without being named). `answer_not_enabled`, on submit: a saved answer is to an item its
+        conditions hide on the answers given (a response holds only the path taken); `linkIds` names those items
+        in document order, and the patient saves the answers without them.
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -6659,7 +6782,7 @@ components:
       required: [name, quantity, unitPriceMinor, discountMinor, totalMinor]
       properties:
         serviceId: {type: string, format: uuid, description: The price list's service; absent for an item off it.}
-        name: {type: string, description: As on the price list at issue.}
+        name: {type: string, description: As on the price list at issue. Lines are in the order they were entered.}
         quantity: {type: integer, format: int32, description: Negative on a reversal.}
         unitPriceMinor: {type: integer, format: int64}
         discountMinor: {type: integer, format: int64}
@@ -6751,6 +6874,25 @@ components:
               name: {type: string}
               quantity: {type: integer}
               totalMinor: {type: integer, format: int64}
+    PracticeReport:
+      type: object
+      required: [from, to, currency, rows]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        rows:
+          type: array
+          description: By practitioner role, then visit mode; a role and mode with nothing offered, held or receipted is absent.
+          items:
+            type: object
+            required: [practitionerRole, visitMode, minutesOffered, visits, receiptedMinor]
+            properties:
+              practitionerRole: {type: string, format: uuid}
+              visitMode: {$ref: "#/components/schemas/VisitMode"}
+              minutesOffered: {type: integer, format: int64}
+              visits: {type: integer, format: int64}
+              receiptedMinor: {type: integer, format: int64}
     SubscriptionStatus:
       type: string
       enum: [trial, active, past_due, suspended, cancelled]
@@ -7548,6 +7690,13 @@ components:
           type: string
           format: uuid
           description: A free slot, as Slot?schedule=…&status=free gives it.
+        serviceId:
+          type: string
+          format: uuid
+          description: >-
+            Optional (package E of docs/plans/clinic-cms.md): a service of the slot's clinic's price list, active and
+            offered in the slot's visit mode, as GET /organizations/{id}/services gives them. Shown to the clinic and the
+            first line of the visit's receipt; nothing is charged in the app. Kept on a reschedule.
     SetAppointmentStatusRequest:
       type: object
       required: [status]
@@ -7575,6 +7724,10 @@ components:
         slotId:
           type: string
           format: uuid
+        serviceId:
+          type: string
+          format: uuid
+          description: The price-list service the booking named; absent for none (package E).
         start:
           type: string
           format: date-time
@@ -7649,8 +7802,9 @@ components:
       required: [linkId, text, type]
       additionalProperties: false
       description: >-
-        One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and
-        instructions. Single and multiple choice are both `choice`; `repeats` tells them apart.
+        One item, as FHIR Questionnaire.item. Sections (`group`) hold questions, instructions and other
+        sections: a branch is a section carrying the condition, and the flow joins back at the next item without
+        one. Single and multiple choice are both `choice`; `repeats` tells them apart.
       properties:
         linkId:
           type: string
@@ -7705,19 +7859,43 @@ components:
                 minLength: 1
                 maxLength: 200
         enableWhen:
-          type: object
-          required: [question]
-          additionalProperties: false
+          type: array
+          minItems: 1
           description: >-
-            Shown only when the earlier item `question`, a boolean or a choice, is answered `answerBoolean` or
-            `answerString` (one of its options); a choice with repeats when any answer matches.
-          properties:
-            question:
-              type: string
-            answerBoolean:
-              type: boolean
-            answerString:
-              type: string
+            FHIR R4 enableWhen: shown only while these conditions on earlier questions hold, all of them or any
+            one (`enableBehavior`, required with two or more). Each takes the one answer[x] of its question's type:
+            `answerBoolean` (yes/no), `answerString` (one of a choice's options), `answerInteger`, `answerDecimal`,
+            `answerDate`. `=` and `!=` fit every type but string and text; `>`, `>=`, `<`, `<=` fit integer,
+            decimal and date; `exists` fits every question and takes `answerBoolean` (true: answered). A choice
+            with repeats meets `=` when any answer matches and `!=` when none does; every operator but `exists`
+            is false on an unanswered or hidden question. The single object of before (`question` with
+            `answerBoolean` or `answerString`, operator `=`) is still accepted.
+          items:
+            type: object
+            required: [question, operator]
+            additionalProperties: false
+            properties:
+              question:
+                type: string
+              operator:
+                type: string
+                enum: [exists, "=", "!=", ">", "<", ">=", "<="]
+              answerBoolean:
+                type: boolean
+              answerString:
+                type: string
+              answerInteger:
+                type: integer
+                format: int32
+              answerDecimal:
+                type: number
+              answerDate:
+                type: string
+                format: date
+        enableBehavior:
+          type: string
+          enum: [all, any]
+          description: How several conditions combine; required with two or more.
         item:
           type: array
           items: {$ref: "#/components/schemas/QuestionnaireItem"}
@@ -8033,12 +8211,14 @@ components:
             - already_reversed
             - billing_details_missing
             - fiscal_report_failed
+            - answer_not_enabled
+            - fiscal_report_not_failed
         linkIds:
           type: array
           items: {type: string}
           description: >-
-            With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending
-            items' linkIds in document order.
+            With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete`
+            only, the offending items' linkIds in document order.
         language:
           $ref: "#/components/schemas/Language"
           description: With `translation_incomplete` only, the translation that is incomplete.

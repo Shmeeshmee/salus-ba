@@ -2,7 +2,12 @@ package invoice
 
 import (
 	"context"
+	"embed"
+	"encoding/json"
 	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/organization"
@@ -70,21 +75,22 @@ func document(inv Invoice, clinic organization.Organization, reversed int64) pdf
 	if err != nil {
 		zone = time.UTC
 	}
-	heading := fmt.Sprintf(l.receipt, inv.Number)
+	number := strconv.FormatInt(inv.Number, 10)
+	heading := l.get("receipt", "number", number)
 	switch {
 	case inv.ReversesID != "":
-		heading = fmt.Sprintf(l.reversal, inv.Number, reversed)
+		heading = l.get("reversal", "number", number, "reversed", strconv.FormatInt(reversed, 10))
 	case inv.Kind == KindInvoice:
-		heading = fmt.Sprintf(l.invoice, inv.Number)
+		heading = l.get("invoice", "number", number)
 	}
 	facts := []string{
-		l.issued + ": " + inv.IssuedAt.In(zone).Format("02.01.2006 15:04"),
-		l.payment + ": " + l.methods[inv.PaymentMethod],
+		l.get("issued") + ": " + inv.IssuedAt.In(zone).Format("02.01.2006 15:04"),
+		l.get("payment") + ": " + l.method(inv.PaymentMethod),
 	}
 	if inv.CompanyName != "" {
-		buyer := l.buyer + ": " + inv.CompanyName
+		buyer := l.get("buyer") + ": " + inv.CompanyName
 		if inv.CompanyTaxID != "" {
-			buyer += ", " + l.taxID + " " + inv.CompanyTaxID
+			buyer += ", " + l.get("tax_id") + " " + inv.CompanyTaxID
 		}
 		facts = append(facts, buyer)
 	}
@@ -92,83 +98,75 @@ func document(inv Invoice, clinic organization.Organization, reversed int64) pdf
 	for i, line := range inv.Lines {
 		items[i] = l.line(line, inv.Currency)
 	}
-	fiscalData := []string{l.unreported}
+	fiscalData := []string{l.get("unreported")}
 	if inv.FiscalStatus == FiscalFiscalized {
-		fiscalData = []string{l.fiscalID + ": " + inv.FiscalID, l.fiscalCode + ": " + inv.FiscalCode, "QR: " + inv.FiscalQR}
+		fiscalData = []string{l.get("fiscal_id") + ": " + inv.FiscalID, l.get("fiscal_code") + ": " + inv.FiscalCode, "QR: " + inv.FiscalQR}
 	}
 	return pdfdoc.Document{
 		Created: inv.IssuedAt,
 		Title:   clinic.Name,
-		Meta:    []string{inv.SellerLegalName, l.taxID + ": " + inv.SellerTaxID, inv.SellerAddress},
+		Meta:    []string{inv.SellerLegalName, l.get("tax_id") + ": " + inv.SellerTaxID, inv.SellerAddress},
 		Sections: []pdfdoc.Section{
 			{Heading: heading, Paragraphs: facts},
-			{Heading: l.items, Items: items},
-			{Heading: l.total, Paragraphs: []string{l.money(inv.TotalMinor) + " " + inv.Currency}},
-			{Heading: l.fiscal, Paragraphs: fiscalData},
+			{Heading: l.get("items"), Items: items},
+			{Heading: l.get("total"), Paragraphs: []string{l.money(inv.TotalMinor) + " " + inv.Currency}},
+			{Heading: l.get("fiscal"), Paragraphs: fiscalData},
 		},
 	}
 }
 
-// labels are the receipt's printed words in one language. The receipt is the clinic's document, so it is printed in
-// one of the five staff languages (the clinic's default); the catalog is here because nothing else prints them.
+// labelsFS holds the receipt's printed words, templates/pdf/<language>.json in each of the five staff languages: the
+// receipt is the clinic's document, printed in the clinic's default language. ICU messages with simple placeholders
+// only ({number}, {reversed}), checked by make i18n-check; the report's CSV headers are there too.
+//
+//go:embed templates/pdf
+var labelsFS embed.FS
+
+// staffLanguages are the catalog's languages; the first is the fallback.
+var staffLanguages = []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en"}
+
+// labels are the receipt's printed words in one language.
 type labels struct {
-	methods                                     map[PaymentMethod]string
-	receipt, invoice, reversal                  string // formats: the number; the reversal's, then the reversed one's
-	issued, payment, buyer, taxID, items, total string
-	discount, vat, exempt                       string
-	fiscal, fiscalID, fiscalCode, unreported    string
-	comma                                       bool // a decimal comma
+	text  map[string]string
+	comma bool // a decimal comma
 }
 
-var catalog = map[string]labels{
-	"en": {
-		receipt: "Receipt no. %d", invoice: "Invoice no. %d", reversal: "Receipt no. %d, reversal of receipt no. %d",
-		issued: "Issued", payment: "Payment", buyer: "Buyer", taxID: "Tax ID (JIB)", items: "Items", total: "Total",
-		discount: "discount", vat: "VAT", exempt: "VAT exempt",
-		fiscal: "Fiscal data", fiscalID: "Fiscal number", fiscalCode: "Verification code", unreported: "Not yet reported to the tax authority.",
-		methods: map[PaymentMethod]string{PaymentCash: "Cash", PaymentCard: "Card", PaymentTransfer: "Bank transfer"},
-	},
-	"bs": {
-		receipt: "Račun br. %d", invoice: "Faktura br. %d", reversal: "Račun br. %d, storno računa br. %d",
-		issued: "Izdato", payment: "Način plaćanja", buyer: "Kupac", taxID: "JIB", items: "Stavke", total: "Ukupno",
-		discount: "popust", vat: "PDV", exempt: "oslobođeno PDV-a",
-		fiscal: "Fiskalni podaci", fiscalID: "Fiskalni broj", fiscalCode: "Kontrolni kod", unreported: "Još nije prijavljeno poreznoj upravi.",
-		methods: map[PaymentMethod]string{PaymentCash: "Gotovina", PaymentCard: "Kartica", PaymentTransfer: "Bankovni prijenos"},
-		comma:   true,
-	},
-	"hr": {
-		receipt: "Račun br. %d", invoice: "Faktura br. %d", reversal: "Račun br. %d, storno računa br. %d",
-		issued: "Izdano", payment: "Način plaćanja", buyer: "Kupac", taxID: "JIB", items: "Stavke", total: "Ukupno",
-		discount: "popust", vat: "PDV", exempt: "oslobođeno PDV-a",
-		fiscal: "Fiskalni podaci", fiscalID: "Fiskalni broj", fiscalCode: "Kontrolni kod", unreported: "Još nije prijavljeno poreznoj upravi.",
-		methods: map[PaymentMethod]string{PaymentCash: "Gotovina", PaymentCard: "Kartica", PaymentTransfer: "Bankovni prijenos"},
-		comma:   true,
-	},
-	"sr-Latn": {
-		receipt: "Račun br. %d", invoice: "Faktura br. %d", reversal: "Račun br. %d, storno računa br. %d",
-		issued: "Izdato", payment: "Način plaćanja", buyer: "Kupac", taxID: "JIB", items: "Stavke", total: "Ukupno",
-		discount: "popust", vat: "PDV", exempt: "oslobođeno PDV-a",
-		fiscal: "Fiskalni podaci", fiscalID: "Fiskalni broj", fiscalCode: "Kontrolni kod", unreported: "Još nije prijavljeno poreskoj upravi.",
-		methods: map[PaymentMethod]string{PaymentCash: "Gotovina", PaymentCard: "Kartica", PaymentTransfer: "Bankovni prenos"},
-		comma:   true,
-	},
-	"sr-Cyrl": {
-		receipt: "Рачун бр. %d", invoice: "Фактура бр. %d", reversal: "Рачун бр. %d, сторно рачуна бр. %d",
-		issued: "Издато", payment: "Начин плаћања", buyer: "Купац", taxID: "ЈИБ", items: "Ставке", total: "Укупно",
-		discount: "попуст", vat: "ПДВ", exempt: "ослобођено ПДВ-а",
-		fiscal: "Фискални подаци", fiscalID: "Фискални број", fiscalCode: "Контролни код", unreported: "Још није пријављено пореској управи.",
-		methods: map[PaymentMethod]string{PaymentCash: "Готовина", PaymentCard: "Картица", PaymentTransfer: "Банковни пренос"},
-		comma:   true,
-	},
-}
+// catalog is read once from the binary: a broken file is a programming error the tests catch, so it panics.
+var catalog = func() map[string]labels {
+	out := map[string]labels{}
+	for _, lang := range staffLanguages {
+		b, err := fs.ReadFile(labelsFS, "templates/pdf/"+lang+".json")
+		if err != nil {
+			panic(err)
+		}
+		var text map[string]string
+		if err := json.Unmarshal(b, &text); err != nil {
+			panic(fmt.Sprintf("invoice: templates/pdf/%s.json: %v", lang, err))
+		}
+		out[lang] = labels{text: text, comma: lang != "en"}
+	}
+	return out
+}()
 
 // labelsOf returns the labels of the staff language, Bosnian (the clinics' default) for any other.
 func labelsOf(language string) labels {
 	if l, ok := catalog[language]; ok {
 		return l
 	}
-	return catalog["bs"]
+	return catalog[staffLanguages[0]]
 }
+
+// get returns the label key with its {name} placeholders filled from pairs of name and value.
+func (l labels) get(key string, pairs ...string) string {
+	s := l.text[key]
+	for i := 0; i+1 < len(pairs); i += 2 {
+		s = strings.ReplaceAll(s, "{"+pairs[i]+"}", pairs[i+1])
+	}
+	return s
+}
+
+// method is the payment method's name.
+func (l labels) method(m PaymentMethod) string { return l.get("method_" + string(m)) }
 
 // money writes an amount of the minor unit with two decimals: 10670 is 106,70 (106.70 in English).
 func (l labels) money(minor int64) string {
@@ -187,12 +185,12 @@ func (l labels) money(minor int64) string {
 func (l labels) line(line Line, currency string) string {
 	s := fmt.Sprintf("%s: %d × %s", line.Name, line.Quantity, l.money(line.UnitPriceMinor))
 	if line.DiscountMinor != 0 {
-		s += ", " + l.discount + " " + l.money(line.DiscountMinor)
+		s += ", " + l.get("discount") + " " + l.money(line.DiscountMinor)
 	}
 	if line.VATRateBP == nil {
-		s += ", " + l.exempt
+		s += ", " + l.get("exempt")
 	} else {
-		s += fmt.Sprintf(", %s %s %%", l.vat, l.money(int64(*line.VATRateBP)))
+		s += fmt.Sprintf(", %s %s %%", l.get("vat"), l.money(int64(*line.VATRateBP)))
 	}
 	return s + " = " + l.money(line.TotalMinor) + " " + currency
 }

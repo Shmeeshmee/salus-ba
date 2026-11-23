@@ -14,6 +14,7 @@ import (
 type Memberships interface {
 	Current(ctx context.Context, c Caller) (Subscription, error)
 	Invoices(ctx context.Context, c Caller) ([]Invoice, error)
+	PDF(ctx context.Context, c Caller, id string) ([]byte, error)
 }
 
 // HTTPHandler serves the clinic's membership and Salus's invoices to it (api/openapi.yaml, tag billing). Errors are
@@ -33,6 +34,7 @@ func NewHTTPHandler(svc Memberships, caller func(ctx context.Context) (Caller, b
 func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/subscription", h.current)
 	mux.HandleFunc("GET /clinic/subscription/invoices", h.invoices)
+	mux.HandleFunc("GET /clinic/subscription/invoices/{id}/pdf", h.pdf)
 }
 
 // subscriptionJSON is the Subscription schema.
@@ -91,6 +93,23 @@ func (h *HTTPHandler) invoices(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	h.write(w, r, out, err)
+}
+
+func (h *HTTPHandler) pdf(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	b, err := h.svc.PDF(r.Context(), c, r.PathValue("id"))
+	if err != nil {
+		h.write(w, r, nil, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="salus-invoice.pdf"`)
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
 }
 
 // signedIn returns the caller, or answers 401 (or 500) and false.

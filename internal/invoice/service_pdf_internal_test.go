@@ -77,18 +77,21 @@ func TestDocument_FiscalDataCompanyAndReversal(t *testing.T) {
 	}
 }
 
-// Every staff language has every label, renders with the bundled fonts (Cyrillic too), and an unknown language
-// falls back to Bosnian.
+// Every staff language has every label of the English catalog and no other, renders with the bundled fonts (Cyrillic
+// too), and an unknown language falls back to Bosnian.
 func TestDocument_EveryStaffLanguageRenders(t *testing.T) {
+	en := labelsOf("en")
 	for _, language := range []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en", "de"} {
 		c := clinic
 		c.DefaultLanguage = language
 		d := document(sample(), c, 0)
 		l := labelsOf(language)
-		for _, s := range []string{l.receipt, l.invoice, l.reversal, l.issued, l.payment, l.buyer, l.taxID, l.items, l.total, l.discount,
-			l.vat, l.exempt, l.fiscal, l.fiscalID, l.fiscalCode, l.unreported, l.methods[PaymentCash], l.methods[PaymentCard], l.methods[PaymentTransfer]} {
-			if s == "" {
-				t.Errorf("%s: a label is missing", language)
+		if len(l.text) != len(en.text) {
+			t.Errorf("%s: %d labels, want %d", language, len(l.text), len(en.text))
+		}
+		for key := range en.text {
+			if l.text[key] == "" {
+				t.Errorf("%s: the label %s is missing", language, key)
 			}
 		}
 		if b, err := pdfdoc.Render(d); err != nil || !strings.HasPrefix(string(b), "%PDF-") {
@@ -97,5 +100,18 @@ func TestDocument_EveryStaffLanguageRenders(t *testing.T) {
 	}
 	if got := printed(document(sample(), organization.Organization{DefaultLanguage: "de"}, 0)); !strings.Contains(got, "Račun br. 12") {
 		t.Errorf("an unknown language is not Bosnian:\n%s", got)
+	}
+}
+
+// A company's invoice is headed "Račun" in Croatian and "Faktura" in Bosnian and Serbian.
+func TestDocument_ACompanysInvoiceInCroatianIsARacun(t *testing.T) {
+	inv := sample()
+	inv.Kind, inv.PatientID, inv.CompanyName = KindInvoice, "", "Synthetic company d.o.o."
+	for language, want := range map[string]string{"hr": "Račun br. 12", "bs": "Faktura br. 12", "sr-Latn": "Faktura br. 12", "sr-Cyrl": "Фактура бр. 12"} {
+		c := clinic
+		c.DefaultLanguage = language
+		if got := printed(document(inv, c, 0)); !strings.Contains(got, want) {
+			t.Errorf("%s: the invoice lacks %q:\n%s", language, want, got)
+		}
 	}
 }

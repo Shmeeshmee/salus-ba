@@ -25,7 +25,7 @@ const (
 func validate(in Content, earlier map[string]string) error {
 	v := validator{seen: map[string]Item{}, earlier: earlier}
 	for _, it := range in.Items {
-		v.item(it, true)
+		v.item(it)
 	}
 	if blank(in.Title) || chars(in.Title) > maxTitle || chars(in.Description) > maxDescription ||
 		v.count > maxItems || v.malformed || len(v.bad) > 0 {
@@ -36,14 +36,19 @@ func validate(in Content, earlier map[string]string) error {
 
 // publishable checks what a draft may keep but a published version may not (SPEC.md §2 "Item model"): a
 // section without items, which FHIR's que-1 refuses. It returns an *InvalidError naming those sections in
-// document order, or nil. Sections are top-level only.
+// document order, or nil. Sections nest (a branch is one).
 func publishable(items []Item) error {
 	var empty []string
-	for _, it := range items {
-		if it.Type == ItemGroup && len(it.Items) == 0 {
-			empty = append(empty, it.LinkID)
+	var walk func([]Item)
+	walk = func(items []Item) {
+		for _, it := range items {
+			if it.Type == ItemGroup && len(it.Items) == 0 {
+				empty = append(empty, it.LinkID)
+			}
+			walk(it.Items)
 		}
 	}
+	walk(items)
 	if len(empty) > 0 {
 		return &InvalidError{LinkIDs: empty}
 	}
@@ -59,32 +64,32 @@ type validator struct {
 	malformed bool // a linkId is malformed, so it is not named
 }
 
-func (v *validator) item(it Item, top bool) {
+func (v *validator) item(it Item) {
 	v.count++
 	if !linkID(it.LinkID) {
 		v.malformed = true
 	} else if _, dup := v.seen[it.LinkID]; dup {
 		v.bad = append(v.bad, it.LinkID)
 	} else {
-		if !v.valid(it, top) {
+		if !v.valid(it) {
 			v.bad = append(v.bad, it.LinkID)
 		}
 		v.seen[it.LinkID] = it
 	}
 	for _, child := range it.Items {
-		v.item(child, false)
+		v.item(child)
 	}
 }
 
 // valid tells whether the item's own fields keep the rules; its children are checked on their own.
-func (v *validator) valid(it Item, top bool) bool {
+func (v *validator) valid(it Item) bool {
 	if blank(it.Text) || chars(it.Text) > maxText || chars(it.Help) > maxHelp {
 		return false
 	}
 	if kind, ok := v.earlier[it.LinkID]; ok && kind != kindOf(it) {
 		return false
 	}
-	if it.EnableWhen != nil && !v.condition(*it.EnableWhen) {
+	if !v.logic(it) {
 		return false
 	}
 	question, file := it.Type != ItemGroup && it.Type != ItemDisplay, it.Type == ItemAttachment
@@ -96,7 +101,7 @@ func (v *validator) valid(it Item, top bool) bool {
 	}
 	switch it.Type {
 	case ItemGroup:
-		return top
+		return true // at any depth: a branch is a section carrying the condition (docs/clinic-cms, Q1)
 	case ItemDisplay:
 		return it.Help == ""
 	case ItemChoice:
@@ -107,25 +112,6 @@ func (v *validator) valid(it Item, top bool) bool {
 		return true
 	}
 	return false // any type not accepted yet
-}
-
-// condition tells whether c depends on an earlier boolean item with a boolean answer, or an earlier choice
-// item with one of its options.
-func (v *validator) condition(c Condition) bool {
-	on, ok := v.seen[c.Question]
-	switch {
-	case !ok:
-		return false
-	case on.Type == ItemBoolean:
-		return c.Boolean != nil && c.String == ""
-	case on.Type == ItemChoice && c.Boolean == nil:
-		for _, o := range on.Options {
-			if o.Value == c.String {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // accept tells whether kinds is a non-empty set of the known kinds of file.

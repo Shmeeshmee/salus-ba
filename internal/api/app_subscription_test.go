@@ -52,6 +52,8 @@ func TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &booked); err != nil {
 		t.Fatal(err)
 	}
+	// The directory's hiding of a suspended clinic is row-level security (migration 00064), which these tests' owner
+	// connection bypasses: migrations/directory_membership_test.go checks it as salus_app.
 	exec("UPDATE clinic_subscription SET status = 'suspended' WHERE organization_id = $1", inviteClinic)
 	if code, body := book(slots[1]); code != http.StatusConflict || !strings.Contains(body, "slot_unavailable") {
 		t.Errorf("booking with a suspended clinic = %d %s, want 409 slot_unavailable", code, body)
@@ -108,5 +110,19 @@ func checkMembershipRoutes(t *testing.T, d directory, exec func(q string, args .
 	}
 	if rec := d.admin.do(http.MethodPut, "/clinic/billing-details", `{"vatRegistered":true,"taxId":"42"}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("a short tax id: %d, want 400", rec.Code)
+	}
+	// The invoice's PDF (package I): the admin downloads it, the clinic's other staff and patients may not.
+	const invoiceID = "0d000000-0000-4000-8000-0000000000a1"
+	exec(`INSERT INTO subscription_invoice (id, organization_id, number, period_start, period_end, seats, amount_minor, issued_at, due_at)
+		VALUES ($1, $2, 900001, '2026-12-01', '2027-01-01', 1, 10000, now(), now() + interval '14 days')`, invoiceID, inviteClinic)
+	pdf := "/clinic/subscription/invoices/" + invoiceID + "/pdf"
+	if rec := d.admin.do(http.MethodGet, pdf, ""); rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "%PDF-") {
+		t.Errorf("GET %s = %d, want the PDF", pdf, rec.Code)
+	}
+	if rec := d.practitioner.do(http.MethodGet, pdf, ""); rec.Code != http.StatusForbidden {
+		t.Errorf("practitioner GET pdf = %d, want 403", rec.Code)
+	}
+	if rec := d.patient.do(http.MethodGet, pdf, ""); rec.Code != http.StatusNotFound {
+		t.Errorf("patient GET pdf = %d, want 404", rec.Code)
 	}
 }

@@ -74,6 +74,26 @@ func (r *postgresRepository) Locked(ctx context.Context, id string) (Invoice, er
 	return out[0], nil
 }
 
+func (r *postgresRepository) ByIdempotencyKey(ctx context.Context, org, key string) (Invoice, error) {
+	o, okOrg := parse(org)
+	k, okKey := parse(key)
+	if !okOrg || !okKey {
+		return Invoice{}, ErrNotFound
+	}
+	row, err := r.q(ctx).InvoiceByIdempotencyKey(ctx, invoicedb.InvoiceByIdempotencyKeyParams{OrganizationID: o, IdempotencyKey: k})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Invoice{}, ErrNotFound
+	case err != nil:
+		return Invoice{}, err
+	}
+	out, err := r.withLines(ctx, []Invoice{fromRow(row.Invoice, row.ReversedByID)})
+	if err != nil {
+		return Invoice{}, err
+	}
+	return out[0], nil
+}
+
 func (r *postgresRepository) Issued(ctx context.Context, org string, p Period) ([]Invoice, error) {
 	u, ok := parse(org)
 	if !ok {
@@ -156,6 +176,7 @@ func (r *postgresRepository) Insert(ctx context.Context, inv Invoice) (Invoice, 
 	}{
 		{&p.OrganizationID, inv.OrganizationID, true}, {&p.IssuedByAccountID, inv.IssuedByAccountID, true},
 		{&p.PatientID, inv.PatientID, false}, {&p.AppointmentID, inv.AppointmentID, false}, {&p.ReversesID, inv.ReversesID, false},
+		{&p.IdempotencyKey, inv.IdempotencyKey, false},
 	} {
 		if f.id == "" && !f.required {
 			continue
@@ -175,7 +196,7 @@ func (r *postgresRepository) Insert(ctx context.Context, inv Invoice) (Invoice, 
 	inv.Lines = append([]Line(nil), inv.Lines...)
 	for i, l := range inv.Lines {
 		lp := invoicedb.InsertInvoiceLineParams{
-			InvoiceID: id, Name: l.Name, Quantity: l.Quantity, UnitPriceMinor: l.UnitPriceMinor, DiscountMinor: l.DiscountMinor,
+			InvoiceID: id, Position: int32(i), Name: l.Name, Quantity: l.Quantity, UnitPriceMinor: l.UnitPriceMinor, DiscountMinor: l.DiscountMinor,
 			TotalMinor: l.TotalMinor,
 		}
 		if l.ChargeItemDefinitionID != "" {
@@ -243,7 +264,7 @@ func fromRow(i invoicedb.Invoice, reversedBy pgtype.UUID) Invoice {
 		PatientID: text(i.PatientID), CompanyName: i.CompanyName.String, CompanyTaxID: i.CompanyTaxID.String,
 		AppointmentID: text(i.AppointmentID), ReversesID: text(i.ReversesID), ReversedByID: text(reversedBy),
 		IssuedByAccountID: i.IssuedByAccountID.String(), Currency: i.Currency, FiscalID: i.FiscalID.String,
-		FiscalCode: i.FiscalCode.String, FiscalQR: i.FiscalQr.String, Kind: Kind(i.Kind),
+		FiscalCode: i.FiscalCode.String, FiscalQR: i.FiscalQr.String, IdempotencyKey: text(i.IdempotencyKey), Kind: Kind(i.Kind),
 		PaymentMethod: PaymentMethod(i.PaymentMethod), FiscalStatus: FiscalStatus(i.FiscalStatus), Number: i.Number,
 		TotalMinor: i.TotalMinor,
 	}

@@ -30,6 +30,28 @@ describe('answered', () => {
     ])
   })
 
+  it('lists the answers of a branch inside a section under the branch, then the section again where it joins (SAL-43)', () => {
+    const q = (kind: Parameters<typeof newItem>[0], id: string) => ({ ...newItem(kind, id), text: `Placeholder ${id}` })
+    const nested = [
+      {
+        ...q('group', 'outer'),
+        items: [
+          q('boolean', 'a'),
+          { ...q('group', 'inner'), enableWhen: [{ question: 'a', operator: '=' as const, answer: true }], items: [q('string', 'b')] },
+          q('string', 'c'),
+        ],
+      },
+    ]
+    const blocks = answered(nested, [
+      { linkId: 'outer', item: [{ linkId: 'a', answer: [{ valueBoolean: true }] }, { linkId: 'inner', item: [{ linkId: 'b', answer: [{ valueString: 'x' }] }] }, { linkId: 'c', answer: [{ valueString: 'y' }] }] },
+    ])
+    expect(blocks.map((b) => [b.section, b.questions.map((x) => x.linkId)])).toEqual([
+      ['Placeholder outer', ['a']],
+      ['Placeholder inner', ['b']],
+      ['Placeholder outer', ['c']],
+    ])
+  })
+
   it('keeps an enabled question without an answer, with no values', () => {
     const blocks = answered(items, [{ linkId: 'smoker', answer: [{ valueBoolean: true }] }, { linkId: 'sec', item: [{ linkId: 'one', answer: [{ valueString: 'A' }] }] }])
 
@@ -44,8 +66,8 @@ describe('answered', () => {
   it('leaves out a question whose condition depends on a hidden question, along a chain of two', () => {
     const chain = [
       { ...newItem('boolean', 'a'), text: 'Placeholder a' },
-      { ...newItem('single', 'b'), text: 'Placeholder b', options: ['A', 'B'], condition: { question: 'a', answer: true } },
-      { ...newItem('string', 'c'), text: 'Placeholder c', condition: { question: 'b', answer: 'B' } },
+      { ...newItem('single', 'b'), text: 'Placeholder b', options: ['A', 'B'], enableWhen: [{ question: 'a', operator: '=' as const, answer: true }] },
+      { ...newItem('string', 'c'), text: 'Placeholder c', enableWhen: [{ question: 'b', operator: '=' as const, answer: 'B' }] },
     ]
     const shown = (a: boolean) =>
       answered(chain, [
@@ -60,7 +82,7 @@ describe('answered', () => {
   it('matches a condition on a choice with repeats when any answer matches', () => {
     const multi = [
       { ...newItem('multiple', 'm'), text: 'Placeholder m', options: ['C', 'D'] },
-      { ...newItem('date', 'after'), text: 'Placeholder after', condition: { question: 'm', answer: 'D' } },
+      { ...newItem('date', 'after'), text: 'Placeholder after', enableWhen: [{ question: 'm', operator: '=' as const, answer: 'D' }] },
     ]
     const ids = (values: string[]) =>
       answered(multi, [{ linkId: 'm', answer: values.map((valueString) => ({ valueString })) }]).flatMap((b) => b.questions.map((q) => q.linkId))

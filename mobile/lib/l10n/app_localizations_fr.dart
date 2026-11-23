@@ -2022,4 +2022,59 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Vous payez sur place. Rien n\'est facturé dans l\'application.';
+
+  @override
+  String get discardTitle => 'Modifier cette réponse ?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Avec cette modification, $n questions auxquelles vous avez déjà répondu ne s’appliquent plus. Leurs réponses seront supprimées.',
+      one:
+          'Avec cette modification, $n question à laquelle vous avez déjà répondu ne s’applique plus. Sa réponse sera supprimée.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Modifier et supprimer';
+
+  @override
+  String get myReceipts => 'Mes reçus';
+
+  @override
+  String get receiptsIntro =>
+      'Les reçus que les cliniques vous ont délivrés pour les prestations payées à la clinique. Les cliniques conservent les reçus aussi longtemps que la loi fiscale l’exige.';
+
+  @override
+  String get noReceipts => 'Vous n’avez pas encore de reçus.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Reçu n° $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Émis le $date';
+  }
+
+  @override
+  String get receiptReversal => 'Annulation d’un reçu antérieur';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Je choisirai sur place';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Ces questions ne sont plus posées, leurs réponses ont donc été supprimées : $items. Vérifiez vos réponses et envoyez-les à nouveau.';
+  }
 }

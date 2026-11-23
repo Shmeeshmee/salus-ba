@@ -1997,4 +1997,59 @@ class AppLocalizationsTr extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'Ödemeyi klinikte yaparsınız. Uygulamada hiçbir ücret alınmaz.';
+
+  @override
+  String get discardTitle => 'Bu yanıt değiştirilsin mi?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Bu değişiklikle daha önce yanıtladığınız $n soru atlanacak. Yanıtları silinecek.',
+      one:
+          'Bu değişiklikle daha önce yanıtladığınız $n soru atlanacak. Yanıtı silinecek.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Değiştir ve sil';
+
+  @override
+  String get myReceipts => 'Makbuzlarım';
+
+  @override
+  String get receiptsIntro =>
+      'Kliniklerin, klinikte ödediğiniz hizmetler için size düzenlediği makbuzlar. Klinikler makbuzları mali mevzuatın gerektirdiği süre boyunca saklar.';
+
+  @override
+  String get noReceipts => 'Henüz makbuzunuz yok.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Makbuz no. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Düzenlenme tarihi: $date';
+  }
+
+  @override
+  String get receiptReversal => 'Önceki bir makbuzun iptali';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'Klinikte seçeceğim';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'Bu sorular artık sorulmuyor, bu yüzden yanıtları kaldırıldı: $items. Yanıtlarınızı kontrol edip yeniden gönderin.';
+  }
 }

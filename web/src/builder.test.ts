@@ -10,6 +10,7 @@ import {
   insert,
   move,
   newItem,
+  operatorsFor,
   placement,
   problems,
   remove,
@@ -160,8 +161,8 @@ describe('placement', () => {
 describe('remove', () => {
   function withConditions(): Item[] {
     const items = sample()
-    const res = update(items, 'b', { condition: { question: 'a', answer: true } })
-    return update(res, 'x', { condition: { question: 'a', answer: false } })
+    const res = update(items, 'b', { enableWhen: [{ question: 'a', operator: '=' as const, answer: true }] })
+    return update(res, 'x', { enableWhen: [{ question: 'a', operator: '=' as const, answer: false }] })
   }
 
   it('counts the items whose condition depends on the item', () => {
@@ -172,25 +173,25 @@ describe('remove', () => {
   it('removes a condition whose question is deleted', () => {
     const items = remove(withConditions(), 'a')
     expect(shape(items)).toBe('s[x y] b')
-    expect(items[1].condition).toBeUndefined()
-    expect(items[0].items[0].condition).toBeUndefined()
+    expect(items[1].enableWhen).toBeUndefined()
+    expect(items[0].items[0].enableWhen).toBeUndefined()
   })
 
   it('removes a section with its items, and the conditions on them', () => {
-    const items = update(sample(), 'b', { condition: { question: 'y', answer: 'P' } })
+    const items = update(sample(), 'b', { enableWhen: [{ question: 'y', operator: '=' as const, answer: 'P' }] })
     expect(dependents(items, 's')).toBe(1)
     const left = remove(items, 's')
     expect(shape(left)).toBe('a b')
-    expect(left[1].condition).toBeUndefined()
+    expect(left[1].enableWhen).toBeUndefined()
   })
 })
 
 describe('changeKind', () => {
   it('gives the item a new linkId, and points its dependents at it', () => {
-    const items = update(sample(), 'b', { condition: { question: 'y', answer: 'P' } })
+    const items = update(sample(), 'b', { enableWhen: [{ question: 'y', operator: '=' as const, answer: 'P' }] })
     const changed = changeKind(items, 'y', 'multiple', 'y2')
     expect(changed[1].items[1]).toMatchObject({ linkId: 'y2', kind: 'multiple', options: ['P', 'Q'] })
-    expect(changed[2].condition).toEqual({ question: 'y2', answer: 'P' })
+    expect(changed[2].enableWhen).toEqual([{ question: 'y2', operator: '=' as const, answer: 'P' }])
   })
 
   it('clears what the new type cannot have', () => {
@@ -212,11 +213,12 @@ describe('changeKind', () => {
 })
 
 describe('newItem: a file upload', () => {
-  it('accepts photos and documents, one file, and is a question no condition may depend on', () => {
+  it('accepts photos and documents, one file, and is a question a condition may ask is answered (SAL-43)', () => {
     const upload = { ...newItem('attachment', 'f'), text: 'Placeholder upload' }
     expect(upload).toMatchObject({ kind: 'attachment', accept: ['photo', 'document'], maxFiles: 1 })
     expect(newItem('string', 's').accept).toBeUndefined()
-    expect(earlierQuestions([upload, newItem('string', 'n')], 'n')).toEqual([])
+    expect(earlierQuestions([upload, newItem('string', 'n')], 'n')).toEqual([upload])
+    expect(operatorsFor('attachment')).toEqual(['exists'])
   })
 })
 
@@ -225,8 +227,8 @@ describe('count and earlierQuestions', () => {
     expect(count(sample())).toBe(5)
   })
 
-  it('offers the yes or no and choice questions above an item', () => {
-    expect(earlierQuestions(sample(), 'b').map((i) => i.linkId)).toEqual(['a', 'y'])
+  it('offers every question above an item (SAL-43)', () => {
+    expect(earlierQuestions(sample(), 'b').map((i) => i.linkId)).toEqual(['a', 'x', 'y'])
     expect(earlierQuestions(sample(), 'x').map((i) => i.linkId)).toEqual(['a'])
     expect(earlierQuestions(sample(), 'a')).toEqual([])
   })
@@ -244,11 +246,13 @@ describe('problems', () => {
     ['one option', (i: Item[]) => update(i, 'y', { options: ['P'] }), 'y', 'questionnaire.fewOptions'],
     ['51 options', (i: Item[]) => update(i, 'y', { options: Array.from({ length: 51 }, (_, n) => `O${n}`) }), 'y', 'questionnaire.manyOptions'],
     ['the same option twice', (i: Item[]) => update(i, 'y', { options: ['P', 'P'] }), 'y', 'questionnaire.sameOptions'],
-    ['a condition on a later question', (i: Item[]) => update(i, 'a', { condition: { question: 'y', answer: 'P' } }), 'a', 'questionnaire.conditionOrder'],
-    ['a condition on a missing question', (i: Item[]) => update(i, 'b', { condition: { question: 'gone', answer: true } }), 'b', 'questionnaire.conditionOrder'],
-    ['a condition on a short answer', (i: Item[]) => update(i, 'b', { condition: { question: 'x', answer: 'P' } }), 'b', 'questionnaire.conditionOrder'],
-    ['an answer that is not an option', (i: Item[]) => update(i, 'b', { condition: { question: 'y', answer: 'R' } }), 'b', 'questionnaire.conditionAnswer'],
-    ['a text answer to a yes or no', (i: Item[]) => update(i, 'b', { condition: { question: 'a', answer: 'P' } }), 'b', 'questionnaire.conditionAnswer'],
+    ['a condition on a later question', (i: Item[]) => update(i, 'a', { enableWhen: [{ question: 'y', operator: '=' as const, answer: 'P' }] }), 'a', 'questionnaire.conditionOrder'],
+    ['a condition on a missing question', (i: Item[]) => update(i, 'b', { enableWhen: [{ question: 'gone', operator: '=' as const, answer: true }] }), 'b', 'questionnaire.conditionOrder'],
+    ['is on a short answer', (i: Item[]) => update(i, 'b', { enableWhen: [{ question: 'x', operator: '=' as const, answer: 'P' }] }), 'b', 'questionnaire.conditionOperator'],
+    ['a number compared with text', (i: Item[]) => [...i, { ...newItem('integer', 'n'), text: 'N' }, { ...newItem('string', 'm'), text: 'M', enableWhen: [{ question: 'n', operator: '<' as const, answer: 'P' }] }], 'm', 'questionnaire.conditionAnswer'],
+    ['one bad condition of two', (i: Item[]) => update(i, 'b', { enableWhen: [{ question: 'a', operator: '=' as const, answer: true }, { question: 'gone', operator: 'exists' as const, answer: true }], enableBehavior: 'any' as const }), 'b', 'questionnaire.conditionOrder'],
+    ['an answer that is not an option', (i: Item[]) => update(i, 'b', { enableWhen: [{ question: 'y', operator: '=' as const, answer: 'R' }] }), 'b', 'questionnaire.conditionAnswer'],
+    ['a text answer to a yes or no', (i: Item[]) => update(i, 'b', { enableWhen: [{ question: 'a', operator: '=' as const, answer: 'P' }] }), 'b', 'questionnaire.conditionAnswer'],
   ])('names %s on its item by its message id', (_, change, id, message) => {
     expect(problems(change(sample())).get(id)).toEqual([message])
   })
@@ -266,7 +270,7 @@ describe('problems', () => {
   })
 
   it('finds a condition moved above its question', () => {
-    const items = update(sample(), 'b', { condition: { question: 'y', answer: 'P' } })
+    const items = update(sample(), 'b', { enableWhen: [{ question: 'y', operator: '=' as const, answer: 'P' }] })
     const res = move(items, 'b', 'a')
     expect(res.ok && problems(res.items).get('b')).toEqual(['questionnaire.conditionOrder'])
   })

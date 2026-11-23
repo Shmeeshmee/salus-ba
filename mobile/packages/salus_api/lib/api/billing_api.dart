@@ -415,6 +415,84 @@ class BillingApi {
     return null;
   }
 
+  /// The online practice report, per practitioner and visit mode
+  ///
+  /// Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [DateTime] from (required):
+  ///
+  /// * [DateTime] to (required):
+  Future<Response> getPracticeReportWithHttpInfo(
+    DateTime from,
+    DateTime to, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/reports/practice';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    queryParams.addAll(_queryParams('', 'from', from));
+    queryParams.addAll(_queryParams('', 'to', to));
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// The online practice report, per practitioner and visit mode
+  ///
+  /// Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [DateTime] from (required):
+  ///
+  /// * [DateTime] to (required):
+  Future<PracticeReport?> getPracticeReport(
+    DateTime from,
+    DateTime to, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getPracticeReportWithHttpInfo(
+      from,
+      to,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PracticeReport',
+      ) as PracticeReport;
+    }
+    return null;
+  }
+
   /// The clinic's receipts summed for a day or a period, for its accountant
   ///
   /// Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.
@@ -503,9 +581,78 @@ class BillingApi {
     return null;
   }
 
+  /// A membership invoice as a PDF
+  ///
+  /// Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getSubscriptionInvoicePdfWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path =
+        r'/clinic/subscription/invoices/{id}/pdf'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// A membership invoice as a PDF
+  ///
+  /// Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<String?> getSubscriptionInvoicePdf(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getSubscriptionInvoicePdfWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
+    }
+    return null;
+  }
+
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
+  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -515,9 +662,13 @@ class BillingApi {
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [String] idempotencyKey:
+  ///   A UUID the client makes once per receipt it means to issue. Unique per clinic.
   Future<Response> issueReceiptWithHttpInfo(
     IssueReceiptRequest issueReceiptRequest, {
     String? xSalusCSRF,
+    String? idempotencyKey,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -532,6 +683,9 @@ class BillingApi {
 
     if (xSalusCSRF != null) {
       headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+    if (idempotencyKey != null) {
+      headerParams[r'Idempotency-Key'] = parameterToString(idempotencyKey);
     }
 
     const contentTypes = <String>['application/json'];
@@ -550,7 +704,7 @@ class BillingApi {
 
   /// Issue a receipt for a visit or on its own
   ///
-  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
+  /// By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
   ///
   /// Parameters:
   ///
@@ -558,14 +712,19 @@ class BillingApi {
   ///
   /// * [String] xSalusCSRF:
   ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  ///
+  /// * [String] idempotencyKey:
+  ///   A UUID the client makes once per receipt it means to issue. Unique per clinic.
   Future<Receipt?> issueReceipt(
     IssueReceiptRequest issueReceiptRequest, {
     String? xSalusCSRF,
+    String? idempotencyKey,
     Future<void>? abortTrigger,
   }) async {
     final response = await issueReceiptWithHttpInfo(
       issueReceiptRequest,
       xSalusCSRF: xSalusCSRF,
+      idempotencyKey: idempotencyKey,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {
@@ -925,6 +1084,87 @@ class BillingApi {
               responseBody, 'List<SubscriptionInvoice>') as List)
           .cast<SubscriptionInvoice>()
           .toList(growable: false);
+    }
+    return null;
+  }
+
+  /// Report a receipt whose fiscal report failed once more
+  ///
+  /// Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> retryReceiptReportWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/receipts/{id}/retry'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Report a receipt whose fiscal report failed once more
+  ///
+  /// Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Receipt?> retryReceiptReport(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await retryReceiptReportWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'Receipt',
+      ) as Receipt;
     }
     return null;
   }

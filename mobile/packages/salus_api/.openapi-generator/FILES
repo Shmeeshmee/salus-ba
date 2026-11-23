@@ -171,12 +171,14 @@ lib/model/platform_heatmap_cells_inner.dart
 lib/model/platform_months.dart
 lib/model/platform_rises.dart
 lib/model/platform_rises_rises_inner.dart
+lib/model/practice_report.dart
+lib/model/practice_report_rows_inner.dart
 lib/model/push_device.dart
 lib/model/questionnaire.dart
 lib/model/questionnaire_default.dart
 lib/model/questionnaire_item.dart
 lib/model/questionnaire_item_answer_option_inner.dart
-lib/model/questionnaire_item_enable_when.dart
+lib/model/questionnaire_item_enable_when_inner.dart
 lib/model/questionnaire_item_translation.dart
 lib/model/questionnaire_response.dart
 lib/model/questionnaire_translation.dart

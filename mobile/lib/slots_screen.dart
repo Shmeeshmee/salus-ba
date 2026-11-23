@@ -11,7 +11,7 @@ import 'loading.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
 import 'questionnaire_language.dart' show appLanguage;
-import 'service_price.dart';
+import 'service_picker.dart';
 import 'session.dart';
 import 'sharing.dart';
 import 'ui.dart' as ui;
@@ -204,6 +204,9 @@ class _BookScreenState extends State<BookScreen> {
   List<api.OfferedService> _prices = const [];
   String? _pricesLanguage;
 
+  /// The service picked from [_prices] for the booking to name (clinic-cms E); null leaves it to the clinic.
+  String? _service;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -294,7 +297,7 @@ class _BookScreenState extends State<BookScreen> {
   Future<bool> _bookWithSteps() async {
     while (true) {
       try {
-        await widget.booking.book(widget.slot.id);
+        await widget.booking.book(widget.slot.id, serviceId: _service);
         return true;
       } on ApiFailure catch (failure) {
         final step = switch (failure.code) {
@@ -365,7 +368,11 @@ class _BookScreenState extends State<BookScreen> {
         Text(widget.role.name),
         if (specialty != null) Text(specialty),
         Text(widget.clinic.name),
-        ServicePrices(services: _prices),
+        ServicePicker(
+          services: _prices,
+          selected: _service,
+          onChanged: _busy ? null : (id) => setState(() => _service = id),
+        ),
         SwitchListTile(value: _share, onChanged: _busy ? null : _toggleSharing, title: Text(t.sharingToggle)),
         if (_share && _choice != null)
           SharingPicker(

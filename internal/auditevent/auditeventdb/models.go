@@ -275,6 +275,7 @@ type Appointment struct {
 	RescheduleCount      int16
 	BookedVia            string
 	VisitMode            string
+	ServiceID            pgtype.UUID
 }
 
 type AppointmentActionToken struct {
@@ -681,6 +682,7 @@ type Invoice struct {
 	FiscalCode        pgtype.Text
 	FiscalQr          pgtype.Text
 	FiscalizedAt      pgtype.Timestamptz
+	IdempotencyKey    pgtype.UUID
 }
 
 type InvoiceLine struct {
@@ -693,6 +695,7 @@ type InvoiceLine struct {
 	DiscountMinor          int64
 	VatRateBp              pgtype.Int4
 	TotalMinor             int64
+	Position               int32
 }
 
 type InvoiceSequence struct {

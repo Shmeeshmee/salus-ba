@@ -486,6 +486,10 @@ class ApiClient {
           return PlatformRises.fromJson(value);
         case 'PlatformRisesRisesInner':
           return PlatformRisesRisesInner.fromJson(value);
+        case 'PracticeReport':
+          return PracticeReport.fromJson(value);
+        case 'PracticeReportRowsInner':
+          return PracticeReportRowsInner.fromJson(value);
         case 'PushDevice':
           return PushDevice.fromJson(value);
         case 'Questionnaire':
@@ -496,8 +500,8 @@ class ApiClient {
           return QuestionnaireItem.fromJson(value);
         case 'QuestionnaireItemAnswerOptionInner':
           return QuestionnaireItemAnswerOptionInner.fromJson(value);
-        case 'QuestionnaireItemEnableWhen':
-          return QuestionnaireItemEnableWhen.fromJson(value);
+        case 'QuestionnaireItemEnableWhenInner':
+          return QuestionnaireItemEnableWhenInner.fromJson(value);
         case 'QuestionnaireItemTranslation':
           return QuestionnaireItemTranslation.fromJson(value);
         case 'QuestionnaireResponse':

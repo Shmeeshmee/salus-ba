@@ -108,13 +108,16 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**getClinicReceiptPdf**](doc//BillingApi.md#getclinicreceiptpdf) | **GET** /clinic/receipts/{id}/pdf | A receipt as a PDF on the clinic's letterhead
 *BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
 *BillingApi* | [**getMyReceiptPdf**](doc//BillingApi.md#getmyreceiptpdf) | **GET** /me/receipts/{id}/pdf | The patient's own receipt as a PDF
+*BillingApi* | [**getPracticeReport**](doc//BillingApi.md#getpracticereport) | **GET** /clinic/reports/practice | The online practice report, per practitioner and visit mode
 *BillingApi* | [**getReceiptsReport**](doc//BillingApi.md#getreceiptsreport) | **GET** /clinic/reports/receipts | The clinic's receipts summed for a day or a period, for its accountant
+*BillingApi* | [**getSubscriptionInvoicePdf**](doc//BillingApi.md#getsubscriptioninvoicepdf) | **GET** /clinic/subscription/invoices/{id}/pdf | A membership invoice as a PDF
 *BillingApi* | [**issueReceipt**](doc//BillingApi.md#issuereceipt) | **POST** /clinic/receipts | Issue a receipt for a visit or on its own
 *BillingApi* | [**listClinicReceipts**](doc//BillingApi.md#listclinicreceipts) | **GET** /clinic/receipts | The clinic's receipts issued in a period
 *BillingApi* | [**listClinicServices**](doc//BillingApi.md#listclinicservices) | **GET** /clinic/services | The clinic's price list
 *BillingApi* | [**listMyReceipts**](doc//BillingApi.md#listmyreceipts) | **GET** /me/receipts | The patient's own receipts, from every clinic
 *BillingApi* | [**listOfferedServices**](doc//BillingApi.md#listofferedservices) | **GET** /organizations/{id}/services | The services a listed clinic offers, with their prices, for booking
 *BillingApi* | [**listSubscriptionInvoices**](doc//BillingApi.md#listsubscriptioninvoices) | **GET** /clinic/subscription/invoices | Salus's monthly invoices to the clinic
+*BillingApi* | [**retryReceiptReport**](doc//BillingApi.md#retryreceiptreport) | **POST** /clinic/receipts/{id}/retry | Report a receipt whose fiscal report failed once more
 *BillingApi* | [**reverseReceipt**](doc//BillingApi.md#reversereceipt) | **POST** /clinic/receipts/{id}/reverse | Reverse an issued receipt
 *BillingApi* | [**setBillingDetails**](doc//BillingApi.md#setbillingdetails) | **PUT** /clinic/billing-details | Replace the clinic's billing details
 *BillingApi* | [**updateClinicService**](doc//BillingApi.md#updateclinicservice) | **PUT** /clinic/services/{id} | Change a service of the clinic's price list
@@ -377,12 +380,14 @@ Class | Method | HTTP request | Description
  - [PlatformMonths](doc//PlatformMonths.md)
  - [PlatformRises](doc//PlatformRises.md)
  - [PlatformRisesRisesInner](doc//PlatformRisesRisesInner.md)
+ - [PracticeReport](doc//PracticeReport.md)
+ - [PracticeReportRowsInner](doc//PracticeReportRowsInner.md)
  - [PushDevice](doc//PushDevice.md)
  - [Questionnaire](doc//Questionnaire.md)
  - [QuestionnaireDefault](doc//QuestionnaireDefault.md)
  - [QuestionnaireItem](doc//QuestionnaireItem.md)
  - [QuestionnaireItemAnswerOptionInner](doc//QuestionnaireItemAnswerOptionInner.md)
- - [QuestionnaireItemEnableWhen](doc//QuestionnaireItemEnableWhen.md)
+ - [QuestionnaireItemEnableWhenInner](doc//QuestionnaireItemEnableWhenInner.md)
  - [QuestionnaireItemTranslation](doc//QuestionnaireItemTranslation.md)
  - [QuestionnaireResponse](doc//QuestionnaireResponse.md)
  - [QuestionnaireTranslation](doc//QuestionnaireTranslation.md)

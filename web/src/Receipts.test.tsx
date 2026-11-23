@@ -102,6 +102,36 @@ describe('Receipts', () => {
     expect(within(rows[0]).queryByRole('button', { name: 'Reverse' })).toBeNull()
   })
 
+  it('reports a receipt whose fiscal report failed again, once', async () => {
+    let retried = 0
+    const fake = renderReceipts({
+      'GET /clinic/receipts': () => Response.json([{ ...receipts[1], fiscalStatus: 'failed' }, { ...receipts[0], id: second }]),
+      [`POST /clinic/receipts/${first}/retry`]: () => {
+        retried++
+        return retried === 1 ? Response.json({ ...receipts[1], fiscalStatus: 'failed' }, { status: 202 }) : apiError(409, 'fiscal_report_not_failed')
+      },
+    })
+    const rows = within(await screen.findByRole('list', { name: 'Receipts' })).getAllByRole('listitem')
+    expect(within(rows[1]).queryByRole('button', { name: 'Report again' })).toBeNull() // a pending one is still being reported
+    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Report again' }))
+    expect(await screen.findByText('Receipt no. 1 is being reported again.')).toBeTruthy()
+    await waitFor(() => expect(fake.requests.filter((r) => r.method === 'GET' && new URL(r.url).pathname === '/clinic/receipts')).toHaveLength(2))
+    // Still failed until its report runs, but not offered again: one click queues one report.
+    expect(within((await screen.findAllByRole('listitem'))[0]).queryByRole('button', { name: 'Report again' })).toBeNull()
+    expect(retried).toBe(1)
+    expectCsrfOnWrites(fake.requests)
+  })
+
+  it('says when a failed receipt can no longer be reported again', async () => {
+    renderReceipts({
+      'GET /clinic/receipts': () => Response.json([{ ...receipts[1], fiscalStatus: 'failed' }]),
+      [`POST /clinic/receipts/${first}/retry`]: () => apiError(409, 'fiscal_report_not_failed'),
+    })
+    const rows = within(await screen.findByRole('list', { name: 'Receipts' })).getAllByRole('listitem')
+    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Report again' }))
+    expect(await screen.findByText('This receipt is no longer waiting for a new report. Reload the page to see where it stands.')).toBeTruthy()
+  })
+
   it('says so when the receipt was reversed already, and offers no reversal of a reversal', async () => {
     renderReceipts({
       'GET /clinic/receipts': () => Response.json([{ ...receipts[0], reversesId: first }, receipts[1]]),
@@ -146,6 +176,54 @@ describe('Receipts', () => {
     expect(await screen.findByText('Receipt no. 3 was issued.')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
     expectCsrfOnWrites(fake.requests)
+  })
+
+  it('sends one idempotency key for every attempt of one receipt, so a retry issues it once', async () => {
+    const keys: (string | null)[] = []
+    renderReceipts({
+      'POST /clinic/receipts': (r) => {
+        keys.push(r.headers.get('Idempotency-Key'))
+        return keys.length === 1 ? new Response('', { status: 502 }) : Response.json({ ...receipts[1], number: 3 }, { status: 201 })
+      },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'New receipt' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+    fireEvent.change(await dialog.findByLabelText('Service'), { target: { value: exam } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+    await waitFor(() => expect(keys).toHaveLength(1))
+    await waitFor(() => expect(dialog.getByRole('button', { name: 'Issue receipt' })).toHaveProperty('disabled', false))
+    fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+    expect(await screen.findByText('Receipt no. 3 was issued.')).toBeTruthy()
+    expect(keys[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    expect(keys[1]).toBe(keys[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'New receipt' }))
+    const next = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+    fireEvent.change(await next.findByLabelText('Service'), { target: { value: exam } })
+    fireEvent.click(next.getByRole('button', { name: 'Issue receipt' }))
+    await waitFor(() => expect(keys).toHaveLength(3))
+    expect(keys[2]).not.toBe(keys[0]) // another receipt, another key
+  })
+
+  it('sends a new idempotency key once the receipt is changed after a failed attempt, so the change is issued', async () => {
+    const sent: { key: string | null; quantity: number }[] = []
+    renderReceipts({
+      'POST /clinic/receipts': async (r) => {
+        const body = (await r.json()) as { lines: { quantity: number }[] }
+        sent.push({ key: r.headers.get('Idempotency-Key'), quantity: body.lines[0].quantity })
+        return sent.length === 1 ? new Response('', { status: 502 }) : Response.json({ ...receipts[1], number: 3 }, { status: 201 })
+      },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'New receipt' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+    fireEvent.change(await dialog.findByLabelText('Service'), { target: { value: exam } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+    await waitFor(() => expect(sent).toHaveLength(1))
+    await waitFor(() => expect(dialog.getByRole('button', { name: 'Issue receipt' })).toHaveProperty('disabled', false))
+    fireEvent.change(dialog.getByLabelText('Quantity'), { target: { value: '2' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+    expect(await screen.findByText('Receipt no. 3 was issued.')).toBeTruthy()
+    expect(sent.map((x) => x.quantity)).toEqual([1, 2])
+    expect(sent[1].key).not.toBe(sent[0].key)
   })
 
   it('sends nothing while a line is incomplete, and explains missing billing details', async () => {

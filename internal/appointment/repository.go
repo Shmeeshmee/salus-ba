@@ -27,6 +27,8 @@ type Repository interface {
 	ByIDForShare(ctx context.Context, id string) (Appointment, error)
 	// Search returns the appointments the filter and the scope give, by start.
 	Search(ctx context.Context, f Filter) ([]Appointment, error)
+	// Visits gives the clinic org's appointments starting in [from, to), by start, in the clinic's scope.
+	Visits(ctx context.Context, org string, from, to time.Time) ([]Visit, error)
 	// Cancel cancels the booked appointment id at at for reason, by the account by (empty for a job), and
 	// returns it at its next version; ErrClosed when it is not booked.
 	Cancel(ctx context.Context, id string, reason Reason, by string, at time.Time) (Appointment, error)

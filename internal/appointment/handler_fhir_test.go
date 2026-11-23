@@ -255,3 +255,14 @@ func TestHandlerRead_ThePatientParticipantFollowsTheConfirmation(t *testing.T) {
 		}
 	}
 }
+
+// A booking that named a service carries it as a reference to the price list's ChargeItemDefinition (clinic-cms E).
+func TestHandlerRead_SendsTheServiceTheBookingNamed(t *testing.T) {
+	withService := fullA
+	withService.Appointment.ServiceID = serviceVideo
+	rec := getAppt(t, &stubReader{out: []appointment.Seen{withService}}, as(pract), &bytes.Buffer{}, "/fhir/R4/Appointment/"+apptA)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "appointment_service.json", rec.Body.Bytes())
+}

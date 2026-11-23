@@ -80,16 +80,18 @@ type Resource struct {
 
 // fhirItem is a Questionnaire.item. Help text is a child display item with the help item control.
 type fhirItem struct {
-	Extension    []extension  `json:"extension,omitempty"`
-	LinkID       string       `json:"linkId"`
-	Text         string       `json:"text"`
-	TextExt      *element     `json:"_text,omitempty"`
-	Type         string       `json:"type"`
-	EnableWhen   []enableWhen `json:"enableWhen,omitempty"`
-	AnswerOption []fhirOption `json:"answerOption,omitempty"`
-	Item         []fhirItem   `json:"item,omitempty"`
-	Required     bool         `json:"required,omitempty"`
-	Repeats      bool         `json:"repeats,omitempty"`
+	Extension []extension `json:"extension,omitempty"`
+	LinkID    string      `json:"linkId"`
+	Text      string      `json:"text"`
+	TextExt   *element    `json:"_text,omitempty"`
+	Type      string      `json:"type"`
+	// EnableWhen is the model's own: it is FHIR R4's enableWhen.
+	EnableWhen     Conditions   `json:"enableWhen,omitempty"`
+	EnableBehavior Behavior     `json:"enableBehavior,omitempty"`
+	AnswerOption   []fhirOption `json:"answerOption,omitempty"`
+	Item           []fhirItem   `json:"item,omitempty"`
+	Required       bool         `json:"required,omitempty"`
+	Repeats        bool         `json:"repeats,omitempty"`
 }
 
 // fhirOption is a Questionnaire.item.answerOption with its translations.
@@ -113,13 +115,6 @@ type translationPart struct {
 	URL         string `json:"url"`
 	ValueCode   string `json:"valueCode,omitempty"`
 	ValueString string `json:"valueString,omitempty"`
-}
-
-type enableWhen struct {
-	AnswerBoolean *bool  `json:"answerBoolean,omitempty"`
-	Question      string `json:"question"`
-	Operator      string `json:"operator"`
-	AnswerString  string `json:"answerString,omitempty"`
 }
 
 // extension is an item's extension: the help item control, an accepted content type or the number of files.
@@ -188,14 +183,11 @@ func toFHIRItems(items []Item, ts []Translation) []fhirItem {
 	for _, it := range items {
 		f := fhirItem{
 			LinkID: it.LinkID, Text: it.Text, Type: string(it.Type), AnswerOption: answerOptions(it, ts), Item: toFHIRItems(it.Items, ts),
-			Required: it.Required, Repeats: it.Repeats,
+			Required: it.Required, Repeats: it.Repeats, EnableWhen: it.EnableWhen, EnableBehavior: it.EnableBehavior,
 			TextExt: translations(ts, func(t Translation) string { return t.Items[it.LinkID].Text }),
 		}
 		if it.Type == ItemAttachment {
 			f.Extension, f.Repeats = attachmentExtensions(it), it.MaxFiles > 1
-		}
-		if c := it.EnableWhen; c != nil {
-			f.EnableWhen = []enableWhen{{Question: c.Question, Operator: "=", AnswerBoolean: c.Boolean, AnswerString: c.String}}
 		}
 		if it.Help != "" {
 			// "." is never in a linkId of ours, so the help item's cannot clash with another.

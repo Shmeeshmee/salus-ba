@@ -1,0 +1,50 @@
+{
+  "name": "Integer and decimal: =, !=, >, >=, <, <=, exists",
+  "questionnaire": {
+    "resourceType": "Questionnaire",
+    "item": [
+      {"linkId": "age", "text": "Placeholder integer", "type": "integer"},
+      {"linkId": "age-eq", "text": "Placeholder: = 18", "type": "display",
+        "enableWhen": [{"question": "age", "operator": "=", "answerInteger": 18}]},
+      {"linkId": "age-ne", "text": "Placeholder: != 18", "type": "display",
+        "enableWhen": [{"question": "age", "operator": "!=", "answerInteger": 18}]},
+      {"linkId": "age-gt", "text": "Placeholder: > 18", "type": "display",
+        "enableWhen": [{"question": "age", "operator": ">", "answerInteger": 18}]},
+      {"linkId": "age-ge", "text": "Placeholder: >= 18", "type": "display",
+        "enableWhen": [{"question": "age", "operator": ">=", "answerInteger": 18}]},
+      {"linkId": "age-lt", "text": "Placeholder: < 18", "type": "display",
+        "enableWhen": [{"question": "age", "operator": "<", "answerInteger": 18}]},
+      {"linkId": "age-le", "text": "Placeholder: <= 18", "type": "display",
+        "enableWhen": [{"question": "age", "operator": "<=", "answerInteger": 18}]},
+      {"linkId": "temp", "text": "Placeholder decimal", "type": "decimal"},
+      {"linkId": "temp-eq", "text": "Placeholder: = 37.5", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": "=", "answerDecimal": 37.5}]},
+      {"linkId": "temp-ne", "text": "Placeholder: != 37.5", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": "!=", "answerDecimal": 37.5}]},
+      {"linkId": "temp-gt", "text": "Placeholder: > 37.5", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": ">", "answerDecimal": 37.5}]},
+      {"linkId": "temp-ge", "text": "Placeholder: >= 37.5", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": ">=", "answerDecimal": 37.5}]},
+      {"linkId": "temp-lt", "text": "Placeholder: < 37.5", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": "<", "answerDecimal": 37.5}]},
+      {"linkId": "temp-le", "text": "Placeholder: <= 37.5", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": "<=", "answerDecimal": 37.5}]},
+      {"linkId": "temp-answered", "text": "Placeholder: answered", "type": "display",
+        "enableWhen": [{"question": "temp", "operator": "exists", "answerBoolean": true}]}
+    ]
+  },
+  "cases": [
+    {"name": "nothing answered: every comparison is false", "answers": {},
+      "enabled": ["age", "temp"]},
+    {"name": "17 and 36.9", "answers": {"age": [{"valueInteger": 17}], "temp": [{"valueDecimal": 36.9}]},
+      "enabled": ["age", "age-ne", "age-lt", "age-le", "temp", "temp-ne", "temp-lt", "temp-le", "temp-answered"]},
+    {"name": "18 and 37.5", "answers": {"age": [{"valueInteger": 18}], "temp": [{"valueDecimal": 37.5}]},
+      "enabled": ["age", "age-eq", "age-ge", "age-le", "temp", "temp-eq", "temp-ge", "temp-le", "temp-answered"]},
+    {"name": "37.50 equals 37.5", "answers": {"temp": [{"valueDecimal": 37.50}]},
+      "enabled": ["age", "temp", "temp-eq", "temp-ge", "temp-le", "temp-answered"]},
+    {"name": "19 and 40", "answers": {"age": [{"valueInteger": 19}], "temp": [{"valueDecimal": 40}]},
+      "enabled": ["age", "age-ne", "age-gt", "age-ge", "temp", "temp-ne", "temp-gt", "temp-ge", "temp-answered"]},
+    {"name": "negative numbers", "answers": {"age": [{"valueInteger": -1}], "temp": [{"valueDecimal": -0.5}]},
+      "enabled": ["age", "age-ne", "age-lt", "age-le", "temp", "temp-ne", "temp-lt", "temp-le", "temp-answered"]}
+  ]
+}

@@ -9,13 +9,13 @@ writes under its own heading here.
 | B | done 2026-11-21, integrated 2026-11-22 | `cms(B)`, merged into `feat/cms` with `cms(wave 1)` |
 | C | done 2026-11-21, integrated 2026-11-22 | `cms(C)`, merged into `feat/cms` with `cms(wave 1)` |
 | D | done 2026-11-21, integrated 2026-11-22 | `cms(D)`, merged into `feat/cms` with `cms(wave 1)` |
-| E | wave 2, not started (after wave 1 is on main) | |
-| H | wave 2, not started (after wave 1 is on main) | |
-| I | wave 2, not started (after wave 1 is on main) | |
-| L | wave 2, not started | |
-| Q1 | wave 2, not started | |
-| Q2 | wave 2, not started | |
-| Q3 | wave 2, not started | |
+| E | done 2026-11-23, integrated 2026-11-23 | `cms(E)`, merged into `feat/cms` with `cms(wave 2)` |
+| H | done 2026-11-23, integrated 2026-11-23 | `cms(H)`, merged into `feat/cms` with `cms(wave 2)` |
+| I | done 2026-11-23, integrated 2026-11-23 | `cms(I)`, merged into `feat/cms` with `cms(wave 2)` |
+| L | done 2026-11-23, integrated 2026-11-23 | `cms(L)`, merged into `feat/cms` with `cms(wave 2)` |
+| Q1 | done 2026-11-23, integrated 2026-11-23 | `cms(Q1)`, merged into `feat/cms` with `cms(wave 2)` |
+| Q2 | done 2026-11-23, integrated 2026-11-23 | `cms(Q2)`, merged into `feat/cms` with `cms(wave 2)` |
+| Q3 | done 2026-11-23, integrated 2026-11-23 | `cms(Q3)`, merged into `feat/cms` with `cms(wave 2)` |
 | F | hold (Q1) | |
 | G | hold (Q6) | |
 
@@ -353,21 +353,477 @@ Applied as the agent's defaults on 2026-11-22, owner to confirm (`IMPLEMENTATION
 | Membership invoice numbers | Gapless |
 | Currency | BAM only |
 | A company's invoice in Croatian | Headed "Račun" |
-| The accountant's CSV | Readable headers in the clinic's language, amounts as decimals |
+| The accountant's CSV | Readable headers in the clinic's language, amounts as decimals; semicolons and decimal commas, as Excel reads a file with Bosnian settings (owner's default, wave 2 integration) |
 
 ## E: service on a booking and the online practice report
 
+Status: built, 2026-11-23, on `wt/cms/E`, one commit `cms(E)`. Migration `00062_appointment_service.sql`. No pull
+request: the wave's integration opens it.
+
+Built:
+
+- A booking may name a service: `appointment.service_id` (nullable; held to the appointment's own clinic by a composite
+  foreign key to `charge_item_definition (id, organization_id)`, which gains that unique key; no `UPDATE` grant, so a
+  reschedule keeps it), `serviceId` on `POST /appointments` and on the JSON `Appointment`. `appointment.Service.Book`
+  takes the service id and asks `chargeitemdefinition.Service.Offered` (the new `Services` port, the api's only) in the
+  directory before the booking's transaction, as the slot is: a service the clinic does not offer, active, in the
+  slot's mode is `400 invalid_service`, audited. Nothing is charged.
+- The clinic sees it: the FHIR Appointment carries the extension
+  `https://salus.invalid/fhir/StructureDefinition/appointment-service` (a reference to `ChargeItemDefinition/<id>`,
+  `api/fhir/StructureDefinition-appointment-service.json`, golden `appointment_service.json`); left out at the name
+  level. Web `AppointmentDetail.tsx` names the service ("Service: …", from the clinic's price list) and passes it to
+  C's `ReceiptDialog.tsx`, whose first line starts with it (`serviceId` prop, the only change there).
+- The online practice report, `GET /clinic/reports/practice?from=&to=` (RFC 3339, half-open, as the receipts report):
+  `clinicstats.Service.Practice` (`service_practice.go`, `handler_practice.go`), per practitioner role and visit mode:
+  minutes offered by the role's availability rules, visits held (fulfilled appointments starting in the period), and
+  the receipted amount of those visits. Sources through their services: `organization` (the zone),
+  `schedule.Service.OfClinic` (new, the clinic's schedules in its scope), `appointment.Service.Visits` (new, opaque ids,
+  modes, statuses), `invoice.Service.List` (C's, admin only, audited by invoice). Admin only; the read is audited with
+  the clinic as the entity, a refusal too. Wired in `internal/api/practice.go`.
+- Web `OnlinePractice.tsx` at `/receipts/practice` (admin), linked from the receipts report; `practice.*` strings in the
+  `receipts` catalog, `calendar.bookedService`, in the five staff languages.
+- Mobile `service_picker.dart`: the booking screen's prices became a choice, "I will choose at the clinic" first and
+  the default, then each service with its price; `Booking.book` sends the pick. B's `ServicePrices` widget, now
+  unused, is deleted (`priceText` stays). One string, `serviceAtClinic`, in the ten languages.
+- `docs/privacy/dpia.md`: "Package E". Ownership unchanged (a column on `appointment`); its retention is the row's.
+
+Decisions and readings:
+
+- "Hours offered" are the availability rules as they are now projected over the period (rule history is not kept):
+  a past period shows today's rules, not the ones then. Slots are not used: free slots are deleted once they end.
+- "Visits held" are fulfilled appointments; the receipted amount counts only receipts of those visits, issued from
+  the period's start until now; a reversed receipt and its reversal are both left out. A no-show's receipt is not
+  counted.
+- The report is the admin's only: it is revenue per practitioner. A practitioner gets 403, audited.
+- The service on the FHIR Appointment is an extension with a Reference, not `serviceType`: R4's `serviceType` is a
+  CodeableConcept and a clinic's own services have no code system (CLAUDE.md "no free-text codes").
+  `ChargeItemDefinition` is not served over FHIR; the reference is logical.
+- A service made inactive later stays on the appointments that named it; the receipt dialog then starts with an empty
+  pick (its list holds active services only).
+- `Book(ctx, c, slotID, serviceID)`: every caller passes `""` but the handler.
+- The report's sources are read outside its audited transaction except the visits (schedules and the clinic hold no
+  personal data; the receipts' read is audited by invoice in its own transaction).
+
+Departures from the file table: `internal/schedule/service.go` gains `OfClinic` (no new query: the existing `Listed`
+in the clinic's scope); `web/src/api/fhir.ts` `Extension` gains `valueReference`; `web/src/ClinicReports.tsx` gains the
+link; `mobile/lib/booking.dart` and `service_price.dart` (above); `web/src/appointmentService.ts` is new.
+
+Copy waiting for the owner: web `calendar.bookedService` ("Service: {name}"), `receipts.practice.*` (14 strings,
+`web/src/i18n/receipts/en.json`); mobile `serviceAtClinic` ("I will choose at the clinic").
+
+Deferred: an `internal/api` test of the report against a real database (the service's equality test runs on fakes of
+the raw appointments and receipts); an e2e journey for the service at booking; the browser walk at desktop and 390 px
+(no browser in this unattended session; the screens are covered by `OnlinePractice.test.tsx`,
+`AppointmentDetail.test.tsx` and the mobile `book_test.dart`, whose 390 px layout test now holds the picker).
+
+Tests first: each behaviour's test was written and run before its code, except the repository's `Visits` and the
+FHIR extension, whose tests were written in the same step as the code.
+
+Checks (2026-11-23, compose project `salus-cms-e`): `runner.sh full` (`make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test`, `make i18n-check` inside lint) passed, `gen-clients` left
+no further diff; `make cover` passed (90.9% total; appointment 85.3%, clinicstats 89.7%, schedule 91.7%);
+`make fhir-validate` passed (the new golden included); `make e2e` passed. In the fast layer `cmd/scheduler`'s
+`TestRun_StartsRiverAndStopsCleanly` timed out once while every package ran at once beside the Flutter tests, and
+passed on its rerun and in the full run: load, not this package.
+
+
 ## H: receipts follow-ups
+
+Status: built, 2026-11-23, on `wt/cms/H`. Migration `00063`. No pull request: the wave's integration opens it.
+
+Built:
+
+- **Line order.** `invoice_line.position` (`00063`, the existing lines numbered by name, the order they were read in,
+  with the no-update trigger disabled for that one statement); `InvoiceLines` reads by position; `Insert` writes each
+  line's index. Tested against Postgres through `ByID`, `Locked` and `Issued` (the report and the PDF read those).
+- **PDF labels in catalogs.** `internal/invoice/templates/pdf/<language>.json` in the five staff languages (embedded,
+  ICU with `{number}` and `{reversed}`), replacing the Go map in `service_pdf.go`; `scripts/i18n-check.mjs` checks them
+  against `en.json` (`checkFlat`, shared with the one-time link's page; a test in `i18n-check.test.mjs`). A company's
+  invoice is "Račun br." in Croatian, "Faktura" in Bosnian and Serbian (tested).
+- **Retry of a failed report.** `Service.Retry` (`service_retry.go`), `POST /clinic/receipts/{id}/retry` (202, the
+  receipt as it is), admin only, `failed` only (409 `fiscal_report_not_failed`, new code), enqueues the same
+  `invoice_fiscalize` job; audited as an update, refusals too. Web: "Report again" on a failed receipt in `Receipts.tsx`.
+- **Idempotency key.** `invoice.idempotency_key` (uuid, unique per clinic where set). `POST /clinic/receipts` takes an
+  optional `Idempotency-Key` header (a UUID, else 400 `invalid_request`); the service answers the receipt already issued
+  with that key (201, audited as a read) and looks again after `NextNumber` locks the clinic's sequence, so two
+  concurrent requests with one key issue one receipt (the loser rolls back, giving its number back, and answers the
+  winner's). A key issued by another account is `invalid_receipt`. `ReceiptDialog.tsx` makes one key per dialog
+  (`crypto.randomUUID()`) and sends it with every attempt.
+- **The accountant's CSV.** Headers, section names and payment methods in the clinic's default language (from the same
+  catalogs, `csv_*` keys; `Report.Language` from `Clinics`), amounts as decimals with a point (`106.70`).
+- **Mobile.** `receipts_screen.dart` ("My receipts" on the home screen): the patient's receipts, newest first, with
+  number, date (Europe/Sarajevo: a receipt carries no zone), lines, total, a reversal marked, and the PDF to save or
+  share (`Booking.receipts`, `Booking.receiptPdf`). Seven strings in the eleven ARB files; `receiptsIntro` is `legal`.
+- `docs/privacy/dpia.md`: package H's part. `ownership.yaml` and the retention rules unchanged (no new table; the new
+  columns live and go with their rows).
+
+Decisions and readings:
+
+- Any `failed` receipt may be retried, rejected ones too: the status does not say why it failed, and a rejected one
+  rejected again stays failed (the job ends). A pending one is refused (its job is still running).
+- The CSV's amounts use a decimal point in every language, the CSV a comma separator (RFC 4180): unambiguous for any
+  spreadsheet import. A semicolon CSV with decimal commas for a Bosnian Excel is the owner's call.
+- The CSV's labels sit in the PDF catalog files (one catalog for the receipt's printed words), not in a second
+  directory.
+- The idempotency key is kept on the receipt (Postgres), not in Redis: it must hold as long as a retry may come and
+  never be the only copy of anything; it adds no personal data.
+- The catalog is read once into a package-level value from the embedded files (as the link page's are read in its
+  constructor); it never changes after.
+- TDD: the repository, service and handler tests, the mobile tests and the i18n-check test were written before the
+  code; the Go, web and i18n-check ones were not run red before the code was written (they were run once, green, after
+  both); the mobile tests were seen failing first.
+
+- `migrations/clinic_system_contract_test.go`'s `addLine` writes `position` 0: the column has no default (a line's
+  index is the repository's to give, and a default would hide a forgotten one).
+
+Checks (2026-11-23, compose project `salus-cms-h`): `make lint` (with `make i18n-check`) passed after one fix (field
+alignment in a new test); `make archcheck` passed; `make cover` passed on its rerun (90.8% total, `invoice` 88.2%): its
+first run failed in `internal/schedule`'s `TestHTTPHandler_SendsAFixedErrorAndLogsNoAvailability`, which checks that a
+log line does not contain "09:00" and failed because the log's own timestamp was 08:09:00 (a wall-clock flake, not
+this package's); `make gen-clients` run after the contract change; `make web-lint`, `make web-typecheck`,
+`make web-test` (1111 tests), `make web-build`, `make mobile-analyze`, `make mobile-test` passed. Not run: `make e2e`
+(not in H's check sets), `make fhir-validate` (no golden FHIR file changed), the browser walk.
+
+Deferred: a migration test of `00063`'s numbering of lines issued before it (the dev databases hold none from
+production; covered by reading the SQL); the browser walk of "Report again" and the mobile screen on a device (see
+the report); the drawn QR (package G).
+
 
 ## I: membership invoice document and the suspended listing
 
+Status: built, 2026-11-23, on `wt/cms/I` (one commit `cms(I)`). Migration `00064_directory_membership.sql`. No pull
+request: the wave's integration opens it.
+
+Built:
+
+- `internal/subscription/service_document.go`: `PDF` (the admin's download, `GET /clinic/subscription/invoices/{id}/pdf`,
+  403 for the clinic's other staff, 404 for anyone else and another clinic's invoice) and `SendInvoice` (the
+  `subscription_invoice_email` job): the invoice laid out with `pkg/pdfdoc` in the clinic's default language (the five
+  staff languages, Bosnian for any other), the dates in its zone: the seller, the invoice's number, issue, due and paid
+  dates, the clinic as the buyer (legal name or name, tax id, address), the month's line (seats times the price per
+  seat), the total and the bank transfer with the number as the reference.
+- The e-mail: `issue` enqueues `subscription_invoice_email` (`InvoiceEmailArgs`, opaque ids, the notifier's `email`
+  queue, `subscription.NewRiverJobs`) in the invoice's transaction, so a second run of the month enqueues nothing. The
+  notifier works it (`invoiceEmailWorker` in `internal/worker/subscription.go`): the PDF goes to the clinic's billing
+  e-mail through `notification.Service.SendMembershipInvoice` (template `membership_invoice.txt` in all ten languages)
+  as an attachment; a clinic without a billing e-mail gets none. `notification.Message` gained `Attachment` (a pointer,
+  so `Message` stays comparable), sent by the SMTP sender as `multipart/mixed` (tested against Mailpit).
+- The seller: `config.LoadSeller` (`SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT`), each its
+  `[SELLER …]` placeholder when unset, in `config.Config.Seller` for the api and the notifier; `.env.example` lists them.
+- The suspended listing: migration 00064 rewrites the directory policy `organization_directory`: a listed clinic whose
+  membership is `suspended` or `cancelled` is not in the directory scope. The directory policies of practitioners,
+  roles, services, schedules and slots read `organization` through it, so all of them hide with it. A new select
+  policy `clinic_subscription_directory` lets the directory scope see the membership of a stopped clinic only. No grant
+  changes: the app still has no `UPDATE` on `subscription_invoice`.
+- Web: `/membership`'s invoices table has a PDF column (a link per invoice, with an accessible name naming its number);
+  at 480 px and less it is a card per invoice, every cell under its column's name (`data-label`), instead of the
+  sideways scroll of the wave 1 walk. Catalog `subscription`: `col.document`, `download`, `downloadLabel` in the five
+  staff languages.
+- `api/openapi.yaml`: the PDF route (`x-salus-package: cms-i`); `make gen-clients` run. DPIA: "Package I".
+
+Readings and decisions (agent, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Where the directory hides a stopped clinic | Row-level security (migration 00064), not a Go filter: one policy hides the clinic and everything the directory shows under it, and `organization` reads no table of `subscription` in Go (ownership). D's `bookableClinics` wrapper stays for the booking's own refusal |
+| Which statuses hide | `suspended` and `cancelled`, as D's `BookingsStopped`; `past_due` stays listed (Q4: the stop is at 30 days) |
+| The api test of the hiding | The api tests connect as the owner, which bypasses row-level security, so the hiding is tested as `salus_app` in `migrations/directory_membership_test.go`; the api test checks the PDF route and that care goes on |
+| The e-mail is not recorded on the invoice | The owner's note: no `UPDATE` grant on `subscription_invoice`. River keeps the job's state; a failed send is retried by River, a missing invoice or an address SMTP cannot carry cancels it |
+| A clinic without a billing e-mail | No e-mail; the admin downloads the PDF from `/membership` |
+| PDF labels | A Go map in `service_document.go` for the five staff languages (as C's receipt before H moves it); the invoice is for the clinic's staff |
+| The seller unset | Prints its placeholder (`[SELLER]` …) instead of refusing to start: the dev stack runs, and no invoice can look finished before Q3 |
+| One invoice by id | Read from the clinic's list (a clinic has one a month), no query of its own |
+| The PDF's file name | `salus-invoice.pdf` on the download, `salus-invoice-<number>.pdf` on the e-mail |
+
+New user-facing strings (for the owner): the invoice PDF's labels (five languages, `service_document.go`); the e-mail
+`membership_invoice.txt` (ten languages; subject "Salus membership invoice no. {number}"); web `subscription.col.document`
+("Invoice"), `subscription.download` ("PDF"), `subscription.downloadLabel` ("Download invoice {number} (PDF)").
+
+Tests first: each step's test was written and seen failing before its code (the service, the document, the SMTP
+attachment, the notification, the handler, the migration's policy, the web link).
+
+Checks (2026-11-23, compose project `salus-cms-i`): `runner.sh full` (`make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test`) passed on its second run; the first failed on four struct
+layouts (`fieldalignment`), fixed. `make cover` passed (90.8% total; `subscription` 86.4%, `config` 98.3%, `worker`
+90.1%). `make i18n-check` passed inside lint. Not run: `make e2e` (not in I's check sets), `make fhir-validate` (no
+golden FHIR file changed).
+
+Layout at 390 px: the invoices table's markup and `app.css` rendered in headless Chromium (Playwright 1.65) at 1280 and
+390 px: no sideways scroll at 390 (table 326 px in a 358 px panel). Not walked against a running stack with a signed-in
+admin.
+
+Deferred:
+
+- A browser walk of `/membership` against the full stack (seeded membership and invoice, admin sign-in with MFA): the
+  integration session's walk covers it.
+- No worker-level test runs `subscription_invoice_email` through River into Mailpit; the parts are tested (the service
+  with fakes, the SMTP attachment against Mailpit, the notification's message).
+- The PDF labels stay in Go; if H's `templates/pdf/<language>.json` pattern is wanted here too, a follow-up moves them.
+
+
 ## L: landing page
+
+Done 2026-11-23, one commit `cms(L)` on `wt/cms/L`. Only `landing/` changed, plus this entry. Tests first: the
+headline, section order, prerendered headings, pricing and the new section's tests were changed or written and seen
+failing before the copy and components.
+
+**Built.**
+
+- The page sells Salus as the clinic system with telemedicine built in: new hero eyebrow and headline ("Your clinic,
+  in person and online."), highlights, four product cards (front desk, doctors and admins, patients, online hours from
+  home; a new receipt icon in the same stroke), "From booking to receipt" steps, and the page title and description in
+  `index.html`.
+- A new short section "Patients abroad" (`sections/Abroad`, `content/abroad.ts`, anchor `#abroad`) between "How it
+  works" and "Standards": ten app languages, live translation as a paid add-on per use, and prepaid booking from abroad
+  tagged "Coming".
+- Pricing: two plans, Basic and Pro, `[PRICE]` per practitioner per month, a note on the 30-day trial and paying only
+  for active practitioners, and that patients pay at the clinic. The yearly plan and the `[X]%` share are gone; a test
+  keeps "year", "%" and "share" out of the pricing copy.
+- Structure, look and language (English) unchanged; the nav keeps its four links.
+
+**Decisions.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| What Basic and Pro hold | Pro adds video visits and online hours, live transcription and AI drafts | The plan's Q2 default: `pro` is video, transcription and AI |
+| Fiscal wording | "Built for the new FBiH fiscalization law; reporting to the Tax Administration through ESET is coming" | No certification claim; G (ESET adapter) is on hold |
+| No nav link for the new section | Nav unchanged | "Structure stays"; four links fit at 390 px |
+| Product grid | Two columns (`minmax(min(100%, 440px), 1fr)`) | Four cards in three columns left one alone |
+
+**Checks.** `make landing-lint`, `landing-typecheck`, `landing-test` (18 files, 48 tests), `landing-build`: pass. Walked
+the built page at 1440 and 390 px (headless Chromium, reduced motion): no horizontal scroll; the plan's unit wrapped
+mid-phrase at 390 px and was fixed.
+
+**Left.** CLAUDE.md's landing row still lists the `[X]` placeholder, which the page no longer has (outside this
+package's files). The new copy waits for the owner's approval.
 
 ## Q1: questionnaire branching, rules and server
 
+**Status: done, 2026-11-23** (worktree `wt/cms/Q1`). Ticket SAL-43. No migration: `00065` is left unused.
+
+**Built.**
+- **The model is FHIR R4 `enableWhen`.** `questionnaire.Item.EnableWhen` is a list of `Condition`
+  (`question`, `operator`, one `answer[x]`: `answerBoolean`, `answerString`, `answerInteger`, `answerDecimal`,
+  `answerDate`) plus `enableBehavior` (`all`, `any`). The FHIR read serves the model's conditions as they are; the
+  JSON API (`api/openapi.yaml` `QuestionnaireItem`) now takes and returns the FHIR array. The single object of before
+  (`{question, answerBoolean | answerString}`, operator `=`) is still decoded, from stored rows and from requests,
+  so existing drafts and published versions keep working without a migration.
+- **Publishing refuses broken logic** (`internal/questionnaire/validate_logic.go`, on every save and so on
+  publish, 422 `invalid_questionnaire` naming the item): a condition on a missing, later or own-descendant question,
+  on a section, instructions or a file upload; an operator that does not fit the type (`=`/`!=` on yes/no and choice,
+  every comparison on integer, decimal and date, `exists` on any question, string and text only `exists`); not exactly
+  one answer of the type (`exists` takes `answerBoolean`); an option that no longer exists; a malformed decimal or a
+  date that does not exist; two or more conditions without `enableBehavior`, an unknown behavior, a behavior without
+  conditions. Sections now nest (a branch is a section carrying the condition); an empty one at any depth is refused
+  on publish (que-1).
+- **The server evaluates the conditions on submit** (`internal/questionnaireresponse/service_enable.go`, was
+  `enabled.go`) and refuses saved answers to hidden items: 422 `answer_not_enabled` with their `linkIds` in document
+  order, audited as a refused submit. Files of hidden attachment items are still removed on submit.
+- **Shared test vectors** `test/testdata/enablewhen/*.json` (README there): today's `is` conditions, every operator
+  and type, `all` and `any`, nesting with a join, the ticket's gynaecology example, the changed-answer case. Both Go
+  packages run every case (`TestPublish_AcceptsEveryEnableWhenVector`, `TestSubmit_EvaluatesEveryEnableWhenVector`);
+  `questionnaire_branching.json` is a new golden FHIR read.
+
+**Readings and decisions.**
+- Every operator but `exists` is false on an unanswered or hidden question, `!=` included (R4 leaves it open; R5
+  says so). `!=` on a multiple choice holds when no answer equals.
+- `answer_not_enabled` refuses rather than drops, as the plan says. Today's mobile app saves answers of hidden items
+  and relied on the server dropping them: after Q3 it saves only the shown answers; until then a patient who changed
+  an answer that hides a branch gets the refusal on submit.
+- A condition on a file upload is refused (its answers live in `binary`, outside the answers the conditions read);
+  the ticket's "any question: answered" covers every other question type.
+- The JSON API's `enableWhen` changed to the FHIR array (the plan's contract); `web/src/questionnaire.ts` and its
+  test fixture were adapted in two lines each so the web app keeps building until Q2 replaces them.
+- `docs/questionnaire/SPEC.md` §2 "Item model" (one `=` condition, sections top level only) is superseded by this
+  package; that plan's docs are not edited here.
+- TDD: the tests were written before the code each time; the first runs failed on the build (the model change)
+  rather than on an assertion.
+
+**Checks.** Fast layer after each change; `make gen-clients lint test archcheck web-lint web-typecheck web-test
+web-build mobile-analyze mobile-test` passed (lint includes `i18n-check`), `make cover` passed (questionnaire 93.6%,
+questionnaireresponse 93.1%), `make fhir-validate` passed (the new golden: 0 errors, the usual dom-6 warning).
+`gen-clients` dropped the stale generated `questionnaire_item_enable_when.dart` (git rm: the generator leaves it).
+
+**Integration notes.** Run the vectors against `enableWhen.ts` and `enable_when.dart`. Q2 and Q3 should read and
+write `enableWhen` as the array (the JSON API's response no longer carries the single object), Q3 should save
+without hidden answers before submit and handle `answer_not_enabled`. Regenerate the clients after the merges.
+`openapi.yaml`'s `Error.error` enum gained `answer_not_enabled` at its end.
+
 ## Q2: questionnaire branching, builder and preview
 
+Done 2026-11-23 (ticket SAL-43, web only; no Go, no mobile, no `api/openapi.yaml` change).
+
+- **Model.** An item's condition is now FHIR R4 `enableWhen[]` (`question`, `operator` of `exists = != > < >= <=`,
+  the value) with `enableBehavior` (`all`/`any`) when it has more than one (`builder.ts`). Operators per type
+  (`operatorsFor`): yes or no and choices is / is not / answered; numbers every comparison; dates before / after / on;
+  every other question answered / not answered. Any earlier question can be depended on (file uploads only by
+  answered). W28 checks each condition: the question is above (`conditionOrder`), the operator fits its type
+  (`conditionOperator`, new), the value fits (`conditionAnswer`, now any type).
+- **Evaluator** `enableWhen.ts`, pure and tested: `test` (one condition), `enabled` (document order, a hidden
+  section hides its items, a hidden question counts as unanswered), `enabledAnswers` (the path taken),
+  `discarded` (answers a change would hide). `responses.ts` (the practitioner's view of a submitted response) now
+  uses it too instead of its own `is`-only check.
+- **Builder** (`builder-logic.ts`, `BuilderBranch.tsx`, `ItemCard.tsx`, `Builder.tsx`): on a yes or no or choice
+  question, "Branches": per answer "If the answer is X", the questions it asks, and "Ask a question", which adds a
+  short answer shown only on that answer at the end of the question's branches (`addFollowUp`). Cards are indented
+  by branch depth (`branchDepths`, a mint left border), tagged "Conditional", and "Branches join here" marks the
+  first item back at a shallower depth (`joins`). The condition editor ("More options") has several conditions,
+  "Show when all / any", a comparison and a value control per type. W19 deleting names the affected items; an
+  opened question others depend on says which ("Shown only through this question: ...").
+- **Preview** (`BuilderPreview.tsx`): "Preview" beside Publish shows the draft as the patient fills it in, branches
+  live; a change that hides answers already given asks "Change this answer?" (Keep answer / Change answer); "Start
+  again" clears it. Nothing is saved.
+- **Wire (decision).** A single `=` condition on a yes or no or a choice is still sent in the JSON API's legacy
+  object shape (`{question, answerBoolean|answerString}`), so today's forms save unchanged on today's server; any
+  other logic is sent as FHIR `enableWhen[]` (`answerBoolean|answerString|answerInteger|answerDecimal|answerDate`)
+  plus `enableBehavior`. Reading takes both. The request type widens the generated one (`questionnaire.ts`), with one
+  cast in `Builder.tsx` until Q1's API and `make gen-clients` land.
+- **Not built (decision).** "Any of" on a choice is several `=` conditions with "any" (FHIR has no `in`). Branches
+  are items carrying the condition or a top-level section; sections still do not nest (API rule), so a nested
+  branch is a conditional question inside a conditional branch. "Ask a question" adds a question, not a section.
+- **Checks.** `make web-lint`, `web-typecheck`, `web-test`, `web-build`, `make i18n-check`, and the runner's full
+  set: see the report. TDD: the evaluator, builder-logic, the wire tests and the Builder tests were written before
+  or with their code in this session; the old tests that stated the single-`is` model (answer label "is", "a short
+  answer cannot be depended on", the W19 text) were changed on purpose.
+- **Browser walk** (headless Chromium from the playwright service, this worktree's stack, a synthetic clinic,
+  1280 px and 390 px): built the gynaecology example with "Ask a question if the answer is Yes" twice (whole numbers)
+  and a main question; the join marker shows; "Save draft" saved (legacy shape accepted by today's API); the preview
+  showed 2 items, 4 on Yes, back to 2 on No; the warning appeared after a month was entered, Keep answer kept 3,
+  Change answer discarded it. No horizontal scroll at 390 px. Fixed on the way: the preview's `.preview` class
+  collided with the device check's video box (renamed `q-preview`).
+
+INTEGRATION NOTES: Q1 must accept the FHIR `enableWhen[]` + `enableBehavior` on the JSON save (and keep the legacy
+object); after it, `make gen-clients` and drop the widened types in `questionnaire.ts` and the cast in `Builder.tsx`.
+Run Q1's `test/testdata/enablewhen/` vectors against `enableWhen.ts` (`enabled`, `test`). The web e2e of both paths
+can reuse the walk's steps (labels above).
+
 ## Q3: questionnaire branching, patient app
+
+Done 2026-11-23, one commit `cms(Q3)` on `wt/cms/Q3`. Mobile only (ticket SAL-43, its patient-app part).
+
+**Built.**
+
+- `mobile/lib/enable_when.dart`, pure: `Condition` (question, `Operator`, answer in the question's type),
+  `EnableBehavior` (all, any), `enabled()` over several conditions with the R4 operators `exists`, `=`, `!=`, `>`, `<`,
+  `>=`, `<=` on yes/no, choice, integer, decimal, date and text answers, nested groups, and `discarded()` (the answered
+  items a change hides). `questionnaire.dart` reads every `enableWhen` and `enableBehavior` (the old single
+  `condition` is gone; today's single `=` conditions read as one condition and behave as before) and re-exports it.
+- `toApi` sends only enabled questions' answers, so a save or submit holds only the path taken (Q1's
+  `answer_not_enabled`). A response opened with answers to hidden items drops them.
+- The form shows and hides branches live. Before a save that would drop answers already given, the patient is asked
+  ("Change this answer?", how many answers go): Cancel puts the answers back to the ones the server has (the field's
+  text too) and nothing is sent; "Change and remove" removes them, the hidden items' files too, then saves. A typed
+  answer asks when typing pauses or the field is left, not per keystroke; a choice asks at once.
+- Three strings (`discardTitle`, `discardBody` with a plural, `discardConfirm`) in all ten languages (eleven ARB
+  files, `sr` mirrors `sr_Cyrl`).
+
+**Checks.** `runner.sh full` (`make lint test archcheck mobile-analyze mobile-test`): pass, 622 mobile tests, no
+analyzer issues, `i18n-check` pass. No device walk: running the app on a device is a manual step (CLAUDE.md "Checks").
+
+**Decisions.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| `!=` on an unanswered question | Holds (shown) | R4 4.0.1: "true if no answer has a value that is equal"; the integration session checks Q1's vectors agree |
+| Comparison of mismatched types (a number against text) | Never holds; `>`/`<` on text or yes/no never hold | Publishing refuses such an operator (Q1); the app does not guess |
+| Unknown operator | Never holds (hidden) | As an unknown item type is not shown |
+| When the warning shows | At the save that would drop answers (a choice at once, typing after its pause) | Hiding is live, so a half-typed number does not ask on each keystroke |
+| Declining | Back to the server's answers, not only the changed field | One snapshot; edits since the last save are at most the change being taken back |
+
+**Test first.** The evaluator and screen tests were written before their code, but the first run came after the code
+(they compiled only with it); the `toApi` test was seen failing first.
+
+**Left to the integration session.** Run Q1's `test/testdata/enablewhen/*.json` vectors against `enable_when.dart`; the
+mobile e2e of both paths of the gynaecology example and the changed-answer case.
+
+## Wave 2 integration
+
+Done 2026-11-23 on `feat/cms`: `wt/cms/Q1`, `Q2`, `Q3`, `H`, `I`, `E`, `L` merged with `--no-ff` in that order, then
+one commit `cms(wave 2): integrate E, H, I, L, Q1, Q2, Q3`. `origin/main` had not moved (`df5480d`), so the migrations
+keep their numbers: E `00062`, H `00063`, I `00064`; `00065` (Q1's) is unused.
+
+- **Merges.** Conflicts only in shared files: `web/src/questionnaire.ts` (Q2's taken, then reworked below),
+  `api/openapi.yaml` (both error codes kept), the mobile ARB catalogs (merged as JSON: every package's keys), the DPIA
+  (every package's block), and generated code. Generated code was not hand-merged: `make sqlc` (E's column changes
+  every domain's `models.go`), `make gen-clients` and `flutter gen-l10n` ran after the merges.
+- **Branching vectors in every evaluator.** `test/testdata/enablewhen` now runs as tests in the repo for web
+  (`web/src/enableWhen.vectors.test.ts`, the items read through the builder's own FHIR read) and mobile
+  (`mobile/test/enable_when_vectors_test.dart`, read as the app reads the API), beside Q1's two Go packages. Web
+  passed all 37 cases as merged; mobile failed 11, all from Q3's `!=` holding on an unanswered question. Fixed to
+  Q1's rule (every operator but `exists` is false on an unanswered or hidden question); Q3's unit case changed with it.
+- **Web writes FHIR only.** Q2's widened `JSONItem`/`SaveRequest` types and the cast in `Builder.tsx` are gone: the
+  builder reads and writes the generated `enableWhen` array and `enableBehavior`, a single `=` too (no legacy object);
+  the server still accepts the legacy object on input. Two tests that pinned the legacy wire shape changed on purpose.
+- **Mobile.** Saves send only shown answers (Q3); a submit refused with 422 `answer_not_enabled` now names the
+  questions (new string `answersNotEnabled`, ten languages) and saves the shown answers again, so the next submit
+  passes. Groups inside groups are indented one step per level, in the form and the read-only view.
+- **The practitioner's view of a response** (`web/src/responses.ts`) walks sections at any depth: a branch inside a
+  section was dropped with its answers (review finding).
+- **e2e.** `TestQuestionnaire_TheGynaecologyExampleKeepsOnlyThePathTaken` (the yes path at 17, the no path, and yes
+  changed to no: refused with `answer_not_enabled` naming the branch's two questions, accepted once the app's save
+  holds the path taken) and `TestQuestionnaire_TheBuilderBranchesTheGynaecologyExample` (the web builder builds it
+  with "Ask a question if the answer is Yes", the preview takes both paths and the changed answer, publish; its FHIR
+  read has the `enableWhen` arrays and the unconditional join). The older journey that saved an answer of a hidden
+  question now expects the refusal, then the re-save. Mobile's side is widget journeys against the fake API
+  (`questionnaire_screen_test.dart`, the shared `gynaecology.json`): there is no device e2e in this repository.
+- **Receipts and booking.** `ReceiptDialog` keeps E's first line from the booked service and H's `Idempotency-Key`;
+  the key now belongs to the receipt as drafted, so a double click or a retry issues it once and a receipt changed
+  after a failed attempt gets a new key (review finding; before, the server answered the changed receipt with the
+  first one). New: `TestNew_ThePracticeReportCountsOfferedHeldAndReceiptedWorkByMode` (internal/api, Postgres),
+  `TestReceiptLinePosition_TheBackfillNumbersExistingLinesByName` (00063 on lines issued before it),
+  `TestReceipts_AServicePickedAtBookingStartsTheVisitsReceipt` (e2e), and a hint beside "Hours offered".
+- **Retry.** `Retry` locks the receipt and `invoice_fiscalize` is unique by receipt while one is queued or running, so
+  two clicks report it once (`TestNew_RetryingAFailedReceiptQueuesOneReport`); the web hides "Report again" for a
+  receipt retried from the page (review finding).
+- **Accountant's CSV.** Semicolons and decimal commas in every language (owner's default for Excel with Bosnian
+  settings); a field with a semicolon, a quote or a line break is quoted (RFC 4180 with `;`).
+- **Membership.** The invoice PDF's labels moved from the Go map to `internal/subscription/templates/pdf/<language>.json`,
+  checked by `make i18n-check` as the receipt's are; `TestNotifier_SendsAnIssuedMembershipInvoiceWithItsPDF` runs the
+  monthly job and the notifier to the compose Mailpit and checks the subject and the PDF attachment.
+- **Flaky tests.** `cmd/scheduler`: River gives its notifier's listener 10 s to connect, so under load `Start` itself
+  returned a timeout; `run` now tries River's start up to 3 times, 2 s apart (River resets a client whose start
+  failed), with tests of its own. Measured under the full suite: the test body took under 3 s; the rest of its 16–37 s
+  was the test database's drop. `internal/schedule`: the handler test's logger left the record's time in the log,
+  which held "09:00" at 08:09:00; the test logger now drops the time, and the check also looks for "12:00".
+- **Docs.** `docs/questionnaire/SPEC.md` (§1, item model, linkIds, submit, D4, out of scope, up next, personal data)
+  states the branching model; CLAUDE.md's landing row no longer lists `[X]`.
+- **Browser walk** (headless Chromium from the playwright service, this integration's own stack, a synthetic clinic,
+  1280 and 390 px; the temporary spec and its Go wrapper are not committed): the appointment with "Service:
+  Placeholder examination" and the receipt dialog starting from it; `/receipts` with "Report again" on a failed
+  receipt and its notice after the click; `/receipts/practice` with the hint (at 390 px it ran off the screen's left
+  edge: now centred under its heading and capped to the screen); `/membership` with the PDF download
+  (`salus-invoice.pdf`); the builder with two branch questions, "Conditional", "Branches join here" and the preview on
+  Yes; the landing page (with reduced motion). No horizontal scroll on any page at either width. On a phone a palette
+  type is tapped, not dragged.
+
+**Checks** (this integration's own compose project, `salus-cms-w2`; e2e on a fresh one: stack down and its own
+volumes removed first). After the review's fixes: `make lint` (gofmt, vet, golangci-lint, i18n-check, migrations),
+`make test`, `make archcheck`, `make cover` (90.8% total, every package at 80% or more), `make web-lint`,
+`web-typecheck`, `web-test` (1201), `web-build`, `make mobile-analyze`, `mobile-test` (671), `make e2e` (346 s): all
+pass; `make gen-clients` leaves no diff. Before them, on the same tree but for the review's fixes: `make fhir-validate`
+and the landing set (`landing-lint`, `-typecheck`, `-test`, `-build`) pass; neither area changed after.
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| The CSV | `;` and decimal comma for every language | Owner's default for Excel with Bosnian settings |
+| The JSON API's questionnaire writes from web | FHIR `enableWhen` array always | Q1's API takes it; the legacy object stays accepted on input |
+| A submit holding hidden answers on mobile | Name the questions, save the shown answers again, submit again | The server refuses rather than drops (Q1) |
+| The idempotency key | One per receipt as drafted | A changed receipt is another receipt |
+| Retrying a failed report | One queued report per receipt; the button hidden after a retry from the page | One click, one report to the authority |
+| The scheduler's start | Up to 3 tries, 2 s apart | River's 10 s listener connect times out under load |
+
+**Review** (a fresh subagent over `origin/main...HEAD`). Fixed: the nested sections in the practitioner's view, the
+idempotency key of a changed receipt, the retry's lock and duplicate jobs, two stale SPEC lines. Declined, with
+reasons in the PR: the server also takes `!=`, `>=`, `<=` on a date (FHIR allows them; the builder offers before,
+after and on; the SPEC now says so); older app builds blocked by the refusal (the patient app is not released); the
+app's record of the server's answers on a response saved before Q1 (handled by the refusal and the re-save); Go's
+`!=` on mismatched types (validation makes it unreachable).
+
+**Open.** No device run of the mobile journeys (a manual step). The builder still adds sections at the top level
+only (a branch within a branch is built from conditional questions). The practice report's amount column wraps at
+390 px.
 
 ## F: reception role and desk
 

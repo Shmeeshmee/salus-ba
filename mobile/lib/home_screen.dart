@@ -16,6 +16,7 @@ import 'language_picker.dart';
 import 'messages.dart';
 import 'notification_settings_screen.dart';
 import 'profile_screen.dart';
+import 'receipts_screen.dart';
 import 'session.dart';
 import 'ui.dart' as ui;
 import 'waitlist_screen.dart';
@@ -195,6 +196,10 @@ class _HomeScreenState extends State<HomeScreen> {
         OutlinedButton(
           onPressed: () => _open(() => ConsentsScreen(booking: booking)),
           child: Text(t.myConsents),
+        ),
+        OutlinedButton(
+          onPressed: () => _open(() => ReceiptsScreen(booking: booking, files: widget.files)),
+          child: Text(t.myReceipts),
         ),
         OutlinedButton(
           onPressed: () => _open(() => NotificationSettingsScreen(booking: booking)),

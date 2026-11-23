@@ -138,7 +138,7 @@ func TestReport_EqualsTheReceipts(t *testing.T) {
 			lines += l.TotalMinor
 		}
 	}
-	if r.Count != len(list) || r.Count != 3 || r.TotalMinor != total || r.TotalMinor != 9500 || r.Currency != "BAM" || r.Period != day {
+	if r.Count != len(list) || r.Count != 3 || r.TotalMinor != total || r.TotalMinor != 9500 || r.Currency != "BAM" || r.Period != day || r.Language != "en" {
 		t.Errorf("Report() = %+v, want 3 receipts totalling %d", r, total)
 	}
 	want := []invoice.MethodTotal{{PaymentMethod: invoice.PaymentCash, Count: 2, TotalMinor: 0}, {PaymentMethod: invoice.PaymentCard, Count: 1, TotalMinor: 9500}}

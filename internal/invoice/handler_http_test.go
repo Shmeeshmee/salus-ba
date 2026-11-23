@@ -45,6 +45,11 @@ func (s *stub) Reverse(_ context.Context, c invoice.Caller, id string, m invoice
 	return s.receipt, s.err
 }
 
+func (s *stub) Retry(_ context.Context, c invoice.Caller, id string) (invoice.Invoice, error) {
+	s.caller, s.id = c, id
+	return s.receipt, s.err
+}
+
 func (s *stub) PDF(_ context.Context, c invoice.Caller, id string) ([]byte, error) {
 	s.caller, s.id = c, id
 	return []byte("%PDF-synthetic"), s.err
@@ -62,6 +67,11 @@ func (s *stub) Report(_ context.Context, c invoice.Caller, p invoice.Period) (in
 
 // serve sends the request as caller (nil: nobody signed in) to the handler on the stub.
 func serve(t *testing.T, s *stub, caller *invoice.Caller, method, target, body string) *httptest.ResponseRecorder {
+	return serveWith(t, s, caller, httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body)))
+}
+
+// serveWith sends req as caller to the handler on the stub.
+func serveWith(t *testing.T, s *stub, caller *invoice.Caller, req *http.Request) *httptest.ResponseRecorder {
 	h := invoice.NewHTTPHandler(s, func(context.Context) (invoice.Caller, bool, error) {
 		if caller == nil {
 			return invoice.Caller{}, false, nil
@@ -71,7 +81,7 @@ func serve(t *testing.T, s *stub, caller *invoice.Caller, method, target, body s
 	mux := http.NewServeMux()
 	h.Routes(mux)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body)))
+	mux.ServeHTTP(rec, req)
 	return rec
 }
 
@@ -168,9 +178,9 @@ func TestHTTP_MapsWhoAsksAndTheErrors(t *testing.T) {
 
 func TestHTTP_ListsReportsAndPDFs(t *testing.T) {
 	s := &stub{receipt: fiscalized(), report: invoice.Report{
-		Currency: "BAM", Count: 3, TotalMinor: 9500,
+		Currency: "BAM", Language: "bs", Count: 3, TotalMinor: 9500,
 		ByPaymentMethod: []invoice.MethodTotal{{PaymentMethod: invoice.PaymentCash, Count: 2}, {PaymentMethod: invoice.PaymentCard, Count: 1, TotalMinor: 9500}},
-		ByService:       []invoice.ServiceTotal{{ChargeItemDefinitionID: exam, Name: "=Placeholder, examination", Quantity: 2, TotalMinor: 9500}},
+		ByService:       []invoice.ServiceTotal{{ChargeItemDefinitionID: exam, Name: "=Placeholder; \"examination\"", Quantity: 2, TotalMinor: 9500}},
 	}}
 	rec := serve(t, s, &adminC, http.MethodGet, "/clinic/receipts"+window, "")
 	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), `[{"`) || !s.period.From.Equal(at.Add(-9*time12h/12)) || s.period.To.Sub(s.period.From) != 2*time12h {
@@ -187,10 +197,17 @@ func TestHTTP_ListsReportsAndPDFs(t *testing.T) {
 		}
 	}
 	rec = serve(t, s, &adminC, http.MethodGet, "/clinic/reports/receipts"+window+"&format=csv", "")
-	wantCSV := "section,key,name,count,quantity,total_minor,currency\ntotal,,,3,,9500,BAM\npayment_method,cash,,2,,0,BAM\npayment_method,card,,1,,9500,BAM\n" +
-		"service,svc-exam,\"'=Placeholder, examination\",,2,9500,BAM\n"
+	// Semicolons and decimal commas, as Excel reads a file with Bosnian settings; a field holding either, a quote or a
+	// line break is quoted (RFC 4180, with ; as the separator).
+	wantCSV := "Vrsta;Šifra;Naziv;Broj računa;Količina;Iznos;Valuta\nUkupno;;;3;;95,00;BAM\nNačin plaćanja;cash;Gotovina;2;;0,00;BAM\n" +
+		"Način plaćanja;card;Kartica;1;;95,00;BAM\nUsluga;svc-exam;\"'=Placeholder; \"\"examination\"\"\";;2;95,00;BAM\n"
 	if rec.Body.String() != wantCSV || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/csv") {
 		t.Errorf("csv = %q (%s)\nwant %q", rec.Body, rec.Header().Get("Content-Type"), wantCSV)
+	}
+	s.report = invoice.Report{Currency: "BAM", Language: "en", Count: 1, TotalMinor: -105}
+	rec = serve(t, s, &adminC, http.MethodGet, "/clinic/reports/receipts"+window+"&format=csv", "")
+	if want := "Section;Code;Name;Receipts;Quantity;Amount;Currency\nTotal;;;1;;-1,05;BAM\n"; rec.Body.String() != want {
+		t.Errorf("csv in English = %q, want %q", rec.Body, want)
 	}
 	for name, tt := range map[string]struct {
 		caller *invoice.Caller
@@ -200,6 +217,42 @@ func TestHTTP_ListsReportsAndPDFs(t *testing.T) {
 		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/pdf" || !strings.HasPrefix(rec.Body.String(), "%PDF-") ||
 			rec.Header().Get("Cache-Control") != "no-store" || s.id != "inv-1" {
 			t.Errorf("%s PDF = %d %s", name, rec.Code, rec.Header())
+		}
+	}
+}
+
+// The retry answers 202 with the receipt; the error of a receipt that did not fail is 409 fiscal_report_not_failed.
+func TestHTTP_Retry(t *testing.T) {
+	s := &stub{receipt: fiscalized()}
+	rec := serve(t, s, &adminC, http.MethodPost, "/clinic/receipts/inv-1/retry", "")
+	if rec.Code != http.StatusAccepted || s.id != "inv-1" || s.caller != adminC || !strings.Contains(rec.Body.String(), `"id":"inv-1"`) {
+		t.Errorf("retry = %d %s", rec.Code, rec.Body)
+	}
+	s.err = invoice.ErrNotFailed
+	if rec := serve(t, s, &adminC, http.MethodPost, "/clinic/receipts/inv-1/retry", ""); rec.Code != http.StatusConflict ||
+		!strings.Contains(rec.Body.String(), "fiscal_report_not_failed") {
+		t.Errorf("retry of a receipt that did not fail = %d %s", rec.Code, rec.Body)
+	}
+}
+
+// The Idempotency-Key header goes into the draft; a key that is no UUID is refused.
+func TestHTTP_IssueTakesTheIdempotencyKey(t *testing.T) {
+	const key = "e1000000-0000-4000-8000-0000000000e1"
+	body := `{"kind":"receipt","paymentMethod":"cash","appointmentId":"appt-1","lines":[{"serviceId":"svc-exam","quantity":1}]}`
+	for name, tt := range map[string]struct {
+		header, want string
+		status       int
+	}{
+		"a UUID": {key, key, http.StatusCreated}, "none": {"", "", http.StatusCreated}, "no UUID": {"twice", "", http.StatusBadRequest},
+	} {
+		s := &stub{receipt: fiscalized()}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/clinic/receipts", strings.NewReader(body))
+		if tt.header != "" {
+			req.Header.Set("Idempotency-Key", tt.header)
+		}
+		rec := serveWith(t, s, &adminC, req)
+		if rec.Code != tt.status || s.draft.IdempotencyKey != tt.want {
+			t.Errorf("%s: POST = %d, key %q; want %d %q", name, rec.Code, s.draft.IdempotencyKey, tt.status, tt.want)
 		}
 	}
 }

@@ -57,6 +57,7 @@ type Invoice struct {
 	FiscalID          string
 	FiscalCode        string
 	FiscalQR          string // the QR payload printed on it
+	IdempotencyKey    string // the key it was issued with (a UUID); empty without one and for a reversal
 	Kind              Kind
 	PaymentMethod     PaymentMethod
 	FiscalStatus      FiscalStatus
@@ -106,6 +107,7 @@ type Seller struct {
 type Report struct {
 	Period          Period
 	Currency        string
+	Language        string         // the clinic's default language, for the CSV's headers
 	ByPaymentMethod []MethodTotal  // cash, card, transfer; a method with no receipt is left out
 	ByService       []ServiceTotal // by name
 	Count           int

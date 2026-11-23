@@ -88,6 +88,15 @@ func (r *fakeRepo) ByID(_ context.Context, id string) (invoice.Invoice, error) {
 	return invoice.Invoice{}, invoice.ErrNotFound
 }
 
+func (r *fakeRepo) ByIdempotencyKey(ctx context.Context, clinic, key string) (invoice.Invoice, error) {
+	for _, i := range r.invoices {
+		if i.OrganizationID == clinic && i.IdempotencyKey == key && key != "" && r.seen(i) {
+			return r.ByID(ctx, i.ID)
+		}
+	}
+	return invoice.Invoice{}, invoice.ErrNotFound
+}
+
 func (r *fakeRepo) Locked(ctx context.Context, id string) (invoice.Invoice, error) {
 	i, err := r.ByID(ctx, id)
 	i.ReversedByID = ""

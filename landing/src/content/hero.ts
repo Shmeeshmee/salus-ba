@@ -2,8 +2,8 @@ import { ids } from './sections'
 
 export const hero = {
   label: 'Introduction',
-  eyebrow: 'Telemedicine for private clinics',
-  headline: [['Your', 'doctor,'], ['one', 'call'], ['away.']],
+  eyebrow: 'The clinic system with telemedicine built in',
+  headline: [['Your', 'clinic,'], ['in', 'person'], ['and', 'online.']],
   primaryCta: { label: 'Book a demo', href: `#${ids.demo}` },
   secondaryCta: 'See the product',
   note: 'Illustrative screens with synthetic data.',

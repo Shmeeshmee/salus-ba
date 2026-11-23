@@ -76,6 +76,9 @@ func (s *Service) issue(ctx context.Context, sub Subscription, start time.Time) 
 	if err := s.Repo.SetPeriod(ctx, org, start, end, now); err != nil {
 		return Invoice{}, err
 	}
+	if err := s.Jobs.EnqueueInvoiceEmail(ctx, InvoiceEmailArgs{InvoiceID: inv.ID, OrganizationID: org}); err != nil {
+		return Invoice{}, err
+	}
 	if sub.Status == StatusTrial {
 		return inv, s.move(ctx, org, StatusActive, AgentJob)
 	}

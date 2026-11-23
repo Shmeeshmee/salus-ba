@@ -40,7 +40,7 @@ func (s *stubAvailability) SaveAvailability(_ context.Context, c schedule.Caller
 func serve(t *testing.T, svc *stubAvailability, signedIn bool, log *bytes.Buffer, method, ifMatch, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	h := schedule.NewHTTPHandler(svc, func(context.Context) (schedule.Caller, bool, error) { return practitionerA1, signedIn, nil },
-		slog.New(slog.NewTextHandler(log, nil)))
+		slog.New(slog.NewTextHandler(log, &slog.HandlerOptions{ReplaceAttr: withoutTime})))
 	mux := http.NewServeMux()
 	h.Routes(mux)
 	req := httptest.NewRequestWithContext(t.Context(), method, "/practitioner-roles/"+roleA1+"/availability", strings.NewReader(body))
@@ -50,6 +50,15 @@ func serve(t *testing.T, svc *stubAvailability, signedIn bool, log *bytes.Buffer
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
+}
+
+// withoutTime leaves the record's own time out of the log, so a check of the logged values never matches the clock
+// (08:09:00 holds "09:00").
+func withoutTime(groups []string, a slog.Attr) slog.Attr {
+	if len(groups) == 0 && a.Key == slog.TimeKey {
+		return slog.Attr{}
+	}
+	return a
 }
 
 const mondays = `{"slotMinutes":30,"availability":[{"day":1,"start":"09:00","end":"12:00"}]}`
@@ -159,7 +168,7 @@ func TestHTTPHandler_SendsAFixedErrorAndLogsNoAvailability(t *testing.T) {
 		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "synthetic") {
 			t.Errorf("%s with a failing service = %d %s, want 500 with a fixed message", method, rec.Code, rec.Body)
 		}
-		if logs.Len() == 0 || strings.Contains(logs.String(), "09:00") {
+		if logs.Len() == 0 || strings.Contains(logs.String(), "09:00") || strings.Contains(logs.String(), "12:00") {
 			t.Errorf("log = %q, want the error logged without the availability", logs.String())
 		}
 	}

@@ -1,0 +1,13 @@
+{
+  "invoice": "Invoice no. {number}",
+  "item": "Membership {from} to {to}, active practitioners",
+  "transfer": "Bank transfer to account {account}, reference {number}.",
+  "issued": "Issued",
+  "due": "Due",
+  "paid": "Paid",
+  "taxId": "Tax ID (JIB)",
+  "buyer": "Buyer",
+  "items": "Items",
+  "total": "Total",
+  "payment": "Payment"
+}

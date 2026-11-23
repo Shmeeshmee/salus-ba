@@ -416,3 +416,37 @@ func TestSMTPSender_FoldsEncodedHeadersWithinTheLineLimit(t *testing.T) {
 		}
 	}
 }
+
+// A message with an attachment goes as multipart/mixed: the text first, then the file in base64 under its name and
+// type (package I of docs/plans/clinic-cms.md: the membership invoice's PDF).
+func TestSMTPSender_DeliversAnAttachment(t *testing.T) {
+	smtpAddr, api := mailpit(t)
+	to := "attachment-" + rand.Text() + "@example.test"
+	pdf := []byte("%PDF-1.4 synthetic\x00\xff")
+	msg := notification.Message{To: to, Subject: "Invoice", Body: "Attached.\n",
+		Attachment: &notification.Attachment{Name: "invoice-7.pdf", ContentType: "application/pdf", Data: pdf}}
+
+	if err := plaintext(smtpAddr).Send(t.Context(), msg); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	found := received(t, api, to)
+	if len(found) != 1 {
+		t.Fatalf("%d messages, want 1", len(found))
+	}
+	var got struct {
+		Text        string
+		Attachments []struct {
+			FileName, ContentType, PartID string
+			Size                          int
+		}
+	}
+	mailpitGet(t, fmt.Sprintf("%s/api/v1/message/%s", api, found[0].ID), &got)
+	if strings.ReplaceAll(got.Text, "\r\n", "\n") != msg.Body || len(got.Attachments) != 1 {
+		t.Fatalf("delivered %+v, want the text and one attachment", got)
+	}
+	a := got.Attachments[0]
+	if a.FileName != "invoice-7.pdf" || a.ContentType != "application/pdf" || a.Size != len(pdf) {
+		t.Errorf("attachment %+v, want invoice-7.pdf, application/pdf, %d bytes", a, len(pdf))
+	}
+}

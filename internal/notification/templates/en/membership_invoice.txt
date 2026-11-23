@@ -1,0 +1,5 @@
+Salus membership invoice no. {{.Number}}
+
+Salus membership invoice no. {{.Number}} for {{.Clinic}} is attached as a PDF.
+
+The invoice and how to pay it are also on the Membership page in Salus. Payment is by bank transfer, with the invoice number as the reference.

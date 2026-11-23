@@ -172,6 +172,20 @@ func (r *fakeRepository) ByIDForShare(ctx context.Context, id string) (appointme
 	return appointment.Appointment{}, appointment.ErrNotFound
 }
 
+func (r *fakeRepository) Visits(ctx context.Context, org string, from, to time.Time) ([]appointment.Visit, error) {
+	r.seen(ctx, "Visits")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []appointment.Visit
+	for _, a := range r.appts {
+		if a.OrganizationID == org && !a.Start.Before(from) && a.Start.Before(to) {
+			out = append(out, appointment.Visit{ID: a.ID, PractitionerRoleID: a.PractitionerRoleID, Mode: a.Mode, Status: a.Status})
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeRepository) Search(ctx context.Context, f appointment.Filter) ([]appointment.Appointment, error) {
 	r.seen(ctx, "Search")
 	if r.err != nil {

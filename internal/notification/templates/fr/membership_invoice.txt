@@ -1,0 +1,5 @@
+Facture d'abonnement Salus n° {{.Number}}
+
+Vous trouverez ci-joint la facture d'abonnement Salus n° {{.Number}} pour {{.Clinic}} au format PDF.
+
+La facture et les modalités de paiement figurent aussi sur la page Abonnement de Salus. Le paiement se fait par virement bancaire, avec le numéro de facture comme référence.

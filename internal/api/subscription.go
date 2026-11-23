@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -44,7 +45,8 @@ func (b bookableClinics) Read(ctx context.Context, c organization.Caller, id str
 
 // subscriptionRoutes are the routes of package D of docs/plans/clinic-cms.md: the clinic's membership and Salus's
 // invoices to it (subscription), and its billing details (organization). For the clinic's admin.
-func subscriptionRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, accounts *auth.Service, log *slog.Logger) []func(*http.ServeMux) {
+// The admin's PDF of an invoice reads the clinic, its billing details and the seller (package I).
+func subscriptionRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, accounts *auth.Service, clinics *organization.Service, seller config.Seller, log *slog.Logger) []func(*http.ServeMux) {
 	clinicCaller := organizationCaller(accounts)
 	caller := func(ctx context.Context) (subscription.Caller, bool, error) {
 		c, ok, err := clinicCaller(ctx)
@@ -52,7 +54,10 @@ func subscriptionRoutes(pool *pgxpool.Pool, audit *auditevent.Service, tx *postg
 	}
 	billing := organization.NewBilling(organization.BillingPorts{Repo: organization.NewPostgresBillingRepository(pool), Audit: audit, Tx: tx})
 	return []func(*http.ServeMux){
-		subscription.NewHTTPHandler(memberships(pool, audit, tx), caller, log).Routes,
+		subscription.NewHTTPHandler(subscription.NewService(subscription.Ports{
+			Repo: subscription.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, Billing: billing,
+			Seller: subscription.Seller(seller),
+		}), caller, log).Routes,
 		organization.NewBillingHandler(billing, clinicCaller, log).Routes,
 	}
 }

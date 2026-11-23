@@ -1,0 +1,5 @@
+Račun za članarinu Salus br. {{.Number}}
+
+U prilogu je račun za članarinu Salus br. {{.Number}} za ustanovu {{.Clinic}}, u PDF formatu.
+
+Račun i uputstvo za plaćanje nalaze se i na stranici Članarina u aplikaciji Salus. Plaćanje je bankovnim prenosom, sa brojem računa kao pozivom na broj.

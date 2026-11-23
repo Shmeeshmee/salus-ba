@@ -63,15 +63,17 @@ type Transactor interface {
 }
 
 // Draft is a receipt to issue: to a patient, a company or neither, for a visit or on its own, its picks from the
-// price list and how it was paid. A receipt for a visit that names no company is the visit's patient's.
+// price list and how it was paid. A receipt for a visit that names no company is the visit's patient's. A draft with
+// an IdempotencyKey (a UUID the receipt dialog makes) is issued once: issued again, it answers the first receipt.
 type Draft struct {
-	PatientID     string
-	CompanyName   string
-	CompanyTaxID  string
-	AppointmentID string
-	Kind          Kind
-	PaymentMethod PaymentMethod
-	Picks         []chargeitemdefinition.Pick
+	IdempotencyKey string
+	PatientID      string
+	CompanyName    string
+	CompanyTaxID   string
+	AppointmentID  string
+	Kind           Kind
+	PaymentMethod  PaymentMethod
+	Picks          []chargeitemdefinition.Pick
 }
 
 // Ports are the Service's dependencies. The fiscal job (Fiscalize, GiveUp) needs Repo, Reporter, Audit and Tx only.
@@ -104,6 +106,8 @@ var taxID = regexp.MustCompile(`^[0-9]{12,13}$`)
 // that is no receipt, a line the price list does not price, a patient who is not the visit's, or, on its own, a
 // patient the clinic does not treat; ErrForbidden to anyone but the clinic's admin and the practitioner of the visit;
 // ErrNotFound for a visit the clinic does not have; ErrSellerIncomplete while the clinic's billing details are.
+// With an idempotency key already issued in the clinic: that receipt, audited as a read, or ErrInvalid when another
+// account issued it.
 func (s *Service) Issue(ctx context.Context, c Caller, d Draft) (Invoice, error) {
 	if !validDraft(d) {
 		return Invoice{}, ErrInvalid
@@ -116,13 +120,29 @@ func (s *Service) Issue(ctx context.Context, c Caller, d Draft) (Invoice, error)
 		if err := s.p.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
 			return err
 		}
+		var found bool
+		var err error
+		if out, found, err = s.issued(ctx, c, d.IdempotencyKey); found || err != nil {
+			return err
+		}
 		inv, err := s.draft(ctx, c, d)
 		if err != nil {
 			return err
 		}
+		inv.IdempotencyKey = d.IdempotencyKey
 		out, err = s.store(ctx, c, inv)
 		return err
 	})
+	if errors.Is(err, errIssuedMeanwhile) { // the same key, issued while this one waited for the number
+		err = s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+			if err := s.p.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
+				return err
+			}
+			var err error
+			out, _, err = s.issued(ctx, c, d.IdempotencyKey)
+			return err
+		})
+	}
 	switch {
 	case errors.Is(err, ErrForbidden), errors.Is(err, ErrNotFound):
 		return Invoice{}, s.refuse(ctx, c, auditevent.CodeCreate, err)
@@ -258,12 +278,44 @@ func (s *Service) treats(ctx context.Context, org, patientID string) error {
 	return nil
 }
 
+// errIssuedMeanwhile rolls back a receipt whose idempotency key was issued by another request while this one waited
+// for the clinic's number: the number is given back, and Issue answers the other request's receipt.
+var errIssuedMeanwhile = errors.New("invoice: issued meanwhile")
+
+// issued returns the clinic's receipt issued with the key and records its read, false when there is none (or no key).
+// ErrInvalid when another account issued it: a key is the request of the one who made it.
+func (s *Service) issued(ctx context.Context, c Caller, key string) (Invoice, bool, error) {
+	if key == "" {
+		return Invoice{}, false, nil
+	}
+	inv, err := s.p.Repo.ByIdempotencyKey(ctx, c.OrganizationID, key)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Invoice{}, false, nil
+	case err != nil:
+		return Invoice{}, false, err
+	case inv.IssuedByAccountID != c.AccountID:
+		return Invoice{}, false, ErrInvalid
+	}
+	return inv, true, s.p.Audit.Record(ctx, event(c, auditevent.CodeRead, inv.ID, auditevent.OutcomeSuccess))
+}
+
 // store gives inv the clinic's next number, stores it, enqueues its fiscal report and audits the create, all in the
-// transaction in ctx: a receipt that is rolled back leaves no number and no job.
+// transaction in ctx: a receipt that is rolled back leaves no number and no job. The number keeps the clinic's
+// sequence locked, so a receipt with an idempotency key looks for the key once more after it: two requests with one
+// key issue one receipt (errIssuedMeanwhile).
 func (s *Service) store(ctx context.Context, c Caller, inv Invoice) (Invoice, error) {
 	var err error
 	if inv.Number, err = s.p.Repo.NextNumber(ctx, inv.OrganizationID); err != nil {
 		return Invoice{}, err
+	}
+	if inv.IdempotencyKey != "" {
+		switch _, err := s.p.Repo.ByIdempotencyKey(ctx, inv.OrganizationID, inv.IdempotencyKey); {
+		case err == nil:
+			return Invoice{}, errIssuedMeanwhile
+		case !errors.Is(err, ErrNotFound):
+			return Invoice{}, err
+		}
 	}
 	inv.IssuedAt, inv.IssuedByAccountID = s.p.Clock.Now(), c.AccountID
 	out, err := s.p.Repo.Insert(ctx, inv)
@@ -320,6 +372,7 @@ func (s *Service) Reverse(ctx context.Context, c Caller, id string, method Payme
 func reversal(orig Invoice, method PaymentMethod) Invoice {
 	rev := orig
 	rev.ID, rev.ReversesID, rev.ReversedByID, rev.PaymentMethod, rev.TotalMinor = "", orig.ID, "", method, -orig.TotalMinor
+	rev.IdempotencyKey = ""
 	rev.FiscalStatus, rev.FiscalID, rev.FiscalCode, rev.FiscalQR, rev.FiscalizedAt = FiscalPending, "", "", "", time.Time{}
 	rev.Lines = make([]Line, len(orig.Lines))
 	for i, l := range orig.Lines {

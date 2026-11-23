@@ -1993,4 +1993,59 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pricesPaidAtClinic =>
       'You pay at the clinic. Nothing is charged in the app.';
+
+  @override
+  String get discardTitle => 'Change this answer?';
+
+  @override
+  String discardBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'This change skips $n questions you already answered. Their answers will be removed.',
+      one:
+          'This change skips $n question you already answered. Its answer will be removed.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardConfirm => 'Change and remove';
+
+  @override
+  String get myReceipts => 'My receipts';
+
+  @override
+  String get receiptsIntro =>
+      'The receipts clinics issued to you for the services you paid for at the clinic. Clinics keep receipts for as long as the fiscal law requires.';
+
+  @override
+  String get noReceipts => 'You have no receipts yet.';
+
+  @override
+  String receiptNumber(int number) {
+    return 'Receipt no. $number';
+  }
+
+  @override
+  String receiptIssuedOn(String date) {
+    return 'Issued on $date';
+  }
+
+  @override
+  String get receiptReversal => 'Reversal of an earlier receipt';
+
+  @override
+  String receiptLine(String name, int quantity) {
+    return '$name × $quantity';
+  }
+
+  @override
+  String get serviceAtClinic => 'I will choose at the clinic';
+
+  @override
+  String answersNotEnabled(String items) {
+    return 'These questions are no longer asked, so their answers were removed: $items. Check your answers and submit again.';
+  }
 }

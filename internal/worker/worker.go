@@ -87,7 +87,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
 		clinicStats: newClinicStats(statsPool, clock.System{}), trends: newTrends(pool, statsPool, platform),
 		receipts:    newReceipts(pool, clock.System{}),
-		memberships: newMemberships(pool, clock.System{}),
+		memberships: newMemberships(pool, inserter, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
 	cfg := workConfig(log, river.QueueDefault, workers)

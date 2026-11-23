@@ -2684,7 +2684,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a receipt for a visit or on its own
-         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused.
+         * @description By the clinic's admin or the practitioner of the visit (the reception role waits for Q1). The lines come from the price list at issue; the number is the clinic's next one; the receipt is reported to the tax authority by a job after it is stored (`fiscalStatus` `pending` until then). An issued receipt never changes; a mistake is a reversal. Audited, also when refused. With an `Idempotency-Key` (package H) a request is issued once: the same key again, from the same account, answers the receipt it issued (201, audited as a read), so a double click or a retried request issues one receipt.
          */
         post: operations["issueReceipt"];
         delete?: never;
@@ -2733,6 +2733,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/receipts/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a receipt whose fiscal report failed once more
+         * @description Enqueues the receipt's fiscal report again (the same job); it becomes `fiscalized` when the authority accepts it. Only for a receipt in `failed`; a fiscalized one is never reported again. By the clinic's admin. Audited, also when refused.
+         */
+        post: operations["retryReceiptReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clinic/receipts/{id}/pdf": {
         parameters: {
             query?: never;
@@ -2765,6 +2785,26 @@ export interface paths {
          * @description Totals by payment method and by service of the receipts issued in [from, to), reversals included; as JSON, or as CSV with `format=csv`. For the clinic's admin. Audited.
          */
         get: operations["getReceiptsReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/reports/practice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The online practice report, per practitioner and visit mode
+         * @description Per practitioner role and visit mode in [from, to): the minutes its availability rules (as they are now) offer, the visits held (fulfilled appointments starting in the period) and the receipted amount of those visits (receipts issued for them from `from` until now, a reversed receipt and its reversal left out), in BAM minor units. For the clinic's admin. Audited.
+         */
+        get: operations["getPracticeReport"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2845,6 +2885,26 @@ export interface paths {
          * @description Newest first. For the clinic's admin. Built in package D.
          */
         get: operations["listSubscriptionInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/subscription/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A membership invoice as a PDF
+         * @description Salus's invoice to the clinic: the seller, the clinic as the buyer, the month, the seats, the amount and how to pay, in the clinic's default language. For the clinic's admin; also e-mailed to its billing e-mail when issued. Not personal data.
+         */
+        get: operations["getSubscriptionInvoicePdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2967,7 +3027,7 @@ export interface components {
              * @description The price list's service; absent for an item off it.
              */
             serviceId?: string;
-            /** @description As on the price list at issue. */
+            /** @description As on the price list at issue. Lines are in the order they were entered. */
             name: string;
             /**
              * Format: int32
@@ -3083,6 +3143,25 @@ export interface components {
                 quantity: number;
                 /** Format: int64 */
                 totalMinor: number;
+            }[];
+        };
+        PracticeReport: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            currency: string;
+            /** @description By practitioner role, then visit mode; a role and mode with nothing offered, held or receipted is absent. */
+            rows: {
+                /** Format: uuid */
+                practitionerRole: string;
+                visitMode: components["schemas"]["VisitMode"];
+                /** Format: int64 */
+                minutesOffered: number;
+                /** Format: int64 */
+                visits: number;
+                /** Format: int64 */
+                receiptedMinor: number;
             }[];
         };
         /**
@@ -3641,6 +3720,11 @@ export interface components {
              * @description A free slot, as Slot?schedule=…&status=free gives it.
              */
             slotId: string;
+            /**
+             * Format: uuid
+             * @description Optional (package E of docs/plans/clinic-cms.md): a service of the slot's clinic's price list, active and offered in the slot's visit mode, as GET /organizations/{id}/services gives them. Shown to the clinic and the first line of the visit's receipt; nothing is charged in the app. Kept on a reschedule.
+             */
+            serviceId?: string;
         };
         SetAppointmentStatusRequest: {
             /** @enum {string} */
@@ -3656,6 +3740,11 @@ export interface components {
             practitionerRoleId: string;
             /** Format: uuid */
             slotId: string;
+            /**
+             * Format: uuid
+             * @description The price-list service the booking named; absent for none (package E).
+             */
+            serviceId?: string;
             /** Format: date-time */
             start: string;
             /** Format: date-time */
@@ -3708,7 +3797,7 @@ export interface components {
             /** @description The draft's translations, all of them: one per language, none in the original language. A translation may be incomplete while the version is a draft; publishing refuses it until complete. Absent keeps the draft's. */
             translations?: components["schemas"]["QuestionnaireTranslation"][];
         };
-        /** @description One item, as FHIR Questionnaire.item. Sections (`group`) are top level only and hold questions and instructions. Single and multiple choice are both `choice`; `repeats` tells them apart. */
+        /** @description One item, as FHIR Questionnaire.item. Sections (`group`) hold questions, instructions and other sections: a branch is a section carrying the condition, and the flow joins back at the next item without one. Single and multiple choice are both `choice`; `repeats` tells them apart. */
         QuestionnaireItem: {
             /** @description Opaque and random, unique within the questionnaire, kept by later versions. */
             linkId: string;
@@ -3733,12 +3822,24 @@ export interface components {
             answerOption?: {
                 valueString: string;
             }[];
-            /** @description Shown only when the earlier item `question`, a boolean or a choice, is answered `answerBoolean` or `answerString` (one of its options); a choice with repeats when any answer matches. */
+            /** @description FHIR R4 enableWhen: shown only while these conditions on earlier questions hold, all of them or any one (`enableBehavior`, required with two or more). Each takes the one answer[x] of its question's type: `answerBoolean` (yes/no), `answerString` (one of a choice's options), `answerInteger`, `answerDecimal`, `answerDate`. `=` and `!=` fit every type but string and text; `>`, `>=`, `<`, `<=` fit integer, decimal and date; `exists` fits every question and takes `answerBoolean` (true: answered). A choice with repeats meets `=` when any answer matches and `!=` when none does; every operator but `exists` is false on an unanswered or hidden question. The single object of before (`question` with `answerBoolean` or `answerString`, operator `=`) is still accepted. */
             enableWhen?: {
                 question: string;
+                /** @enum {string} */
+                operator: "exists" | "=" | "!=" | ">" | "<" | ">=" | "<=";
                 answerBoolean?: boolean;
                 answerString?: string;
-            };
+                /** Format: int32 */
+                answerInteger?: number;
+                answerDecimal?: number;
+                /** Format: date */
+                answerDate?: string;
+            }[];
+            /**
+             * @description How several conditions combine; required with two or more.
+             * @enum {string}
+             */
+            enableBehavior?: "all" | "any";
             /** @description A section's questions and instructions. */
             item?: components["schemas"]["QuestionnaireItem"][];
         };
@@ -3906,8 +4007,8 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed";
-            /** @description With `invalid_questionnaire`, `answers_invalid` and `translation_incomplete` only, the offending items' linkIds in document order. */
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed";
+            /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
             language?: components["schemas"]["Language"];
@@ -5453,7 +5554,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). */
+        /** @description `answers_invalid`: an answer does not fit its item's type or limits (docs/questionnaire/SPEC.md §2 "Limits"), an answer is given to an attachment item (files go through `/questionnaire-responses/{id}/items/{linkId}/attachments`), or, on submit, a shown required question is unanswered; `linkIds` names them in document order (an answer to no item of the questionnaire is refused without being named). `answer_not_enabled`, on submit: a saved answer is to an item its conditions hide on the answers given (a response holds only the path taken); `linkIds` names those items in document order, and the patient saves the answers without them. */
         AnswersInvalid: {
             headers: {
                 [name: string]: unknown;
@@ -7109,7 +7210,7 @@ export interface operations {
                     "application/json": components["schemas"]["Appointment"];
                 };
             };
-            /** @description `invalid_request`. */
+            /** @description `invalid_request`; `invalid_service`: the service named is not one its clinic offers, active, in the slot's visit mode. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12056,6 +12157,8 @@ export interface operations {
             header?: {
                 /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
                 "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description A UUID the client makes once per receipt it means to issue. Unique per clinic. */
+                "Idempotency-Key"?: string;
             };
             path?: never;
             cookie?: never;
@@ -12075,7 +12178,7 @@ export interface operations {
                     "application/json": components["schemas"]["Receipt"];
                 };
             };
-            /** @description `invalid_request`: unreadable or a field unknown; `invalid_receipt`: no lines, a patient and a company together, or a service not on the clinic's active price list. */
+            /** @description `invalid_request`: unreadable, a field unknown, or an `Idempotency-Key` that is no UUID; `invalid_receipt`: no lines, a patient and a company together, a service not on the clinic's active price list, or an `Idempotency-Key` another account issued with. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12208,6 +12311,52 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    retryReceiptReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The receipt as it is, still `failed` until its report runs. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Receipt"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such receipt of the caller's clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `fiscal_report_not_failed`: the receipt is pending (its report is still running) or fiscalized. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     getClinicReceiptPdf: {
         parameters: {
             query?: never;
@@ -12278,6 +12427,42 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPracticeReport: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "private, no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeReport"];
+                };
+            };
+            /** @description `invalid_request`: a time missing or malformed, `to` not after `from`, or a range over ten years. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -12394,6 +12579,41 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["ClinicAdminOnly"];
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getSubscriptionInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such invoice of the clinic, or no clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

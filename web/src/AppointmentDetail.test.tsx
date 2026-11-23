@@ -8,6 +8,7 @@ import { formatDate } from './i18n/format'
 import type { Language } from './i18n/languages'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, outcome, paths, type Route } from './test/fakeFetch'
 import { admin, appointment, clinicRoute, cy, dee, meta, org, patientId, practitioner } from './test/fixtures'
+import { serviceURL } from './appointmentService'
 import { visitModeURL } from './visitMode'
 
 afterEach(cleanup)
@@ -194,6 +195,57 @@ describe('AppointmentDetail', () => {
       expect(body).toEqual({ kind: 'receipt', paymentMethod: 'cash', appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
       expect(screen.queryByRole('dialog')).toBeNull()
       expectCsrfOnWrites(fake.requests)
+    })
+
+    it('shows the service the booking named and starts the receipt with its line (clinic-cms E)', async () => {
+      let body: unknown
+      renderDetail(admin, {
+        [read]: () => fhirJSON({ ...booked, status: 'fulfilled', extension: [{ url: serviceURL, valueReference: { reference: `ChargeItemDefinition/${exam}` } }] }),
+        'GET /clinic/services': () => Response.json(services),
+        'POST /clinic/receipts': async (r) => {
+          body = await r.json()
+          return Response.json(issued, { status: 201 })
+        },
+      })
+
+      expect(await screen.findByText('Service: Placeholder examination')).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: 'Issue receipt' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+      expect(await dialog.findByLabelText('Service')).toHaveProperty('value', exam)
+      fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+      expect(await screen.findByText('Receipt no. 7 was issued.')).toBeTruthy()
+      expect(body).toEqual({ kind: 'receipt', paymentMethod: 'cash', appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
+    })
+
+    it('issues a receipt started from the booked service once on a double click (clinic-cms E and H)', async () => {
+      const posts: { key: string | null; body: unknown }[] = []
+      renderDetail(admin, {
+        [read]: () => fhirJSON({ ...booked, status: 'fulfilled', extension: [{ url: serviceURL, valueReference: { reference: `ChargeItemDefinition/${exam}` } }] }),
+        'GET /clinic/services': () => Response.json(services),
+        'POST /clinic/receipts': async (r) => {
+          posts.push({ key: r.headers.get('Idempotency-Key'), body: await r.json() })
+          return Response.json(issued, { status: 201 })
+        },
+      })
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Issue receipt' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+      expect(await dialog.findByLabelText('Service')).toHaveProperty('value', exam)
+      const issue = dialog.getByRole('button', { name: 'Issue receipt' })
+      fireEvent.click(issue)
+      fireEvent.click(issue)
+
+      expect(await screen.findByText('Receipt no. 7 was issued.')).toBeTruthy()
+      expect(posts).toHaveLength(1)
+      expect(posts[0].key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      expect(posts[0].body).toEqual({ kind: 'receipt', paymentMethod: 'cash', appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
+    })
+
+    it('names no service when the booking named none', async () => {
+      const fake = renderDetail(admin, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }) })
+      expect(await screen.findByText('Fulfilled')).toBeTruthy()
+      expect(screen.queryByText(/^Service:/)).toBeNull()
+      expect(fake.requests.some((r) => r.url.includes('/clinic/services'))).toBe(false)
     })
 
     it('is not offered to another practitioner, nor for a cancelled visit or a no-show', async () => {

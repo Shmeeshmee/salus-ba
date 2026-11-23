@@ -2627,5 +2627,81 @@
   "pricesPaidAtClinic": "You pay at the clinic. Nothing is charged in the app.",
   "@pricesPaidAtClinic": {
     "description": "Clinic system, package B: booking, under the prices: they are shown, never charged in the app. Draft, waiting for the owner."
+  },
+  "discardTitle": "Change this answer?",
+  "@discardTitle": {
+    "description": "SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides."
+  },
+  "discardBody": "{n, plural, one{This change skips {n} question you already answered. Its answer will be removed.} other{This change skips {n} questions you already answered. Their answers will be removed.}}",
+  "@discardBody": {
+    "description": "SAL-43, package Q3: a changed answer hides questions already answered; their answers are removed if the patient goes on.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "discardConfirm": "Change and remove",
+  "@discardConfirm": {
+    "description": "SAL-43, package Q3: the dialog before a changed answer removes the answers of the questions it hides."
+  },
+  "myReceipts": "My receipts",
+  "@myReceipts": {
+    "description": "Clinic system, package H: home button and screen title of the patient's receipts."
+  },
+  "receiptsIntro": "The receipts clinics issued to you for the services you paid for at the clinic. Clinics keep receipts for as long as the fiscal law requires.",
+  "@receiptsIntro": {
+    "description": "[legal] Clinic system, package H: above the patient's receipts; receipts are kept as the fiscal law requires. Draft, waiting for the owner."
+  },
+  "noReceipts": "You have no receipts yet.",
+  "@noReceipts": {
+    "description": "Clinic system, package H: the patient has no receipts."
+  },
+  "receiptNumber": "Receipt no. {number}",
+  "@receiptNumber": {
+    "description": "Clinic system, package H: a receipt's heading and PDF file name; the clinic's receipt number.",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "receiptIssuedOn": "Issued on {date}",
+  "@receiptIssuedOn": {
+    "description": "Clinic system, package H: when the receipt was issued; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "receiptReversal": "Reversal of an earlier receipt",
+  "@receiptReversal": {
+    "description": "Clinic system, package H: the receipt reverses (cancels) an earlier one."
+  },
+  "receiptLine": "{name} × {quantity}",
+  "@receiptLine": {
+    "description": "Clinic system, package H: one line of a receipt: the service as on the clinic's price list, and the quantity (negative on a reversal).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "quantity": {
+        "type": "int"
+      }
+    }
+  },
+  "serviceAtClinic": "I will choose at the clinic",
+  "@serviceAtClinic": {
+    "description": "Clinic system, package E: booking, the first choice above the services: the patient names no service and leaves it to the clinic. Draft, waiting for the owner."
+  },
+  "answersNotEnabled": "These questions are no longer asked, so their answers were removed: {items}. Check your answers and submit again.",
+  "@answersNotEnabled": {
+    "description": "SAL-43, wave 2 integration: a submit refused because answers belong to questions the patient's answers now hide; the app removed them. items: the questions' texts, comma separated. Draft, waiting for the owner.",
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
   }
 }

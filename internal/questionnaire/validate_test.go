@@ -53,7 +53,9 @@ var (
 
 // onB gives it a condition on the boolean b.
 func onB(it questionnaire.Item) questionnaire.Item {
-	return with(it, func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "b", Boolean: yes()} })
+	return with(it, func(i *questionnaire.Item) {
+		i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b", Boolean: yes()}}
+	})
 }
 
 // validationCases are questionnaires at and past each rule; an invalid one names the offending linkIds.
@@ -102,7 +104,6 @@ var validationCases = []struct {
 	{name: "required instructions", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{with(question("d", questionnaire.ItemDisplay), func(i *questionnaire.Item) { i.Required = true })}}, links: []string{"d"}},
 	{name: "a required section", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{with(section("s"), func(i *questionnaire.Item) { i.Required = true })}}, links: []string{"s"}},
 
-	{name: "a section in a section", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{section("s", section("inner"))}}, links: []string{"inner"}},
 	{name: "a question with children", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.Items = flat(1) })}}, links: []string{"q"}},
 
 	{name: "a linkId of 64", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question(r("a", 64), questionnaire.ItemString)}}},
@@ -115,33 +116,41 @@ var validationCases = []struct {
 	{name: "a condition on an earlier boolean", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{boolQ, onB(question("q", questionnaire.ItemString))}}},
 	{name: "a condition on an earlier choice", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{choiceQ,
 		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
-			i.EnableWhen = &questionnaire.Condition{Question: "c", String: "Option 2"}
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "c", String: "Option 2"}}
 		})}}},
 	{name: "a condition on a multiple choice", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{with(choiceQ, func(i *questionnaire.Item) { i.Repeats = true }),
 		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
-			i.EnableWhen = &questionnaire.Condition{Question: "c", String: "Option 1"}
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "c", String: "Option 1"}}
 		})}}},
 	{name: "a condition on a section", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{boolQ, onB(section("s", question("q", questionnaire.ItemString)))}}},
 	{name: "a condition on a hidden section's item", valid: true, in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
 		boolQ, onB(section("s", question("b2", questionnaire.ItemBoolean))),
-		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "b2", Boolean: yes()} })}}},
+		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b2", Boolean: yes()}}
+		})}}},
 	{name: "a condition on a later item", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{onB(question("q", questionnaire.ItemString)), boolQ}}, links: []string{"q"}},
-	{name: "a condition on itself", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{with(boolQ, func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "b", Boolean: yes()} })}}, links: []string{"b"}},
+	{name: "a condition on itself", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{with(boolQ, func(i *questionnaire.Item) {
+		i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b", Boolean: yes()}}
+	})}}, links: []string{"b"}},
 	{name: "a condition on a missing item", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{onB(question("q", questionnaire.ItemString))}}, links: []string{"q"}},
 	{name: "a condition on a non-boolean non-choice item", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{question("b", questionnaire.ItemString), onB(question("q", questionnaire.ItemString))}}, links: []string{"q"}},
 	{name: "a condition on a section's answer", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{section("b"), onB(question("q", questionnaire.ItemString))}}, links: []string{"q"}},
 	{name: "a condition with a missing option", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{choiceQ,
 		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
-			i.EnableWhen = &questionnaire.Condition{Question: "c", String: "Option 3"}
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "c", String: "Option 3"}}
 		})}}, links: []string{"q"}},
 	{name: "a condition with a string on a boolean", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{boolQ,
-		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "b", String: "Yes"} })}}, links: []string{"q"}},
+		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b", String: "Yes"}}
+		})}}, links: []string{"q"}},
 	{name: "a condition with a boolean on a choice", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{choiceQ,
 		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
-			i.EnableWhen = &questionnaire.Condition{Question: "c", Boolean: yes(), String: "Option 1"}
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "c", Boolean: yes(), String: "Option 1"}}
 		})}}, links: []string{"q"}},
 	{name: "a condition with no answer", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{boolQ,
-		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "b"} })}}, links: []string{"q"}},
+		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "b"}}
+		})}}, links: []string{"q"}},
 	{name: "two offending items, in document order", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
 		question("a", questionnaire.ItemAttachment), section("s", with(question("t", questionnaire.ItemString), func(i *questionnaire.Item) { i.Text = "" }))}}, links: []string{"a", "t"}},
 }
@@ -187,7 +196,9 @@ var attachmentCases = []struct {
 		attachment("b", 1, questionnaire.FilePhoto), onB(question("q", questionnaire.ItemString))}}, links: []string{"q"}},
 	{name: "a condition on an attachment with a string", in: questionnaire.Content{Title: "T", Items: []questionnaire.Item{
 		attachment("a", 1, questionnaire.FilePhoto),
-		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) { i.EnableWhen = &questionnaire.Condition{Question: "a", String: "photo"} })}}, links: []string{"q"}},
+		with(question("q", questionnaire.ItemString), func(i *questionnaire.Item) {
+			i.EnableWhen = questionnaire.Conditions{{Operator: questionnaire.OpEqual, Question: "a", String: "photo"}}
+		})}}, links: []string{"q"}},
 }
 
 func TestCreate_ValidatesTheQuestionnaire(t *testing.T) {

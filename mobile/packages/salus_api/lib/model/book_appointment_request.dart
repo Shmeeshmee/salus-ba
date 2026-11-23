@@ -14,27 +14,45 @@ class BookAppointmentRequest {
   /// Returns a new [BookAppointmentRequest] instance.
   BookAppointmentRequest({
     required this.slotId,
+    this.serviceId,
   });
 
   /// A free slot, as Slot?schedule=…&status=free gives it.
   String slotId;
 
+  /// Optional (package E of docs/plans/clinic-cms.md): a service of the slot's clinic's price list, active and offered in the slot's visit mode, as GET /organizations/{id}/services gives them. Shown to the clinic and the first line of the visit's receipt; nothing is charged in the app. Kept on a reschedule.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? serviceId;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is BookAppointmentRequest && other.slotId == slotId;
+      other is BookAppointmentRequest &&
+          other.slotId == slotId &&
+          other.serviceId == serviceId;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (slotId.hashCode);
+      (slotId.hashCode) + (serviceId == null ? 0 : serviceId!.hashCode);
 
   @override
-  String toString() => 'BookAppointmentRequest[slotId=$slotId]';
+  String toString() =>
+      'BookAppointmentRequest[slotId=$slotId, serviceId=$serviceId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'slotId'] = this.slotId;
+    if (this.serviceId != null) {
+      json[r'serviceId'] = this.serviceId;
+    } else {
+      json[r'serviceId'] = null;
+    }
     return json;
   }
 
@@ -58,6 +76,7 @@ class BookAppointmentRequest {
 
       return BookAppointmentRequest(
         slotId: mapValueOfType<String>(json, r'slotId')!,
+        serviceId: mapValueOfType<String>(json, r'serviceId'),
       );
     }
     return null;

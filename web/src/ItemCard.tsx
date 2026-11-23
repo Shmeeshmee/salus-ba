@@ -9,14 +9,18 @@ import {
   maxOption,
   maxOptions,
   maxText,
+  operatorsFor,
   textLabel,
+  type Behavior,
   type Condition,
   type FileKind,
   type Item,
   type Kind,
+  type Operator,
 } from './builder'
+import { BuilderBranch } from './BuilderBranch'
 import { ArrowIcon, CrossIcon, GripIcon } from './icons'
-import { useT } from './i18n/useT'
+import { useList, useT } from './i18n/useT'
 import { Confirm } from './ui'
 
 // RowParts are what @dnd-kit attaches to the row: kept apart from the rest so no other prop is read as a ref.
@@ -38,7 +42,11 @@ type EditProps = {
   attention: boolean
   canUp: boolean
   canDown: boolean
-  dependents: number
+  dependents: string[] // the items shown only through this one, by name (W19, SAL-43)
+  branch: number // how deep in branches the item is
+  joins: boolean // branches join at this item
+  followUps: (answer: Condition['answer']) => Item[]
+  onFollowUp: (answer: Condition['answer']) => void
   earlier: Item[] // the questions above the item a condition may depend on
   questionOf: (linkId: string) => Item | undefined
   onToggle: () => void
@@ -56,16 +64,19 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
   const t = useT()
   const { item } = p
   const [confirming, setConfirming] = useState(false)
+  const list = useList()
   const name = p.label(item)
-  const classes = ['item', item.kind === 'group' ? 'section' : '', p.depth === 1 ? 'nested' : '', p.attention ? 'attention' : '', dragging ? 'dragging' : '']
+  const classes = ['item', item.kind === 'group' ? 'section' : '', p.depth === 1 ? 'nested' : '', p.branch > 0 ? 'in-branch' : '', p.attention ? 'attention' : '', dragging ? 'dragging' : '']
+  const branchStyle = { ...style, '--branch': p.branch } as CSSProperties
 
   function remove() {
-    if (p.dependents > 0) setConfirming(true)
+    if (p.dependents.length > 0) setConfirming(true)
     else p.onDelete()
   }
 
   return (
-    <li ref={nodeRef} style={style} className={classes.filter(Boolean).join(' ')}>
+    <li ref={nodeRef} style={branchStyle} className={classes.filter(Boolean).join(' ')}>
+      {p.joins && <p className="join-marker">{t('questionnaire.joinHere')}</p>}
       <div className="item-head">
         <button type="button" className="icon handle" aria-label={t('questionnaire.drag')} title={t('questionnaire.drag')} {...handle}>
           <GripIcon />
@@ -74,6 +85,12 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
         <button type="button" className="item-toggle" aria-expanded={p.open} onClick={p.onToggle}>
           <span className="item-text">{name}</span> <span className="tag">{t(`questionnaire.kinds.${item.kind}`)}</span>
           <FilesSummary item={item} />
+          {(item.enableWhen ?? []).length > 0 && (
+            <>
+              {' '}
+              <span className="tag branch-tag">{t('questionnaire.conditional')}</span>
+            </>
+          )}
           {item.required && (
             <>
               {' '}
@@ -103,7 +120,7 @@ export function ItemCard({ nodeRef, style, handle, dragging, ...p }: CardProps) 
       {confirming && (
         <Confirm
           question={t('questionnaire.deleteQuestion')}
-          lines={[t('questionnaire.dependents', { n: p.dependents })]}
+          lines={[t('questionnaire.dependents', { n: p.dependents.length }), t('questionnaire.dependentItems', { items: list(p.dependents) })]}
           confirm={t('questionnaire.delete')}
           cancel={t('questionnaire.cancel')}
           danger
@@ -120,6 +137,7 @@ function ItemEditor(p: EditProps) {
   const t = useT()
   const { item } = p
   const [more, setMore] = useState(false)
+  const list = useList()
   const kindId = useId()
   return (
     <div className="item-body">
@@ -151,6 +169,8 @@ function ItemEditor(p: EditProps) {
           <label htmlFor={`${kindId}-required`}>{t('questionnaire.required')}</label>
         </div>
       )}
+      {p.dependents.length > 0 && <p className="hint branch-dependents">{t('questionnaire.dependsOnThis', { items: list(p.dependents) })}</p>}
+      {(item.kind === 'boolean' || isChoice(item.kind)) && <BuilderBranch item={item} label={p.label} followUps={p.followUps} onFollowUp={p.onFollowUp} />}
       {isChoice(item.kind) && <Options options={item.options} onChange={(options) => p.onChange({ options })} />}
       {item.kind === 'attachment' && <FileOptions item={item} onChange={p.onChange} />}
       <button type="button" className="quiet more-toggle" aria-expanded={more} onClick={() => setMore(!more)}>
@@ -289,39 +309,101 @@ function Help({ help, onChange }: { help: string; onChange: (h: string) => void 
   return <TextField label={t('questionnaire.help')} value={help} max={maxHelp} long hint={t('questionnaire.helpHint')} onChange={onChange} />
 }
 
-function firstAnswer(q: Item): Condition['answer'] {
-  return q.kind === 'boolean' ? true : (q.options[0] ?? '')
+// valueFor is the value a new condition on the question starts with for the operator.
+function valueFor(q: Item, operator: Operator): Condition['answer'] {
+  if (operator === 'exists' || q.kind === 'boolean') return true
+  if (isChoice(q.kind)) return q.options[0] ?? ''
+  if (q.kind === 'integer' || q.kind === 'decimal') return 0
+  return ''
+}
+
+function conditionOn(q: Item): Condition {
+  const operator = operatorsFor(q.kind)[0]
+  return { question: q.linkId, operator, answer: valueFor(q, operator) }
+}
+
+// The operator select's values: exists is two, answered and not answered.
+const opValue = (c: Condition) => (c.operator === 'exists' ? `exists:${String(c.answer)}` : c.operator)
+const opKeys: Record<string, string> = { '=': 'eq', '!=': 'ne', '>': 'gt', '>=': 'ge', '<': 'lt', '<=': 'le' }
+
+function opLabel(kind: Kind, value: string, t: ReturnType<typeof useT>): string {
+  if (value === 'exists:true') return t('questionnaire.op.answered')
+  if (value === 'exists:false') return t('questionnaire.op.unanswered')
+  if (kind === 'date') return t(`questionnaire.op.${{ '<': 'before', '>': 'after', '=': 'on' }[value as '<' | '>' | '=']}`)
+  return t(`questionnaire.op.${opKeys[value]}`)
 }
 
 function ConditionEditor(p: EditProps) {
   const t = useT()
   const { item, earlier } = p
   const id = useId()
-  const c = item.condition
-  if (!c) {
+  const list = item.enableWhen ?? []
+  const set = (next: Condition[], behavior = item.enableBehavior) => {
+    if (next.length === 0) return p.onChange({ enableWhen: undefined, enableBehavior: undefined })
+    p.onChange(next.length > 1 ? { enableWhen: next, enableBehavior: behavior ?? 'all' } : { enableWhen: next, enableBehavior: undefined })
+  }
+  if (list.length === 0) {
     if (earlier.length === 0) return <p className="hint">{t('questionnaire.nothingToDependOn')}</p>
     return (
       <div className="actions">
-        <button type="button" onClick={() => p.onChange({ condition: { question: earlier[0].linkId, answer: firstAnswer(earlier[0]) } })}>
+        <button type="button" onClick={() => set([conditionOn(earlier[0])])}>
           {t('questionnaire.addCondition')}
         </button>
       </div>
     )
   }
+  return (
+    <div className="conditions">
+      {list.length > 1 && (
+        <div className="field">
+          <label htmlFor={`${id}-b`}>{t('questionnaire.behavior')}</label>
+          <select id={`${id}-b`} value={item.enableBehavior ?? 'all'} onChange={(e) => set(list, e.target.value as Behavior)}>
+            <option value="all">{t('questionnaire.behaviors.all')}</option>
+            <option value="any">{t('questionnaire.behaviors.any')}</option>
+          </select>
+        </div>
+      )}
+      {list.map((c, i) => (
+        <ConditionRow
+          key={i}
+          {...p}
+          c={c}
+          lead={i === 0 ? t('questionnaire.showOnlyIf') : t(item.enableBehavior === 'any' ? 'questionnaire.orIf' : 'questionnaire.andIf')}
+          onSet={(next) => set(list.map((x, j) => (j === i ? next : x)))}
+          onRemove={() => set(list.filter((_, j) => j !== i))}
+        />
+      ))}
+      {earlier.length > 0 && (
+        <div className="actions">
+          <button type="button" onClick={() => set([...list, conditionOn(earlier[earlier.length - 1])])}>
+            {t('questionnaire.addAnother')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type RowProps = EditProps & { c: Condition; lead: string; onSet: (c: Condition) => void; onRemove: () => void }
+
+// ConditionRow is one condition: the earlier question, the comparison its type allows, and the value.
+function ConditionRow({ c, lead, onSet, onRemove, ...p }: RowProps) {
+  const t = useT()
+  const id = useId()
   const current = p.questionOf(c.question)
-  const choices = current && !earlier.includes(current) ? [...earlier, current] : earlier
-  const answers = current?.kind === 'boolean' ? [t('questionnaire.yes'), t('questionnaire.no')] : (current?.options ?? [])
-  const answerValue = typeof c.answer === 'boolean' ? (c.answer ? t('questionnaire.yes') : t('questionnaire.no')) : c.answer
+  const choices = current && !p.earlier.includes(current) ? [...p.earlier, current] : p.earlier
+  const ops = current ? operatorsFor(current.kind).flatMap((o) => (o === 'exists' ? ['exists:true', 'exists:false'] : [o])) : []
+  const value = opValue(c)
   return (
     <div className="condition">
       <div className="field">
-        <label htmlFor={`${id}-q`}>{t('questionnaire.showOnlyIf')}</label>
+        <label htmlFor={`${id}-q`}>{lead}</label>
         <select
           id={`${id}-q`}
           value={c.question}
           onChange={(e) => {
             const q = p.questionOf(e.target.value)
-            if (q) p.onChange({ condition: { question: q.linkId, answer: firstAnswer(q) } })
+            if (q) onSet(conditionOn(q))
           }}
         >
           {choices.map((q) => (
@@ -331,29 +413,70 @@ function ConditionEditor(p: EditProps) {
           ))}
         </select>
       </div>
-      <div className="field">
-        <label htmlFor={`${id}-a`}>{t('questionnaire.is')}</label>
-        <select
-          id={`${id}-a`}
-          value={answerValue}
-          onChange={(e) => {
-            const v = e.target.value
-            p.onChange({ condition: { question: c.question, answer: current?.kind === 'boolean' ? v === t('questionnaire.yes') : v } })
-          }}
-        >
-          {!answers.includes(answerValue) && <option value={answerValue}>{answerValue}</option>}
-          {answers.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
-      </div>
+      {current && (
+        <div className="field">
+          <label htmlFor={`${id}-o`}>{t('questionnaire.comparison')}</label>
+          <select
+            id={`${id}-o`}
+            value={value}
+            onChange={(e) => {
+              const [op, answered] = e.target.value.split(':') as [Operator, string?]
+              onSet({ ...c, operator: op, answer: op === 'exists' ? answered === 'true' : c.operator === 'exists' ? valueFor(current, op) : c.answer })
+            }}
+          >
+            {!ops.includes(value) && <option value={value}>{value}</option>}
+            {ops.map((o) => (
+              <option key={o} value={o}>
+                {opLabel(current.kind, o, t)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {current && c.operator !== 'exists' && <ConditionValue id={`${id}-a`} q={current} c={c} onSet={onSet} />}
       <div className="actions">
-        <button type="button" className="quiet" onClick={() => p.onChange({ condition: undefined })}>
+        <button type="button" className="quiet" onClick={onRemove}>
           {t('questionnaire.removeCondition')}
         </button>
       </div>
+    </div>
+  )
+}
+
+function ConditionValue({ id, q, c, onSet }: { id: string; q: Item; c: Condition; onSet: (c: Condition) => void }) {
+  const t = useT()
+  const label = <label htmlFor={id}>{t('questionnaire.answer')}</label>
+  if (q.kind === 'integer' || q.kind === 'decimal' || q.kind === 'date') {
+    const number = q.kind !== 'date'
+    const shown = typeof c.answer === 'number' ? (Number.isNaN(c.answer) ? '' : String(c.answer)) : String(c.answer)
+    return (
+      <div className="field">
+        {label}
+        <input
+          id={id}
+          className="short"
+          type={number ? 'number' : 'date'}
+          step={q.kind === 'decimal' ? 'any' : 1}
+          value={shown}
+          onChange={(e) => onSet({ ...c, answer: number ? (e.target.value === '' ? Number.NaN : Number(e.target.value)) : e.target.value })}
+        />
+      </div>
+    )
+  }
+  const answers = q.kind === 'boolean' ? ['true', 'false'] : q.options
+  const value = String(c.answer)
+  const text = (a: string) => (q.kind === 'boolean' ? t(a === 'true' ? 'questionnaire.yes' : 'questionnaire.no') : a)
+  return (
+    <div className="field">
+      {label}
+      <select id={id} value={value} onChange={(e) => onSet({ ...c, answer: q.kind === 'boolean' ? e.target.value === 'true' : e.target.value })}>
+        {!answers.includes(value) && <option value={value}>{value}</option>}
+        {answers.map((a) => (
+          <option key={a} value={a}>
+            {text(a)}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }

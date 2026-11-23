@@ -1,6 +1,7 @@
 import { SkipLink } from './components/SkipLink'
 import { nav } from './content/nav'
 import { ids } from './content/sections'
+import { Abroad } from './sections/Abroad/Abroad'
 import { Demo } from './sections/Demo/Demo'
 import { Footer } from './sections/Footer/Footer'
 import { Hero } from './sections/Hero/Hero'
@@ -19,6 +20,7 @@ export function App() {
         <Highlights />
         <Product />
         <HowItWorks />
+        <Abroad />
         <Standards />
         <Pricing />
         <Demo />

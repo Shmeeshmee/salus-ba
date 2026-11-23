@@ -15,6 +15,7 @@ import (
 type Stats interface {
 	Appointments(ctx context.Context, c Caller, q AppointmentQuery) (AppointmentFigures, error)
 	Diagnoses(ctx context.Context, c Caller, q DiagnosisQuery) ([]Count, error)
+	Practice(ctx context.Context, c Caller, q PracticeQuery) ([]PracticeRow, error)
 }
 
 // HTTPHandler serves the clinic's figures on the JSON API (api/openapi.yaml, docs/plans/analytics.md §8).
@@ -33,6 +34,7 @@ func NewHTTPHandler(svc Stats, caller func(ctx context.Context) (Caller, bool, e
 func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /analytics/clinic/appointments", h.appointments)
 	mux.HandleFunc("GET /analytics/clinic/diagnoses", h.diagnoses)
+	mux.HandleFunc("GET /clinic/reports/practice", h.practice) // the online practice report (clinic-cms E)
 }
 
 // periodJSON, heatJSON, practitionerJSON and countJSON are the ClinicAppointments and ClinicDiagnoses schemas' items.

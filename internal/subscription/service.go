@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -41,7 +42,18 @@ type Seats interface {
 	ActiveCount(ctx context.Context, org string) (int, error)
 }
 
-// Ports are what the Service runs on. Clinics and Seats are needed only by a Service that issues invoices.
+// Billing gives the clinic's billing details: the buyer on its invoice and where it is sent (organization.Billing).
+type Billing interface {
+	ForClinic(ctx context.Context, org string) (organization.BillingDetails, error)
+}
+
+// Mailer sends the invoice's e-mail (notification.Service).
+type Mailer interface {
+	SendMembershipInvoice(ctx context.Context, m notification.MembershipInvoice) error
+}
+
+// Ports are what the Service runs on. Clinics, Seats and Jobs are needed only by a Service that issues invoices;
+// Clinics, Billing and Seller by one that writes their PDF, and Mailer by one that sends it.
 type Ports struct {
 	Repo    Repository
 	Audit   Auditor
@@ -49,6 +61,10 @@ type Ports struct {
 	Clock   clock.Clock
 	Clinics Clinics
 	Seats   Seats
+	Jobs    Jobs
+	Billing Billing
+	Mailer  Mailer
+	Seller  Seller
 }
 
 // Service holds the membership's rules: the clinic's admin sees its membership and invoices, the monthly job issues

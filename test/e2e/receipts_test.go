@@ -98,3 +98,74 @@ func fiscalized(t *testing.T, clinic *bookableClinic, id string) {
 		return r.FiscalStatus == "fiscalized" && strings.HasPrefix(r.FiscalID, "TEST-")
 	})
 }
+
+// TestReceipts_AServicePickedAtBookingStartsTheVisitsReceipt (docs/plans/clinic-cms.md, package E): the patient lists the
+// clinic's services offered at the clinic and books the visit with one; a service offered only by video is refused;
+// the clinic reads the service on the appointment (JSON and the FHIR extension) and issues the visit's receipt with
+// that service's line, once, however often the same Idempotency-Key is sent (package H).
+func TestReceipts_AServicePickedAtBookingStartsTheVisitsReceipt(t *testing.T) {
+	clinic := newBookableClinic(t)
+	slot := atTheClinic(t, clinic)
+	clinic.admin.must(http.StatusOK, http.MethodPut, "/clinic/billing-details", map[string]any{
+		"legalName": "E2E synthetic clinic d.o.o.", "taxId": "4200000000001", "vatRegistered": false, "billingEmail": "billing@example.test",
+	}, nil)
+	var exam, online struct{ ID string }
+	clinic.admin.must(http.StatusCreated, http.MethodPost, "/clinic/services", map[string]any{
+		"name": "Placeholder examination", "priceMinor": 5000, "modes": []string{"in-person"}, "active": true, "translations": []any{},
+	}, &exam)
+	clinic.admin.must(http.StatusCreated, http.MethodPost, "/clinic/services", map[string]any{
+		"name": "Placeholder video follow-up", "priceMinor": 3000, "modes": []string{"video"}, "active": true, "translations": []any{},
+	}, &online)
+
+	p := newPatientWithProfile(t)
+	var offered []struct{ ID string }
+	p.must(http.StatusOK, http.MethodGet, "/organizations/"+clinic.id+"/services?"+url.Values{"mode": {"in-person"}}.Encode(), nil, &offered)
+	if len(offered) != 1 || offered[0].ID != exam.ID {
+		t.Fatalf("the services offered at the clinic are %+v, want the examination only", offered)
+	}
+	p.must(http.StatusCreated, http.MethodPost, "/consents", map[string]string{"organizationId": clinic.id}, nil)
+	if code, body := p.refusal(http.MethodPost, "/appointments", map[string]string{"slotId": slot.ID, "serviceId": online.ID}); code != http.StatusBadRequest || body != "invalid_service" {
+		t.Errorf("booking a visit at the clinic with a video-only service = %d %s, want 400 invalid_service", code, body)
+	}
+	var visit struct{ ID, ServiceID string }
+	p.must(http.StatusCreated, http.MethodPost, "/appointments", map[string]string{"slotId": slot.ID, "serviceId": exam.ID}, &visit)
+	if visit.ServiceID != exam.ID {
+		t.Errorf("the booked appointment names service %q, want %q", visit.ServiceID, exam.ID)
+	}
+
+	var read struct {
+		Extension []struct {
+			URL            string
+			ValueReference struct{ Reference string }
+		}
+	}
+	clinic.admin.must(http.StatusOK, http.MethodGet, "/fhir/R4/Appointment/"+visit.ID, nil, &read)
+	named := ""
+	for _, e := range read.Extension {
+		if e.URL == "https://salus.invalid/fhir/StructureDefinition/appointment-service" {
+			named = e.ValueReference.Reference
+		}
+	}
+	if named != "ChargeItemDefinition/"+exam.ID {
+		t.Fatalf("the clinic's FHIR read of the appointment names the service %q, want ChargeItemDefinition/%s", named, exam.ID)
+	}
+
+	// The receipt the dialog starts from the booked service, sent twice with one key (a double click, a retry).
+	issue := map[string]any{
+		"kind": "receipt", "appointmentId": visit.ID, "paymentMethod": "card",
+		"lines": []map[string]any{{"serviceId": strings.TrimPrefix(named, "ChargeItemDefinition/"), "quantity": 1}},
+	}
+	key := http.Header{"Idempotency-Key": {"7f9c2a1e-4b3d-4c8e-9a6f-0d1e2f3a4b5c"}}
+	var first, again receipt
+	clinic.admin.mustWith(key, http.StatusCreated, http.MethodPost, "/clinic/receipts", issue, &first)
+	clinic.admin.mustWith(key, http.StatusCreated, http.MethodPost, "/clinic/receipts", issue, &again)
+	if first.TotalMinor != 5000 || first.PatientID != p.patientID || again.ID != first.ID {
+		t.Errorf("the receipts are %+v and %+v, want one receipt of 50.00 BAM to the patient", first, again)
+	}
+	fiscalized(t, clinic, first.ID)
+	var mine []receipt
+	p.must(http.StatusOK, http.MethodGet, "/me/receipts", nil, &mine)
+	if len(mine) != 1 || mine[0].ID != first.ID {
+		t.Errorf("GET /me/receipts holds %+v, want the one receipt", mine)
+	}
+}

@@ -20,7 +20,7 @@ func TestReschedule_ConcurrentReschedulesOfOneAppointmentRespectTheLimit(t *test
 	c := seedClinic(t, owner, 1, 72*time.Hour, 73*time.Hour, 74*time.Hour, 75*time.Hour)
 	b := newBooking(t, app)
 	me := appointment.Caller{AccountID: c.accounts[0], PatientID: c.patients[0]}
-	a, err := b.appointments.Book(t.Context(), me, c.slots[0])
+	a, err := b.appointments.Book(t.Context(), me, c.slots[0], "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,18 +71,18 @@ func TestReschedule_RacingABookingOfTheSlotAndACancellationKeepSlotsInStep(t *te
 		appointment.Caller{AccountID: c.accounts[1], PatientID: c.patients[1]}, appointment.Caller{AccountID: c.accounts[2], PatientID: c.patients[2]}
 	for round := range 5 {
 		base := c.slots[4*round : 4*round+4]
-		moving, err := b.appointments.Book(t.Context(), mover, base[0])
+		moving, err := b.appointments.Book(t.Context(), mover, base[0], "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		cancelling, err := b.appointments.Book(t.Context(), canceller, base[1])
+		cancelling, err := b.appointments.Book(t.Context(), canceller, base[1], "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		var wg sync.WaitGroup
 		var moveErr, bookErr, moveCancelled, cancelErr error
 		wg.Go(func() { _, moveErr = b.appointments.Reschedule(t.Context(), mover, moving.ID, base[2]) })
-		wg.Go(func() { _, bookErr = b.appointments.Book(t.Context(), booker, base[2]) })
+		wg.Go(func() { _, bookErr = b.appointments.Book(t.Context(), booker, base[2], "") })
 		wg.Go(func() { _, moveCancelled = b.appointments.Reschedule(t.Context(), canceller, cancelling.ID, base[3]) })
 		wg.Go(func() { _, cancelErr = b.appointments.Cancel(t.Context(), canceller, cancelling.ID) })
 		wg.Wait()
@@ -105,7 +105,7 @@ func TestReschedule_TheExclusionConstraintsRefusalIsAuditedInItsOwnTransaction(t
 	c := seedClinic(t, owner, 2, 48*time.Hour, 72*time.Hour)
 	b := newBooking(t, app)
 	me := appointment.Caller{AccountID: c.accounts[0], PatientID: c.patients[0]}
-	a, err := b.appointments.Book(t.Context(), me, c.slots[0])
+	a, err := b.appointments.Book(t.Context(), me, c.slots[0], "")
 	if err != nil {
 		t.Fatal(err)
 	}
