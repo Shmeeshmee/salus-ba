@@ -1,0 +1,47 @@
+.abroad {
+  padding-block: 100px 40px;
+}
+
+.panel {
+  composes: reveal from '../../styles/motion.module.css';
+  margin-top: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px 48px;
+}
+
+.body {
+  flex: 1 1 320px;
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  max-width: 520px;
+}
+
+.points {
+  flex: 1 1 320px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.point {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.coming {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}

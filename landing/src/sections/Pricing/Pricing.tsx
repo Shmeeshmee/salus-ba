@@ -19,6 +19,13 @@ export function Pricing() {
           </div>
         ))}
       </div>
+      <div className={styles.notes}>
+        {pricing.notes.map((line) => (
+          <p key={line} className={styles.note}>
+            {line}
+          </p>
+        ))}
+      </div>
     </Container>
   )
 }

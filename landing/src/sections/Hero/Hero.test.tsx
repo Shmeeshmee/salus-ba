@@ -34,7 +34,7 @@ describe('Hero', () => {
   it('shows the headline and the first specialty', () => {
     render(<Hero />)
 
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Your doctor, one call away.')
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Your clinic, in person and online.')
     expect(shownSpecialty()).toEqual(['Cardiology.'])
     expect(screen.getByText('01')).toBeTruthy()
     expect(dot('Cardiology').getAttribute('aria-pressed')).toBe('true')
