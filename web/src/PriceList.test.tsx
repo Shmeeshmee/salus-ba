@@ -56,6 +56,20 @@ describe('PriceList', () => {
     expect(await screen.findByText('The price list could not be loaded. Reload the page to try again.')).toBeTruthy()
   })
 
+  it('imports services from a file and reloads the list', async () => {
+    let reads = 0
+    const { requests } = renderList({
+      [`GET ${path}`]: () => Response.json(reads++ === 0 ? [] : [exam]),
+      [`POST ${path}/import`]: () => Response.json({ saved: true, rows: [{ line: 2, errors: [], service: { ...exam, id: undefined, versionId: undefined } }] }),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Import from a file' }))
+    fireEvent.change(screen.getByLabelText('File (CSV or XLSX)'), { target: { files: [new File(['name;price\n'], 'services.csv')] } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Import 1 service' }))
+    expect(await screen.findByText('1 service imported.')).toBeTruthy()
+    expect(await screen.findByText('Placeholder exam')).toBeTruthy()
+    expect(requests.filter((r) => r.method === 'GET')).toHaveLength(2)
+  })
+
   it('adds a service', async () => {
     const { requests } = renderList({
       [`GET ${path}`]: () => Response.json([exam]),

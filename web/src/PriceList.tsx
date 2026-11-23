@@ -2,11 +2,12 @@ import { useState } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
-import { formatNumber } from './i18n/format'
 import { useLanguage, useT } from './i18n/useT'
 import { useLoad } from './load'
+import { PriceListImport } from './PriceListImport'
 import { contentLanguageNames, contentLanguages } from './questionnaire'
 import { Alert, Field, Notice, Submit } from './ui'
+import { details, modeLabel } from './serviceDetails'
 import { useSubmit } from './useSubmit'
 
 type Service = components['schemas']['Service']
@@ -15,7 +16,6 @@ type VisitMode = components['schemas']['VisitMode']
 type T = ReturnType<typeof useT>
 
 const visitModes: VisitMode[] = ['in-person', 'video']
-const modeLabel = { 'in-person': 'prices.modeInPerson', video: 'prices.modeVideo' } as const
 
 // PriceList is the admin's screen of the clinic's price list (docs/plans/clinic-cms.md, package B): its services with
 // price, duration, VAT rate and the visit modes they are offered in, and their names for patients in other languages.
@@ -25,9 +25,10 @@ const modeLabel = { 'in-person': 'prices.modeInPerson', video: 'prices.modeVideo
 export function PriceList({ api }: { api: ApiClient }) {
   const t = useT()
   const { language } = useLanguage()
-  const [editing, setEditing] = useState<string>() // a service's id, or 'new'
+  const [editing, setEditing] = useState<string>() // a service's id, 'new', or 'import'
+  const [imported, setImported] = useState<number>()
   const [saved, setSaved] = useState(false)
-  const { state, set } = useLoad(async () => {
+  const { state, set, reload } = useLoad(async () => {
     const res = await attempt(api.GET('/clinic/services'))
     if (!res.ok) throw new Error('services')
     return res.data
@@ -36,6 +37,7 @@ export function PriceList({ api }: { api: ApiClient }) {
   const open = (id: string | undefined) => {
     setEditing(id)
     setSaved(false)
+    setImported(undefined)
   }
   const stored = (s: Service) => {
     const rest = services.filter((x) => x.id !== s.id)
@@ -51,6 +53,7 @@ export function PriceList({ api }: { api: ApiClient }) {
       {state.name === 'failed' && <Alert message={t('prices.loadFailed')} />}
       {state.name === 'loaded' && services.length === 0 && editing !== 'new' && <p className="muted">{t('prices.empty')}</p>}
       {saved && <Notice message={t('prices.saved')} />}
+      {imported !== undefined && <Notice message={t('prices.imported', { count: imported })} />}
       <ul className="rows">
         {services.map((s) =>
           editing === s.id ? (
@@ -74,28 +77,29 @@ export function PriceList({ api }: { api: ApiClient }) {
         )}
       </ul>
       {state.name === 'loaded' && editing === 'new' && <ServiceForm api={api} onStored={stored} onCancel={() => open(undefined)} />}
+      {state.name === 'loaded' && editing === 'import' && (
+        <PriceListImport
+          api={api}
+          onImported={(count) => {
+            open(undefined)
+            setImported(count)
+            reload()
+          }}
+          onCancel={() => open(undefined)}
+        />
+      )}
       {state.name === 'loaded' && editing === undefined && (
         <div className="actions">
           <button type="button" onClick={() => open('new')}>
             {t('prices.add')}
           </button>
+          <button type="button" onClick={() => open('import')}>
+            {t('prices.importOpen')}
+          </button>
         </div>
       )}
     </section>
   )
-}
-
-// details is a service's line under its name: the price, the duration when it has its own, the VAT and the modes.
-function details(t: T, language: ReturnType<typeof useLanguage>['language'], s: Service): string {
-  const parts = [formatNumber(s.priceMinor / 100, language, { style: 'currency', currency: s.currency })]
-  if (s.durationMinutes !== undefined) parts.push(t('prices.minutes', { count: s.durationMinutes }))
-  parts.push(
-    s.vatRateBp === undefined
-      ? t('prices.exempt')
-      : t('prices.vatShown', { rate: formatNumber(s.vatRateBp / 10000, language, { style: 'percent', maximumFractionDigits: 2 }) }),
-  )
-  for (const m of s.modes) parts.push(t(modeLabel[m]))
-  return parts.join(' · ')
 }
 
 // amount reads a decimal with up to `whole` digits and two decimals (a comma or a point) as hundredths, or undefined.

@@ -7842,11 +7842,13 @@ components:
       required: [line, errors]
       properties:
         line: {type: integer, format: int32, description: The row's line in the file, from 1.}
-        service: {$ref: "#/components/schemas/SaveServiceRequest"}
+        service:
+          $ref: "#/components/schemas/SaveServiceRequest"
+          description: The service the row would store; absent for a row with errors.
         errors:
           type: array
           description: Codes of what is wrong with the row; empty when it is valid.
-          items: {type: string, enum: [name_missing, price_invalid, duration_invalid, vat_invalid, mode_invalid, duplicate]}
+          items: {type: string, enum: [name_missing, name_invalid, code_invalid, price_invalid, duration_invalid, vat_invalid, mode_invalid, duplicate]}
     ClinicExportStatus:
       type: string
       enum: [queued, ready, failed, expired]

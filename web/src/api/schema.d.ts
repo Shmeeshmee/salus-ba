@@ -3713,9 +3713,10 @@ export interface components {
              * @description The row's line in the file
              */
             line: number;
+            /** @description The service the row would store; absent for a row with errors. */
             service?: components["schemas"]["SaveServiceRequest"];
             /** @description Codes of what is wrong with the row; empty when it is valid. */
-            errors: ("name_missing" | "price_invalid" | "duration_invalid" | "vat_invalid" | "mode_invalid" | "duplicate")[];
+            errors: ("name_missing" | "name_invalid" | "code_invalid" | "price_invalid" | "duration_invalid" | "vat_invalid" | "mode_invalid" | "duplicate")[];
         };
         /** @enum {string} */
         ClinicExportStatus: "queued" | "ready" | "failed" | "expired";

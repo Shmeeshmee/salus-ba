@@ -23,6 +23,7 @@ type PriceList interface {
 	Create(ctx context.Context, c Caller, d Definition) (Definition, error)
 	Update(ctx context.Context, c Caller, d Definition) (Definition, error)
 	Offered(ctx context.Context, org string, mode schedule.VisitMode, language string) ([]Definition, error)
+	Import(ctx context.Context, c Caller, f ImportFile, save bool) ([]ImportRow, error)
 }
 
 // Handler serves the price list (api/openapi.yaml, tag billing). Errors are {"error": "<code>"}.
@@ -42,6 +43,7 @@ func NewHandler(svc PriceList, caller func(ctx context.Context) (Caller, bool, e
 func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/services", h.list)
 	mux.HandleFunc("POST /clinic/services", h.create)
+	mux.HandleFunc("POST /clinic/services/import", h.importFile)
 	mux.HandleFunc("PUT /clinic/services/{id}", h.update)
 	mux.HandleFunc("GET /organizations/{id}/services", h.offered)
 }
