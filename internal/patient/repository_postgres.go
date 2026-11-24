@@ -195,3 +195,13 @@ func pgDate(t time.Time) pgtype.Date { return pgtype.Date{Time: t, Valid: true} 
 
 // pgText is s, or NULL when it is empty.
 func pgText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+
+func (r *postgresRepository) RestrictForErasure(ctx context.Context, patientID, org string, at time.Time) error {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return ErrNotFound
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).RestrictForErasure(ctx, patientdb.RestrictForErasureParams{
+		RestrictedAt: pgtype.Timestamptz{Time: at, Valid: true}, PatientID: p, OrganizationID: o,
+	})
+}

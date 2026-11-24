@@ -12,6 +12,9 @@ type Repository interface {
 	SetAccount(ctx context.Context, id string) error
 	// SetClinic scopes the rest of the transaction in ctx to the clinic id.
 	SetClinic(ctx context.Context, id string) error
+	// RestrictForErasure restricts the record of the profile patientID at the clinic org (the scope set by SetClinic,
+	// with the erasure scope of 00075) at at, as the erasure job's; nothing when the record is restricted there already.
+	RestrictForErasure(ctx context.Context, patientID, org string, at time.Time) error
 	// ByAccount returns the profile of the account, or ErrNotFound.
 	ByAccount(ctx context.Context, accountID string) (Patient, error)
 	// ByID returns the profile, or ErrNotFound (also for one outside the scope, or an id that is not a UUID).

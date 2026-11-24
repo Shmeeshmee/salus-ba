@@ -25,6 +25,9 @@ const (
 // to none.
 type Account struct {
 	MFAEnrolledAt  time.Time // zero until MFA is set up
+	ClosedAt       time.Time // when the patient closed the account (docs/clinic-cms/WAVE5.md S5); zero while open
+	EraseAfter     time.Time // when the closed account is erased (S6); zero while open
+	ErasedAt       time.Time // when its login, password, MFA and languages were erased; zero before
 	ID             string
 	Email          string // trimmed and lower-cased: the login
 	OrganizationID string // the clinic of a staff account; empty for a patient

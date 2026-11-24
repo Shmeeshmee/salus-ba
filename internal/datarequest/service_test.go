@@ -9,7 +9,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
-// Until their packages (D1 to D3 of docs/clinic-cms/WAVE5.md) build them, every method refuses and touches nothing.
+// Until their packages (D1, D2 of docs/clinic-cms/WAVE5.md) build them, every method refuses and touches nothing.
 func TestService_RefusesUntilItsPackageBuildsIt(t *testing.T) {
 	t.Parallel()
 	s := datarequest.NewService(datarequest.Ports{Clock: clock.Fixed{T: time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)}})
@@ -40,8 +40,6 @@ func TestService_RefusesUntilItsPackageBuildsIt(t *testing.T) {
 		},
 		"Export":        func() error { _, err := s.Export(ctx, patient, id); return err },
 		"ExportArchive": func() error { _, _, err := s.ExportArchive(ctx, patient, id); return err },
-		"CloseAccount":  func() error { return s.CloseAccount(ctx, patient, "a password") },
-		"ReopenAccount": func() error { return s.ReopenAccount(ctx, patient.AccountID) },
 	}
 	for name, call := range calls {
 		if err := call(); !errors.Is(err, errors.ErrUnsupported) {
@@ -56,8 +54,8 @@ func TestDeadlines_AreTheContractsConstants(t *testing.T) {
 	if datarequest.DueMonths != 1 || datarequest.ExtensionMonths != 2 {
 		t.Errorf("due %d, extension %d months, want 1 and 2", datarequest.DueMonths, datarequest.ExtensionMonths)
 	}
-	if datarequest.EraseAfter != 30*24*time.Hour || datarequest.ExportWindow != 7*24*time.Hour {
-		t.Errorf("erase after %v, export window %v, want 30 and 7 days", datarequest.EraseAfter, datarequest.ExportWindow)
+	if datarequest.EraseAfter != 21*24*time.Hour || datarequest.ExportWindow != 7*24*time.Hour {
+		t.Errorf("erase after %v, export window %v, want 21 and 7 days", datarequest.EraseAfter, datarequest.ExportWindow)
 	}
 }
 

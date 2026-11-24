@@ -71,3 +71,10 @@ ORDER BY p.id;
 -- security limits the rows to the scope too.
 -- name: RegisteredByClinic :many
 SELECT id FROM patient WHERE registered_by_organization_id = @organization_id ORDER BY id;
+
+-- The erasure's restriction of the record a clinic keeps (docs/clinic-cms/WAVE5.md S6, D3): by the job, in the clinic's
+-- scope with the erasure scope (00075); a record restricted there already stays as it is.
+-- name: RestrictForErasure :exec
+INSERT INTO patient_restriction (restricted_at, patient_id, organization_id)
+VALUES (@restricted_at, @patient_id, @organization_id)
+ON CONFLICT (patient_id, organization_id) DO NOTHING;

@@ -68,7 +68,7 @@ const (
 const (
 	DueMonths       = 1                   // a request is due one calendar month after receipt, in the answerer's time zone
 	ExtensionMonths = 2                   // an extension adds at most two months, once
-	EraseAfter      = 30 * 24 * time.Hour // a closed account is erased this long after closure; the operator may reopen it before
+	EraseAfter      = 21 * 24 * time.Hour // a closed account is erased this long after closure, inside the one month of its erasure request; the operator may reopen it before (owner, 2026-11-24)
 	ExportWindow    = 7 * 24 * time.Hour  // the patient's export can be downloaded this long after it is ready
 )
 

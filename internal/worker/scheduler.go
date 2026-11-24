@@ -71,6 +71,10 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			river.NewPeriodicJob(dailyAt{hour: subscriptionHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return subscription.MonthlyArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			// The closed accounts' erasure (clinic-cms D3): daily, after the retention rules.
+			river.NewPeriodicJob(dailyAt{hour: erasureHour}, func() (river.JobArgs, *river.InsertOpts) {
+				return AccountErasureArgs{}, nil
+			}, nil),
 		}, trendsPeriodics(platform, clock.System{})...),
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing
 		Workers:             workers,

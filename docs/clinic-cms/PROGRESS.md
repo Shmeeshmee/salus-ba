@@ -39,7 +39,7 @@ writes under its own heading here.
 | FX | not started | |
 | D1 | not started | |
 | D2 | not started | |
-| D3 | not started | |
+| D3 | done 2026-11-24 (migration `00075`); wiring waits on D1's repository | `cms(D3)` |
 | D4 | not started | |
 | D5 | not started | |
 | D6 | not started | |
@@ -2287,3 +2287,112 @@ order-dependent case in the closure test (map order) was fixed by resetting the 
 `make e2e` and `make fhir-validate` (no route is served and no golden file changed).
 
 **Copy waiting for the owner:** none. 5.0 adds no user-facing string; the API returns codes only.
+
+## D3: closing the account and erasure
+
+Status: done 2026-11-24 on `wt/cms/D3`, one commit `cms(D3)`. Migration `00075_account_erasure.sql`. Specification:
+`WAVE5.md` "D3", S5, S6, and the owner's change of 2026-11-24 (`notes/D3.txt`): erasure 21 days after closure, so it
+falls inside the erasure request's one month; the request stays `in_progress` until the job fulfils it.
+
+**Built.**
+
+- **Closure** (`datarequest.Closure.CloseAccount`, `service_closure.go`; route `POST /me/account/close`,
+  `handler_http_close.go`). One transaction: `auth.Service.Close` checks the password, sets `closed_at` and
+  `erase_after` (now + `EraseAfter`, 21 days) and revokes every session; the account's erasure request is filed
+  (`received`, by the patient) and moved `in_progress` (by the closure, no account) in the erasure scope; every active
+  consent is revoked through `consent.Service.Revoke`, care consents first (their revocation ends the clinic's
+  transcription and history consents and enqueues `consent_revoked`, which cancels the future visits and withdraws the
+  waitlist entries with their notices); the push devices are deleted (`notification.Chat.RemoveDevices`). Sign-in on
+  a closed account fails as a wrong password (`passwordLogin`). Wrong password: `ErrWrongPassword` (403
+  `wrong_credentials`); staff or closed already: `ErrNotFound` (403 `forbidden`).
+- **Reopening** (`Closure.ReopenAccount`, for salusctl in D5): withdraws the erasure request and clears the closure
+  while `erase_after` is ahead (`auth.Service.Reopen`). The trigger of 00071 lets only the owner withdraw a request the
+  patient filed: D5 calls it on the owner's pool.
+- **Erasure** (`datarequest.Erasure.Run`, `service_erasure.go`; job `account_erasure` daily at 04:00 UTC,
+  `internal/worker/erasure.go`). Per due account: its open erasure request (none: the run stops with `ErrNotFound`,
+  as what to keep would be unknown); the clinics that keep a record (`consent.Service.ClinicsOf`: every clinic of any
+  consent, active or not, read as the job); then one transaction: the request fulfilled (`done_partly_kept` when a
+  clinic keeps a record, `done` otherwise), the push devices deleted, the account erased (`auth.Service.Erase`), and
+  the record restricted at each clinic (`patient.Service.RestrictForErasure`, by the job: no staff, so the clinic never
+  lifts it). An erased account has `erased_at` and is no longer due: a second run erases nothing.
+- **Migration 00075.** `account.erased_at` with two checks (only after `erase_after`; an erased account has the
+  placeholder login, an empty password hash and no MFA or languages). The erasure scope `app.erasure = 'on'` (no
+  patient, account or clinic set): `data_request_erasure` (the account-target erasure request of a closed account,
+  filed by that account) and `data_request_change_erasure` (its history by the patient or the job); in a clinic's
+  scope with `app.erasure`, `patient_restriction_erasure` (no staff, no request, a due profile, checked by the
+  SECURITY DEFINER `patient_erasure_due`, as the clinic does not see a profile whose consents were revoked).
+- **Docs.** The DPIA's "Package D3" block; the retention rule of `account`; `EraseAfter` 21 days; the OpenAPI text of
+  `closeMyAccount` (21 days) and the regenerated clients.
+
+**For the lawyer: what is erased, what is kept, and under which rule.**
+
+| Data | At closure | At erasure (21 days later) | Rule |
+| --- | --- | --- | --- |
+| Account e-mail | kept (the notices of the cancelled visits go there) | replaced by `<opaque id>@erased.invalid` | Art. 17(1); the row stays as data requests, audit events and records reference it |
+| Password hash, TOTP secret, last step, MFA enrolment | kept, sign-in refused | erased | Art. 17(1) |
+| Chosen and detected language | kept | erased | Art. 17(1) |
+| Sessions | revoked | deleted by `session`'s rule, 30 days after revocation | security of processing (Art. 32) |
+| Push devices (tokens) | deleted | deleted again if any | Art. 17(1) |
+| Consents | revoked (kept as rows) | kept | proof of the decision (Art. 7(1)) with the clinical record (`consent`'s rule, pending L1 to L3) |
+| Future visits, waitlist entries | cancelled / withdrawn, with notices | kept as the clinic's record (visits); waitlist deleted by its 30-day rule | `appointment`, `waitlist_entry` rules |
+| The clinic's record (profile, visits, encounters, conditions, allergies, medications, documents, transcripts, questionnaire answers submitted, chat, receipts, quotes) | unchanged | kept at each clinic, restricted there (`patient_restriction`, by the job) | medical-record retention, each table's rule in `internal/retention/rules.go` (placeholders, the lawyer's L1 to L3); receipts the fiscal law |
+| The erasure request and its history | filed, in progress | fulfilled, kept | Art. 5(2), `dataRequestRules` |
+| Audit events | the closure's | the erasure's (agent `data_request_erasure`) | `audit_event`'s ten years |
+
+**Assumptions about retention (each for the lawyer).** (1) A clinic "holds a record" of the patient exactly when the
+patient ever gave it a consent (care, transcription, history, chat or in person); a booking and a clinic registration
+need one. (2) The profile (name, birth date, phone) is part of every clinic's record and is kept, restricted, while any
+clinic keeps one; Salus keeps one profile for all clinics, so it is never erased while one clinic's period runs. (3)
+Consents, cancelled visits and their change history are kept with the record. (4) The account row is kept, blank, for
+as long as anything references it; its id is opaque. (5) The 21 days run from closure, not from the request: the request
+is filed at closure. (6) An erasure request is answered `done_partly_kept` (not `retention_law`) when a clinic keeps a
+record: what had no basis was erased.
+
+**Contract changes.**
+
+| Plan's text | As built | Why |
+| --- | --- | --- |
+| `EraseAfter` 30 days | 21 days | Owner, 2026-11-24: inside the request's one month |
+| `Service.CloseAccount`, `Service.ReopenAccount` | `Closure.CloseAccount`, `Closure.ReopenAccount` (own type, own ports); the stubs removed from `service.go` | D1 owns `service.go` and its `Ports`; the closure's ports do not touch them |
+| "writing its record on the erasure request" | The request's answer code, the restriction rows of the kept record and the audit events (each with opaque ids and counts); no new table | Every table's rule is static (`rules.go`): the record is which clinics keep it, and the answer |
+| `/me/account/close` files no request (5.0) | It files the account's erasure request, `in_progress` until the job | The owner's note |
+
+**Readings.**
+
+- The closure verifies the password inside its transaction (one argon2 hash while a connection is held): closing is
+  rare; the login's reason to hash before the transaction is a burst of logins.
+- Chat consents are not revoked by the closure: the care consent's revocation ends the clinic's access, and a chat
+  consent belongs to a conversation (`RevokeChat`). For the owner.
+- A staff restriction of the same record (D4) wins over the job's (`ON CONFLICT DO NOTHING`): the clinic could lift it.
+  D4 or the integration should replace it with the job's.
+
+**Deferred.**
+
+- **Wiring** (needs D1's `repository_postgres.go`): build `datarequest.NewClosure` and `NewErasure` in
+  `internal/api/app.go` and `internal/worker` (`defaultServices.erasure`; until then the job cancels itself), mount
+  `CloseHandler` in the router (its caller: the session's account), and take `/me/account/close` out of the reception
+  test's `notServedYet`. The ports: `Repo` D1's repository, `Scope` `datarequest.NewErasureScope()`, `Accounts` the auth
+  service, `Profiles` the patient service, `Consents` and `Records` the consent service, `Devices` notification's
+  `Chat`, `Restrictions` the patient service.
+- An end-to-end test as every role after erasure (needs the wiring): the auth repository test checks the account's
+  fields, the migration tests the scope.
+- Erasers for the notification delivery log and preferences (S6 "notification logs"), and the profile of a patient
+  with no record anywhere (S6 "erased whole": today the account is blanked and the profile kept unrestricted, as no
+  clinic sees it; blanking the profile needs its NOT NULL columns relaxed). Unsubmitted questionnaire answers and
+  unattached chat uploads are already deleted by their own rules.
+- A rate limit on `/me/account/close` (wrong passwords are not counted like the login's).
+- Clinic-registered profiles have no account and are not closed: their erasure is a clinic-target request (D1, D4).
+
+**Test first.** The auth, datarequest, consent, patient, notification and worker tests were written before their
+code; the auth and datarequest ones ran red only as a compile failure (the methods did not exist), the others were
+not run red before the code. The migration tests ran against the migration as written; one expectation was wrong
+(two history rows, not three) and the test gained the answer's row.
+
+**Checks** (this worktree's compose project, `salus-cms-d3`): `runner.sh full` (`make gen-clients`, `lint`, `test`,
+`archcheck`, `web-lint`, `web-typecheck`, `web-test`, `web-build`, `mobile-analyze`, `mobile-test`): pass. The first
+full run failed on lint (funlen on `tableRules` after the longer `account` rule, fieldalignment on two test structs,
+noctx on the handler test), fixed; the second passed. Not run: `make cover`, `make e2e`, `make fhir-validate` (no
+FHIR response changed; the route is not mounted until the wiring).
+
+**Copy waiting for the owner:** none. D3 adds no user-facing string; the API returns codes only.
+

@@ -121,6 +121,7 @@ type defaultServices struct {
 	receipts     *invoice.Service // the fiscal reports (clinic-cms C)
 	memberships  *subscription.Service
 	exports      *clinicexport.Service // the clinic's data export (clinic-cms M2)
+	erasure      accountEraser         // the closed accounts' erasure (clinic-cms D3); nil until wired with D1's repository
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -147,6 +148,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &invoiceFiscalizeWorker{receipts: s.receipts})
 	river.AddWorker(workers, &subscriptionWorker{memberships: s.memberships, clock: clock.System{}, log: log})
 	river.AddWorker(workers, &clinicExportWorker{exports: s.exports, log: log})
+	river.AddWorker(workers, &accountErasureWorker{erasure: s.erasure, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

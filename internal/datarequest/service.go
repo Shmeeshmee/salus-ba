@@ -73,13 +73,3 @@ func (s *Service) Export(_ context.Context, _ Patient, _ string) (Export, error)
 func (s *Service) ExportArchive(_ context.Context, _ Patient, _ string) (io.ReadCloser, int64, error) {
 	return nil, 0, errors.ErrUnsupported
 }
-
-// CloseAccount closes the patient's account once the password confirms it (S5, D3).
-func (s *Service) CloseAccount(_ context.Context, _ Patient, _ string) error {
-	return errors.ErrUnsupported
-}
-
-// ReopenAccount reopens a closed account before its erasure (the operator's, from salusctl; D3).
-func (s *Service) ReopenAccount(_ context.Context, _ string) error {
-	return errors.ErrUnsupported
-}

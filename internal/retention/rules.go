@@ -46,8 +46,9 @@ func tableRules() []Rule {
 		},
 		{
 			Table: "account",
-			Basis: "Performance of the contract the user signed up for (GDPR Art. 6(1)(b)); closure and erasure come with the subject-rights feature",
-			Then:  ThenKeep,
+			Basis: "Performance of the contract (GDPR Art. 6(1)(b)) while open; a closed patient account is erased 21 days after " +
+				"closure, its row kept blank (docs/clinic-cms/WAVE5.md S5, S6, the account_erasure job)",
+			Then: ThenKeep,
 		},
 		{
 			Table: "session",

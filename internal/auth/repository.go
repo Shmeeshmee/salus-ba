@@ -73,6 +73,17 @@ type Repository interface {
 	// expired by then.
 	AcceptInvite(ctx context.Context, id string, at time.Time) error
 
+	// CloseAccount closes the open patient account id at at, to be erased after eraseAfter, or returns ErrNotFound
+	// (staff, closed already, or no such account).
+	CloseAccount(ctx context.Context, id string, at, eraseAfter time.Time) error
+	// ReopenAccount clears the closure of account id while its erasure date is after now, or returns ErrNotFound.
+	ReopenAccount(ctx context.Context, id string, now time.Time) error
+	// AccountsDueForErasure returns the closed accounts whose erasure date is not after now and that are not erased.
+	AccountsDueForErasure(ctx context.Context, now time.Time) ([]string, error)
+	// EraseAccount replaces the login of account id due at now with one derived from its id and clears its password
+	// hash, MFA and languages, marking it erased at now, or returns ErrNotFound when it is not due or erased already.
+	EraseAccount(ctx context.Context, id string, now time.Time) error
+
 	// DeleteSessionsEndedBefore deletes the sessions revoked or expired before before, and counts them. Only
 	// the retention role may (built on its pool in internal/worker).
 	DeleteSessionsEndedBefore(ctx context.Context, before time.Time) (int64, error)
