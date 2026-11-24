@@ -43,6 +43,11 @@ type Repository interface {
 	// Arrive marks the booked in-person appointment id arrived at at and returns it at its next version; ErrClosed
 	// when it is not booked or not in person (docs/clinic-cms W6).
 	Arrive(ctx context.Context, id string, at time.Time) (Appointment, error)
+	// MoveByStaff moves the booked appointment id at m.Version to m's slot, role and period at at, in the clinic's scope,
+	// without counting it as the patient's reschedule or confirming it, and returns it at its next version;
+	// ErrVersionConflict when it is no longer booked at m.Version; ErrSlotUnavailable when the role has an appointment
+	// at an overlapping time (which aborts the transaction).
+	MoveByStaff(ctx context.Context, id string, m StaffMove, at time.Time) (Appointment, error)
 	// Desk returns the clinic org's appointments starting in [from, to) but the cancelled ones, by practitioner role
 	// and start, in the clinic's scope.
 	Desk(ctx context.Context, org string, from, to time.Time) ([]Appointment, error)

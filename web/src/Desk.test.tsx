@@ -5,7 +5,7 @@ import { newApiClient, type Account } from './api/client'
 import { newFhirClient } from './api/fhir'
 import type { Language } from './i18n/languages'
 import { renderInLanguage } from './i18n/renderInLanguage'
-import { anaVisit, boVisit, cleoVisit, deskDay, exam, now, services } from './test/desk'
+import { anaVisit, boVisit, cleoVisit, deskDay, exam, freeInPerson, now, scheduleRoute, services, slotsRoute } from './test/desk'
 import { apiError, expectCsrfOnWrites, fakeFetch, paths, type Route } from './test/fakeFetch'
 import { admin, clinicRoute, staffRoute } from './test/fixtures'
 
@@ -190,5 +190,34 @@ describe('Desk', () => {
     expect(screen.getByRole('button', { name: 'Pacijent bez termina' })).toBeTruthy()
     expect(rowOf('Ana Example').textContent).toContain('2. mart 1980')
     expect(within(rowOf('Ana Example')).getByRole('button', { name: 'Prijavi dolazak' })).toBeTruthy()
+  })
+
+  it('moves a booked visit from its row and reads the day again (M1)', async () => {
+    let days = 0
+    const fake = renderDesk(
+      {
+        'GET /clinic/desk/today': () => {
+          days++
+          return Response.json(deskDay)
+        },
+        'GET /fhir/R4/Schedule': scheduleRoute,
+        'GET /fhir/R4/Slot': slotsRoute,
+        [`POST /clinic/appointments/${anaVisit.appointment.id}/reschedule`]: () => Response.json({ ...anaVisit.appointment, slotId: freeInPerson, versionId: 2 }),
+      },
+      reception,
+    )
+    await screen.findByText('Ana Example')
+    expect(within(rowOf('Cleo Test')).queryByRole('button', { name: 'Move' })).toBeNull() // arrived
+    fireEvent.click(within(rowOf('Ana Example')).getByRole('button', { name: 'Move' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Move visit' }))
+    const time = (await dialog.findByLabelText('New time')) as HTMLSelectElement
+    await waitFor(() => expect(time.options).toHaveLength(2))
+    fireEvent.change(time, { target: { value: freeInPerson } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Move visit' }))
+
+    expect(await screen.findByText('The visit was moved.')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(days).toBe(2))
+    expect(paths(fake.requests)).toContain(`POST /clinic/appointments/${anaVisit.appointment.id}/reschedule`)
   })
 })

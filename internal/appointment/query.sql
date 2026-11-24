@@ -408,3 +408,15 @@ FROM appointment
 WHERE organization_id = @organization_id AND status <> 'cancelled'
   AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
 ORDER BY practitioner_role_id, lower(period), id;
+
+-- The desk moves a booked visit (docs/clinic-cms WAVE4 M1): the period, the slot and the practitioner role together,
+-- in the clinic's scope, neither counted as the patient's reschedule nor confirming it. Only at the version the move
+-- was decided on; an overlap with the role's other appointments violates appointment_no_double_booking (23P01).
+-- name: MoveAppointmentByStaff :one
+UPDATE appointment
+SET period = tstzrange(@start_at::timestamptz, @end_at::timestamptz), slot_id = @slot_id, practitioner_role_id = @practitioner_role_id,
+    updated_at = @at, version_id = version_id + 1
+WHERE id = @id AND status = 'booked' AND version_id = @version
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;

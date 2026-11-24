@@ -179,6 +179,7 @@ enum ErrorErrorEnum {
   consentRequired._(r'consent_required'),
   transcriptionConsentRequired._(r'transcription_consent_required'),
   slotUnavailable._(r'slot_unavailable'),
+  notReschedulable._(r'not_reschedulable'),
   cancellationWindowClosed._(r'cancellation_window_closed'),
   appointmentClosed._(r'appointment_closed'),
   appointmentNotStarted._(r'appointment_not_started'),
@@ -351,6 +352,8 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.transcriptionConsentRequired;
         case r'slot_unavailable':
           return ErrorErrorEnum.slotUnavailable;
+        case r'not_reschedulable':
+          return ErrorErrorEnum.notReschedulable;
         case r'cancellation_window_closed':
           return ErrorErrorEnum.cancellationWindowClosed;
         case r'appointment_closed':

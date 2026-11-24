@@ -56,5 +56,15 @@
   "register.invalidPhone": "Unesite broj telefona sa pozivnim brojem države, npr. +387 61 123 456.",
   "register.invalidBirthDate": "Unesite datum rođenja u prošlosti.",
   "register.invalidName": "Unesite ime i prezime.",
-  "register.failed": "Pacijent nije mogao da se upiše. Pokušajte ponovo."
+  "register.failed": "Pacijent nije mogao da se upiše. Pokušajte ponovo.",
+  "move.open": "Premjesti",
+  "move.title": "Premjesti termin",
+  "move.submit": "Premjesti termin",
+  "move.moving": "Premještanje",
+  "move.time": "Novi termin",
+  "move.noSlots": "Ovaj ljekar nema slobodnih termina ove vrste u naredne dvije nedjelje.",
+  "move.changed": "Termin je u međuvremenu promijenjen. Zatvorite ovo i ponovo učitajte stranicu.",
+  "move.joinOpen": "Video termin ne može da se premjesti kada poziv već može da se otvori.",
+  "move.failed": "Termin nije mogao da se premjesti. Pokušajte ponovo.",
+  "move.moved": "Termin je premješten."
 }

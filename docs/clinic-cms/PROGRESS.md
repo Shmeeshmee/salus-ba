@@ -1578,6 +1578,79 @@ profile's), not walked: there is no device run in this repository.
 - Also open: the hourly slot generation covers listed clinics only, so an unlisted clinic's free times run 28 days ahead
   of its last change of hours and are not rolled forward until it is listed.
 
+## M1: staff moving a visit
+
+Status: done 2026-11-24 on `wt/cms/M1`, one commit `cms(M1)`. Migration `00069_staff_move.sql`.
+
+**Built.**
+
+- **appointment** (`service_staff_move.go`, `MoveForPatient`; served at `POST /clinic/appointments/{id}/reschedule`,
+  `If-Match` required, body `{slotId}`): the clinic's admin and receptionist move a booked visit to any free slot of the
+  clinic (resolved in the clinic's own scope, listed or not, of an active role) of the visit's type, another
+  practitioner's too (V4). In one transaction in the clinic's scope: the appointment read and checked (booked, at the
+  `If-Match` version, the same visit mode, a video visit only before its join window opens), the patient's active care
+  consent checked, the slot held, the appointment moved by its own query (`MoveAppointmentByStaff`: period, slot and
+  practitioner role, `version_id` in the `WHERE`; no reschedule count, no confirmation), the old slot freed and handed
+  to the waitlist, the reminders cancelled and, for a patient with an account, scheduled again with the
+  `appointment_rescheduled` e-mail, both days' statistics refreshed, the history `rescheduled` `via staff` with the
+  account, and the move audited (each refusal too). Refusals: `forbidden` (a practitioner or a patient),
+  `not_found`, `appointment_closed` (arrived, fulfilled, cancelled, no-show), `version_conflict`, `not_reschedulable`,
+  `consent_required`, `slot_unavailable`. `Repository.MoveByStaff` is the new port.
+- **Migration `00069`**: `GRANT UPDATE (practitioner_role_id)` to the app; `appointment_guard_change` lets the clinic's
+  scope move a visit without counting it (the patient's own scope still counts each move exactly once); a new
+  `appointment_guard_role` lets only the clinic's scope change the practitioner, with a move of a booked visit, to a
+  role of its own clinic, and refuses any statement naming the column in another scope.
+- **web**: `DeskMove.tsx`, a dialog from the desk row's new "Move" action (booked visits only; `Desk.tsx` gained only the
+  action, its dialog and the notice): the practitioner (the visit's by default, any active one), today's and the next
+  14 days' free times of the visit's type grouped by day, `If-Match` from the row's version; after a move the day is
+  read again. The `desk` catalogs gained `move.*` (10 keys, five languages).
+- **Contract**: the route's description and refusals in `api/openapi.yaml` now say what is built (V4: another
+  practitioner allowed, `consent_required`, `not_reschedulable`); clients regenerated. `x-salus-package` stays
+  `cms-f2` (the wave 3 contract test pins it).
+- **e2e**: `test/e2e/desk_move_test.go`: a receptionist books a walk-in and moves the visit; the old time is free again,
+  a move from the old version is `version_conflict`.
+
+**Readings and decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| V4 applied | As WAVE4 says (agent's default, owner to confirm). A practitioner cannot move a visit, their own either: V4 names admin and reception |
+| When a visit stops moving | In person: while booked, also after its start (a late patient is moved to a later time). Video: until its join window opens (10 minutes before), so no consultation session exists yet and the window follows the new start |
+| A clinic whose bookings are stopped | The desk still moves its existing visits (a move is not a new booking); only `BookForPatient` checks the stop |
+| A patient without an account | Reminders cancelled and none scheduled, no e-mail, as `BookForPatient` does: R3 gives such a patient SMS reminders, and the integration should call R3's scheduling here too |
+| The guard's count rule | The clinic's scope may also count a move (+1), as 00065 allowed, so the wave 3 contract tests stay as they were; the service never does. One test changed on purpose: `TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment`'s SECURITY DEFINER case now runs in another clinic's scope, since the appointment's own clinic may now move it without counting |
+| The placeholder test | `TestMoveForPatient_RefusesUntilItIsBuilt` removed (it asserted the unbuilt state); `notServedYet` in `reception_routes_test.go` lost the route, which is now held to the desk class |
+| Free times offered | Today and the 14 days after it, through the existing FHIR Schedule and Slot searches (no new route) |
+
+**Test first.** The service, repository, migration and handler tests were written and run red first (the migration
+test with the file moved aside). `DeskMove.test.tsx` was written before the component but not run red; the Desk row's
+test was run red.
+
+**Checks** (compose project `salus-cms-m1`): `make gen-clients`, `make lint` (gofmt, vet, golangci-lint,
+i18n-check, migrations), `make test`, `make archcheck`, `make web-lint`: pass on the second full run (the first failed
+on gocognit and fieldalignment in the new service test, fixed). `make web-typecheck` then failed on `not_reschedulable`
+missing from the `Error` enum: added to `api/openapi.yaml` (the patient's reschedule answers it too), clients
+regenerated; then `make web-typecheck`, `make web-test` (86 files, 1279 tests), `make web-build`, `make mobile-analyze`,
+`make mobile-test` and `go test ./api/... ./internal/api/...`: pass. e2e: `make e2e-up`, then `go test -tags e2e
+-run TestDesk_ ./test/e2e/...` (the new move journey and F3's desk journey with its browser run): pass; the whole
+`make e2e` suite was not run (the time budget). The fast layer's Go step timed out at 10 minutes (every package runs
+when `migrations/` changes); the full set covered it. Not run: `make cover` (the budget), `make fhir-validate` (no
+golden file changed).
+
+**Not walked in a browser by hand**: no browser tool in this session. The move dialog is covered by its component tests
+and the Desk row test; F3's Playwright desk journey still passes with the new action on the row. The integration's walk
+should open "Move" at desktop width and 390 px.
+
+**Copy waiting for the owner:** `web/src/i18n/desk/en.json` `move.*`: "Move", "Move visit", "Moving", "New time", "This
+practitioner has no free time of this visit type in the next two weeks.", "The visit was changed in the meantime.
+Close this and reload the page.", "A video visit cannot be moved once its call can be joined.", "The visit could not be
+moved. Try again.", "The visit was moved.", and their bs, hr, sr-Latn, sr-Cyrl translations.
+
+**INTEGRATION NOTES.** `Desk.tsx`: M1 adds the row's "Move" button, the `DeskMove` dialog, the `move`/`onMoved` props
+of `Row` and the notice; R2 adds the patient's card there too: merge by hand. The `desk` catalogs: M1's `move.*` block
+is appended at the end. After R3: schedule a moved visit's SMS reminders for a patient without an account in
+`movedByStaff` as R3 does in `bookFor`.
+
 ## Facts
 
 - Main's next free migration number on 2026-11-21: `00060`. After wave 1: A `00060`, D `00061`; wave 2 takes E `00062`,

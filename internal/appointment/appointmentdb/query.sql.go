@@ -1771,6 +1771,92 @@ func (q *Queries) LockWaitlistEntries(ctx context.Context, arg LockWaitlistEntri
 	return err
 }
 
+const moveAppointmentByStaff = `-- name: MoveAppointmentByStaff :one
+UPDATE appointment
+SET period = tstzrange($1::timestamptz, $2::timestamptz), slot_id = $3, practitioner_role_id = $4,
+    updated_at = $5, version_id = version_id + 1
+WHERE id = $6 AND status = 'booked' AND version_id = $7
+RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+          cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at,
+          lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+`
+
+type MoveAppointmentByStaffParams struct {
+	StartAt            pgtype.Timestamptz
+	EndAt              pgtype.Timestamptz
+	SlotID             pgtype.UUID
+	PractitionerRoleID pgtype.UUID
+	At                 pgtype.Timestamptz
+	ID                 pgtype.UUID
+	Version            int32
+}
+
+type MoveAppointmentByStaffRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+	VisitMode            string
+	ServiceID            pgtype.UUID
+	BookedByAccountID    pgtype.UUID
+	ArrivedAt            pgtype.Timestamptz
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// The desk moves a booked visit (docs/clinic-cms WAVE4 M1): the period, the slot and the practitioner role together,
+// in the clinic's scope, neither counted as the patient's reschedule nor confirming it. Only at the version the move
+// was decided on; an overlap with the role's other appointments violates appointment_no_double_booking (23P01).
+func (q *Queries) MoveAppointmentByStaff(ctx context.Context, arg MoveAppointmentByStaffParams) (MoveAppointmentByStaffRow, error) {
+	row := q.db.QueryRow(ctx, moveAppointmentByStaff,
+		arg.StartAt,
+		arg.EndAt,
+		arg.SlotID,
+		arg.PractitionerRoleID,
+		arg.At,
+		arg.ID,
+		arg.Version,
+	)
+	var i MoveAppointmentByStaffRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+		&i.PatientID,
+		&i.PractitionerRoleID,
+		&i.OrganizationID,
+		&i.SlotID,
+		&i.CancelledByAccountID,
+		&i.VersionID,
+		&i.Status,
+		&i.CancellationReason,
+		&i.ConfirmedAt,
+		&i.ConfirmedVia,
+		&i.RescheduleCount,
+		&i.BookedVia,
+		&i.VisitMode,
+		&i.ServiceID,
+		&i.BookedByAccountID,
+		&i.ArrivedAt,
+		&i.StartAt,
+		&i.EndAt,
+	)
+	return i, err
+}
+
 const openWaitlistOffer = `-- name: OpenWaitlistOffer :many
 SELECT id, created_at, expires_at, entry_id, slot_id, organization_id, patient_id, practitioner_role_id, appointment_id, state,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at

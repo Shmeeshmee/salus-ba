@@ -957,7 +957,7 @@ class AppointmentsApi {
 
   /// Move a patient's visit to another slot
   ///
-  /// To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in package F2. Audited, also when refused.
+  /// By the clinic's admin or receptionist: a booked visit to any free slot of the clinic of the same visit mode, another practitioner's too (docs/clinic-cms WAVE4 V4). Not counted toward the patient's own reschedules and not a confirmation; recorded as staff's with the account; the reminders follow and the patient with an account is e-mailed the new time. A video visit stops moving when its join window opens. Built in package M1. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -1010,7 +1010,7 @@ class AppointmentsApi {
 
   /// Move a patient's visit to another slot
   ///
-  /// To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in package F2. Audited, also when refused.
+  /// By the clinic's admin or receptionist: a booked visit to any free slot of the clinic of the same visit mode, another practitioner's too (docs/clinic-cms WAVE4 V4). Not counted toward the patient's own reschedules and not a confirmation; recorded as staff's with the account; the reminders follow and the patient with an account is e-mailed the new time. A video visit stops moving when its join window opens. Built in package M1. Audited, also when refused.
   ///
   /// Parameters:
   ///
