@@ -218,6 +218,8 @@ type Account struct {
 	TotpSecret       []byte
 	Language         NullLanguage
 	DetectedLanguage NullLanguage
+	ClosedAt         pgtype.Timestamptz
+	EraseAfter       pgtype.Timestamptz
 }
 
 type AllergyIntolerance struct {
@@ -580,6 +582,32 @@ type ConversationParticipant struct {
 	Reason             pgtype.Text
 }
 
+type DataRequest struct {
+	ID               pgtype.UUID
+	ReceivedAt       pgtype.Timestamptz
+	DueAt            pgtype.Timestamptz
+	ExtendedUntil    pgtype.Timestamptz
+	AnsweredAt       pgtype.Timestamptz
+	AccountID        pgtype.UUID
+	PatientID        pgtype.UUID
+	OrganizationID   pgtype.UUID
+	FiledByAccountID pgtype.UUID
+	Version          int32
+	Kind             string
+	Status           string
+	ExtensionReason  pgtype.Text
+	AnswerCode       pgtype.Text
+	DeadlineWarnedAt pgtype.Timestamptz
+}
+
+type DataRequestChange struct {
+	ID                 pgtype.UUID
+	ChangedAt          pgtype.Timestamptz
+	DataRequestID      pgtype.UUID
+	ChangedByAccountID pgtype.UUID
+	Status             string
+}
+
 type DiagnosisGroup struct {
 	Position   int32
 	Code       string
@@ -872,6 +900,15 @@ type Patient struct {
 	FamilyName                 string
 	Phone                      pgtype.Text
 	RegisteredByOrganizationID pgtype.UUID
+	AnalyticsObjectedAt        pgtype.Timestamptz
+}
+
+type PatientRestriction struct {
+	RestrictedAt          pgtype.Timestamptz
+	PatientID             pgtype.UUID
+	OrganizationID        pgtype.UUID
+	RestrictedByAccountID pgtype.UUID
+	DataRequestID         pgtype.UUID
 }
 
 type Place struct {

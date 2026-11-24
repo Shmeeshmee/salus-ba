@@ -110,6 +110,42 @@ type Change struct {
 	Status    Status
 }
 
+// Deadline is an open request as the deadline job sees it (D1): with when its last warning was queued, zero for none.
+type Deadline struct {
+	WarnedAt time.Time
+	Request  Request
+}
+
+// Deadline returns the request's deadline: its extension's, or its due date.
+func (r Request) Deadline() time.Time {
+	if r.ExtendedUntil.IsZero() {
+		return r.DueAt
+	}
+	return r.ExtendedUntil
+}
+
+// The warnings before a deadline (S3): the answerer is warned this many days before it.
+const (
+	WarnDays     = 7
+	LastWarnDays = 1
+)
+
+// DeadlinesArgs is the scheduled job that queues the deadline warnings of every open request (S3).
+type DeadlinesArgs struct{}
+
+// Kind names the job in the river_job table.
+func (DeadlinesArgs) Kind() string { return "data_request_deadlines" }
+
+// WarningArgs is one deadline warning to a request's answerer, queued by the deadline job and sent by package D5: the
+// request's opaque id and how many days before the deadline it warns (WarnDays or LastWarnDays).
+type WarningArgs struct {
+	RequestID string `json:"request_id"`
+	Days      int    `json:"days"`
+}
+
+// Kind names the job in the river_job table.
+func (WarningArgs) Kind() string { return "data_request_deadline_warning" }
+
 // Filing is what a patient files: the kind and the target, with the clinic for a clinic target.
 type Filing struct {
 	Kind           Kind
@@ -147,9 +183,10 @@ type Patient struct {
 	AccountID string
 }
 
-// Staff is the signed-in staff account, its clinic and whether it is the clinic's admin.
+// Staff is the signed-in staff account, its clinic and whether it is the clinic's admin or a receptionist.
 type Staff struct {
 	AccountID      string
 	OrganizationID string
 	Admin          bool
+	Reception      bool // the front desk: files on behalf of a patient the clinic registered (S10)
 }

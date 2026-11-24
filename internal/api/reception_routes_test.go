@@ -170,10 +170,7 @@ var receptionRoutes = map[string]receptionClass{
 // served by D1 to D4. A route declared before it is built goes here and answers the router's own 404; when it is
 // mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{
-	"GET /me/data-requests", "POST /me/data-requests", "POST /me/data-requests/{id}/withdraw",
 	"GET /me/data-requests/{id}/export", "GET /me/data-requests/{id}/export/archive", "POST /me/account/close",
-	"GET /clinic/data-requests", "GET /clinic/data-requests/{id}", "POST /clinic/data-requests/{id}/answer",
-	"POST /clinic/data-requests/{id}/extend", "POST /clinic/patients/{id}/data-requests",
 	"PUT /clinic/patients/{id}/restriction", "DELETE /clinic/patients/{id}/restriction",
 }
 
