@@ -2677,8 +2677,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The clinic's receipts issued in a period
-         * @description Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
+         * The clinic's receipts issued in a period, or of one visit
+         * @description Newest first, with their lines and fiscal status; with `appointmentId`, the visit's receipts by number (the reversals not listed, a reversed receipt with its `reversedById`) and no period. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
          */
         get: operations["listClinicReceipts"];
         put?: never;
@@ -2702,7 +2702,7 @@ export interface paths {
         };
         /**
          * A receipt of the clinic
-         * @description For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
+         * @description For the clinic's admin, the practitioner or receptionist who issued it, and the clinic's receptionists for a visit's receipt (the desk prints it). Audited.
          */
         get: operations["getClinicReceipt"];
         put?: never;
@@ -3682,6 +3682,16 @@ export interface components {
             patient: components["schemas"]["ClinicPatient"];
             /** @description The booked service's name; absent for none. */
             serviceName?: string;
+            /** @description The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so. Each is audited as a read. */
+            receipts: components["schemas"]["DeskReceipt"][];
+        };
+        /** @description A receipt of a visit as the desk shows it, to open its PDF at /clinic/receipts/{id}/pdf. */
+        DeskReceipt: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            reversed: boolean;
         };
         SignupRequest: {
             /** @description The clinic admin's; becomes their login. */
@@ -12671,9 +12681,13 @@ export interface operations {
     };
     listClinicReceipts: {
         parameters: {
-            query: {
-                from: string;
-                to: string;
+            query?: {
+                /** @description Required without appointmentId. */
+                from?: string;
+                /** @description Required without appointmentId. */
+                to?: string;
+                /** @description One visit's receipts instead of a period's. */
+                appointmentId?: string;
             };
             header?: never;
             path?: never;
@@ -12691,7 +12705,7 @@ export interface operations {
                     "application/json": components["schemas"]["Receipt"][];
                 };
             };
-            /** @description `invalid_request`: a time missing, or `to` not after `from`. */
+            /** @description `invalid_request`: a time missing, `to` not after `from`, or an appointmentId that is no UUID. */
             400: {
                 headers: {
                     [name: string]: unknown;

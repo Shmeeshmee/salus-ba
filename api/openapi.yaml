@@ -5676,17 +5676,19 @@ paths:
     get:
       operationId: listClinicReceipts
       x-salus-package: cms-c
-      summary: The clinic's receipts issued in a period
+      summary: The clinic's receipts issued in a period, or of one visit
       description: >-
-        Newest first, with their lines and fiscal status. For the clinic's admin. Package C of
-        docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
+        Newest first, with their lines and fiscal status; with `appointmentId`, the visit's receipts by number (the
+        reversals not listed, a reversed receipt with its `reversedById`) and no period. For the clinic's admin.
+        Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
       tags: [billing]
       security:
         - sessionCookie: []
         - bearerAuth: []
       parameters:
-        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
-        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: from, in: query, required: false, description: Required without appointmentId., schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: false, description: Required without appointmentId., schema: {type: string, format: date-time}}
+        - {name: appointmentId, in: query, required: false, description: One visit's receipts instead of a period's., schema: {type: string, format: uuid}}
       responses:
         "200":
           description: The receipts.
@@ -5698,7 +5700,7 @@ paths:
                 type: array
                 items: {$ref: "#/components/schemas/Receipt"}
         "400":
-          description: "`invalid_request`: a time missing, or `to` not after `from`."
+          description: "`invalid_request`: a time missing, `to` not after `from`, or an appointmentId that is no UUID."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -5772,7 +5774,7 @@ paths:
       operationId: getClinicReceipt
       x-salus-package: cms-c
       summary: A receipt of the clinic
-      description: For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
+      description: For the clinic's admin, the practitioner or receptionist who issued it, and the clinic's receptionists for a visit's receipt (the desk prints it). Audited.
       tags: [billing]
       security:
         - sessionCookie: []
@@ -7806,12 +7808,26 @@ components:
           items: {$ref: "#/components/schemas/DeskVisit"}
     DeskVisit:
       type: object
-      required: [appointment, patient]
+      required: [appointment, patient, receipts]
       description: One visit on the desk's list. Health data.
       properties:
         appointment: {$ref: "#/components/schemas/Appointment"}
         patient: {$ref: "#/components/schemas/ClinicPatient"}
         serviceName: {type: string, description: The booked service's name; absent for none.}
+        receipts:
+          type: array
+          description: >-
+            The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so.
+            Each is audited as a read.
+          items: {$ref: "#/components/schemas/DeskReceipt"}
+    DeskReceipt:
+      type: object
+      required: [id, number, reversed]
+      description: A receipt of a visit as the desk shows it, to open its PDF at /clinic/receipts/{id}/pdf.
+      properties:
+        id: {type: string, format: uuid}
+        number: {type: integer, format: int64}
+        reversed: {type: boolean}
     SignupRequest:
       type: object
       required: [email, clinicName, language]

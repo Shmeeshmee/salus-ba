@@ -42,6 +42,11 @@ func (s *stub) List(_ context.Context, c invoice.Caller, p invoice.Period) ([]in
 	return []invoice.Invoice{s.receipt}, s.err
 }
 
+func (s *stub) ForVisit(_ context.Context, c invoice.Caller, appointmentID string) ([]invoice.Invoice, error) {
+	s.caller, s.id = c, appointmentID
+	return []invoice.Invoice{s.receipt}, s.err
+}
+
 func (s *stub) Reverse(_ context.Context, c invoice.Caller, id string, m invoice.PaymentMethod) (invoice.Invoice, error) {
 	s.caller, s.id, s.method = c, id, m
 	return s.receipt, s.err
@@ -256,5 +261,21 @@ func TestHTTP_IssueTakesTheIdempotencyKey(t *testing.T) {
 		if rec.Code != tt.status || s.draft.IdempotencyKey != tt.want {
 			t.Errorf("%s: POST = %d, key %q; want %d %q", name, rec.Code, s.draft.IdempotencyKey, tt.status, tt.want)
 		}
+	}
+}
+
+// The admin's visit page lists the visit's receipts (GET /clinic/receipts?appointmentId=, findings 1 and 2 of
+// docs/clinic-cms/walk/wave3): the period is not asked then; an appointment id that is no UUID is a bad request.
+func TestHandlerList_TheReceiptsOfOneVisit(t *testing.T) {
+	s := &stub{receipt: invoice.Invoice{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7}}
+	rec := serve(t, s, &adminC, http.MethodGet, "/clinic/receipts?appointmentId=a1000000-0000-4000-8000-0000000000a1", "")
+	if rec.Code != http.StatusOK || s.id != "a1000000-0000-4000-8000-0000000000a1" || !strings.Contains(rec.Body.String(), `"number":7`) {
+		t.Errorf("GET ?appointmentId= = %d %s (asked %q), want the visit's receipts", rec.Code, rec.Body, s.id)
+	}
+	if rec := serve(t, &stub{}, &adminC, http.MethodGet, "/clinic/receipts?appointmentId=visit", ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("GET ?appointmentId=visit = %d, want 400", rec.Code)
+	}
+	if rec := serve(t, &stub{err: invoice.ErrForbidden}, &adminC, http.MethodGet, "/clinic/receipts?appointmentId=a1000000-0000-4000-8000-0000000000a1", ""); rec.Code != http.StatusForbidden {
+		t.Errorf("a refused ForVisit = %d, want 403", rec.Code)
 	}
 }

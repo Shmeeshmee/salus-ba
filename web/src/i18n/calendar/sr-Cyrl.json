@@ -8,6 +8,7 @@
   "noAppointments": "Нема термина ове седмице.",
   "now": "Сада",
   "status.booked": "Заказан",
+  "status.arrived": "Долазак пријављен",
   "status.cancelled": "Отказан",
   "status.fulfilled": "Обављен",
   "status.noshow": "Недолазак",

@@ -38,6 +38,7 @@ function visit(id: string, roleId: string, start: string, end: string, patient: 
     },
     patient,
     serviceName,
+    receipts: [],
   }
 }
 

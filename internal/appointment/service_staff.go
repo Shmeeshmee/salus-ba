@@ -28,7 +28,22 @@ type StaffBooking struct {
 type DeskVisit struct {
 	ServiceName string // the booked service's, in the clinic's language; empty for none
 	Patient     patient.Patient
+	Receipts    []VisitReceipt // the visit's receipts, whoever issued them (reversals left out), by number
 	Appointment Appointment
+}
+
+// VisitReceipt is a receipt of a visit as the desk shows it: its number and id (for its PDF), and whether it was
+// reversed. Nothing else of a receipt reaches the desk's day.
+type VisitReceipt struct {
+	ID       string
+	Number   int64
+	Reversed bool
+}
+
+// DeskReceipts gives the receipts of the clinic org's visits, by visit, in the transaction in ctx, unaudited
+// (invoice.Service): the desk's day authorizes its caller and audits each receipt it shows.
+type DeskReceipts interface {
+	VisitReceipts(ctx context.Context, org string, appointmentIDs []string) (map[string][]VisitReceipt, error)
 }
 
 // Desk is the desk's day: its date (midnight in the clinic's zone) and its visits.
@@ -280,6 +295,9 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, e
 		if out.Visits, err = s.deskVisits(ctx, c, all); err != nil {
 			return err
 		}
+		if err := s.withReceipts(ctx, c, out.Visits); err != nil {
+			return err
+		}
 		return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)
 	})
 	if err != nil {
@@ -315,6 +333,30 @@ func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) (
 		out = append(out, DeskVisit{Appointment: a, Patient: p, ServiceName: names[a.ServiceID]})
 	}
 	return out, nil
+}
+
+// withReceipts gives each visit its receipts, each audited as a read by c; nothing without a Receipts port.
+func (s *Service) withReceipts(ctx context.Context, c Caller, visits []DeskVisit) error {
+	if s.Receipts == nil || len(visits) == 0 {
+		return nil
+	}
+	ids := make([]string, len(visits))
+	for i, v := range visits {
+		ids[i] = v.Appointment.ID
+	}
+	all, err := s.Receipts.VisitReceipts(ctx, c.OrganizationID, ids)
+	if err != nil {
+		return err
+	}
+	for i := range visits {
+		visits[i].Receipts = all[visits[i].Appointment.ID]
+		for _, r := range visits[i].Receipts {
+			if err := s.record(ctx, c, auditevent.CodeRead, "Invoice", r.ID, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // serviceNames gives the names of the services the appointments booked, by id, from the clinic's own price list; none

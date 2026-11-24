@@ -106,6 +106,43 @@ describe('Desk', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it("shows a visit's receipts with their PDF, whoever issued them, and marks a reversed one", async () => {
+    const day = {
+      ...deskDay,
+      visits: [{ ...anaVisit, receipts: [{ id: 'r0000000-0000-4000-8000-000000000007', number: 7, reversed: true }, { id: 'r0000000-0000-4000-8000-000000000008', number: 8, reversed: false }] }, boVisit, cleoVisit],
+    }
+    renderDesk({ 'GET /clinic/desk/today': () => Response.json(day) }, reception)
+    await screen.findByText('Ana Example')
+    const row = within(rowOf('Ana Example'))
+    expect(row.getByText('Receipt no. 7')).toBeTruthy()
+    expect(row.getByText('Reversed')).toBeTruthy()
+    const pdfs = row.getAllByRole('link', { name: 'Open PDF' }).map((a) => a.getAttribute('href'))
+    expect(pdfs).toEqual([expect.stringMatching(/\/clinic\/receipts\/r0000000-0000-4000-8000-000000000007\/pdf$/), expect.stringMatching(/\/clinic\/receipts\/r0000000-0000-4000-8000-000000000008\/pdf$/)])
+    expect(row.queryByRole('button', { name: 'Issue receipt' })).toBeNull()
+    expect(row.getByRole('button', { name: 'Issue another receipt' })).toBeTruthy()
+    expect(within(rowOf('Cleo Test')).getByRole('button', { name: 'Issue receipt' })).toBeTruthy()
+  })
+
+  it('shows the receipt on the row once issued, and asks before a second one', async () => {
+    renderDesk({ 'POST /clinic/receipts': () => Response.json({ id: 'r0000000-0000-4000-8000-000000000012', number: 12 }, { status: 201 }) }, reception)
+    await screen.findByText('Ana Example')
+    fireEvent.click(within(rowOf('Ana Example')).getByRole('button', { name: 'Issue receipt' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+    await waitFor(() => expect((dialog.getByLabelText('Service') as HTMLSelectElement).value).toBe(exam))
+    fireEvent.click(dialog.getByRole('button', { name: 'Issue receipt' }))
+    await screen.findByText('Receipt no. 12 was issued.')
+
+    const row = within(rowOf('Ana Example'))
+    expect(row.getByText('Receipt no. 12')).toBeTruthy()
+    expect(row.getByRole('link', { name: 'Open PDF' }).getAttribute('href')).toMatch(/\/clinic\/receipts\/r0000000-0000-4000-8000-000000000012\/pdf$/)
+    fireEvent.click(row.getByRole('button', { name: 'Issue another receipt' }))
+    const ask = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+    expect(ask.getByText('This visit already has receipt no. 12. Issue another receipt?')).toBeTruthy()
+    expect(ask.queryByLabelText('Service')).toBeNull()
+    fireEvent.click(ask.getByRole('button', { name: 'Issue another receipt' }))
+    expect(await within(screen.getByRole('dialog', { name: 'New receipt' })).findByLabelText('Service')).toBeTruthy()
+  })
+
   it('offers no receipt for a cancelled visit or a no-show', async () => {
     renderDesk({
       'GET /clinic/desk/today': () =>

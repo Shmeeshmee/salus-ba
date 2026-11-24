@@ -1,6 +1,7 @@
 package appointment_test
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -319,5 +320,45 @@ func TestDeskDay_LeavesOutAVisitWhosePatientTheScopeHides(t *testing.T) {
 	out, err := f.svc.DeskDay(t.Context(), desk, day)
 	if err != nil || len(out.Visits) != 1 || out.Visits[0].Appointment.ID != seen.ID {
 		t.Fatalf("DeskDay = %+v, %v; want the one visit whose patient the scope shows", out, err)
+	}
+}
+
+// fakeReceipts gives the visits' receipts the desk shows, from the clinic it is asked for.
+type fakeReceipts map[string][]appointment.VisitReceipt
+
+func (r fakeReceipts) VisitReceipts(_ context.Context, org string, ids []string) (map[string][]appointment.VisitReceipt, error) {
+	out := map[string][]appointment.VisitReceipt{}
+	for _, id := range ids {
+		if org == clinicA {
+			out[id] = r[id]
+		}
+	}
+	return out, nil
+}
+
+// Each visit on the desk's day carries its receipts (number, id, whether reversed), whoever issued them, so the row
+// can show them and open their PDF (docs/clinic-cms/walk/wave3, findings 1 and 2); each receipt shown is audited as a
+// read by the desk's caller.
+func TestDeskDay_GivesEachVisitItsReceiptsAndAuditsThem(t *testing.T) {
+	t.Parallel()
+	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
+	day := time.Date(2030, 1, 7, 0, 0, 0, 0, sarajevo)
+	receipted := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
+	plain := booked("ac000000-0000-4000-8000-0000000000ac", patientA, roleA1, clinicA, day.Add(10*time.Hour))
+	f := staffFixture(receipted, plain)
+	receipts := fakeReceipts{receipted.ID: {{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}, {ID: "e2000000-0000-4000-8000-0000000000e2", Number: 8}}}
+	svc := appointment.NewService(appointment.Ports{Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
+		Patients: f.patients, Clinics: f.clinics, Receipts: receipts})
+	out, err := svc.DeskDay(t.Context(), desk, day)
+	if err != nil || len(out.Visits) != 2 {
+		t.Fatalf("DeskDay = %+v, %v", out, err)
+	}
+	if got := out.Visits[0].Receipts; !slices.Equal(got, receipts[receipted.ID]) || len(out.Visits[1].Receipts) != 0 {
+		t.Errorf("receipts %+v and %+v, want the first visit's two and none", got, out.Visits[1].Receipts)
+	}
+	for _, id := range []string{"e1000000-0000-4000-8000-0000000000e1", "e2000000-0000-4000-8000-0000000000e2"} {
+		if !slices.Contains(f.audit.events, event(desk, auditevent.CodeRead, "Invoice", id, auditevent.OutcomeSuccess)) {
+			t.Errorf("no audited read of Invoice/%s by the desk in %+v", id, f.audit.events)
+		}
 	}
 }

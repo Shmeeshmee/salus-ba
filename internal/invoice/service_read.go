@@ -10,8 +10,9 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 )
 
-// Read returns a receipt of the caller's clinic to its admin and to the practitioner who issued it
-// (GET /clinic/receipts/{id}); ErrNotFound to anyone else. Audited, also when refused.
+// Read returns a receipt of the caller's clinic to its admin, to the staff who issued it, and to its receptionists
+// when it is a visit's (the desk's row shows and prints it) (GET /clinic/receipts/{id}); ErrNotFound to anyone else.
+// Audited, also when refused.
 func (s *Service) Read(ctx context.Context, c Caller, id string) (Invoice, error) {
 	if c.OrganizationID == "" {
 		return Invoice{}, s.refuse(ctx, c, auditevent.CodeRead, ErrNotFound)
@@ -25,7 +26,8 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Invoice, error
 		if out, err = s.p.Repo.ByID(ctx, id); err != nil {
 			return err
 		}
-		if !c.Admin && out.IssuedByAccountID != c.AccountID {
+		// The admin reads every receipt, staff those they issued, and the desk also a visit's (its row prints it).
+		if !c.Admin && out.IssuedByAccountID != c.AccountID && (!c.Reception || out.AppointmentID == "") {
 			return ErrNotFound
 		}
 		return s.p.Audit.Record(ctx, event(c, auditevent.CodeRead, out.ID, auditevent.OutcomeSuccess))

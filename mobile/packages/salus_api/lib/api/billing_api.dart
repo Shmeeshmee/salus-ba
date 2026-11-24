@@ -224,7 +224,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
+  /// For the clinic's admin, the practitioner or receptionist who issued it, and the clinic's receptionists for a visit's receipt (the desk prints it). Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -261,7 +261,7 @@ class BillingApi {
 
   /// A receipt of the clinic
   ///
-  /// For the clinic's admin, and the practitioner or receptionist who issued it. Audited.
+  /// For the clinic's admin, the practitioner or receptionist who issued it, and the clinic's receptionists for a visit's receipt (the desk prints it). Audited.
   ///
   /// Parameters:
   ///
@@ -1057,20 +1057,26 @@ class BillingApi {
     return null;
   }
 
-  /// The clinic's receipts issued in a period
+  /// The clinic's receipts issued in a period, or of one visit
   ///
-  /// Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
+  /// Newest first, with their lines and fiscal status; with `appointmentId`, the visit's receipts by number (the reversals not listed, a reversed receipt with its `reversedById`) and no period. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
   ///
-  /// * [DateTime] from (required):
+  /// * [DateTime] from:
+  ///   Required without appointmentId.
   ///
-  /// * [DateTime] to (required):
-  Future<Response> listClinicReceiptsWithHttpInfo(
-    DateTime from,
-    DateTime to, {
+  /// * [DateTime] to:
+  ///   Required without appointmentId.
+  ///
+  /// * [String] appointmentId:
+  ///   One visit's receipts instead of a period's.
+  Future<Response> listClinicReceiptsWithHttpInfo({
+    DateTime? from,
+    DateTime? to,
+    String? appointmentId,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -1083,8 +1089,15 @@ class BillingApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-    queryParams.addAll(_queryParams('', 'from', from));
-    queryParams.addAll(_queryParams('', 'to', to));
+    if (from != null) {
+      queryParams.addAll(_queryParams('', 'from', from));
+    }
+    if (to != null) {
+      queryParams.addAll(_queryParams('', 'to', to));
+    }
+    if (appointmentId != null) {
+      queryParams.addAll(_queryParams('', 'appointmentId', appointmentId));
+    }
 
     const contentTypes = <String>[];
 
@@ -1100,23 +1113,30 @@ class BillingApi {
     );
   }
 
-  /// The clinic's receipts issued in a period
+  /// The clinic's receipts issued in a period, or of one visit
   ///
-  /// Newest first, with their lines and fiscal status. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
+  /// Newest first, with their lines and fiscal status; with `appointmentId`, the visit's receipts by number (the reversals not listed, a reversed receipt with its `reversedById`) and no period. For the clinic's admin. Package C of docs/plans/clinic-cms.md. Health data (a patient's receipts): audited.
   ///
   /// Parameters:
   ///
-  /// * [DateTime] from (required):
+  /// * [DateTime] from:
+  ///   Required without appointmentId.
   ///
-  /// * [DateTime] to (required):
-  Future<List<Receipt>?> listClinicReceipts(
-    DateTime from,
-    DateTime to, {
+  /// * [DateTime] to:
+  ///   Required without appointmentId.
+  ///
+  /// * [String] appointmentId:
+  ///   One visit's receipts instead of a period's.
+  Future<List<Receipt>?> listClinicReceipts({
+    DateTime? from,
+    DateTime? to,
+    String? appointmentId,
     Future<void>? abortTrigger,
   }) async {
     final response = await listClinicReceiptsWithHttpInfo(
-      from,
-      to,
+      from: from,
+      to: to,
+      appointmentId: appointmentId,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

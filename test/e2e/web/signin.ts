@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { expect, type Page } from '@playwright/test'
 
-// signIn signs the practitioner in to the web app with the password and a TOTP code, as the Go test that starts
+// signIn signs the practitioner (or the receptionist of a desk journey) in to the web app with the password and a TOTP code, as the Go test that starts
 // the spec passes them (E2E_PRACTITIONER_EMAIL, E2E_PASSWORD, E2E_TOTP_SECRET, E2E_TOTP_LAST_STEP).
 export async function signIn(page: Page) {
   await page.goto('/sign-in')
@@ -10,7 +10,7 @@ export async function signIn(page: Page) {
   await page.getByRole('button', { name: 'Sign in' }).click()
   await page.getByLabel('Code').fill(await totpCode())
   await page.getByRole('button', { name: 'Continue' }).click()
-  await expect(page).toHaveURL(/:5173\/$/)
+  await expect(page).toHaveURL(/:5173\/(desk)?$/) // a receptionist lands on the front desk
 }
 
 // lastStep is the step of the last code used: the enrolment's (E2E_TOTP_LAST_STEP), then this spec's own sign-ins'.

@@ -474,6 +474,71 @@ func (q *Queries) InvoicesOfPatient(ctx context.Context, patientID pgtype.UUID) 
 	return items, nil
 }
 
+const invoicesOfVisits = `-- name: InvoicesOfVisits :many
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
+FROM invoice i
+LEFT JOIN invoice r ON r.reverses_id = i.id
+WHERE i.organization_id = $1 AND i.appointment_id = ANY ($2::uuid[]) AND i.reverses_id IS NULL
+ORDER BY i.number
+`
+
+type InvoicesOfVisitsParams struct {
+	OrganizationID pgtype.UUID
+	AppointmentIds []pgtype.UUID
+}
+
+type InvoicesOfVisitsRow struct {
+	Invoice      Invoice
+	ReversedByID pgtype.UUID
+}
+
+// The receipts of the visits (the desk's day, the admin's visit page): not the reversals, each with its reversal.
+func (q *Queries) InvoicesOfVisits(ctx context.Context, arg InvoicesOfVisitsParams) ([]InvoicesOfVisitsRow, error) {
+	rows, err := q.db.Query(ctx, invoicesOfVisits, arg.OrganizationID, arg.AppointmentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvoicesOfVisitsRow
+	for rows.Next() {
+		var i InvoicesOfVisitsRow
+		if err := rows.Scan(
+			&i.Invoice.ID,
+			&i.Invoice.CreatedAt,
+			&i.Invoice.OrganizationID,
+			&i.Invoice.SellerLegalName,
+			&i.Invoice.SellerTaxID,
+			&i.Invoice.SellerAddress,
+			&i.Invoice.PatientID,
+			&i.Invoice.CompanyName,
+			&i.Invoice.CompanyTaxID,
+			&i.Invoice.AppointmentID,
+			&i.Invoice.Kind,
+			&i.Invoice.ReversesID,
+			&i.Invoice.Number,
+			&i.Invoice.IssuedAt,
+			&i.Invoice.IssuedByAccountID,
+			&i.Invoice.PaymentMethod,
+			&i.Invoice.TotalMinor,
+			&i.Invoice.Currency,
+			&i.Invoice.FiscalStatus,
+			&i.Invoice.FiscalID,
+			&i.Invoice.FiscalCode,
+			&i.Invoice.FiscalQr,
+			&i.Invoice.FiscalizedAt,
+			&i.Invoice.IdempotencyKey,
+			&i.ReversedByID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextInvoiceNumber = `-- name: NextInvoiceNumber :one
 INSERT INTO invoice_sequence (organization_id, last_number) VALUES ($1, 1)
 ON CONFLICT (organization_id) DO UPDATE SET last_number = invoice_sequence.last_number + 1

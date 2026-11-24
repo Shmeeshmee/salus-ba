@@ -107,6 +107,7 @@ lib/model/created_webhook.dart
 lib/model/cursor.dart
 lib/model/cursor_message.dart
 lib/model/desk_day.dart
+lib/model/desk_receipt.dart
 lib/model/desk_visit.dart
 lib/model/diagnosis_group.dart
 lib/model/diagnosis_group_list.dart

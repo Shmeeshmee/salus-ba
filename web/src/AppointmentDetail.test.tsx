@@ -45,6 +45,7 @@ function renderDetail(account: Account, routes: Record<string, Route>, now = aft
     [statusGet]: () => apiError(404, 'not_found'),
     [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
     'GET /clinic/noshow-flags': () => Response.json({ flags: [] }),
+    'GET /clinic/receipts': () => Response.json([]),
     [`GET /patients/${patientId}/history`]: () => Response.json({ items: [] }),
     [`GET /patients/${patientId}/history/summary`]: () => Response.json({ allergies: [], medications: [], openItems: [] }),
     ...routes,
@@ -312,6 +313,36 @@ describe('AppointmentDetail', () => {
 
     await vi.waitFor(() => expect(screen.getByRole('alert').textContent).toBe(message))
     expect(screen.getByText('Booked')).toBeTruthy()
+  })
+
+  it("shows the admin the visit's receipts with their PDF and asks before another (docs/clinic-cms/walk/wave3)", async () => {
+    const receipt = (n: number, reversed: boolean) => ({
+      id: `b1000000-0000-4000-8000-00000000000${n}`, kind: 'receipt', number: n, issuedAt: '2026-11-09T08:40:00Z', patientId, appointmentId: id,
+      paymentMethod: 'cash', totalMinor: 5000, currency: 'BAM', fiscalStatus: 'fiscalized', lines: [],
+      reversedById: reversed ? 'b1000000-0000-4000-8000-000000000099' : undefined,
+    })
+    const fake = renderDetail(admin, {
+      [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }),
+      'GET /clinic/services': () => Response.json([]),
+      'GET /clinic/receipts': () => Response.json([receipt(3, true), receipt(5, false)]),
+    })
+    expect(await screen.findByText('Receipt no. 5')).toBeTruthy()
+    expect(screen.getByText('Receipt no. 3')).toBeTruthy()
+    expect(screen.getByText('Reversed')).toBeTruthy()
+    expect(screen.getAllByRole('link', { name: 'Open PDF' })).toHaveLength(2)
+    expect(new URL(fake.requests.find((r) => r.url.includes('/clinic/receipts'))!.url).searchParams.get('appointmentId')).toBe(id)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Issue another receipt' }))
+    const ask = within(await screen.findByRole('dialog', { name: 'New receipt' }))
+    expect(ask.getByText('This visit already has receipt no. 5. Issue another receipt?')).toBeTruthy()
+    fireEvent.click(ask.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it("does not read the visit's receipts for its practitioner, who is not the clinic's admin", async () => {
+    const fake = renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
+    expect(await screen.findByRole('button', { name: 'Issue receipt' })).toBeTruthy()
+    expect(fake.requests.some((r) => r.url.includes('/clinic/receipts'))).toBe(false)
   })
 
   it('says when the appointment cannot be found', async () => {

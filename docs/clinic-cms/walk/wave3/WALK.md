@@ -116,3 +116,21 @@ Not fixed in this session.
 Nothing ran past the screen's edge and no page scrolled sideways at 390 px on any step. Every dialog fit the screen.
 The date inputs show the browser's own format (`mm/dd/yyyy` in this en-US Chromium), not the UI language's; that is the
 native control's and not new in wave 3.
+
+## Rerun after fixes
+
+Rerun 2026-11-23 on `fix/desk-walk` (the fixes of the seven findings, before their merge), on a fresh stack of its own
+(compose project `salus-deskfix`, new volumes), seeded and walked as above: the whole journey at both widths from new
+patients (Vedrana Syntheticova at 1280 px, receipt no. 1; Amra Syntheticova at 390 px, receipt no. 3). The screenshots
+of steps 2, 9, 10, 17 and 19 above are the rerun's and replace the first walk's; the receipt PDFs are the rerun's too.
+
+| # | Step | 1280 px | 390 px | What happened |
+| --- | --- | --- | --- | --- |
+| 2 | Open the walk-in and search for the patient | pass | pass | The Name and Birth date fields and the Search button take the dialog's full width, as the new patient form does (findings 5, 6) |
+| 9 | Issue the receipt | pass | pass | The row shows "Receipt no. N" with "Open PDF" at once, and its button reads "Issue another receipt" (findings 1, 2) |
+| 10 | Open the receipt's PDF | pass | pass | The row's "Open PDF" opens it (200, application/pdf); "Issue another receipt" first says "This visit already has receipt no. N. Issue another receipt?" and shows no lines until confirmed (findings 1, 2) |
+| 17 | Sign in as the admin and open the visit | pass | pass | The status reads "Arrived" (finding 3); "Show changes", "Issue another receipt", "Write a quote" and "Show quotes" in one row of one style, two even columns at 390 px (finding 4); "Receipt no. N" with "Open PDF" under them |
+| 19 | Reverse it: the question | pass | pass | "Refund paid by" stands above a select of the full width (finding 7) |
+
+The other steps passed again at both widths. Nothing ran past the screen's edge and no page scrolled sideways at
+390 px. All seven findings are fixed.

@@ -3,22 +3,19 @@ import type { Account, ApiClient } from './api/client'
 import { FhirError, nameOf, participant, type Appointment, type AppointmentStatus, type FhirClient, type Patient } from './api/fhir'
 import { attempt, type Outcome } from './api/result'
 import type { components } from './api/schema'
-import { AppointmentChanges } from './AppointmentChanges'
 import { AppointmentQuestionnaires } from './AppointmentQuestionnaires'
 import { ConfirmationTag, InPersonTag } from './Calendar'
-import { PatientHistory } from './History'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
 import { useLoad } from './load'
 import { NoShowCorrection, NoShowFlag } from './NoShows'
-import { QuoteDialog, VisitQuotes } from './QuoteDialog'
-import { ReceiptDialog } from './ReceiptDialog'
 import { navigate } from './route'
 import { loadTimeZone } from './staff'
-import { Alert, Link, Notice } from './ui'
+import { Alert, Link } from './ui'
 import { serviceOf } from './appointmentService'
 import { visitModeOf } from './visitMode'
+import { VisitActions } from './VisitActions'
 
 type T = ReturnType<typeof useT>
 
@@ -116,6 +113,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
   const end = new Date(appt.end)
   const name = profile ? nameOf(profile.name?.[0]) : participant(appt, 'Patient')?.display
   const patientId = participant(appt, 'Patient')?.id
+  const open = appt.status !== 'cancelled' && appt.status !== 'noshow' // a receipt or a quote is for a visit that happens
   return (
     <>
       <h1>{name || t('calendar.appointment')}</h1>
@@ -138,81 +136,20 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {practitioner && join === 'before' && <p className="hint join">{t('calendar.joinFrom')}</p>}
       {consultation && <Consultation status={consultation} zone={zone} />}
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
-      {own && patientId && <HistoryToggle api={api} fhir={fhir} patientId={patientId} appointmentId={appt.id} zone={zone} />}
-      <ChangesToggle api={api} id={appt.id} zone={zone} />
+      <VisitActions
+        api={api}
+        fhir={fhir}
+        appointmentId={appt.id}
+        patientId={patientId}
+        serviceId={serviceOf(appt)}
+        zone={zone}
+        admin={admin}
+        history={own && !!patientId}
+        receipts={(own || admin) && open}
+        quotes={(own || admin) && !!patientId && open}
+      />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
-      {(own || admin) && appt.status !== 'cancelled' && appt.status !== 'noshow' && <IssueReceipt api={api} appointmentId={appt.id} serviceId={serviceOf(appt)} />}
-      {(own || admin) && patientId && appt.status !== 'cancelled' && appt.status !== 'noshow' && (
-        <WriteQuote api={api} appointmentId={appt.id} patientId={patientId} serviceId={serviceOf(appt)} zone={zone} />
-      )}
       {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}
-    </>
-  )
-}
-
-// IssueReceipt opens the receipt dialog for this visit (clinic-cms C): for the clinic's admin and the visit's own
-// practitioner, to the visit's patient or a company. The server decides again who may issue.
-function IssueReceipt({ api, appointmentId, serviceId }: { api: ApiClient; appointmentId: string; serviceId?: string }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const [notice, setNotice] = useState<string>()
-  return (
-    <div className="actions receipt">
-      <button type="button" onClick={() => setOpen(true)}>
-        {t('receipts.dialog.issue')}
-      </button>
-      <Notice message={notice} />
-      {open && (
-        <ReceiptDialog
-          api={api}
-          appointmentId={appointmentId}
-          serviceId={serviceId}
-          onClose={() => setOpen(false)}
-          onIssued={(r) => {
-            setOpen(false)
-            setNotice(t('receipts.issued', { number: r.number }))
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-// WriteQuote opens the quote dialog for this visit (clinic-cms X1), for the clinic's admin and the visit's own
-// practitioner, and shows the visit's quotes on request: opening a booking does not read (and audit) its quotes. The
-// server decides again who may send one.
-function WriteQuote({ api, appointmentId, patientId, serviceId, zone }: { api: ApiClient; appointmentId: string; patientId: string; serviceId?: string; zone: string }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const [shown, setShown] = useState(false)
-  const [sent, setSent] = useState(0) // reloads the shown list after a quote is sent
-  const [notice, setNotice] = useState<string>()
-  return (
-    <>
-      <div className="actions quote">
-        <button type="button" onClick={() => setOpen(true)}>
-          {t('receipts.quote.write')}
-        </button>
-        <button type="button" className="quiet" aria-expanded={shown} onClick={() => setShown(!shown)}>
-          {t(shown ? 'receipts.quote.hide' : 'receipts.quote.show')}
-        </button>
-        <Notice message={notice} />
-      </div>
-      {shown && <VisitQuotes key={sent} api={api} appointmentId={appointmentId} zone={zone} />}
-      {open && (
-        <QuoteDialog
-          api={api}
-          appointmentId={appointmentId}
-          patientId={patientId}
-          serviceId={serviceId}
-          onClose={() => setOpen(false)}
-          onSent={() => {
-            setOpen(false)
-            setSent((n) => n + 1)
-            setNotice(t('receipts.quote.sent'))
-          }}
-        />
-      )}
     </>
   )
 }
@@ -344,39 +281,4 @@ function actionMessage(t: T, code?: string): string {
   if (code === 'forbidden') return t('calendar.forbidden')
   if (code === 'not_found') return t('calendar.notFound')
   return t('common.somethingWrong')
-}
-
-type HistoryProps = { api: ApiClient; fhir: FhirClient; patientId: string; appointmentId: string; zone: string }
-
-// HistoryToggle opens the patient's history on request, as the call page's tab does: opening a booking does not
-// read (and audit) the patient's history.
-function HistoryToggle(props: HistoryProps) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <div className="actions">
-        <button type="button" className="quiet" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {t(open ? 'history.hideHistory' : 'history.showHistory')}
-        </button>
-      </div>
-      {open && <PatientHistory {...props} />}
-    </>
-  )
-}
-
-// ChangesToggle opens the appointment's changes on request: opening a booking does not read (and audit) its history.
-function ChangesToggle({ api, id, zone }: { api: ApiClient; id: string; zone: string }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <div className="actions">
-        <button type="button" className="quiet" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {t(open ? 'appointments.hideChanges' : 'appointments.showChanges')}
-        </button>
-      </div>
-      {open && <AppointmentChanges api={api} id={id} zone={zone} />}
-    </>
-  )
 }

@@ -126,6 +126,7 @@ part 'model/created_webhook.dart';
 part 'model/cursor.dart';
 part 'model/cursor_message.dart';
 part 'model/desk_day.dart';
+part 'model/desk_receipt.dart';
 part 'model/desk_visit.dart';
 part 'model/diagnosis_group.dart';
 part 'model/diagnosis_group_list.dart';

@@ -29,6 +29,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/history"
+	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/medicationstatement"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -101,6 +102,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	stops := memberships(pool, audit, tx) // a suspended or cancelled membership stops new bookings (clinic-cms Q4)
 	appointmentPorts := appointment.Ports{
 		Repo: appointmentRepo, Audit: audit, Tx: tx, Clock: clock.System{}, Stops: stops,
+		// The desk's day shows each visit's receipts (the receipts' own service, reading only: docs/clinic-cms/walk/wave3).
+		Receipts: invoice.NewService(invoice.Ports{Repo: invoice.NewPostgresRepository(pool), Tx: tx}),
 		Consents: consents, Slots: slots, Patients: patients, Clinics: bookableClinics{Service: clinics, memberships: stops}, Roles: roles,
 		Jobs: appointment.NewRiverJobs(jobs), Stats: clinicstats.NewRiverQueue(jobs), // in the write's transaction
 		// A booking schedules its reminders by the clinic's offsets, a cancellation cancels them (SAL-33); the patient's
