@@ -1,0 +1,2 @@
+Package M4. Your specification is the "M4" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+Migration, only if needed: 00072. A receptionist must not reach /quotes: F1's route test and the menu.

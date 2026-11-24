@@ -268,3 +268,7 @@ charged and nothing is reported; a quote is not a receipt and says so. The clini
 The admin fills in the profile: languages the clinic speaks, a short description (translatable, as questionnaires),
 whether it welcomes patients from abroad. The patient app shows the profile with the services and prices, and
 filters the clinic list by a language spoken.
+
+## Wave 4 packages
+
+R1, R2, R3, M1, M2, M3, M4: their specification, decisions, file ownership and migration numbers are in `docs/clinic-cms/WAVE4.md`. Read it whole; the rules, check sets and definition of done above apply unchanged.

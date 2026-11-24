@@ -1,0 +1,3 @@
+Package R3. Your specification is the "R3" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+Migration, only if needed: 00068. Go only. Read docs/plans/appointments.PROGRESS.md (SAL-33) for how reminders,
+deliveries and SMS usage were built; reuse them.

@@ -1,0 +1,4 @@
+Package R2. Your specification is the "R2" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+Migration, only if needed: 00067. Desk.tsx is also edited by M1 (the "Move" action) in parallel: add only the
+opening of the patient's card. The lawyer has not confirmed V2: build it, and list in the report what a lawyer must
+confirm.

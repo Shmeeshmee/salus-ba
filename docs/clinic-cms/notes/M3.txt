@@ -1,0 +1,3 @@
+Package M3. Your specification is the "M3" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+Migration, only if needed: 00071. Reuse the CSV and XLSX reader of internal/chargeitemdefinition/service_import.go by
+moving it to pkg/ if both need it (it knows nothing of the product), with its cell cap.

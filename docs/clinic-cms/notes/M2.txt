@@ -1,0 +1,2 @@
+Package M2. Your specification is the "M2" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+Migration: 00070. O2's report lists exactly what was left. The archive is encrypted as attachments are (pkg/envelope).

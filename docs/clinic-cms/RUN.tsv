@@ -30,3 +30,10 @@ X2	-	Clinic profile for patients abroad
 O3	-	Patient and appointment import	hold
 X3	-	Prepaid and deposit bookings	hold
 G	-	ESET adapter	hold
+R1	-	Free times for every clinic
+R2	-	Rights of patients the clinic registered
+R3	-	SMS reminders for patients without an account
+M1	-	Staff moving a visit
+M2	-	Clinic data export
+M3	-	Patient import
+M4	-	Quotes page and invite limit
