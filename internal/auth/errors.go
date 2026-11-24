@@ -34,6 +34,9 @@ var (
 	ErrSealedSecret = errors.New("auth: sealed secret does not open")
 	// ErrForbidden is returned when anyone but an admin of the clinic invites or lists its invites.
 	ErrForbidden = errors.New("auth: forbidden")
+	// ErrInviteLimit is returned for an invite that would give the clinic more than 50 open invites (V6 of
+	// docs/clinic-cms/WAVE4.md).
+	ErrInviteLimit = errors.New("auth: too many open invites")
 	// ErrInvalidRole is returned for an invite that is not for an admin or a practitioner.
 	ErrInvalidRole = errors.New("auth: invalid role")
 	// ErrInvalidName is returned for a practitioner invite without a given and a family name of at most 200

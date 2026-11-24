@@ -111,5 +111,10 @@
   "quote.state.sent": "Sent",
   "quote.state.expired": "Expired",
   "quote.item": "{issued}: {total}, valid until {until}",
-  "quote.noServices": "The price list has no active services. Add one before writing a quote."
+  "quote.noServices": "The price list has no active services. Add one before writing a quote.",
+  "quotes.nav": "Quotes",
+  "quotes.state": "State",
+  "quotes.all": "All",
+  "quotes.empty": "No quotes yet.",
+  "quotes.emptyState": "No quotes in this state."
 }

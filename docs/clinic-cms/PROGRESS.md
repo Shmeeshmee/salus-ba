@@ -30,6 +30,7 @@ writes under its own heading here.
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
 | R3 | done 2026-11-24 (wave 4, migration `00068`) | `cms(R3)` |
+| M4 | done 2026-11-24 | `cms(M4)` |
 
 ## A: visit modes
 
@@ -1944,6 +1945,38 @@ registers a walk-in, and `POST /clinic/appointments` books only for a patient wi
 records the in-person consent of an existing clinic-registered profile (and the desk's picker offers it), an imported
 patient is found by the desk's search but cannot be booked. That is the patient and consent core files and the desk
 screens (R2's and F3's), so it is left out of M3.
+
+## M4: quotes page and invite limit
+
+Done 2026-11-24 (wave 4, `docs/clinic-cms/WAVE4.md`). No migration.
+
+**Built.**
+
+- `web/src/Quotes.tsx` at `/quotes`, the admin's only: the clinic's quotes newest first with their state (sent,
+  expired), total and validity in the clinic's zone, a state filter (all, sent, expired) and each quote's PDF. Linked
+  from the receipts page's toolbar and from the admin's menu (`QuoteIcon`). A practitioner and a receptionist get "This
+  page does not exist." on `/quotes`, no menu item, and no request to `/clinic/quotes` (`App.test.tsx`; `/quotes` is in
+  F1's list of screens a receptionist does not reach).
+- `GET /clinic/quotes/{id}/pdf` (`invoice.ClinicQuotePDF`): the PDF the patient gets, to those `ReadQuote` shows the
+  quote to (the clinic's admin, the practitioner who sent it), `not_found` to anyone else, audited as the read, also
+  when refused. Classified `refused` for the receptionist in `internal/api/reception_routes_test.go`.
+- At most 50 open invites per clinic (V6), `internal/auth/service_invite_limit.go`: the next invite for a new e-mail is
+  refused with `ErrInviteLimit`, `409 invite_limit`, audited as a refused create; replacing an open invite for the same
+  e-mail stays allowed; accepted and expired invites do not count. The invite form says "The clinic has 50 open
+  invites. Wait until some are accepted or expire before sending another." in the five staff languages.
+
+**Decisions taken here** (V6 is the agent's default of 2026-11-24, owner to confirm).
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Opening a quote's PDF from `/quotes` | A new staff route `GET /clinic/quotes/{id}/pdf` in `invoice` | Only the patient's `/me/quotes/{id}/pdf` existed; the spec asks the admin to open the PDF |
+| The invite limit's status | `409 invite_limit` | A state of the clinic, not a malformed request; the screen translates the code |
+| The limit and a replaced invite | Not counted when it replaces an open invite for the same e-mail | It adds no open invite |
+| The limit and the clinic's first admin (`InviteAdmin`) | Not checked | A clinic being created has no invites |
+| Two concurrent invites at 49 | May both pass (51 open) | The count is read in the transaction without a lock; the limit bounds abuse, it is not a legal limit. A per-clinic advisory lock is the fix if it ever matters |
+| The quotes list's columns | No patient name: date, total, validity, state, PDF | `Quote` carries only the patient id; a name needs a patient read per row (audited), not in the spec |
+
+**Deferred.** The patient's name on `/quotes` (see above). No way for an admin to withdraw an open invite.
 
 ## Facts
 

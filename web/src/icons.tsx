@@ -190,6 +190,16 @@ export function ReceiptIcon() {
   )
 }
 
+// QuoteIcon is a treatment quote (clinic-cms M4): a page with a folded corner and two lines.
+export function QuoteIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M5 2.5h7l3 3v12H5z" />
+      <path d="M12 2.5v3h3M8 10h4M8 13h4" />
+    </svg>
+  )
+}
+
 // DeskIcon is the front desk (clinic-cms F3): a counter with a bell.
 export function DeskIcon() {
   return (

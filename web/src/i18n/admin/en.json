@@ -25,6 +25,7 @@
   "sending": "Sending",
   "invalidEmail": "Enter a valid e-mail address.",
   "invalidName": "Enter the given and family name.",
+  "inviteLimit": "The clinic has 50 open invites. Wait until some are accepted or expire before sending another.",
   "inviteForbidden": "Only a clinic admin can send invites.",
   "clinicSettings": "Clinic settings",
   "clinicLoadFailed": "The clinic could not be loaded. Reload the page to try again.",

@@ -201,6 +201,7 @@ describe('Practitioners', () => {
     [400, 'invalid_email', 'Enter a valid e-mail address.'],
     [400, 'invalid_name', 'Enter the given and family name.'],
     [403, 'forbidden', 'Only a clinic admin can send invites.'],
+    [409, 'invite_limit', 'The clinic has 50 open invites. Wait until some are accepted or expire before sending another.'],
     [500, 'internal error', 'Something went wrong. Try again.'],
   ])('maps %i %s to a message', async (status, code, message) => {
     renderPractitioners(admin, {

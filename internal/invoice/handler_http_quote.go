@@ -18,6 +18,7 @@ type Quotes interface {
 	ReadQuote(ctx context.Context, c Caller, id string) (Quote, error)
 	MyQuotes(ctx context.Context, c Caller) ([]Quote, error)
 	QuotePDF(ctx context.Context, c Caller, id string) ([]byte, error)
+	ClinicQuotePDF(ctx context.Context, c Caller, id string) ([]byte, error)
 }
 
 // quoteRoutes declares the quotes' routes on mux.
@@ -25,6 +26,7 @@ func (h *HTTPHandler) quoteRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/quotes", h.staff(h.quotes))
 	mux.HandleFunc("POST /clinic/quotes", h.staff(h.sendQuote))
 	mux.HandleFunc("GET /clinic/quotes/{id}", h.staff(h.readQuote))
+	mux.HandleFunc("GET /clinic/quotes/{id}/pdf", h.staff(h.clinicQuotePDF))
 	mux.HandleFunc("GET /me/quotes", h.myQuotes)
 	mux.HandleFunc("GET /me/quotes/{id}/pdf", h.myQuotePDF)
 }
@@ -140,6 +142,17 @@ func (h *HTTPHandler) myQuotePDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b, err := h.svc.QuotePDF(r.Context(), c, r.PathValue("id"))
+	h.writeQuotePDF(w, r, b, err)
+}
+
+// clinicQuotePDF answers GET /clinic/quotes/{id}/pdf: a quote of the caller's clinic.
+func (h *HTTPHandler) clinicQuotePDF(w http.ResponseWriter, r *http.Request, c Caller) {
+	b, err := h.svc.ClinicQuotePDF(r.Context(), c, r.PathValue("id"))
+	h.writeQuotePDF(w, r, b, err)
+}
+
+// writeQuotePDF writes b as the quote's PDF, or err.
+func (h *HTTPHandler) writeQuotePDF(w http.ResponseWriter, r *http.Request, b []byte, err error) {
 	if h.quoteFailed(w, r, err) {
 		return
 	}

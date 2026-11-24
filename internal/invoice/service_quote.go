@@ -260,7 +260,22 @@ func (s *Service) QuotePDF(ctx context.Context, c Caller, id string) ([]byte, er
 	if err := s.quoteReadError(ctx, c, "quote pdf", err); err != nil {
 		return nil, err
 	}
-	clinic, err := s.p.Clinics.Clinic(ctx, q.OrganizationID) // outside the quote's transaction: its own scope
+	return s.renderQuote(ctx, q)
+}
+
+// ClinicQuotePDF renders the quote id of the caller's clinic as QuotePDF does, to those ReadQuote shows it to
+// (GET /clinic/quotes/{id}/pdf, package M4); ErrNotFound to anyone else. Audited as the read, also when refused.
+func (s *Service) ClinicQuotePDF(ctx context.Context, c Caller, id string) ([]byte, error) {
+	q, err := s.ReadQuote(ctx, c, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.renderQuote(ctx, q)
+}
+
+// renderQuote renders q on its clinic's letterhead, outside the quote's transaction: the clinic is its own scope.
+func (s *Service) renderQuote(ctx context.Context, q Quote) ([]byte, error) {
+	clinic, err := s.p.Clinics.Clinic(ctx, q.OrganizationID)
 	if err != nil {
 		return nil, fmt.Errorf("invoice: quote pdf: %w", err)
 	}

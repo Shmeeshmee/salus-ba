@@ -111,6 +111,7 @@ func TestInviteHandlers_MapErrorsToFixedCodes(t *testing.T) {
 		status int
 	}{
 		{auth.ErrForbidden, "forbidden", http.StatusForbidden},
+		{auth.ErrInviteLimit, "invite_limit", http.StatusConflict},
 		{auth.ErrInvalidEmail, "invalid_email", http.StatusBadRequest},
 		{auth.ErrInvalidRole, "invalid_role", http.StatusBadRequest},
 		{auth.ErrInvalidName, "invalid_name", http.StatusBadRequest},

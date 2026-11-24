@@ -213,6 +213,7 @@ var errorCodes = []struct {
 	{ErrAlreadyEnrolled, "already_enrolled", http.StatusConflict},
 	{ErrNotEnrolled, "not_enrolled", http.StatusConflict},
 	{ErrForbidden, "forbidden", http.StatusForbidden},
+	{ErrInviteLimit, "invite_limit", http.StatusConflict},
 	{ErrInvalidRole, "invalid_role", http.StatusBadRequest},
 	{ErrInvalidName, "invalid_name", http.StatusBadRequest},
 	{ErrInvalidInvite, "invalid_invite", http.StatusNotFound},
