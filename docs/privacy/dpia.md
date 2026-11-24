@@ -2651,3 +2651,34 @@ the API creates the clinic unlisted, invites its admin and starts the trial, thr
 | A quote sent to a patient who revoked their care consent | The service checks the active consent; `quote_clinic` refuses the row |
 | A quote mistaken for a bill | The PDF, the e-mail, the app and the dialog say it is a quote, not a receipt, and nothing was charged |
 | The e-mail discloses care | It names the clinic and the visit's time only, as the other appointment e-mails |
+
+### Package R2: rights of patients the clinic registered (migration 00067, docs/clinic-cms/WAVE4.md)
+
+**Processing added.** No new personal-data field and no new table. A patient without a Salus account exercises their
+rights through the clinic that registered them (V2, pending the lawyer):
+
+- **Rectification.** The clinic's admin or receptionist corrects the given and family name, birth date and phone of a
+  profile the clinic registered (`PUT /clinic/patients/{id}`, `If-Match`; the version goes up). Audited as an update
+  with the staff account, refusals included. A patient's own profile, and another clinic's registered profile, are not
+  found (the service's check and `patient_registered_only_there`).
+- **Withdrawal of consent.** The desk records that the patient withdrew the care consent they gave in person
+  (`POST /clinic/patients/{id}/consent-withdrawal`). Migration 00067's policy lets the clinic's scope revoke only its own
+  in-person consent, only from active to inactive; a consent given in the app stays the patient's to revoke. The
+  revocation and the `consent_revoked` job are written in one transaction, as for a patient's own revocation: from the
+  commit the clinic's practitioners lose access, and the job cancels the visits ahead and withdraws the waitlist
+  entries (no notice is sent to a patient without an account). Audited with the staff account.
+- **Access and portability.** The clinic's admin downloads the record (`GET /clinic/patients/{id}/record`): a FHIR
+  Bundle of type collection with the Patient and the clinic's Consents of the patient, to hand to the patient. The
+  profile's read is audited with the patient's request (`PATRQT`) as the purpose, each consent's read too. The file
+  leaves Salus on the admin's device: the clinic is its controller from then on.
+- **Erasure.** None built, for any patient: the `patient` and `consent` rules are `keep` and erasure waits for the
+  subject-rights feature (`internal/retention/rules.go`). A registered profile follows the same rules as an app
+  patient's.
+
+| Risk | Measure |
+| --- | --- |
+| One clinic reads or changes another clinic's registered patient | The service checks `registered_by_organization_id` against the caller's clinic, the query names it, row-level security limits the scope; tested at the service and against Postgres |
+| Staff revoke a consent the patient gave in the app | 00067's policy matches `given_in_person` only; tested against Postgres |
+| A clinic reinstates a withdrawn consent | The policy's `WITH CHECK` allows only the revoked state; a reinstated consent is a new in-person record |
+| A receptionist exports the record | The download is the admin's only (403 to everyone else, audited) |
+| The handed-over file is incomplete | It holds what the clinic's admin may read today (profile and consents); visits and clinical documents are not in it yet (`docs/clinic-cms/PROGRESS.md`, R2 deferred) |

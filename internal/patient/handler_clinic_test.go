@@ -16,9 +16,11 @@ import (
 // stubClinic answers with what it is given and keeps what it was asked.
 type stubClinic struct {
 	err    error
-	caller patient.Caller
 	search patient.ClinicSearch
+	asked  string // the patient id a rights route named
+	record patient.ClinicRecord
 	in     patient.Patient
+	caller patient.Caller
 	out    []patient.Patient
 }
 

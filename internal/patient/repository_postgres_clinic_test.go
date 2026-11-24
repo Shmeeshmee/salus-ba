@@ -2,7 +2,9 @@ package patient_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -82,5 +84,46 @@ func TestRegisterAndSearchClinic_GiveTheClinicItsOwnAndItsConsentedPatientsOnly(
 	}
 	if got := search(clinicA, roleA, patient.ClinicSearch{Name: "ex"}); len(got) != 0 {
 		t.Errorf("a practitioner without appointments: %v, want nobody", got)
+	}
+}
+
+func TestCorrect_ChangesOnlyTheCurrentVersionOfAProfileTheClinicRegistered(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner)
+	if _, err := owner.Exec(t.Context(), "INSERT INTO organization (id, name) VALUES ($1, 'Clinic A'), ($2, 'Clinic B')", clinicA, clinicB); err != nil {
+		t.Fatal(err)
+	}
+	repo := patient.NewPostgresRepository(app)
+	var cy patient.Patient
+	if err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+		var err error
+		cy, err = repo.Register(ctx, patient.Patient{GivenName: "Cy", FamilyName: "Example", BirthDate: date(1980, 3, 4)}, clinicA, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	correct := func(clinic string, p patient.Patient) (patient.Patient, error) {
+		var out patient.Patient
+		err := inClinic(t, app, repo, clinic, func(ctx context.Context) error {
+			var err error
+			out, err = repo.Correct(ctx, p, clinic, now.Add(time.Hour))
+			return err
+		})
+		return out, err
+	}
+	in := patient.Patient{ID: cy.ID, VersionID: 1, GivenName: "Cyra", FamilyName: "Example", BirthDate: date(1980, 4, 3), Phone: "+38761000003"}
+	if _, err := correct(clinicB, in); !errors.Is(err, patient.ErrConflict) {
+		t.Errorf("clinic B: %v, want ErrConflict (no profile of its own)", err)
+	}
+	if _, err := correct(clinicA, patient.Patient{ID: patientA, VersionID: 1, GivenName: "X", FamilyName: "Y", BirthDate: date(1980, 1, 1)}); !errors.Is(err, patient.ErrConflict) {
+		t.Errorf("an app patient's profile: %v, want ErrConflict", err)
+	}
+	got, err := correct(clinicA, in)
+	if err != nil || got.GivenName != "Cyra" || got.VersionID != 2 || !got.BirthDate.Equal(date(1980, 4, 3)) || got.Phone != "+38761000003" || got.RegisteredBy != clinicA {
+		t.Fatalf("Correct = %+v, %v; want the corrected profile at version 2", got, err)
+	}
+	if _, err := correct(clinicA, in); !errors.Is(err, patient.ErrConflict) {
+		t.Errorf("a stale version: %v, want ErrConflict", err)
 	}
 }

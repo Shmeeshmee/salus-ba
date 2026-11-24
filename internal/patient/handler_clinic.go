@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
@@ -16,6 +17,9 @@ import (
 type ClinicPatients interface {
 	SearchClinic(ctx context.Context, c Caller, q ClinicSearch) ([]Patient, error)
 	Register(ctx context.Context, c Caller, in Patient) (Patient, error)
+	Correct(ctx context.Context, c Caller, in Patient) (Patient, error)
+	WithdrawConsent(ctx context.Context, c Caller, id string) (consent.Consent, error)
+	ClinicRecord(ctx context.Context, c Caller, id string) (ClinicRecord, error)
 }
 
 // ClinicHandler serves the clinic's own patients in the JSON API (package F2 of docs/clinic-cms): the staff's search
@@ -36,6 +40,7 @@ func NewClinicHandler(svc ClinicPatients, caller func(ctx context.Context) (Call
 func (h *ClinicHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/patients", h.search)
 	mux.HandleFunc("POST /clinic/patients", h.register)
+	h.rightsRoutes(mux) // docs/clinic-cms R2
 }
 
 // clinicPatientJSON is the ClinicPatient schema of api/openapi.yaml.
@@ -140,6 +145,9 @@ func (h *ClinicHandler) register(w http.ResponseWriter, r *http.Request) {
 func (h *ClinicHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, ErrInvalidSearch) {
 		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if rightsError(w, err) {
 		return
 	}
 	(&Handler{log: h.log}).writeError(w, r, err)

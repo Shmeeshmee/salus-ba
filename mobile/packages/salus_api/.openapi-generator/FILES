@@ -103,6 +103,7 @@ lib/model/consultation_status.dart
 lib/model/conversation.dart
 lib/model/conversation_list.dart
 lib/model/conversation_participant.dart
+lib/model/correct_patient_request.dart
 lib/model/created_webhook.dart
 lib/model/cursor.dart
 lib/model/cursor_message.dart

@@ -53,6 +53,9 @@ var receptionRoutes = map[string]receptionClass{
 	// The price list (read), and the desk's routes of package F2.
 	"GET /clinic/services": desk,
 	"GET /clinic/patients": desk, "POST /clinic/patients": desk, "POST /clinic/appointments": desk,
+	// R2: the desk corrects a profile the clinic registered and records the withdrawal of its consent; the record is the
+	// admin's to hand over.
+	"PUT /clinic/patients/{id}": desk, "POST /clinic/patients/{id}/consent-withdrawal": desk, "GET /clinic/patients/{id}/record": refused,
 	"POST /clinic/appointments/{id}/reschedule": desk, "POST /clinic/appointments/{id}/cancel": desk,
 	"POST /clinic/appointments/{id}/arrive": desk, "GET /clinic/desk/today": desk,
 
@@ -223,6 +226,7 @@ type reception struct {
 	owner                                       *pgxpool.Pool
 	receptionist, stranger                      *client // stranger: a signed-in account with no patient profile
 	visit, patientID, receptionAccount, receipt string  // receipt: one the receptionist issued for the visit
+	registered                                  string  // a patient the receptionist registered (docs/clinic-cms R2)
 }
 
 func newReception(t *testing.T) (reception, func(string, ...any) int) {
@@ -259,6 +263,10 @@ func newReception(t *testing.T) (reception, func(string, ...any) int) {
 		t.Fatal(err)
 	}
 	r.receipt = deskReceipt(t, r, exec)
+	rec := r.receptionist.do(http.MethodPost, "/clinic/patients", `{"givenName":"Rina","familyName":"Registeredova","birthDate":"1966-06-06","consentGivenInPerson":true}`)
+	var reg struct{ ID string }
+	decode(t, rec, &reg)
+	r.registered = reg.ID
 	return r, count
 }
 
@@ -300,15 +308,15 @@ var receptionQueries = map[string]string{
 // are the clinic's own (real) or ids that do not exist; the clinic and its practitioner's role, which the public directory lists, are
 // always the clinic's own; every other id does not exist.
 func receptionPath(r reception, route string, real bool) string {
-	visit, patient, receipt := r.visit, r.patientID, r.receipt
+	visit, patient, receipt, registered := r.visit, r.patientID, r.receipt, r.registered
 	if !real {
-		visit, patient, receipt = unknownID, unknownID, unknownID
+		visit, patient, receipt, registered = unknownID, unknownID, unknownID, unknownID
 	}
 	path := route
 	for prefix, id := range map[string]string{
 		"/appointments/{id}": visit, "/clinic/appointments/{id}": visit, "/patients/{id}": patient,
 		"/practitioner-roles/{id}": r.roleID, "/organizations/{id}": inviteClinic, "/history-sharing/{organizationId}": inviteClinic,
-		"/clinic/receipts/{id}": receipt,
+		"/clinic/receipts/{id}": receipt, "/clinic/patients/{id}": registered,
 	} {
 		if strings.HasPrefix(path, prefix) {
 			path = strings.Replace(path, prefix[strings.LastIndex(prefix, "{"):], id, 1)

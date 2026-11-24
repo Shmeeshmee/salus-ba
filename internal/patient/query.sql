@@ -46,3 +46,11 @@ WHERE (p.registered_by_organization_id = @organization_id
                     AND a.practitioner_role_id = sqlc.narg('practitioner_role_id')::uuid))
 ORDER BY p.family_name, p.given_name, p.id
 LIMIT @max_rows;
+
+-- The clinic corrects a profile it registered (docs/clinic-cms R2): only the current version, only its own.
+-- name: CorrectRegisteredPatient :one
+UPDATE patient
+SET given_name = @given_name, family_name = @family_name, birth_date = @birth_date, phone = sqlc.narg('phone'),
+    version_id = version_id + 1, updated_at = @updated_at
+WHERE id = @id AND registered_by_organization_id = @organization_id AND version_id = @version_id
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id;

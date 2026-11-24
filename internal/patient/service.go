@@ -34,12 +34,14 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope
-// (consent.Service).
-// and records the care consent a clinic-registered patient gave in person, in the caller's transaction.
+// Consents gives the state of the patient's consents with a clinic, in the caller's transaction and scope, and records
+// the care consent a clinic-registered patient gave in person, its withdrawal, and reads the clinic's consents of such
+// a patient, in the caller's transaction (consent.Service).
 type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
 	RecordInPerson(ctx context.Context, c consent.Caller, patientID string) (consent.Consent, error)
+	WithdrawInPerson(ctx context.Context, c consent.Caller, patientID string) (consent.Consent, error)
+	OfClinicPatient(ctx context.Context, c consent.Caller, patientID string) ([]consent.Consent, error)
 }
 
 // Appointments gives the patient's appointments in a clinic, in the caller's transaction and scope (the
@@ -274,6 +276,19 @@ func e164(phone string) bool {
 // record audits interaction by c on Patient/id ("" when none was disclosed: no id from the request is
 // stored). The purpose is the patient's own request for a patient and treatment for staff.
 func (s *Service) record(ctx context.Context, c Caller, interaction, id string, outcome auditevent.Outcome) error {
+	return s.audit.Record(ctx, s.event(c, interaction, c.purpose(), id, outcome))
+}
+
+// purpose is the purpose of c's use of a profile: the patient's own request for a patient, treatment for staff.
+func (c Caller) purpose() string {
+	if c.patient() {
+		return auditevent.CodePATRQT
+	}
+	return auditevent.CodeTREAT
+}
+
+// event is the AuditEvent of interaction by c on Patient/id ("" for none) for the purpose (a v3-ActReason code).
+func (s *Service) event(c Caller, interaction, purpose, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	action := auditevent.ActionRead
 	switch interaction {
 	case auditevent.CodeCreate:
@@ -282,10 +297,6 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 		action = auditevent.ActionUpdate
 	case auditevent.CodeSearchType:
 		action = auditevent.ActionExecute
-	}
-	purpose := auditevent.CodePATRQT
-	if !c.patient() {
-		purpose = auditevent.CodeTREAT
 	}
 	e := auditevent.AuditEvent{
 		Type:           auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
@@ -299,5 +310,5 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, id string, 
 	if id != "" {
 		e.EntityReference = "Patient/" + id
 	}
-	return s.audit.Record(ctx, e)
+	return e
 }

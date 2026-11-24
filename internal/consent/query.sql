@@ -17,6 +17,14 @@ VALUES (@patient_id, @organization_id, 'active', @date_time, @date_time, true, @
 ON CONFLICT (patient_id, organization_id) WHERE status = 'active' DO NOTHING
 RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
 
+-- The clinic records that a patient it registered withdrew the care consent they gave in person (docs/clinic-cms R2),
+-- in its own scope (00067's policy); a consent given in the app is the patient's to revoke.
+-- name: RevokeInPersonConsent :one
+UPDATE consent
+SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
+WHERE patient_id = @patient_id AND organization_id = @organization_id AND status = 'active' AND given_in_person
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status;
+
 -- name: GrantTranscriptionConsent :one
 INSERT INTO transcription_consent (patient_id, organization_id, status, date_time, updated_at)
 VALUES (@patient_id, @organization_id, 'active', @date_time, @date_time)

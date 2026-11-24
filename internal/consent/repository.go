@@ -22,6 +22,10 @@ type Repository interface {
 	// staff account, granted at, and returns it; ErrActive when one is active already, ErrNotFound when the patient is
 	// not one the clinic registered (which aborts the transaction).
 	GrantInPerson(ctx context.Context, patientID, organizationID, accountID string, at time.Time) (Consent, error)
+	// RevokeInPerson makes the patient's active care consent with the clinic that was given in person inactive, revoked
+	// at, in the clinic's scope (docs/clinic-cms R2), and returns it with the next version; ErrInactive when there is
+	// none.
+	RevokeInPerson(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error)
 	// ByID returns the consent of any kind (an active history consent with the visits it lists now), or ErrNotFound (also for one outside the scope, or an id that is
 	// not a UUID).
 	ByID(ctx context.Context, id string) (Consent, error)

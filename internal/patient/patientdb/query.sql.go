@@ -11,6 +11,64 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const correctRegisteredPatient = `-- name: CorrectRegisteredPatient :one
+UPDATE patient
+SET given_name = $1, family_name = $2, birth_date = $3, phone = $4,
+    version_id = version_id + 1, updated_at = $5
+WHERE id = $6 AND registered_by_organization_id = $7 AND version_id = $8
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+`
+
+type CorrectRegisteredPatientParams struct {
+	GivenName      string
+	FamilyName     string
+	BirthDate      pgtype.Date
+	Phone          pgtype.Text
+	UpdatedAt      pgtype.Timestamptz
+	ID             pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+}
+
+type CorrectRegisteredPatientRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// The clinic corrects a profile it registered (docs/clinic-cms R2): only the current version, only its own.
+func (q *Queries) CorrectRegisteredPatient(ctx context.Context, arg CorrectRegisteredPatientParams) (CorrectRegisteredPatientRow, error) {
+	row := q.db.QueryRow(ctx, correctRegisteredPatient,
+		arg.GivenName,
+		arg.FamilyName,
+		arg.BirthDate,
+		arg.Phone,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.OrganizationID,
+		arg.VersionID,
+	)
+	var i CorrectRegisteredPatientRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.AccountID,
+		&i.VersionID,
+		&i.BirthDate,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Phone,
+		&i.RegisteredByOrganizationID,
+	)
+	return i, err
+}
+
 const createPatient = `-- name: CreatePatient :one
 INSERT INTO patient (account_id, given_name, family_name, birth_date, phone, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)

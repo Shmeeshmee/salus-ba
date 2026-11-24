@@ -100,6 +100,18 @@ func (r *postgresRepository) Register(ctx context.Context, p Patient, org string
 	return toPatient(patientdb.PatientByIDRow(row), err, errors.New("patient: register returned no row"))
 }
 
+func (r *postgresRepository) Correct(ctx context.Context, p Patient, org string, at time.Time) (Patient, error) {
+	var id, o pgtype.UUID
+	if id.Scan(p.ID) != nil || o.Scan(org) != nil {
+		return Patient{}, ErrConflict
+	}
+	row, err := patientdb.New(postgres.Conn(ctx, r.db)).CorrectRegisteredPatient(ctx, patientdb.CorrectRegisteredPatientParams{
+		ID: id, OrganizationID: o, VersionID: p.VersionID, GivenName: p.GivenName, FamilyName: p.FamilyName,
+		BirthDate: pgDate(p.BirthDate), Phone: pgText(p.Phone), UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	return toPatient(patientdb.PatientByIDRow(row), err, ErrConflict)
+}
+
 func (r *postgresRepository) SearchClinic(ctx context.Context, org, roleID string, q ClinicSearch, limit int32) ([]Patient, error) {
 	var o, role pgtype.UUID
 	if err := o.Scan(org); err != nil {

@@ -1578,6 +1578,91 @@ profile's), not walked: there is no device run in this repository.
 - Also open: the hourly slot generation covers listed clinics only, so an unlisted clinic's free times run 28 days ahead
   of its last change of hours and are not rolled forward until it is listed.
 
+## R2: rights of patients the clinic registered
+
+Status: done 2026-11-24 on `wt/cms/R2`, one commit `cms(R2)`. Migration `00067_clinic_consent_withdraw.sql`. Built to
+V2 of `WAVE4.md`, which **needs the lawyer's word before production** (the list is under "Waiting on a person").
+
+**Built.**
+
+- **patient** (`service_clinic_rights.go`, `handler_clinic_rights.go`). `Correct` (`PUT /clinic/patients/{id}`,
+  `If-Match`): the clinic's admin or receptionist replaces the names, birth date and phone of a profile **their clinic
+  registered**, at the version read; validated as a patient's own profile; audited as an update, refusals included.
+  `WithdrawConsent` (`POST /clinic/patients/{id}/consent-withdrawal`, 204): reads the profile (audited) and has
+  `consent.WithdrawInPerson` revoke the in-person consent, in one transaction. `ClinicRecord`
+  (`GET /clinic/patients/{id}/record`): the admin only; a FHIR R4 Bundle of type `collection` (Patient and the clinic's
+  Consents of the patient, `urn:uuid` full URLs, `Content-Disposition: attachment`); audited with `PATRQT` (the
+  patient's request) as the purpose. Every route answers `not_found` for a profile the caller's clinic did not register:
+  another clinic's, or a patient's own (checked in the service on `RegisteredBy`, not on row-level security alone,
+  since the clinic's scope also shows patients with its consent).
+- **consent** (`service_inperson_withdraw.go`). `WithdrawInPerson`: in the clinic's scope, revokes the patient's
+  active care consent given in person to that clinic and then does exactly what `Revoke` does for a care consent
+  (`revoked`: the transcription and history consents with the clinic, then `consent_revoked` enqueued in the same
+  transaction), audited with the staff account; `ErrInactive` (409 `consent_inactive`) when there is none.
+  `OfClinicPatient`: the clinic's consents of a patient, each read audited. `FHIR(c)` exports the Consent mapping for
+  the record's Bundle.
+- **Migration 00067.** `consent_clinic_withdraw_in_person`: an `UPDATE` policy for the clinic's scope, on its own
+  `given_in_person` consents, from active only and to inactive only (00016's column grant already limits the columns).
+  An app patient's consent stays theirs to revoke; a clinic cannot reinstate a withdrawn consent (tested against
+  Postgres).
+- **What the withdrawal sets off** is the existing `consent_revoked` job, unchanged: `CancelForRevokedConsent` (the
+  visits ahead, with their notices; a patient without an account gets none, wave 3), `WithdrawForRevokedConsent` (the
+  waitlist), `EndPatientAccess` (video). Access ends at the commit: `access.Profile` needs an active consent, so the
+  clinic's practitioners no longer see the profile; the desk still finds the registered profile (the clinic holds it).
+  The e2e journey checks the visit leaves the desk's day.
+- **Web** (`DeskPatient.tsx`; `Desk.tsx` only renders it in place of the name, two lines). A registered patient's name
+  on the desk row is a button that opens the patient's card: the profile form (Save, `If-Match`), "Record withdrawal of
+  consent" with a confirmation that states its effects (`legal`), and, for the admin only, "Download the record" (a
+  same-origin link with `download`). An app patient's name stays text. The card asks `GET /auth/me` for the role
+  rather than threading the account through `Desk.tsx`'s rows (M1 edits them in parallel). The `desk` catalogs in the
+  five staff languages (`desk.patient.*`, 19 keys; five tagged `legal`).
+- **Erasure: not built, by the plan's rule.** There is no erasure path for app patients either: `patient`, `consent`
+  and `account` are `keep` in `internal/retention/rules.go`, "erasure comes with the subject-rights feature". The
+  registered profile already follows those rules (the `patient` rule names it). Nothing was invented; see "Waiting on
+  a person".
+- **Contract**: `api/openapi.yaml` gains the three routes and `CorrectPatientRequest`; clients regenerated.
+  `internal/api/reception_routes_test.go` classifies them (correct and withdrawal: desk, record: refused) and maps
+  `/clinic/patients/{id}` to a patient the receptionist registered. DPIA block "Package R2".
+
+**Readings and decisions** (agent's, for the owner):
+
+| Topic | Decision |
+| --- | --- |
+| The record's content | Patient and the clinic's Consents only: what the admin may read today. Appointments, encounters and documents are left out (the admin has no access rule to the clinical record; a full `$everything` is not in any SPEC). M2 builds "each patient's record as a FHIR Bundle" too: one builder for both is the integration's call |
+| Who downloads | The admin only (as the plan says); the receptionist corrects and records the withdrawal |
+| Withdrawal "in one transaction" | The revocation, its audit and the `consent_revoked` job are one transaction, as an app patient's; the cancellations run in the job, as they do for an app patient |
+| A second consent after a withdrawal | Not built: the desk records an in-person consent only at registration (F2). Booking such a patient again is refused (`consent_required`) |
+| Purpose of the record's audit | `PATRQT` (the patient's request); the other rights routes `TREAT`, as the rest of the desk |
+| The withdrawal's route | Served by `patient` (the desk caller, the registered check) calling `consent`; the consent domain has the rule and the write |
+
+**Test first.** The patient service and handler tests, the web test and the reception route classification were run
+red first (no such methods, routes or module). The consent service test was written first but run only after its code;
+the Postgres tests after their queries. `DeskPatient.test.tsx` was written before the component but run after it;
+`Desk.test.tsx`'s "no receipt on a cancelled visit or a no-show" row changed on purpose (the registered patient's name
+is now a button) and gained the card's opening.
+
+**Checks** (compose project `salus-cms-r2`). `make gen-clients`, `make lint` (gofmt, vet, golangci-lint 0 issues,
+i18n-check, migrations), `make test`, `make archcheck`, `make web-lint` (the one warning in `analytics/ClinicView.tsx`
+that was there), `make web-typecheck`, `make web-test` (1281), `make web-build`, `make mobile-analyze`,
+`make mobile-test` (680), `make fhir-validate` (the new `clinic_record.json` included, 0 errors), `make e2e` (356 s,
+new `TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered`): pass on the final tree. Earlier full runs failed on
+gofmt of the e2e file and on fieldalignment of four structs (fixed; the golden file regenerated for the reordered
+entry). Not run: `make cover` (the time budget).
+
+**Deferred.**
+
+- The browser walk at 1280 and 390 px: not done in this session (time budget, and the stack was busy with `make e2e`).
+  The card is a dialog with the walk-in dialog's classes; the integration's walk should open a registered patient's
+  card at both widths.
+- The record's visits and clinical documents, and one record builder shared with M2's export.
+- Recording a new in-person consent for a patient who withdrew (today only at registration).
+- Erasure for any patient (the subject-rights feature).
+
+**INTEGRATION NOTES.** `Desk.tsx`: R2 replaces the name `<span>` in `Row` with `<DeskPatient api={api} patient={p} />`
+and adds its import; M1's "Move" goes in the row's actions, so the two should merge without overlap. `Desk.test.tsx`:
+one assertion changed and one test added at the end of the cancelled/no-show test. Regenerate the clients after the
+merges (R2 adds three routes and `CorrectPatientRequest`).
+
 ## Facts
 
 - Main's next free migration number on 2026-11-21: `00060`. After wave 1: A `00060`, D `00061`; wave 2 takes E `00062`,
@@ -1585,6 +1670,14 @@ profile's), not walked: there is no device run in this repository.
 - Copilot is out of quota until 2026-12-01: the integration session has a fresh subagent review the wave's diff too.
 
 ## Waiting on a person
+
+- The lawyer, on V2 (R2, built and not yet confirmed): (1) whether a clinic may act as the channel for the GDPR rights
+  of a patient it registered without an account (rectification, withdrawal, access) and what identity check the desk
+  must make first; (2) whether the in-person withdrawal needs a signed or written record beyond the staff account and
+  time Salus keeps; (3) whether a withdrawal may cancel the visits ahead at once, as an app patient's does; (4) whether
+  the handed-over record (profile and consents as a FHIR file, no visits or clinical documents yet) meets Art. 15 and
+  Art. 20, and in what form the clinic must hand it over; (5) erasure: how long the registered profile and its consent
+  must be kept under the medical-record retention law, since no erasure path exists for any patient yet.
 
 - The owner: confirm or change the Q1 to Q9 defaults; plan prices (Q2) and the invoicing company (Q3) before D ships.
 - The owner: the ESET technical specification and test access (Q6); an accountant on VAT (Q9); the legal retention

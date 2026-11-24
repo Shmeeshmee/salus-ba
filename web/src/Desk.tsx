@@ -4,6 +4,7 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { DeskCheckIn } from './DeskCheckIn'
+import { DeskPatient } from './DeskPatient'
 import { DeskWalkIn } from './DeskWalkIn'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -124,9 +125,7 @@ function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
           <span className="strong">
             {f.time(new Date(a.start), zone)}–{f.time(new Date(a.end), zone)}
           </span>{' '}
-          <span>
-            {p.givenName} {p.familyName}
-          </span>{' '}
+          <DeskPatient api={api} patient={p} />{' '}
           <span className={`tag desk-${a.status}`}>{status}</span>
         </span>
         <span className="muted small">{details.join(' · ')}</span>

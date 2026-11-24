@@ -56,5 +56,39 @@
   "register.invalidPhone": "Enter the phone number with its country code, such as +387 61 123 456.",
   "register.invalidBirthDate": "Enter a birth date in the past.",
   "register.invalidName": "Enter the given and family name.",
-  "register.failed": "The patient could not be registered. Try again."
+  "register.failed": "The patient could not be registered. Try again.",
+  "patient.title": "Patient card",
+  "patient.profile": "Profile",
+  "patient.save": "Save",
+  "patient.saving": "Saving",
+  "patient.saved": "The profile is saved.",
+  "patient.saveFailed": "The profile could not be saved. Try again.",
+  "patient.conflict": "Someone changed this profile meanwhile. Close the card and open it again.",
+  "patient.consentTitle": "Consent to care",
+  "patient.withdraw": {
+    "defaultMessage": "Record withdrawal of consent",
+    "description": "legal"
+  },
+  "patient.withdrawEffect": {
+    "defaultMessage": "The patient withdrew the consent to care they gave the clinic in person. Their visits ahead are cancelled, their waitlist entries are withdrawn and the clinic's practitioners no longer see their profile. The clinic keeps the record it already holds, as the law requires.",
+    "description": "legal"
+  },
+  "patient.confirmWithdraw": {
+    "defaultMessage": "Confirm withdrawal",
+    "description": "legal"
+  },
+  "patient.keep": "Keep the consent",
+  "patient.withdrawn": {
+    "defaultMessage": "The withdrawal is recorded.",
+    "description": "legal"
+  },
+  "patient.noConsent": "There is no active consent given in person to withdraw.",
+  "patient.withdrawFailed": "The withdrawal could not be recorded. Try again.",
+  "patient.recordTitle": "Patient's record",
+  "patient.recordHint": {
+    "defaultMessage": "The profile and the consents as a FHIR file, to hand to the patient when they ask for their data.",
+    "description": "legal"
+  },
+  "patient.download": "Download the record",
+  "patient.close": "Close"
 }
