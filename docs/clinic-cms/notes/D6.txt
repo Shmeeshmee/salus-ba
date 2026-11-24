@@ -1,2 +1,3 @@
 Package D6. Your specification is the "D6" section of docs/clinic-cms/WAVE5.md; read that file whole first, and
 5.0's record in docs/clinic-cms/PROGRESS.md. Mobile only, against 5.0's generated client with a fake API in tests.
+- Changed after the contract (owner default, 2026-11-24): erasure runs 21 days after closure, not 30, so it always falls inside the one-month deadline of an erasure request (S5, S6). The operator may reopen within those 21 days. Keep the erasure request in_progress until the job has run, then fulfil it with the record of what was erased and kept.
