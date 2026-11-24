@@ -425,3 +425,16 @@ func TestRules_KeepDataRequestsAndRestrictions(t *testing.T) {
 		t.Errorf("no rule for %v", want)
 	}
 }
+
+// The patient's export is deleted with its archive 7 days after it was ready (docs/clinic-cms/WAVE5.md D2, S4).
+func TestRules_DeleteDataRequestExports(t *testing.T) {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
+		if r.Table == "data_request_export" {
+			if r.Then != retention.ThenDelete || r.Keep != 7*24*time.Hour {
+				t.Errorf("data_request_export: %q after %s, want %q after 7 days", r.Then, r.Keep, retention.ThenDelete)
+			}
+			return
+		}
+	}
+	t.Error("no rule for data_request_export")
+}

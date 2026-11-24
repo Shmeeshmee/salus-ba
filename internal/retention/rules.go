@@ -121,7 +121,7 @@ func tableRules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules(), dataRequestRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules(), dataRequestRules(), dataRequestExportRules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -401,6 +401,18 @@ func clinicWave4Rules() []Rule {
 			Then: ThenDelete,
 		},
 	}
+}
+
+// dataRequestExportRules are the rules of the patient's own export (docs/clinic-cms/WAVE5.md D2, S4).
+func dataRequestExportRules() []Rule {
+	return []Rule{{
+		Table: "data_request_export",
+		Basis: "The patient's export for their access or portability request (GDPR Art. 15, Art. 20): the key of the " +
+			"encrypted archive of what they can read in the app. Downloadable for 7 days after it was ready; then the row " +
+			"and its archive are deleted, as is a failed one 7 days after it was asked for (docs/clinic-cms, D2)",
+		Keep: 7 * day, // after ready_at, or requested_at of a failed one
+		Then: ThenDelete,
+	}}
 }
 
 // dataRequestRules are the rules of the data subject's requests (docs/clinic-cms/WAVE5.md, 5.0). The periods need the

@@ -38,8 +38,6 @@ func TestService_RefusesUntilItsPackageBuildsIt(t *testing.T) {
 			_, err := s.Extend(ctx, staff, id, datarequest.ExtensionComplex, 1)
 			return err
 		},
-		"Export":        func() error { _, err := s.Export(ctx, patient, id); return err },
-		"ExportArchive": func() error { _, _, err := s.ExportArchive(ctx, patient, id); return err },
 		"CloseAccount":  func() error { return s.CloseAccount(ctx, patient, "a password") },
 		"ReopenAccount": func() error { return s.ReopenAccount(ctx, patient.AccountID) },
 	}

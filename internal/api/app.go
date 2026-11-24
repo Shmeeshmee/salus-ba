@@ -167,6 +167,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			[]func(*http.ServeMux){signupRoutes(signupPorts{pool: pool, jobs: jobs, counters: auth.NewRedisCounters(rdb), audit: audit, tx: tx,
 				clinics: clinics, accounts: accounts, rateLimitKey: cfg.RateLimitKey, trustedProxies: cfg.TrustedProxies}, log)}, // self-signup (clinic-cms O1)
 			[]func(*http.ServeMux){clinicExportRoutes(clinicExportPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, files: files, patients: patients, appointments: appointments}, log)}, // clinic-cms M2
+			[]func(*http.ServeMux){dataRequestExportRoutes(dataRequestExportPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, files: files}, log)},                                                           // clinic-cms D2
 			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id

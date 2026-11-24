@@ -3,15 +3,15 @@ package datarequest
 import (
 	"context"
 	"errors"
-	"io"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // Ports are what the Service consumes.
 type Ports struct {
-	Repo  Repository
-	Clock clock.Clock
+	Repo   Repository
+	Clock  clock.Clock
+	Export ExportPorts // the patient's export (D2, service_export.go)
 }
 
 // Service is the requests' business rules.
@@ -62,16 +62,6 @@ func (s *Service) Answer(_ context.Context, _ Staff, _ string, _ Answer) (Reques
 // Extend extends a request targeting the admin's clinic once, by ExtensionMonths, with its reason (D1).
 func (s *Service) Extend(_ context.Context, _ Staff, _ string, _ ExtensionReason, _ int) (Request, error) {
 	return Request{}, errors.ErrUnsupported
-}
-
-// Export returns where the export of the patient's access or portability request id stands (D2).
-func (s *Service) Export(_ context.Context, _ Patient, _ string) (Export, error) {
-	return Export{}, errors.ErrUnsupported
-}
-
-// ExportArchive opens the ready export of the patient's request id and returns it with its size (D2).
-func (s *Service) ExportArchive(_ context.Context, _ Patient, _ string) (io.ReadCloser, int64, error) {
-	return nil, 0, errors.ErrUnsupported
 }
 
 // CloseAccount closes the patient's account once the password confirms it (S5, D3).

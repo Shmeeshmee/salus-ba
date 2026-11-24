@@ -38,7 +38,7 @@ writes under its own heading here.
 | 5.0 | done 2026-11-24 (migration `00071`) | `cms(5.0)` |
 | FX | not started | |
 | D1 | not started | |
-| D2 | not started | |
+| D2 | done 2026-11-24 (migration `00074`) | `cms(D2)` |
 | D3 | not started | |
 | D4 | not started | |
 | D5 | not started | |
@@ -2287,3 +2287,115 @@ order-dependent case in the closure test (map order) was fixed by resetting the 
 `make e2e` and `make fhir-validate` (no route is served and no golden file changed).
 
 **Copy waiting for the owner:** none. 5.0 adds no user-facing string; the API returns codes only.
+
+## D2: the patient's export
+
+Status: done 2026-11-24 on `wt/cms/D2`, one commit `cms(D2)`. Migration `00074_data_request_export.sql`. Specification:
+`WAVE5.md` "D2" and S4, S10, S11; the contract of 5.0 above.
+
+**Built.**
+
+- **Migration 00074.** `data_request_export` (the request it answers as its key, the account, requested, ready and
+  expiry times, status `queued`/`ready`/`failed`, size, KEK id and wrapped data key): the patient's own scope only
+  (`app.account_id`), for an access or portability request of theirs; one queued per patient (partial unique index);
+  salus_app inserts and updates the build's columns, salus_retention selects and deletes. `data_request_export_fulfil`:
+  a SECURITY DEFINER function that answers the scope's own open access or portability request `done` once its export
+  is ready, with a history entry by the job (null), and returns whether it did. Ownership: `datarequest`. Retention
+  rule `data_request_export`: deleted with its archive 7 days after it was ready (a failed one 7 days after it was
+  asked for).
+- **`internal/datarequest`.** `service_export.go`: `QueueExport` (an access or portability request filed in the app
+  queues its export and the build job in the caller's transaction, audited; `ErrExportInProgress` while one is
+  queued; nothing for another kind or a request the clinic filed, S10), `Export` (status, audited as the patient's
+  read; a ready one past its 7 days reads expired), `ExportArchive` (decrypted as it is read, audited), `FailExport`.
+  `service_export_build.go`: `BuildExport`, the job: the patient's record as a FHIR Bundle (`record.json`), their
+  account data for the account target (`account.json`: id, e-mail, language, when MFA was set up; never a credential)
+  and `manifest.txt`, one zip encrypted with its own data key (`pkg/envelope`, bound to the request id), stored under
+  `datarequest/<request id>`, then ready for `ExportWindow` and the request fulfilled.
+  `service_export_retention.go`: `ExportPurger`. `repository_export.go` (the port `ExportRepository`, `Store`,
+  `ExportJobs`), `repository_export_postgres.go`, `repository_export_river.go`, `query_export.sql` → `datarequestexportdb`
+  (its own sqlc entry and package, read only by `repository_export_postgres.go`), `handler_http_export.go` (`GET /me/data-requests/{id}/export`
+  and `/export/archive`, `Cache-Control: no-store`, `not_found` for another's, not ready or expired).
+- **`internal/clinicexport/service_own.go`.** The record builder in the patient's own scope: `OwnRecords.Bundle` reads
+  the profile (`patient.Me`), consents (`consent.Mine`), appointments (`appointment.Search` as the patient: every one of
+  theirs, the visits a withdrawal cancelled included, S11) and receipts (`invoice.Mine`), each audited by its service as
+  the patient's own request, keeps one clinic's for a clinic target, and writes the hand-over's Bundle (`bundleJSON`).
+- **Wiring.** `internal/worker/datarequestexport.go` (the `data_request_export_build` job, 3 attempts, the last failure
+  marks the export failed and logs the request id only; registered in `worker.go`), the purger in `retention.go`;
+  `internal/api/datarequestexport.go` mounts the two routes (`app.go`), and they leave `notServedYet` in
+  `reception_routes_test.go`. DPIA: "Package D2" in `docs/privacy/dpia.md`.
+
+**Left for the integration with D1** (parallel packages, each writing only its own files):
+
+- D1's `File` calls `s.QueueExport(ctx, r)` inside its transaction after inserting an access or portability request
+  (the request's own id and account), and maps `ErrExportInProgress` to a 409 (`invalid_data_request` is the
+  contract's nearest code; or add one to the OpenAPI). D1's service in the API is built with
+  `Export: dataRequestExportsOn(...)` so the queue has its ports; the two routes can then share D1's service.
+- The export's queries are their own sqlc package, `datarequestexportdb`, beside D1's `datarequestdb`: archcheck lets
+  only `repository_postgres.go` (D1's file) import `datarequestdb`. The integration may fold `query_export.sql` into
+  D1's `query.sql` and `repository_export_postgres.go` into `repository_postgres.go`, and drop the package and its
+  `sqlc.yaml` entry. `scripts/cover.sh` now leaves out every sqlc package (`internal/*/*db` with sqlc's `db.go`), not
+  only `<domain>db`.
+- `datarequest` test files: both packages may declare `TestMain` (`pgtest.Main`) and constants like `accountA`; keep
+  one of each.
+- `ExportTransactor`/`ExportAuditor` are this package's names for the two ports so as not to clash with D1's; if D1's
+  `Transactor`/`Auditor` have the same methods, replace these with them.
+- `make sqlc` here regenerated every domain's `models.go`: 5.0 had not regenerated them after 00071, so they gain the
+  wave 5 tables. Generated, deterministic; no hand edit.
+
+**Test first.** The datarequest service tests (`service_export_test.go`, fakes for every port, `clock.Fixed`) and the
+clinicexport builder tests (`service_own_test.go`) were written before their code; the retention rule's test ran red
+(no rule) before the rule; the purger's test ran red (undefined) before it. The migration test
+(`migrations/data_request_export_test.go`: own scope, one queued, fulfil only when ready and only in the account's
+scope, once, with its history entry) was written with the migration and run green; the repository and River tests
+run against Postgres. The handler tests were written alongside the handler.
+
+**Review** (a fresh subagent over the diff, Copilot being out of quota). Fixed, each with a test: a request withdrawn or
+answered while its archive was built still got a downloadable export (`MarkExportReady` now needs the request open; the
+build then marks the export failed); an export stuck `queued` (a discarded job) blocked every later export for good
+(the purger now also deletes a never-ready export 7 days after it was asked for, with its archive). Confirmed: the
+SECURITY DEFINER function cannot answer another account's request or escalate. Left, recorded below: a clinic target
+reads (and audits) the patient's consents, visits and receipts of every clinic before keeping that clinic's; the
+export's own audit events name the table, not the request; two overlapping builds of one export could race on its
+object key; the clinical content (S4).
+
+**Checks** (compose project `salus-cms-d2`): the fast layer after each change (`runner.sh fast` over every package, as
+`migrations/` changed: its failures were the retention test lists and the worker's retention-pool list, which name
+every purged table and gained `data_request_export`); targeted reruns of `datarequest`, `clinicexport`, `retention`,
+`worker` and golangci-lint on the touched packages. `runner.sh full` (`make lint test archcheck`): the first run failed
+`make lint` on five findings of this package (`time.Now` in three tests, fieldalignment on two test structs), fixed; the
+second passed `make lint` and `make test` and failed `make archcheck` (the export repository imported
+`datarequestdb`, which only `repository_postgres.go` may), fixed with the package of its own; then `make archcheck`,
+`go vet ./...` and the `datarequest` tests and golangci-lint passed on the final tree. Not run: `make cover`, `make e2e` (no journey changes before D1 files
+requests), `make fhir-validate` (no golden file changed).
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Where the export is stored | Its own table `data_request_export`, keyed by the request | The request table is append-only in spirit and guarded; the export is temporary and deleted after 7 days |
+| Who marks the request fulfilled | `data_request_export_fulfil` (SECURITY DEFINER) in the patient's scope | 00071's guard lets the patient's scope only withdraw and no salus_app scope reaches an account-target request; the function answers only the scope's own request with a ready export |
+| When the export is queued | When the access or portability request is filed (`QueueExport`, called by D1's `File`) | The OpenAPI has only the status `GET`; a `GET` that creates would be a side effect |
+| The 7 days | From when the archive is ready (`expires_at = ready_at + 7 days`) | S4: "downloadable in the app for 7 days" |
+| A failed build | Export `failed`, the request stays open for its answerer; deleted after 7 days | No retry route in the contract; the deadline warnings (D5) still apply |
+| A clinic target | The record of that clinic only (consents, visits, receipts there; the shared profile), no account data | S1: the clinic answers for its record; the account is Salus's |
+| A patient the clinic registered | No export from Salus; the hand-over (wave 4) is theirs | WAVE5 D2's last sentence |
+| The manifest's text | English plain text in the archive, as the clinic export's | A file, not a screen; the app's own copy is D6's |
+| Audit | The patient's own reads by their services (PATRQT); the export's create, status read and download as `data_request_export`; the job's writes under `AgentExport` | "every read audited as the patient's request" (S4) |
+
+**Deferred.**
+
+- **Clinical content in the archive.** S4 says everything the patient can read in the app; this archive holds the
+  profile, consents, visits, receipts and account data, not yet the encounters, signed documents, questionnaire
+  answers and their files of the app's history. They need the history's sources (encounter, composition,
+  questionnaireresponse, binary) built in the worker and their FHIR mappers exported; the manifest says they are not
+  in it yet. A follow-up package.
+- No retry after a failed build (no route in the contract).
+- A clinic target reads the patient's own consents, visits and receipts of every clinic, each audited, then keeps that
+  clinic's: the patient's own reads have no clinic filter (`appointment.Filter.OrganizationID` is the service's). A
+  clinic filter on `consent.Mine`, `appointment.Search` and `invoice.Mine` for the patient would make it minimal.
+- The export's own audit events (`data_request_export`: create, status read, download, the job's update) carry the
+  table and the patient's account as the agent (the job's: `AgentExport`), not the request's id: AuditEvent's entity is
+  a FHIR reference and a request is no FHIR resource.
+- Two overlapping attempts of one build (River runs a retry only after the attempt ends, so only after a rescue of a
+  stuck job) would write the same object key with different data keys; a per-build object key would rule it out.
+- A browser walk: D2 has no screen (D6 shows the download).
