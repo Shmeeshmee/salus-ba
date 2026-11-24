@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ApiClient } from './api/client'
 import { FhirError, settingsOf, withSettings, type ClinicSettings as Settings, type FhirClient, type Organization } from './api/fhir'
 import { attempt } from './api/result'
+import { ClinicExport } from './ClinicExport'
 import { ClinicSettingsNoShows } from './ClinicSettingsNoShows'
 import { ClinicSettingsReminders } from './ClinicSettingsReminders'
 import { isStaffLanguage, staffLanguages } from './i18n/languages'
@@ -85,6 +86,7 @@ export function ClinicSettings({
         {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
       </section>
       <ClinicSettingsReminders api={api} />
+      {load.name === 'loaded' && <ClinicExport api={api} zone={settingsOf(load.org).timeZone} />}
       <p>
         <Link to="/membership">{t('subscription.link')}</Link>
       </p>

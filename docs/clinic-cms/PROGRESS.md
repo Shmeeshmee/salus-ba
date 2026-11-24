@@ -26,6 +26,7 @@ writes under its own heading here.
 | O2 | import done 2026-11-23, integrated 2026-11-23; the clinic data export deferred to wave 4 | `cms(O2)`, merged into `feat/cms` with `cms(wave 3)` |
 | X1 | done 2026-11-23, integrated 2026-11-23 | `cms(X1)`, merged into `feat/cms` with `cms(wave 3)` |
 | X2 | done 2026-11-23, integrated 2026-11-23 | `cms(X2)`, merged into `feat/cms` with `cms(wave 3)` |
+| M2 | done 2026-11-24 (wave 4); the patients' FHIR Bundles and the quotes left for after R2 and M4 | `cms(M2)` on `wt/cms/M2` |
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
 
@@ -1577,6 +1578,61 @@ profile's), not walked: there is no device run in this repository.
 - A limit on the invites a clinic sends (review).
 - Also open: the hourly slot generation covers listed clinics only, so an unlisted clinic's free times run 28 days ahead
   of its last change of hours and are not rolled forward until it is listed.
+
+## M2: the clinic data export
+
+Status: done 2026-11-24 on `wt/cms/M2`, one commit `cms(M2)`. Migration `00070_clinic_export.sql`. Specification:
+`WAVE4.md` "M2" (what O2 left, its "Deferred" above).
+
+**Built.**
+
+- **Go, a new domain `internal/clinicexport`** (directory context, `archcheck/config.yaml`), owner of `clinic_export`
+  (`ownership.yaml`, personal data). `Request` (the admin only, audited also when refused; one queued export per clinic,
+  a second ask returns it; the build enqueued in the same transaction), `Get` (status; a ready export past its expiry
+  reads `expired`), `Download` (ready and unexpired only, audited, decrypted as it streams), `Build` (the job: reads the
+  price list, the staff with their names, the appointments with the patient's id and name, the receipts; writes
+  `prices.csv`, `staff.csv`, `appointments.csv`, `receipts.csv` into one zip; seals it with `pkg/envelope` under a data key
+  bound to the export's id; stores it at `clinicexport/<id>` outside any transaction; marks it ready), `Fail` (the job's
+  last attempt), the `Purger` (the archive, then the row, 7 days after the request). CSV cells that a spreadsheet would
+  read as a formula are prefixed with an apostrophe.
+- **Routes** `POST /clinic/export`, `GET /clinic/export/{id}`, `GET /clinic/export/{id}/archive` are served
+  (`internal/api/clinicexport.go`; off `notServedYet`; reception stays refused).
+- **Worker**: `clinic_export_build` on the default queue (3 attempts, then failed), built in `internal/worker/clinicexport.go`
+  on the default queue's appointment and receipts services; the `clinic_export` retention rule (`Keep` 7 days, delete) and
+  its purger on `salus_retention` and the object store.
+- **Web**: `ClinicExport.tsx`, a section of the clinic settings (ask, the status read every 5 s while it is built, the
+  download link and its expiry, failure and expiry notices); its strings are `admin.export*` in the five staff
+  languages (in `admin`, not an area of their own, so `catalog.test.ts`'s list of areas is not touched by two packages).
+- **DPIA**: "Package M2" in `docs/privacy/dpia.md`.
+
+**Test first.** The service tests (fakes for every port, `clock.Fixed`) and the repository and River tests were written
+and run red (undefined `Service`) before the code; the handler's and the web component's tests were written with them.
+
+**Checks** (compose project `salus-cms-m2`): `make lint` (gofmt, vet, golangci-lint, `check-migrations`, i18n-check),
+`make test`, `make archcheck` pass (the second full run; the first failed on `internal/retention`'s applier lists, fixed);
+`make web-lint`, `web-typecheck`, `web-test` (1278), `web-build` pass; `make cover` 90.4% total (`clinicexport` 83.0%, `worker` 89.9%, `retention` 100%). Not run: `make e2e`
+(not in M2's sets), `make fhir-validate` (no golden file), `make gen-clients` (the contract is unchanged).
+
+**Readings and decisions.**
+
+| Point | Decision | Why |
+| --- | --- | --- |
+| Where the code lives | `internal/clinicexport`, not `internal/organization/service_export.go` | `organization` is imported by `appointment`, `invoice`, `practitionerrole` and `chargeitemdefinition`, whose services the build reads: an import cycle. WAVE4 allowed "where the contract put the skeleton"; there was none |
+| The screen | A section of `ClinicSettings.tsx`, not a route of its own | WAVE4 gives M2 `ClinicSettings.tsx` and not `App.tsx` (M4's); a link would have needed a route |
+| The reads' agent | Each owning service audits its read as the admin who asked (their `Caller`); the job's own writes carry the agent `clinic_export_build` | The services audit with a `Caller`'s account; giving them a job agent would change four services outside the package |
+| Expiry | 7 days after the request (`expires_at`), the same cut-off as the retention rule | One window for the download and the deletion; a build takes minutes |
+| One in progress | A partial unique index (`status = 'queued'`) and `ON CONFLICT DO NOTHING`; a second ask returns the queued one (202) | The contract has no 409 for it |
+| Size | The archive is built in memory | No measurement yet; a clinic's CSVs are small. Stream it when a clinic's export is measured to need it |
+
+**Deferred.**
+
+- **The patients' records as FHIR Bundles.** There is no `Patient/$everything` or record Bundle in the code today; R2
+  builds "the patient's record as a FHIR Bundle" in this wave. The export should add one `patients/<id>.json` per patient
+  through it once R2 is integrated (the same `archive` list in `service_build.go`), each read audited by R2's service.
+- **Quotes as CSV.** `invoice` has no clinic-wide quote list yet; M4 builds the quotes page and with it the list. Add
+  `quotes.csv` from it after M4 is integrated.
+- A worker test of `clinicExportWorker` (fail on the last attempt) against River; the service's `Fail` is tested.
+- Not walked in a browser (no browser tool in this session).
 
 ## Facts
 

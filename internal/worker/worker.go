@@ -21,6 +21,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/invoice"
@@ -80,14 +81,16 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		return nil, err
 	}
 	responses := newQuestionnaireResponses(pool, clock.System{})
+	appointments, receipts := newRevocations(pool, inserter, clock.System{}), newReceipts(pool, clock.System{})
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{
-		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
+		rules: rules, slots: newSlots(pool, clock.System{}), appointments: appointments,
 		sessions: newSessions(pool, provider, inserter, clock.System{}), responses: responses,
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
 		clinicStats: newClinicStats(statsPool, clock.System{}), trends: newTrends(pool, statsPool, platform),
-		receipts:    newReceipts(pool, clock.System{}),
+		receipts:    receipts,
 		memberships: newMemberships(pool, inserter, clock.System{}),
+		exports:     newClinicExports(pool, files, appointments, receipts, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
 	cfg := workConfig(log, river.QueueDefault, workers)
@@ -117,6 +120,7 @@ type defaultServices struct {
 	trends       *trends.Builder  // nil while the platform builds are off
 	receipts     *invoice.Service // the fiscal reports (clinic-cms C)
 	memberships  *subscription.Service
+	exports      *clinicexport.Service // the clinic's data export (clinic-cms M2)
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -142,6 +146,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &remindersSweepWorker{appointments: s.appointments, log: log})
 	river.AddWorker(workers, &invoiceFiscalizeWorker{receipts: s.receipts})
 	river.AddWorker(workers, &subscriptionWorker{memberships: s.memberships, clock: clock.System{}, log: log})
+	river.AddWorker(workers, &clinicExportWorker{exports: s.exports, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

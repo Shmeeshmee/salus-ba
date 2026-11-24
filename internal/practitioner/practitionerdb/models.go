@@ -443,6 +443,19 @@ type ClinicDiagnosisStat struct {
 	Code               string
 }
 
+type ClinicExport struct {
+	ID                   pgtype.UUID
+	RequestedAt          pgtype.Timestamptz
+	ExpiresAt            pgtype.Timestamptz
+	ReadyAt              pgtype.Timestamptz
+	OrganizationID       pgtype.UUID
+	RequestedByAccountID pgtype.UUID
+	Status               string
+	Size                 pgtype.Int8
+	KekID                pgtype.Text
+	WrappedKey           []byte
+}
+
 type ClinicSetupStep struct {
 	OrganizationID pgtype.UUID
 	Step           string

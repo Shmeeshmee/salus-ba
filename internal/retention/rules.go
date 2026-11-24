@@ -121,7 +121,7 @@ func tableRules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -382,6 +382,21 @@ func clinicWave3Rules() []Rule {
 				"clinic's name. An unverified signup is deleted 30 days after it was made (its link works for 72 hours); a " +
 				"verified one is the record of the clinic's own request and stays with the clinic (docs/clinic-cms, O1)",
 			Keep: 30 * day, // after created_at, unverified signups only
+			Then: ThenDelete,
+		},
+	}
+}
+
+// clinicWave4Rules are the rules of the clinic system's wave 4 tables (docs/clinic-cms/WAVE4.md).
+func clinicWave4Rules() []Rule {
+	return []Rule{
+		{
+			Table: "clinic_export",
+			Basis: "A clinic's data export (GDPR Art. 6(1)(c) and Art. 20 in spirit: the clinic, as controller, takes its own " +
+				"records with it; Art. 9(2)(h) for the patient data in the archive): who asked and the key of the encrypted " +
+				"archive. Downloadable for 7 days after it was asked for; then the row and its archive are deleted " +
+				"(docs/clinic-cms, M2)",
+			Keep: 7 * day, // after requested_at
 			Then: ThenDelete,
 		},
 	}
