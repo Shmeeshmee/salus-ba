@@ -50,7 +50,8 @@ var (
 )
 
 // DispatchReminder dispatches the reminder of a (the appointment_reminder job), in one transaction: the reminder is
-// taken (locked, its appointment checked), its deliveries are stored with their send jobs (Deliver), and it is marked
+// taken (locked, its appointment checked), its deliveries are stored with their send jobs (Deliver; for a patient
+// without an account deliverPatientSMS, docs/clinic-cms R3), and it is marked
 // dispatched; a restart before the commit redoes all of it, after it none. A reminder no longer to be sent (dispatched
 // already, cancelled, its appointment changed) does nothing and its skip is kept; one not of the clinic is ErrNotFound.
 func (s *Service) DispatchReminder(ctx context.Context, a appointment.ReminderArgs) error {
@@ -65,7 +66,13 @@ func (s *Service) DispatchReminder(ctx context.Context, a appointment.ReminderAr
 		if err != nil {
 			return err
 		}
-		if err := s.Deliver(ctx, KindReminder, n.ReminderID, n.OrganizationID, n.AccountID, Content{Deadline: n.Start}); err != nil {
+		deliver := func() error {
+			return s.Deliver(ctx, KindReminder, n.ReminderID, n.OrganizationID, n.AccountID, Content{Deadline: n.Start})
+		}
+		if n.AccountID == "" {
+			deliver = func() error { return s.deliverPatientSMS(ctx, n) }
+		}
+		if err := deliver(); err != nil {
 			return err
 		}
 		return s.p.Reminders.ReminderDispatched(ctx, n.OrganizationID, n.ReminderID)
@@ -86,7 +93,8 @@ func (s *Service) DispatchReminder(ctx context.Context, a appointment.ReminderAr
 // patient's zone, else the clinic's. A source delivered before on a channel (and device) gets nothing more there. The
 // reads of the account's settings and devices are audited with the kind's agent (agentOf). The clinic's settings are
 // read in its scope; the caller's clinic scope is set back after (as it was, or none). A patient without an account (a
-// profile the clinic registered, docs/clinic-cms W1) gets nothing on any channel, and nothing is read.
+// profile the clinic registered, docs/clinic-cms W1) gets nothing here, and nothing is read: their reminder's SMS is
+// deliverPatientSMS's.
 func (s *Service) Deliver(ctx context.Context, kind Kind, sourceID, org, accountID string, c Content) error {
 	if err := s.delivers(false); err != nil {
 		return err

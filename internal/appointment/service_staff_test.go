@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,9 @@ import (
 
 // patientC is registered by clinic A and has no account (docs/clinic-cms F2).
 const patientC = "dd000000-0000-4000-8000-0000000000dd"
+
+// patientD is registered by clinic A and has no account and no phone (docs/clinic-cms R3).
+const patientD = "d4000000-0000-4000-8000-0000000000d4"
 
 var desk = appointment.Caller{AccountID: "de000000-0000-4000-8000-0000000000de", OrganizationID: clinicA, Reception: true}
 
@@ -48,15 +52,22 @@ func TestBookForPatient_BooksAnyFreeSlotOfTheClinicWithWhoBookedAndAuditsIt(t *t
 	}
 }
 
-func TestBookForPatient_SendsAPatientWithoutAnAccountNothing(t *testing.T) {
+// A patient without an account gets no confirmation and no questionnaire request; their reminders are scheduled
+// (docs/clinic-cms R3: an SMS when the clinic offers it, service_reminder_patient_test.go).
+func TestBookForPatient_SendsAPatientWithoutAnAccountNoEmail(t *testing.T) {
 	t.Parallel()
 	f := staffFixture()
 	got, err := f.svc.BookForPatient(t.Context(), desk, appointment.StaffBooking{PatientID: patientC, SlotID: slotFree})
 	if err != nil || got.PatientID != patientC {
 		t.Fatalf("BookForPatient = %+v, %v", got, err)
 	}
-	if len(f.jobs.enqueued) != 0 || len(f.reminders.reminders) != 0 || len(f.stats.refreshes) != 1 {
-		t.Errorf("enqueued %v, reminders %v, refreshes %v; want only the statistics", f.jobs.enqueued, f.reminders.reminders, f.stats.refreshes)
+	for _, j := range f.jobs.enqueued {
+		if !strings.HasPrefix(j, "reminder ") {
+			t.Errorf("enqueued %q, want only reminders", j)
+		}
+	}
+	if len(f.stats.refreshes) != 1 {
+		t.Errorf("refreshes %v, want the statistics", f.stats.refreshes)
 	}
 }
 
@@ -269,7 +280,7 @@ func TestDeskDay_IsTodayInTheClinicsZoneAndNamesEachService(t *testing.T) {
 	f.repo.appts = []appointment.Appointment{visit, plain}
 	svc := appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: today.Add(30 * time.Minute)},
-		Patients: f.patients, Clinics: f.clinics, Services: services,
+		Patients: f.patients, Clinics: f.clinics, Services: services, Rules: f.rules,
 	})
 	out, err := svc.DeskDay(t.Context(), desk, time.Time{})
 	if err != nil || !out.Day.Equal(today) || len(out.Visits) != 2 {
@@ -348,7 +359,7 @@ func TestDeskDay_GivesEachVisitItsReceiptsAndAuditsThem(t *testing.T) {
 	f := staffFixture(receipted, plain)
 	receipts := fakeReceipts{receipted.ID: {{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}, {ID: "e2000000-0000-4000-8000-0000000000e2", Number: 8}}}
 	svc := appointment.NewService(appointment.Ports{Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
-		Patients: f.patients, Clinics: f.clinics, Receipts: receipts})
+		Patients: f.patients, Clinics: f.clinics, Receipts: receipts, Rules: f.rules})
 	out, err := svc.DeskDay(t.Context(), desk, day)
 	if err != nil || len(out.Visits) != 2 {
 		t.Fatalf("DeskDay = %+v, %v", out, err)

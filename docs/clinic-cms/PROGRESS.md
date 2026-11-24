@@ -28,6 +28,7 @@ writes under its own heading here.
 | X2 | done 2026-11-23, integrated 2026-11-23 | `cms(X2)`, merged into `feat/cms` with `cms(wave 3)` |
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
+| R3 | done 2026-11-24 (wave 4, migration `00068`) | `cms(R3)` |
 
 ## A: visit modes
 
@@ -1577,6 +1578,57 @@ profile's), not walked: there is no device run in this repository.
 - A limit on the invites a clinic sends (review).
 - Also open: the hourly slot generation covers listed clinics only, so an unlisted clinic's free times run 28 days ahead
   of its last change of hours and are not rolled forward until it is listed.
+
+## R3: SMS reminders for patients without an account (wave 4, 2026-11-24)
+
+Built to `docs/clinic-cms/WAVE4.md` R3 and decision V3 (agent's default, owner to confirm; recorded here as the wave
+asks): SMS only, to the profile's phone, while the clinic's SMS option is on; `pkg/sms` stays the fake.
+
+- **Migration `00068_patient_sms_delivery.sql`.** `notification_delivery.account_id` nullable, `patient_id` (references
+  `patient`, `ON DELETE CASCADE` as the account's), exactly one of the two (`notification_delivery_recipient`), and a
+  patient's delivery is an SMS only (`notification_delivery_patient_sms`). No new table: ownership unchanged.
+  `TestNotificationDelivery_ToAnAccountOrBySMSToAPatient`.
+- **appointment** (`service_reminder_patient.go`). A desk booking for a patient without an account now schedules the
+  visit's reminders (`bookedAtDesk`: the statistics and `scheduleReminders`; still no confirmation or questionnaire
+  request); a cancellation cancels them as any other. `DeskVisit.Reminder` (`reminder` in the desk's JSON and the
+  OpenAPI `DeskVisit`): true for a patient with an account, else only while the clinic offers SMS and the profile has
+  a phone. The screen is not this package's.
+- **notification** (`service_patient_sms.go`). `DispatchReminder` hands a notice without an account to
+  `deliverPatientSMS`: nothing unless the clinic offers SMS, then one SMS delivery to the patient, held by the default
+  quiet hours (22:00 to 08:00) in the clinic's zone or dropped when they end less than 30 minutes before the start.
+  `SendDelivery` composes it with `composePatientSMS`: the reminder re-read (gone when cancelled or moved, or the
+  profile has an account now), the clinic's option checked again, the phone read through `patient.NoticePhone`
+  (audited, the send's job `reminder_sms` as agent), then sent once and counted in the clinic's `sms_usage` by the
+  existing `finish`. The SMS text's data is shared with the app patient's (`reminderSMS`). Every `reminder_sms.txt`
+  (ten languages) prints its link only when there is one; no wording changed.
+- **Retention.** The `notification_delivery` rule's basis names the profile; period unchanged (90 days).
+- **DPIA.** `docs/privacy/dpia.md` "Package R3".
+- **Tests.** `TestReminder_APatientWithoutAnAccountGetsOneSMSAtTheRightInstant` (`internal/worker`, Postgres, River's
+  inserts, fake SMS): `TestReminder_SentOnceAtTheRightInstant`'s cases for a profile at a Sarajevo clinic around the
+  25 October change (the quiet hours, a dispatch rolled back once, every job run twice, one SMS counted once, a
+  cancellation and a move between scheduling and dispatch), plus no option and no phone. Service tests in
+  `service_patient_sms_test.go` and `service_reminder_patient_test.go`; `TestDeliveries_AnSMSToAPatientWithoutAnAccount`.
+  `TestDispatchReminder_DeliversNothingToAPatientWithoutAnAccount` now runs at a clinic without the SMS option, and
+  `TestBookForPatient_SendsAPatientWithoutAnAccountNothing` became `…NoEmail` (reminders are now scheduled): both
+  changed on purpose, as R3 changes that behaviour.
+
+**Readings and decisions** (agent's, for the owner to review):
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| The one-time link | Not in a profile's SMS | A link's use acts as the patient's account (audit, the patient's scope), and a registered profile has none; the patient scope does not see a registered profile (`patient_registered_only_there`). Confirming or cancelling by SMS link for them is left open |
+| Quiet hours | The default 22:00 to 08:00 in the clinic's zone | A profile has no settings; the same default an app patient gets, so the existing cases apply |
+| Language | The clinic's default language (`organization.DefaultLanguage`, else Bosnian) | A profile stores no language |
+| The phone at dispatch | Not read; checked at the send (no phone cancels the SMS) | WAVE4: read "only for the send" |
+| The desk's field | `reminder` optional in the OpenAPI (always sent) | Required would make the generated web type require it in `web/src/test/desk.ts`; this package is Go only. The screen's package can make it required |
+| The desk's field for an app patient | Always true | Their channels are their own choice; the desk cannot see them |
+
+**Checks** (2026-11-24): `runner.sh fast` passed; `runner.sh full` passed (`make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test`: lint 0 issues, archcheck clean, every Go, web and mobile
+test green). The migration test's first run failed on a port clash with another worktree's stack (no test ran) and
+passed on its rerun after this worktree moved to free ports.
+
+**Deferred**: a one-time link for a profile's SMS (above); showing `reminder` on the desk's screen (a web package).
 
 ## Facts
 

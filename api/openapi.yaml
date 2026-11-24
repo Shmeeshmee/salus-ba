@@ -7814,6 +7814,11 @@ components:
         appointment: {$ref: "#/components/schemas/Appointment"}
         patient: {$ref: "#/components/schemas/ClinicPatient"}
         serviceName: {type: string, description: The booked service's name; absent for none.}
+        reminder:
+          type: boolean
+          description: >-
+            Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the
+            channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone.
         receipts:
           type: array
           description: >-

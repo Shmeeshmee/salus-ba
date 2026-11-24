@@ -206,7 +206,8 @@ func NewPostgresDeliveryRepository(db postgres.Querier) DeliveryRepository {
 
 func (r *postgresRepository) AddDelivery(ctx context.Context, d Delivery) (Delivery, bool, error) {
 	p := notificationdb.InsertDeliveryParams{Kind: string(d.Kind), Channel: string(d.Channel)}
-	if p.SourceID.Scan(d.SourceID) != nil || p.OrganizationID.Scan(d.OrganizationID) != nil || p.AccountID.Scan(d.AccountID) != nil ||
+	if p.SourceID.Scan(d.SourceID) != nil || p.OrganizationID.Scan(d.OrganizationID) != nil ||
+		d.AccountID != "" && p.AccountID.Scan(d.AccountID) != nil || d.PatientID != "" && p.PatientID.Scan(d.PatientID) != nil ||
 		d.DeviceID != "" && p.DeviceID.Scan(d.DeviceID) != nil {
 		return Delivery{}, false, errors.New("notification: an id of the delivery is not a UUID")
 	}
@@ -235,11 +236,17 @@ func (r *postgresRepository) LockDelivery(ctx context.Context, id string) (Deliv
 	}
 	d := Delivery{
 		CreatedAt: row.CreatedAt.Time, SentAt: row.SentAt.Time, ID: row.ID.String(), SourceID: row.SourceID.String(),
-		OrganizationID: row.OrganizationID.String(), AccountID: row.AccountID.String(), Kind: Kind(row.Kind),
+		OrganizationID: row.OrganizationID.String(), Kind: Kind(row.Kind),
 		Channel: Channel(row.Channel), State: DeliveryState(row.State), Segments: int(row.Segments.Int32),
+	}
+	if row.AccountID.Valid {
+		d.AccountID = row.AccountID.String()
 	}
 	if row.DeviceID.Valid {
 		d.DeviceID = row.DeviceID.String()
+	}
+	if row.PatientID.Valid {
+		d.PatientID = row.PatientID.String()
 	}
 	return d, nil
 }
