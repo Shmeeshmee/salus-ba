@@ -110,6 +110,7 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**createClinicService**](doc//BillingApi.md#createclinicservice) | **POST** /clinic/services | Add a service to the clinic's price list
 *BillingApi* | [**getBillingDetails**](doc//BillingApi.md#getbillingdetails) | **GET** /clinic/billing-details | The clinic's billing details
 *BillingApi* | [**getClinicQuote**](doc//BillingApi.md#getclinicquote) | **GET** /clinic/quotes/{id} | A quote of the clinic
+*BillingApi* | [**getClinicQuotePdf**](doc//BillingApi.md#getclinicquotepdf) | **GET** /clinic/quotes/{id}/pdf | A quote of the clinic as a PDF
 *BillingApi* | [**getClinicReceipt**](doc//BillingApi.md#getclinicreceipt) | **GET** /clinic/receipts/{id} | A receipt of the clinic
 *BillingApi* | [**getClinicReceiptPdf**](doc//BillingApi.md#getclinicreceiptpdf) | **GET** /clinic/receipts/{id}/pdf | A receipt as a PDF on the clinic's letterhead
 *BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
@@ -214,10 +215,15 @@ Class | Method | HTTP request | Description
 *NotificationsApi* | [**getNotificationSettings**](doc//NotificationsApi.md#getnotificationsettings) | **GET** /me/notification-settings | The patient's reminder channels, quiet hours and time zone
 *NotificationsApi* | [**getSmsUsage**](doc//NotificationsApi.md#getsmsusage) | **GET** /clinic/sms-usage | The admin's clinic's SMS usage per month
 *NotificationsApi* | [**setNotificationSettings**](doc//NotificationsApi.md#setnotificationsettings) | **PUT** /me/notification-settings | Replace the patient's reminder channels, quiet hours and time zone
+*PatientApi* | [**correctClinicPatient**](doc//PatientApi.md#correctclinicpatient) | **PUT** /clinic/patients/{id} | Correct a profile the clinic registered
+*PatientApi* | [**getClinicPatientRecord**](doc//PatientApi.md#getclinicpatientrecord) | **GET** /clinic/patients/{id}/record | Download a registered patient's record to hand over
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
+*PatientApi* | [**importClinicPatients**](doc//PatientApi.md#importclinicpatients) | **POST** /clinic/patients/import | Import the clinic's patients from a file
+*PatientApi* | [**recordClinicPatientConsent**](doc//PatientApi.md#recordclinicpatientconsent) | **POST** /clinic/patients/{id}/consent | Record the care consent a registered patient gave in person
 *PatientApi* | [**registerClinicPatient**](doc//PatientApi.md#registerclinicpatient) | **POST** /clinic/patients | Register a patient who has no Salus account
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 *PatientApi* | [**searchClinicPatients**](doc//PatientApi.md#searchclinicpatients) | **GET** /clinic/patients | Search the clinic's patients
+*PatientApi* | [**withdrawClinicPatientConsent**](doc//PatientApi.md#withdrawclinicpatientconsent) | **POST** /clinic/patients/{id}/consent-withdrawal | Record that a registered patient withdrew their consent
 *QuestionnairesApi* | [**clearRoleQuestionnaire**](doc//QuestionnairesApi.md#clearrolequestionnaire) | **DELETE** /practitioner-roles/{id}/questionnaire | Clear a practitioner role's default questionnaire
 *QuestionnairesApi* | [**createQuestionnaire**](doc//QuestionnairesApi.md#createquestionnaire) | **POST** /questionnaires | Create a questionnaire
 *QuestionnairesApi* | [**deleteQuestionnaire**](doc//QuestionnairesApi.md#deletequestionnaire) | **DELETE** /questionnaires/{id} | Discard a draft
@@ -334,6 +340,7 @@ Class | Method | HTTP request | Description
  - [Conversation](doc//Conversation.md)
  - [ConversationList](doc//ConversationList.md)
  - [ConversationParticipant](doc//ConversationParticipant.md)
+ - [CorrectPatientRequest](doc//CorrectPatientRequest.md)
  - [CreatedWebhook](doc//CreatedWebhook.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
@@ -377,6 +384,7 @@ Class | Method | HTTP request | Description
  - [HistorySharing](doc//HistorySharing.md)
  - [HistorySharingList](doc//HistorySharingList.md)
  - [HistorySummary](doc//HistorySummary.md)
+ - [ImportedPatient](doc//ImportedPatient.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
@@ -401,6 +409,8 @@ Class | Method | HTTP request | Description
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
+ - [PatientImport](doc//PatientImport.md)
+ - [PatientImportRow](doc//PatientImportRow.md)
  - [PaymentMethod](doc//PaymentMethod.md)
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)

@@ -56,5 +56,64 @@
   "register.invalidPhone": "Enter the phone number with its country code, such as +387 61 123 456.",
   "register.invalidBirthDate": "Enter a birth date in the past.",
   "register.invalidName": "Enter the given and family name.",
-  "register.failed": "The patient could not be registered. Try again."
+  "register.failed": "The patient could not be registered. Try again.",
+  "patient.title": "Patient card",
+  "patient.profile": "Profile",
+  "patient.save": "Save",
+  "patient.saving": "Saving",
+  "patient.saved": "The profile is saved.",
+  "patient.saveFailed": "The profile could not be saved. Try again.",
+  "patient.conflict": "Someone changed this profile meanwhile. Close the card and open it again.",
+  "patient.consentTitle": "Consent to care",
+  "patient.withdraw": {
+    "defaultMessage": "Record withdrawal of consent",
+    "description": "legal"
+  },
+  "patient.withdrawEffect": {
+    "defaultMessage": "The patient withdrew the consent to care they gave the clinic in person. Their visits ahead are cancelled, their waitlist entries are withdrawn and the clinic's practitioners no longer see their profile. The clinic keeps the record it already holds, as the law requires.",
+    "description": "legal"
+  },
+  "patient.confirmWithdraw": {
+    "defaultMessage": "Confirm withdrawal",
+    "description": "legal"
+  },
+  "patient.keep": "Keep the consent",
+  "patient.withdrawn": {
+    "defaultMessage": "The withdrawal is recorded.",
+    "description": "legal"
+  },
+  "patient.noConsent": "There is no active consent given in person to withdraw.",
+  "patient.withdrawFailed": "The withdrawal could not be recorded. Try again.",
+  "patient.recordTitle": "Patient's record",
+  "patient.recordHint": {
+    "defaultMessage": "The profile, the consents, the visits and the receipts at the clinic as a FHIR file, to hand to the patient when they ask for their data. Clinical documents are not in it.",
+    "description": "legal"
+  },
+  "patient.download": "Download the record",
+  "patient.close": "Close",
+  "move.open": "Move",
+  "move.title": "Move visit",
+  "move.submit": "Move visit",
+  "move.moving": "Moving",
+  "move.time": "New time",
+  "move.noSlots": "This practitioner has no free time of this visit type in the next two weeks.",
+  "move.changed": "The visit was changed in the meantime. Close this and reload the page.",
+  "move.joinOpen": "A video visit cannot be moved once its call can be joined.",
+  "move.failed": "The visit could not be moved. Try again.",
+  "move.moved": "The visit was moved.",
+  "consent.needed": {
+    "defaultMessage": "There is no active consent to care from this patient. Record the consent they give in person before booking.",
+    "description": "legal"
+  },
+  "consent.record": "Record consent",
+  "consent.recording": "Recording",
+  "consent.recorded": {
+    "defaultMessage": "The consent is recorded.",
+    "description": "legal"
+  },
+  "consent.active": "The patient has an active consent to care already.",
+  "consent.failed": "The consent could not be recorded. Try again.",
+  "reminder.on": "Reminder will be sent",
+  "reminder.noPhone": "No reminder: no phone number",
+  "reminder.smsOff": "No reminder: SMS is off for the clinic"
 }

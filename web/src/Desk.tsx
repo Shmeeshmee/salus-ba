@@ -4,6 +4,8 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { DeskCheckIn } from './DeskCheckIn'
+import { DeskMove } from './DeskMove'
+import { DeskPatient } from './DeskPatient'
 import { DeskWalkIn } from './DeskWalkIn'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -78,6 +80,11 @@ function Day({ api, fhir, zone, staff, now }: DayProps) {
                     api={api}
                     visit={v}
                     zone={zone}
+                    move={{ fhir, staff: staff.filter((m) => m.active), now }}
+                    onMoved={() => {
+                      setNotice(t('desk.move.moved'))
+                      reload()
+                    }}
                     onArrived={(a) => arrived(day, a)}
                     onIssued={(number) => setNotice(t('receipts.issued', { number }))}
                   />
@@ -105,12 +112,21 @@ function Day({ api, fhir, zone, staff, now }: DayProps) {
   )
 }
 
-type RowProps = { api: ApiClient; visit: DeskVisit; zone: string; onArrived: (a: DeskVisit['appointment']) => void; onIssued: (number: number) => void }
+type RowProps = {
+  api: ApiClient
+  visit: DeskVisit
+  zone: string
+  move: { fhir: FhirClient; staff: Member[]; now: () => Date } // what moving the visit needs (M1)
+  onMoved: () => void // the day is read again: after a move, or a change on the patient's card
+  onArrived: (a: DeskVisit['appointment']) => void
+  onIssued: (number: number) => void
+}
 
-function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
+function Row({ api, visit, zone, move, onMoved, onArrived, onIssued }: RowProps) {
   const t = useT()
   const f = useFormat()
   const [issuing, setIssuing] = useState(false)
+  const [moving, setMoving] = useState(false)
   const [issued, setIssued] = useState<VisitReceipt[]>([])
   const { appointment: a, patient: p } = visit
   const receipts = mergeReceipts(visit.receipts, issued)
@@ -124,22 +140,39 @@ function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
           <span className="strong">
             {f.time(new Date(a.start), zone)}–{f.time(new Date(a.end), zone)}
           </span>{' '}
-          <span>
-            {p.givenName} {p.familyName}
-          </span>{' '}
+          <DeskPatient api={api} patient={p} onChanged={onMoved} />{' '}
           <span className={`tag desk-${a.status}`}>{status}</span>
         </span>
         <span className="muted small">{details.join(' · ')}</span>
+        {a.status === 'booked' && visit.reminder !== undefined && <span className="muted small">{reminderText(t, visit)}</span>}
         <VisitReceipts receipts={receipts} />
       </span>
       <span className="actions">
         {a.status === 'booked' && a.visitMode === 'in-person' && <DeskCheckIn api={api} appointmentId={a.id} onArrived={onArrived} />}
+        {a.status === 'booked' && (
+          <button type="button" onClick={() => setMoving(true)}>
+            {t('desk.move.open')}
+          </button>
+        )}
         {(a.status === 'booked' || a.status === 'arrived' || a.status === 'fulfilled') && (
           <button type="button" onClick={() => setIssuing(true)}>
             {t(active.length > 0 ? 'receipts.issueAnother' : 'receipts.dialog.issue')}
           </button>
         )}
       </span>
+      {moving && (
+        <DeskMove
+          api={api}
+          {...move}
+          zone={zone}
+          visit={visit}
+          onClose={() => setMoving(false)}
+          onMoved={() => {
+            setMoving(false)
+            onMoved()
+          }}
+        />
+      )}
       {issuing && (
         <ReceiptDialog
           api={api}
@@ -156,6 +189,13 @@ function Row({ api, visit, zone, onArrived, onIssued }: RowProps) {
       )}
     </li>
   )
+}
+
+// reminderText says whether a reminder will go for the visit, and why not (clinic-cms R3: a patient without an account
+// is reminded by SMS only, while the clinic sends SMS and the profile has a phone).
+function reminderText(t: ReturnType<typeof useT>, visit: DeskVisit): string {
+  if (visit.reminder) return t('desk.reminder.on')
+  return t(visit.reminderOff === 'no_phone' ? 'desk.reminder.noPhone' : 'desk.reminder.smsOff')
 }
 
 // byPractitioner groups the day's visits by practitioner role in the order the server gives them (by practitioner,

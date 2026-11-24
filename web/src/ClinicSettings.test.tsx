@@ -86,6 +86,25 @@ describe('ClinicSettings', () => {
     expect(screen.getByRole('link', { name: 'Membership and billing' }).getAttribute('href')).toBe('/membership')
   })
 
+  it('opens the patient import and says how many patients were imported', async () => {
+    renderSettings({
+      [`GET ${path}`]: () => new Promise<Response>(() => {}),
+      'POST /clinic/patients/import': () =>
+        Response.json({ saved: true, rows: [{ line: 2, errors: [], duplicate: false, patient: { id, givenName: 'Ada', familyName: 'Sample', birthDate: '1990-01-31' } }] }),
+    })
+
+    expect(screen.queryByRole('heading', { name: 'Import patients' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Import patients' }))
+    expect(screen.getByRole('heading', { name: 'Import patients' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('heading', { name: 'Import patients' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Import patients' }))
+    fireEvent.change(screen.getByLabelText('File (CSV or XLSX)'), { target: { files: [new File(['x'], 'patients.csv', { type: 'text/csv' })] } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Import 1 patient' }))
+    expect(await screen.findByText('1 patient imported.')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Import patients' })).toBeNull()
+  })
+
   it('shows the reminders below the clinic settings', async () => {
     renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
 

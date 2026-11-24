@@ -25,8 +25,17 @@ type Repository interface {
 	// Register stores p as the profile of a patient without an account, registered by the clinic org (the scope set
 	// by SetClinic), last updated at, and returns it.
 	Register(ctx context.Context, p Patient, org string, at time.Time) (Patient, error)
+	// Correct replaces the names, birth date and phone of the profile p.ID the clinic org registered when its version is
+	// p.VersionID, last updated at, and returns it with the next version; ErrConflict when no such profile has that
+	// version.
+	Correct(ctx context.Context, p Patient, org string, at time.Time) (Patient, error)
 	// SearchClinic returns at most limit patients of the clinic org (registered by it or with its active care consent)
 	// matching q, by family and given name; for a practitioner's role roleID (empty for any) only those with an
 	// appointment with it.
 	SearchClinic(ctx context.Context, org, roleID string, q ClinicSearch, limit int32) ([]Patient, error)
+	// Matching returns the patients of the clinic org (registered by it or with its active care consent) whose given
+	// and family name (case does not matter) and birth date are those of a profile of in.
+	Matching(ctx context.Context, org string, in []Patient) ([]Patient, error)
+	// RegisteredBy returns the ids of the profiles the clinic org registered, in the transaction and scope in ctx.
+	RegisteredBy(ctx context.Context, org string) ([]string, error)
 }

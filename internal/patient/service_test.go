@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -58,6 +59,25 @@ type fakeRepository struct {
 	searchRole string               // the role SearchClinic was asked for
 	calls      []string             // the calls, "outside:" prefixed when made outside a transaction
 	found      []patient.Patient    // what SearchClinic gives
+	matching   []patient.Patient    // the clinic's patients Matching may find
+	asked      []patient.Patient    // what Matching was asked
+}
+
+func (r *fakeRepository) Matching(ctx context.Context, org string, in []patient.Patient) ([]patient.Patient, error) {
+	r.seen(ctx, "Matching")
+	if org != r.clinic {
+		return nil, errors.New("matched outside the clinic's scope")
+	}
+	r.asked = in
+	var out []patient.Patient
+	for _, p := range r.matching {
+		if slices.ContainsFunc(in, func(q patient.Patient) bool {
+			return strings.EqualFold(q.GivenName, p.GivenName) && strings.EqualFold(q.FamilyName, p.FamilyName) && q.BirthDate.Equal(p.BirthDate)
+		}) {
+			out = append(out, p)
+		}
+	}
+	return out, r.err
 }
 
 // registeredID is the id Register gives.
@@ -79,6 +99,21 @@ func (r *fakeRepository) SearchClinic(ctx context.Context, org, roleID string, q
 		return nil, errors.New("searched outside the clinic's scope")
 	}
 	return r.found, r.err
+}
+
+func (r *fakeRepository) RegisteredBy(ctx context.Context, org string) ([]string, error) {
+	r.seen(ctx, "RegisteredBy")
+	if org != r.clinic {
+		return nil, errors.New("listed outside the clinic's scope")
+	}
+	var out []string
+	for _, p := range r.profiles {
+		if p.RegisteredBy == org {
+			out = append(out, p.ID)
+		}
+	}
+	slices.Sort(out)
+	return out, r.err
 }
 
 func newFakeRepository() *fakeRepository {
@@ -183,6 +218,8 @@ type fakeConsents struct {
 	err      error
 	args     []string
 	inPerson []any // RecordInPerson's caller, patient and whether in a transaction
+	withdraw []any // WithdrawInPerson's caller, patient and whether in a transaction
+	of       []consent.Consent
 	state    access.Consent
 }
 

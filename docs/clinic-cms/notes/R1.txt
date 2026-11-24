@@ -1,0 +1,2 @@
+Package R1. Your specification is the "R1" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+From the wave 3 integration: "the hourly slot generation covers listed clinics only".

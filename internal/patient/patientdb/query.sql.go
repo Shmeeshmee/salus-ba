@@ -11,6 +11,64 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const correctRegisteredPatient = `-- name: CorrectRegisteredPatient :one
+UPDATE patient
+SET given_name = $1, family_name = $2, birth_date = $3, phone = $4,
+    version_id = version_id + 1, updated_at = $5
+WHERE id = $6 AND registered_by_organization_id = $7 AND version_id = $8
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+`
+
+type CorrectRegisteredPatientParams struct {
+	GivenName      string
+	FamilyName     string
+	BirthDate      pgtype.Date
+	Phone          pgtype.Text
+	UpdatedAt      pgtype.Timestamptz
+	ID             pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+}
+
+type CorrectRegisteredPatientRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// The clinic corrects a profile it registered (docs/clinic-cms R2): only the current version, only its own.
+func (q *Queries) CorrectRegisteredPatient(ctx context.Context, arg CorrectRegisteredPatientParams) (CorrectRegisteredPatientRow, error) {
+	row := q.db.QueryRow(ctx, correctRegisteredPatient,
+		arg.GivenName,
+		arg.FamilyName,
+		arg.BirthDate,
+		arg.Phone,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.OrganizationID,
+		arg.VersionID,
+	)
+	var i CorrectRegisteredPatientRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.AccountID,
+		&i.VersionID,
+		&i.BirthDate,
+		&i.GivenName,
+		&i.FamilyName,
+		&i.Phone,
+		&i.RegisteredByOrganizationID,
+	)
+	return i, err
+}
+
 const createPatient = `-- name: CreatePatient :one
 INSERT INTO patient (account_id, given_name, family_name, birth_date, phone, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -62,6 +120,66 @@ func (q *Queries) CreatePatient(ctx context.Context, arg CreatePatientParams) (C
 		&i.RegisteredByOrganizationID,
 	)
 	return i, err
+}
+
+const matchingClinicPatients = `-- name: MatchingClinicPatients :many
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+FROM patient p
+WHERE (p.registered_by_organization_id = $1
+       OR EXISTS (SELECT 1 FROM consent c
+                  WHERE c.patient_id = p.id AND c.organization_id = $1 AND c.status = 'active'))
+  AND lower(p.given_name) || chr(31) || lower(p.family_name) || chr(31) || to_char(p.birth_date, 'YYYY-MM-DD') = ANY($2::text[])
+ORDER BY p.id
+`
+
+type MatchingClinicPatientsParams struct {
+	OrganizationID pgtype.UUID
+	Keys           []string
+}
+
+type MatchingClinicPatientsRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// The clinic's patients (those it registered and those with its active care consent) whose lower-case given name,
+// family name and birth date, joined by the unit separator (chr 31), are one of the keys (the people of an import,
+// docs/clinic-cms M3). Row-level security limits the rows to the scope too.
+func (q *Queries) MatchingClinicPatients(ctx context.Context, arg MatchingClinicPatientsParams) ([]MatchingClinicPatientsRow, error) {
+	rows, err := q.db.Query(ctx, matchingClinicPatients, arg.OrganizationID, arg.Keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MatchingClinicPatientsRow
+	for rows.Next() {
+		var i MatchingClinicPatientsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.AccountID,
+			&i.VersionID,
+			&i.BirthDate,
+			&i.GivenName,
+			&i.FamilyName,
+			&i.Phone,
+			&i.RegisteredByOrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const patientByAccount = `-- name: PatientByAccount :one
@@ -184,6 +302,32 @@ func (q *Queries) RegisterPatient(ctx context.Context, arg RegisterPatientParams
 		&i.RegisteredByOrganizationID,
 	)
 	return i, err
+}
+
+const registeredByClinic = `-- name: RegisteredByClinic :many
+SELECT id FROM patient WHERE registered_by_organization_id = $1 ORDER BY id
+`
+
+// The ids of the patients the clinic registered (its data export, docs/clinic-cms M2 joined in wave 4). Row-level
+// security limits the rows to the scope too.
+func (q *Queries) RegisteredByClinic(ctx context.Context, organizationID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, registeredByClinic, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const searchClinicPatients = `-- name: SearchClinicPatients :many

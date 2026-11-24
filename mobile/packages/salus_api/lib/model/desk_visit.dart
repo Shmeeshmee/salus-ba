@@ -16,6 +16,8 @@ class DeskVisit {
     required this.appointment,
     required this.patient,
     this.serviceName,
+    this.reminder,
+    this.reminderOff,
     this.receipts = const [],
   });
 
@@ -32,6 +34,18 @@ class DeskVisit {
   ///
   String? serviceName;
 
+  /// Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? reminder;
+
+  /// Why no reminder will go, absent when one will: the clinic does not offer SMS, or the profile has no phone (a patient without an account is reminded by SMS only).
+  DeskVisitReminderOffEnum? reminderOff;
+
   /// The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so. Each is audited as a read.
   List<DeskReceipt> receipts;
 
@@ -42,6 +56,8 @@ class DeskVisit {
           other.appointment == appointment &&
           other.patient == patient &&
           other.serviceName == serviceName &&
+          other.reminder == reminder &&
+          other.reminderOff == reminderOff &&
           _deepEquality.equals(other.receipts, receipts);
 
   @override
@@ -50,11 +66,13 @@ class DeskVisit {
       (appointment.hashCode) +
       (patient.hashCode) +
       (serviceName == null ? 0 : serviceName!.hashCode) +
+      (reminder == null ? 0 : reminder!.hashCode) +
+      (reminderOff == null ? 0 : reminderOff!.hashCode) +
       (receipts.hashCode);
 
   @override
   String toString() =>
-      'DeskVisit[appointment=$appointment, patient=$patient, serviceName=$serviceName, receipts=$receipts]';
+      'DeskVisit[appointment=$appointment, patient=$patient, serviceName=$serviceName, reminder=$reminder, reminderOff=$reminderOff, receipts=$receipts]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -64,6 +82,16 @@ class DeskVisit {
       json[r'serviceName'] = this.serviceName;
     } else {
       json[r'serviceName'] = null;
+    }
+    if (this.reminder != null) {
+      json[r'reminder'] = this.reminder;
+    } else {
+      json[r'reminder'] = null;
+    }
+    if (this.reminderOff != null) {
+      json[r'reminderOff'] = this.reminderOff;
+    } else {
+      json[r'reminderOff'] = null;
     }
     json[r'receipts'] = this.receipts;
     return json;
@@ -99,6 +127,8 @@ class DeskVisit {
         appointment: Appointment.fromJson(json[r'appointment'])!,
         patient: ClinicPatient.fromJson(json[r'patient'])!,
         serviceName: mapValueOfType<String>(json, r'serviceName'),
+        reminder: mapValueOfType<bool>(json, r'reminder'),
+        reminderOff: DeskVisitReminderOffEnum.fromJson(json[r'reminderOff']),
         receipts: DeskReceipt.listFromJson(json[r'receipts']),
       );
     }
@@ -160,4 +190,88 @@ class DeskVisit {
     'patient',
     'receipts',
   };
+}
+
+/// Why no reminder will go, absent when one will: the clinic does not offer SMS, or the profile has no phone (a patient without an account is reminded by SMS only).
+enum DeskVisitReminderOffEnum {
+  smsOff._(r'sms_off'),
+  noPhone._(r'no_phone'),
+  ;
+
+  /// Instantiate a new enum with the provided value.
+  const DeskVisitReminderOffEnum._(this._value);
+
+  /// The underlying value of this enum member.
+  final String _value;
+
+  @override
+  String toString() => _value;
+
+  /// Encodes this enum as a value suitable for JSON.
+  String toJson() => _value;
+
+  /// Returns the instance of [DeskVisitReminderOffEnum] that was successfully decoded
+  /// from the passed [value] on success, null otherwise.
+  static DeskVisitReminderOffEnum? fromJson(dynamic value) =>
+      DeskVisitReminderOffEnumTypeTransformer().decode(value);
+
+  /// Returns a [List] containing instances of [DeskVisitReminderOffEnum]
+  /// that were successfully decoded from the passed [JSON][json].
+  static List<DeskVisitReminderOffEnum> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
+    final result = <DeskVisitReminderOffEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = DeskVisitReminderOffEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [DeskVisitReminderOffEnum] to String,
+/// and [decode] dynamic data back to [DeskVisitReminderOffEnum].
+class DeskVisitReminderOffEnumTypeTransformer {
+  factory DeskVisitReminderOffEnumTypeTransformer() =>
+      _instance ??= const DeskVisitReminderOffEnumTypeTransformer._();
+
+  const DeskVisitReminderOffEnumTypeTransformer._();
+
+  String encode(DeskVisitReminderOffEnum data) => data._value;
+
+  /// Returns the instance of [DeskVisitReminderOffEnum] that was successfully decoded
+  /// from the passed [data] value on success, null otherwise.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  DeskVisitReminderOffEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data is DeskVisitReminderOffEnum) {
+      return data;
+    }
+    if (data != null) {
+      switch (data) {
+        case r'sms_off':
+          return DeskVisitReminderOffEnum.smsOff;
+        case r'no_phone':
+          return DeskVisitReminderOffEnum.noPhone;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// The singleton instance of this transformer.
+  static DeskVisitReminderOffEnumTypeTransformer? _instance;
 }

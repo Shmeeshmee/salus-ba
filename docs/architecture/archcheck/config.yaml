@@ -6,7 +6,7 @@ contexts:
   billing: [chargeitemdefinition, invoice, subscription]
   clinical: [allergyintolerance, binary, composition, condition, history, medicationstatement, questionnaire, questionnaireresponse]
   consultation: [communication, encounter, suggestion, transcript, videosession]
-  directory: [organization, practitioner, practitionerrole]
+  directory: [clinicexport, organization, practitioner, practitionerrole]
   identity: [auth, signup]
   notification: [notification]
   patient: [patient]

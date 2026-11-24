@@ -25,6 +25,7 @@
   "sending": "Slanje",
   "invalidEmail": "Unesite ispravnu adresu e-pošte.",
   "invalidName": "Unesite ime i prezime.",
+  "inviteLimit": "Klinika ima 50 otvorenih pozivnica. Sačekajte da neke budu prihvaćene ili isteknu prije slanja nove.",
   "inviteForbidden": "Samo administrator klinike može slati pozivnice.",
   "clinicSettings": "Podešavanja klinike",
   "clinicLoadFailed": "Klinika se nije mogla učitati. Osvježite stranicu i pokušajte ponovo.",
@@ -59,5 +60,16 @@
   "invalidLocation": "Izaberite grad u toj regiji.",
   "addressLine": "Ulica i broj",
   "postalCode": "Poštanski broj",
-  "addressHint": "Pacijenti sa terminom u klinici dobijaju ovu adresu u e-porukama i podsjetnicima."
+  "addressHint": "Pacijenti sa terminom u klinici dobijaju ovu adresu u e-porukama i podsjetnicima.",
+  "exportTitle": "Izvoz podataka klinike",
+  "exportHint": "Jedna arhiva sa cjenovnikom, osobljem, terminima, računima i ponudama kao CSV datotekama, i podacima svakog pacijenta kog je klinika upisala kao FHIR datotekom. Klinička dokumentacija nije u njoj. Može se preuzeti 7 dana pošto je zatražite, a zatim se briše.",
+  "exportAsk": "Izvezi podatke klinike",
+  "exportAsking": "Pokretanje izvoza",
+  "exportBuilding": "Arhiva se pravi. To može potrajati nekoliko minuta.",
+  "exportBuildFailed": "Arhiva nije mogla biti napravljena. Zatražite novi izvoz.",
+  "exportExpired": "Ovaj izvoz je istekao. Zatražite novi.",
+  "exportDownload": "Preuzmi arhivu",
+  "exportUntil": "Dostupno do {at}.",
+  "exportForbidden": "Samo administrator klinike može izvesti podatke klinike.",
+  "exportFailed": "Izvoz nije mogao biti pokrenut. Pokušajte ponovo."
 }

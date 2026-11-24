@@ -222,6 +222,74 @@ class BillingApi {
     return null;
   }
 
+  /// A quote of the clinic as a PDF
+  ///
+  /// The PDF the patient gets (it says it is a quote, not a receipt), to the clinic's admin and the practitioner who sent the quote; never to a receptionist. Built in package M4. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getClinicQuotePdfWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/quotes/{id}/pdf'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// A quote of the clinic as a PDF
+  ///
+  /// The PDF the patient gets (it says it is a quote, not a receipt), to the clinic's admin and the practitioner who sent the quote; never to a receptionist. Built in package M4. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<String?> getClinicQuotePdf(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getClinicQuotePdfWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
+    }
+    return null;
+  }
+
   /// A receipt of the clinic
   ///
   /// For the clinic's admin, the practitioner or receptionist who issued it, and the clinic's receptionists for a visit's receipt (the desk prints it). Audited.

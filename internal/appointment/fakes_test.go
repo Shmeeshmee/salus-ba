@@ -220,6 +220,29 @@ func (r *fakeRepository) change(ctx context.Context, call, id string, fn func(*a
 	return appointment.Appointment{}, appointment.ErrClosed
 }
 
+// MoveByStaff moves the booked appointment at m.Version, as the clinic's scope shows it; an overlap with another of
+// the new role's appointments refuses it, as the exclusion constraint does.
+func (r *fakeRepository) MoveByStaff(ctx context.Context, id string, m appointment.StaffMove, at time.Time) (appointment.Appointment, error) {
+	r.seen(ctx, "MoveByStaff")
+	if r.err != nil {
+		return appointment.Appointment{}, r.err
+	}
+	for _, b := range r.appts {
+		if b.ID != id && b.PractitionerRoleID == m.PractitionerRoleID && b.Status != appointment.StatusCancelled && b.Start.Before(m.End) && m.Start.Before(b.End) {
+			return appointment.Appointment{}, appointment.ErrSlotUnavailable
+		}
+	}
+	for i, a := range r.appts {
+		if a.ID == id && r.clinic != "" && r.visible(a) && a.Status == appointment.StatusBooked && a.VersionID == m.Version {
+			a.Start, a.End, a.SlotID, a.PractitionerRoleID, a.LastUpdated = m.Start, m.End, m.SlotID, m.PractitionerRoleID, at
+			a.VersionID++
+			r.appts[i] = a
+			return a, nil
+		}
+	}
+	return appointment.Appointment{}, appointment.ErrVersionConflict
+}
+
 func (r *fakeRepository) Cancel(ctx context.Context, id string, reason appointment.Reason, by string, at time.Time) (appointment.Appointment, error) {
 	return r.change(ctx, "Cancel", id, func(a *appointment.Appointment) {
 		a.Status, a.Reason, a.CancelledBy, a.CancelledAt, a.LastUpdated = appointment.StatusCancelled, reason, by, at, at
@@ -415,7 +438,9 @@ func (p *fakePatients) Lookup(ctx context.Context, id string) (patient.Patient, 
 	case patientB:
 		return patient.Patient{ID: patientB, AccountID: accountB, GivenName: "Bo", FamilyName: "Example"}, nil
 	case patientC: // registered by clinic A, without an account (docs/clinic-cms F2)
-		return patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example"}, nil
+		return patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example", Phone: "+38761000003"}, nil
+	case patientD: // registered by clinic A, without an account or a phone (docs/clinic-cms R3)
+		return patient.Patient{ID: patientD, RegisteredBy: clinicA, GivenName: "Di", FamilyName: "Example"}, nil
 	}
 	return patient.Patient{}, patient.ErrNotFound
 }

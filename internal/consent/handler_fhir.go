@@ -88,6 +88,10 @@ func concept(system, code string) fhir.CodeableConcept {
 	return fhir.CodeableConcept{Coding: []fhir.Coding{{System: system, Code: code}}}
 }
 
+// FHIR is c as a FHIR R4 Consent, for a record another domain hands over (a clinic-registered patient's, docs/clinic-cms
+// R2).
+func FHIR(c Consent) any { return toFHIR(c) }
+
 // toFHIR is c as a FHIR Consent. A transcription consent (SAL-12) is told apart from the care consent by its
 // second category, v3-ActCode ICOL (information collection: what is said is transcribed into the record), and
 // its provision's actions, consentaction collect and use (transcribed and translated, used for the AI

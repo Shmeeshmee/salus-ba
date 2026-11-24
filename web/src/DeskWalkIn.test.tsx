@@ -5,7 +5,7 @@ import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Member } from './staff'
-import { ana, cySchedule, exam, freeInPerson, now, scheduleRoute, services, slotsRoute } from './test/desk'
+import { ana, cySchedule, exam, freeInPerson, ida, now, scheduleRoute, services, slotsRoute } from './test/desk'
 import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
 import { cy, dee, org } from './test/fixtures'
 
@@ -73,6 +73,50 @@ describe('DeskWalkIn', () => {
     // From now to the end of today in Sarajevo (UTC+1).
     expect(slots.getAll('start')).toEqual(['ge2026-11-23T08:20:00.000Z', 'lt2026-11-23T23:00:00.000Z'])
     expectCsrfOnWrites(fake.requests)
+  })
+
+  it('asks for the consent an imported patient gives in person before their booking (wave 4)', async () => {
+    let body: unknown
+    const { fake, onBooked } = renderWalkIn({
+      'GET /clinic/patients': () => Response.json([ida]),
+      [`POST /clinic/patients/${ida.id}/consent`]: () => new Response(null, { status: 204 }),
+      'POST /clinic/appointments': async (r) => {
+        body = await r.json()
+        return Response.json(booked, { status: 201 })
+      },
+    })
+    const dialog = within(screen.getByRole('dialog', { name: 'Walk-in' }))
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Ida' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Search' }))
+    fireEvent.click(await dialog.findByRole('button', { name: /Ida Import/ }))
+    expect(dialog.getByText(/There is no active consent to care from this patient/)).toBeTruthy()
+    expect(dialog.queryByLabelText('Time')).toBeNull()
+    const record = dialog.getByRole('button', { name: 'Record consent' }) as HTMLButtonElement
+    expect(record.disabled).toBe(true)
+    fireEvent.click(dialog.getByLabelText('The patient gave the clinic their consent to care, in person.'))
+    fireEvent.click(record)
+
+    const time = (await dialog.findByLabelText('Time')) as HTMLSelectElement
+    await waitFor(() => expect(time.options.length).toBe(2))
+    fireEvent.change(time, { target: { value: freeInPerson } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Book visit' }))
+    await waitFor(() => expect(onBooked).toHaveBeenCalled())
+    expect(body).toEqual({ patientId: ida.id, slotId: freeInPerson })
+    const posts = fake.requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).pathname)
+    expect(posts).toEqual([`/clinic/patients/${ida.id}/consent`, '/clinic/appointments'])
+    expectCsrfOnWrites(fake.requests)
+  })
+
+  it('says when the consent could not be recorded', async () => {
+    renderWalkIn({ 'GET /clinic/patients': () => Response.json([ida]), [`POST /clinic/patients/${ida.id}/consent`]: () => apiError(500, 'internal') })
+    const dialog = within(screen.getByRole('dialog', { name: 'Walk-in' }))
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'Ida' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Search' }))
+    fireEvent.click(await dialog.findByRole('button', { name: /Ida Import/ }))
+    fireEvent.click(dialog.getByLabelText('The patient gave the clinic their consent to care, in person.'))
+    fireEvent.click(dialog.getByRole('button', { name: 'Record consent' }))
+    expect(await dialog.findByText('The consent could not be recorded. Try again.')).toBeTruthy()
+    expect(dialog.queryByLabelText('Time')).toBeNull()
   })
 
   it('books without a service when none is picked', async () => {

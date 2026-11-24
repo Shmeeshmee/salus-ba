@@ -19,6 +19,7 @@ import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
 import { ClinicProfile } from './ClinicProfile'
 import { Practitioners } from './Practitioners'
 import { Questionnaires } from './Questionnaires'
+import { Quotes } from './Quotes'
 import { Receipts } from './Receipts'
 import { Waitlist } from './Waitlist'
 import { SignIn } from './SignIn'
@@ -30,7 +31,7 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, QuoteIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -192,6 +193,12 @@ function Navigation({ admin, practitioner, desk, reviewer }: { admin: boolean; p
         </Link>
       )}
       {admin && (
+        <Link to="/quotes">
+          <QuoteIcon />
+          {t('receipts.quotes.nav')}
+        </Link>
+      )}
+      {admin && (
         <Link to="/clinic">
           <ClinicIcon />
           {t('shell.clinicSettings')}
@@ -266,6 +273,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/analytics') return <AnalyticsPage api={api} fhir={fhir} account={account} />
   if (path === '/term-review') return <Review api={api} reviewer={account.termReviewer === true} />
   if (path === '/receipts' && account.role === 'admin') return <Receipts api={api} fhir={fhir} account={account} />
+  if (path === '/quotes' && account.role === 'admin') return <Quotes api={api} fhir={fhir} account={account} /> // clinic-cms M4
   if (path === '/receipts/report' && account.role === 'admin') return <ClinicReports api={api} fhir={fhir} account={account} />
   if (path === '/receipts/practice' && account.role === 'admin') return <OnlinePractice api={api} fhir={fhir} account={account} /> // clinic-cms E
   if (path === '/membership' && account.role === 'admin') return <Subscription api={api} fhir={fhir} account={account} />

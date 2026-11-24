@@ -18,7 +18,7 @@ class DirectoryApi {
 
   /// Download a ready export
   ///
-  /// By the clinic's admin, until it expires. Built in package O2. Audited.
+  /// By the clinic's admin, until it expires (package M2). Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -55,7 +55,7 @@ class DirectoryApi {
 
   /// Download a ready export
   ///
-  /// By the clinic's admin, until it expires. Built in package O2. Audited.
+  /// By the clinic's admin, until it expires (package M2). Audited.
   ///
   /// Parameters:
   ///
@@ -86,7 +86,7 @@ class DirectoryApi {
 
   /// Where an export stands
   ///
-  /// By the clinic's admin. Built in package O2.
+  /// By the clinic's admin (package M2). Not audited; it holds no personal data.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -123,7 +123,7 @@ class DirectoryApi {
 
   /// Where an export stands
   ///
-  /// By the clinic's admin. Built in package O2.
+  /// By the clinic's admin (package M2). Not audited; it holds no personal data.
   ///
   /// Parameters:
   ///
@@ -336,7 +336,7 @@ class DirectoryApi {
 
   /// Ask for the clinic's data export
   ///
-  /// The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a job. By the clinic's admin. Built in package O2. Audited.
+  /// One zip archive built by a job (package M2, joined in the wave 4 integration): the price list, staff, appointments, receipts and quotes as CSV, and the record of each patient the clinic registered as a FHIR Bundle (`patients/<id>.json`: the profile, the clinic's consents, the patient's appointments and receipts at the clinic), with a `manifest.txt` that says what the archive holds and what it leaves out (clinical documents, questionnaire answers and history). Encrypted at rest, downloadable for 7 days after the request, then deleted. One export at a time per clinic: asking again while one is queued returns that one. By the clinic's admin. Audited, every read made for it too.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -378,7 +378,7 @@ class DirectoryApi {
 
   /// Ask for the clinic's data export
   ///
-  /// The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a job. By the clinic's admin. Built in package O2. Audited.
+  /// One zip archive built by a job (package M2, joined in the wave 4 integration): the price list, staff, appointments, receipts and quotes as CSV, and the record of each patient the clinic registered as a FHIR Bundle (`patients/<id>.json`: the profile, the clinic's consents, the patient's appointments and receipts at the clinic), with a `manifest.txt` that says what the archive holds and what it leaves out (clinical documents, questionnaire answers and history). Encrypted at rest, downloadable for 7 days after the request, then deleted. One export at a time per clinic: asking again while one is queued returns that one. By the clinic's admin. Audited, every read made for it too.
   ///
   /// Parameters:
   ///

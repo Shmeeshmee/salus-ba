@@ -348,6 +348,8 @@ class ApiClient {
           return ConversationList.fromJson(value);
         case 'ConversationParticipant':
           return ConversationParticipant.fromJson(value);
+        case 'CorrectPatientRequest':
+          return CorrectPatientRequest.fromJson(value);
         case 'CreatedWebhook':
           return CreatedWebhook.fromJson(value);
         case 'Cursor':
@@ -434,6 +436,8 @@ class ApiClient {
           return HistorySharingList.fromJson(value);
         case 'HistorySummary':
           return HistorySummary.fromJson(value);
+        case 'ImportedPatient':
+          return ImportedPatient.fromJson(value);
         case 'Invite':
           return Invite.fromJson(value);
         case 'InviteList':
@@ -482,6 +486,10 @@ class ApiClient {
           return OpenItem.fromJson(value);
         case 'Patient':
           return Patient.fromJson(value);
+        case 'PatientImport':
+          return PatientImport.fromJson(value);
+        case 'PatientImportRow':
+          return PatientImportRow.fromJson(value);
         case 'PaymentMethod':
           return PaymentMethodTypeTransformer().decode(value);
         case 'PeriodUnit':

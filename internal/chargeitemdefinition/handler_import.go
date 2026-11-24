@@ -2,7 +2,6 @@ package chargeitemdefinition
 
 import (
 	"errors"
-	"io"
 	"net/http"
 	"strconv"
 
@@ -53,7 +52,7 @@ func (h *Handler) importFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	f, status := readUpload(w, r)
+	file, data, status := httpx.FormFile(w, r, "file", maxImportBody)
 	if status != 0 {
 		code := "invalid_request"
 		if status == http.StatusRequestEntityTooLarge {
@@ -62,7 +61,7 @@ func (h *Handler) importFile(w http.ResponseWriter, r *http.Request) {
 		writeCode(w, status, code)
 		return
 	}
-	rows, err := h.svc.Import(r.Context(), c, f, save)
+	rows, err := h.svc.Import(r.Context(), c, ImportFile{Name: file, Data: data}, save)
 	if errors.Is(err, ErrInvalidImport) {
 		writeCode(w, http.StatusBadRequest, "invalid_import")
 		return
@@ -87,34 +86,4 @@ func (h *Handler) importFile(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.JSON(w, http.StatusOK, out)
-}
-
-// readUpload reads the request's multipart part "file", or the status to refuse it with: 413 past maxImportBody, 400
-// for a body that is not a form with that part.
-func readUpload(w http.ResponseWriter, r *http.Request) (ImportFile, int) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxImportBody)
-	mr, err := r.MultipartReader()
-	if err != nil {
-		return ImportFile{}, http.StatusBadRequest
-	}
-	for {
-		p, err := mr.NextPart()
-		var tooLarge *http.MaxBytesError
-		switch {
-		case errors.As(err, &tooLarge):
-			return ImportFile{}, http.StatusRequestEntityTooLarge
-		case err != nil:
-			return ImportFile{}, http.StatusBadRequest
-		case p.FormName() != "file":
-			continue
-		}
-		data, err := io.ReadAll(p)
-		if errors.As(err, &tooLarge) {
-			return ImportFile{}, http.StatusRequestEntityTooLarge
-		}
-		if err != nil {
-			return ImportFile{}, http.StatusBadRequest
-		}
-		return ImportFile{Name: p.FileName(), Data: data}, 0
-	}
 }

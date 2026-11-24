@@ -682,3 +682,9 @@ p.hint.join { margin-bottom: 20px; }
 .patient-picker form[role='search'] > * { width: 100%; }
 .desk-dialog { display: grid; gap: 14px; align-content: start; }
 .desk-dialog h2 { margin: 0; }
+/* A registered patient's name on a desk row opens their card (clinic-cms R2): a button that reads as the name. */
+.desk-name { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.desk-name:hover { color: var(--color-brand-hover); }
+.desk-dialog section { display: grid; gap: 8px; justify-items: start; }
+.desk-dialog section h3 { margin: 0; font-size: 15px; }
+.desk-dialog section p { margin: 0; }

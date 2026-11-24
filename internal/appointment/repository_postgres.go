@@ -920,3 +920,26 @@ func (r *postgresRepository) Desk(ctx context.Context, org string, from, to time
 	}
 	return out, nil
 }
+
+func (r *postgresRepository) MoveByStaff(ctx context.Context, id string, m StaffMove, at time.Time) (Appointment, error) {
+	var u, sl, role pgtype.UUID
+	if u.Scan(id) != nil {
+		return Appointment{}, ErrVersionConflict
+	}
+	if sl.Scan(m.SlotID) != nil || role.Scan(m.PractitionerRoleID) != nil {
+		return Appointment{}, ErrSlotUnavailable
+	}
+	row, err := r.q(ctx).MoveAppointmentByStaff(ctx, appointmentdb.MoveAppointmentByStaffParams{
+		ID: u, SlotID: sl, PractitionerRoleID: role, StartAt: ts(m.Start), EndAt: ts(m.End), At: ts(at), Version: m.Version,
+	})
+	var pgErr *pgconn.PgError
+	switch {
+	case errors.As(err, &pgErr) && (pgErr.Code == exclusionViolation || pgErr.Code == deadlockDetected):
+		return Appointment{}, ErrSlotUnavailable
+	case errors.Is(err, pgx.ErrNoRows):
+		return Appointment{}, ErrVersionConflict
+	case err != nil:
+		return Appointment{}, err
+	}
+	return toAppointment(appointmentdb.AppointmentByIDRow(row)), nil
+}

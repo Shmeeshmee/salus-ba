@@ -230,3 +230,32 @@ func TestMyQuotes_ShowsThePatientTheirOwnAndThePDF(t *testing.T) {
 		t.Errorf("the refused PDF is not audited: %+v", f.audit.last())
 	}
 }
+
+// The clinic's admin opens any quote of the clinic as its PDF, a practitioner those they sent; anyone else, another
+// clinic included, gets ErrNotFound. Audited as the read, also when refused.
+func TestClinicQuotePDF_GivesTheClinicItsQuotesAsPDF(t *testing.T) {
+	f := newFixture(theSeller)
+	q, err := f.svc.SendQuote(t.Context(), adminC, quoteDraft())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pdf, err := f.svc.ClinicQuotePDF(t.Context(), adminC, q.ID)
+	if err != nil || !bytes.HasPrefix(pdf, []byte("%PDF-")) {
+		t.Fatalf("ClinicQuotePDF() = %d bytes, %v", len(pdf), err)
+	}
+	if e := f.audit.last(); e.Subtype.Code != auditevent.CodeRead || e.EntityReference != "Quote/"+q.ID || e.Outcome != auditevent.OutcomeSuccess {
+		t.Errorf("audit = %+v", e)
+	}
+	for name, c := range map[string]invoice.Caller{
+		"a practitioner who did not send it": doctorC,
+		"another clinic's admin":             {AccountID: "acct-b", OrganizationID: "org-2", Admin: true},
+		"a patient":                          patientC,
+	} {
+		if got, err := f.svc.ClinicQuotePDF(t.Context(), c, q.ID); !errors.Is(err, invoice.ErrNotFound) || got != nil {
+			t.Errorf("%s: ClinicQuotePDF() = %d bytes, %v; want ErrNotFound", name, len(got), err)
+		}
+		if f.audit.last().Outcome != auditevent.OutcomeMinorFailure {
+			t.Errorf("%s: the refused PDF is not audited: %+v", name, f.audit.last())
+		}
+	}
+}

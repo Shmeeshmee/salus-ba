@@ -175,7 +175,8 @@ type Delivery struct {
 	ID             string
 	SourceID       string
 	OrganizationID string
-	AccountID      string
+	AccountID      string // the account it goes to; "" for one to a patient without an account
+	PatientID      string // the patient without an account an SMS goes to (docs/clinic-cms R3); "" otherwise
 	DeviceID       string // a push's device; "" otherwise
 	Kind           Kind
 	Channel        Channel

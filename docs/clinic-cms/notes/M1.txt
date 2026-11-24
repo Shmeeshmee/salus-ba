@@ -1,0 +1,3 @@
+Package M1. Your specification is the "M1" section of docs/clinic-cms/WAVE4.md; read that file whole first.
+Migration, only if needed: 00069. F2's report explains why the patient's Reschedule could not be reused (it counts
+toward the patient's limit and confirms the visit). Desk.tsx is also edited by R2 in parallel: add only the action.

@@ -15,13 +15,17 @@ import (
 
 // compose writes d's message, or errGone when it no longer applies: its reminder or appointment changed, or its
 // channel is off now (the patient turned it off, or the clinic its SMS option, while the send waited for the quiet
-// hours to end). A waitlist offer is composed by composeOffer (SAL-35); any other kind is errUnsupported.
+// hours to end). A waitlist offer is composed by composeOffer (SAL-35), a reminder to a patient without an account by
+// composePatientSMS (docs/clinic-cms R3); any other kind is errUnsupported.
 func (s *Service) compose(ctx context.Context, d Delivery) (outgoing, error) {
 	if d.Kind == KindWaitlistOffer && s.p.Offers != nil {
 		return s.composeOffer(ctx, d)
 	}
 	if d.Kind != KindReminder {
 		return outgoing{}, errUnsupported
+	}
+	if d.PatientID != "" {
+		return s.composePatientSMS(ctx, d)
 	}
 	agent := agentSend[d.Channel]
 	n, err := s.p.Reminders.ReminderNotice(ctx, agent, d.OrganizationID, d.SourceID)
@@ -165,6 +169,16 @@ func (s *Service) composeSMS(ctx context.Context, agent string, d Delivery, n ap
 	if err != nil {
 		return outgoing{}, err
 	}
+	body, err := s.in(language).text("reminder_sms", reminderSMS(st, n, link))
+	if err != nil {
+		return outgoing{}, err
+	}
+	return outgoing{sms: sms.Message{To: phone, Body: body, Reference: d.ID}, parts: sms.Segments(body), ready: true}, nil
+}
+
+// reminderSMS is the data of n's reminder SMS: the clinic, the date and time in its zone, the time in the patient's
+// zone when st has one, and the one-time link (none for a patient without an account).
+func reminderSMS(st startTimes, n appointment.ReminderNotice, link string) letter {
 	data := whereToCome(letter{
 		Clinic: st.clinic.Name, ActionLink: link, Zone: st.clinic.TimeZone,
 		Day: st.there.Format("02"), Month: st.there.Format("01"), Year: st.there.Year(), Time: st.there.Format("15:04"),
@@ -172,11 +186,7 @@ func (s *Service) composeSMS(ctx context.Context, agent string, d Delivery, n ap
 	if !st.local.IsZero() {
 		data.ZoneLocal, data.DayLocal, data.MonthLocal, data.TimeLocal = st.localZone, st.local.Format("02"), st.local.Format("01"), st.local.Format("15:04")
 	}
-	body, err := s.in(language).text("reminder_sms", data)
-	if err != nil {
-		return outgoing{}, err
-	}
-	return outgoing{sms: sms.Message{To: phone, Body: body, Reference: d.ID}, parts: sms.Segments(body), ready: true}, nil
+	return data
 }
 
 // issue issues n's one-time link for channel, in the language of the message; a reminder whose appointment closed

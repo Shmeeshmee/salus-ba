@@ -1,0 +1,22 @@
+{
+  "open": "Import patients",
+  "title": "Import patients",
+  "hint": "A CSV or XLSX file with a header row. Columns: given name, family name and birth date (for example 31.01.1990), and optionally phone. At most 5000 rows. The patients are added to the clinic without a consent: the front desk records it at their first booking.",
+  "file": "File (CSV or XLSX)",
+  "ready": "{count, plural, one {# patient read} other {# patients read}}. Nothing is saved until you import.",
+  "wrong": "{count, plural, one {# of {total} rows has errors} other {# of {total} rows have errors}}. Correct them in the file and choose it again.",
+  "duplicates": "{count, plural, one {# row has the name and birth date of a patient already at the clinic or on an earlier row} other {# rows have the name and birth date of a patient already at the clinic or on an earlier row}}. They are imported all the same: remove them from the file if they are the same people.",
+  "line": "Line {line}: {errors}",
+  "duplicateLine": "Line {line}: {name}, born {birthDate}, may already be at the clinic",
+  "givenNameInvalid": "the given name is missing or longer than 100 characters",
+  "familyNameInvalid": "the family name is missing or longer than 100 characters",
+  "birthDateInvalid": "the birth date is not a valid date in the past",
+  "phoneInvalid": "the phone is not a valid number",
+  "save": "{count, plural, one {Import # patient} other {Import # patients}}",
+  "unreadable": "The file could not be read. Use a CSV or XLSX file with a header row naming at least the given name, family name and birth date columns, and at most 5000 rows.",
+  "tooLarge": "The file is too large.",
+  "failed": "The file could not be imported. Try again.",
+  "forbidden": "Only the clinic's admin can import patients.",
+  "imported": "{count, plural, one {# patient imported.} other {# patients imported.}}",
+  "cancel": "Cancel"
+}

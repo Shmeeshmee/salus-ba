@@ -91,6 +91,35 @@ func (s *Service) List(ctx context.Context, c Caller, p Period) ([]Invoice, erro
 	return out, nil
 }
 
+// OfClinicPatient returns the receipts the admin c's clinic issued to the patient patientID, newest first: what the
+// clinic hands over with the record of a patient it registered, and puts in its data export (docs/clinic-cms wave 4).
+// Read in the clinic's scope and checked against it, audited as one search. ErrForbidden, audited, to anyone else.
+func (s *Service) OfClinicPatient(ctx context.Context, c Caller, patientID string) ([]Invoice, error) {
+	if c.OrganizationID == "" || !c.Admin {
+		return nil, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
+	}
+	var out []Invoice
+	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.p.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		all, err := s.p.Repo.OfPatient(ctx, patientID)
+		if err != nil {
+			return err
+		}
+		for _, i := range all {
+			if i.OrganizationID == c.OrganizationID { // not on row-level security alone
+				out = append(out, i)
+			}
+		}
+		return s.p.Audit.Record(ctx, event(c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invoice: of clinic patient: %w", err)
+	}
+	return out, nil
+}
+
 // Mine returns a patient's own receipts, from every clinic, newest first (GET /me/receipts). ErrForbidden, audited,
 // to staff and to an account without a patient profile.
 func (s *Service) Mine(ctx context.Context, c Caller) ([]Invoice, error) {

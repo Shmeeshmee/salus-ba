@@ -2651,3 +2651,143 @@ the API creates the clinic unlisted, invites its admin and starts the trial, thr
 | A quote sent to a patient who revoked their care consent | The service checks the active consent; `quote_clinic` refuses the row |
 | A quote mistaken for a bill | The PDF, the e-mail, the app and the dialog say it is a quote, not a receipt, and nothing was charged |
 | The e-mail discloses care | It names the clinic and the visit's time only, as the other appointment e-mails |
+
+### Package R2: rights of patients the clinic registered (migration 00067, docs/clinic-cms/WAVE4.md)
+
+**Processing added.** No new personal-data field and no new table. A patient without a Salus account exercises their
+rights through the clinic that registered them (V2, pending the lawyer):
+
+- **Rectification.** The clinic's admin or receptionist corrects the given and family name, birth date and phone of a
+  profile the clinic registered (`PUT /clinic/patients/{id}`, `If-Match`; the version goes up). Audited as an update
+  with the staff account, refusals included. A patient's own profile, and another clinic's registered profile, are not
+  found (the service's check and `patient_registered_only_there`).
+- **Withdrawal of consent.** The desk records that the patient withdrew the care consent they gave in person
+  (`POST /clinic/patients/{id}/consent-withdrawal`). Migration 00067's policy lets the clinic's scope revoke only its own
+  in-person consent, only from active to inactive; a consent given in the app stays the patient's to revoke. The
+  revocation and the `consent_revoked` job are written in one transaction, as for a patient's own revocation: from the
+  commit the clinic's practitioners lose access, and the job cancels the visits ahead and withdraws the waitlist
+  entries (no notice is sent to a patient without an account). Audited with the staff account.
+- **Access and portability.** The clinic's admin downloads the record (`GET /clinic/patients/{id}/record`): a FHIR
+  Bundle of type collection with the Patient and the clinic's Consents of the patient, to hand to the patient. The
+  profile's read is audited with the patient's request (`PATRQT`) as the purpose, each consent's read too. The file
+  leaves Salus on the admin's device: the clinic is its controller from then on.
+- **Erasure.** None built, for any patient: the `patient` and `consent` rules are `keep` and erasure waits for the
+  subject-rights feature (`internal/retention/rules.go`). A registered profile follows the same rules as an app
+  patient's.
+
+| Risk | Measure |
+| --- | --- |
+| One clinic reads or changes another clinic's registered patient | The service checks `registered_by_organization_id` against the caller's clinic, the query names it, row-level security limits the scope; tested at the service and against Postgres |
+| Staff revoke a consent the patient gave in the app | 00067's policy matches `given_in_person` only; tested against Postgres |
+| A clinic reinstates a withdrawn consent | The policy's `WITH CHECK` allows only the revoked state; a reinstated consent is a new in-person record |
+| A receptionist exports the record | The download is the admin's only (403 to everyone else, audited) |
+| The handed-over file is incomplete | It holds what the clinic's admin may read today (profile and consents); visits and clinical documents are not in it yet (`docs/clinic-cms/PROGRESS.md`, R2 deferred) |
+
+### Package R3: SMS reminders for patients without an account (docs/clinic-cms, migration 00068)
+
+- **What is processed.** A patient the clinic registered (F2, no account) is now reminded of a visit by SMS, to the
+  profile's phone, while the clinic's SMS option is on (decision V3). No new personal-data field: the phone is F2's,
+  given at the desk for the clinic to reach the patient. Basis as an app patient's reminder (Art. 6(1)(b), the care the
+  patient booked); the clinic's interest in billing the option (Art. 6(1)(f)) for the usage, which is not personal data.
+- **Where it lives.** `notification_delivery` gains `patient_id` (exactly one of account and patient; a patient's
+  delivery is an SMS only): ids only, no number or text, deleted 90 days after it was sent (or created) and with the
+  profile (`ON DELETE CASCADE`), as an account's are with the account.
+- **Reads.** The phone is read only for the send, through `patient.NoticePhone`, in the clinic's scope, audited with
+  the send's job (`reminder_sms`) as agent. Nothing of the patient is read at the dispatch.
+- **What the SMS says.** The clinic's name (and address for an in-person visit), the date and time in the clinic's
+  zone, in the clinic's default language. No one-time link: a link acts as the patient's account, which they do not
+  have. No practitioner, service or clinical content.
+- **When.** Not between 22:00 and 08:00 in the clinic's zone (the app patient's default quiet hours); a reminder whose
+  quiet hours end less than 30 minutes before the visit is dropped. Cancelled with the visit; cancelled at the send when
+  the clinic turned SMS off or the profile has no phone. The desk's day says whether a reminder reaches each patient.
+- **Processor.** `pkg/sms` is the fake until a provider with a DPA is chosen (`docs/privacy/processors.md`); the
+  clinic's SMS option cannot be turned on while it is.
+
+| Risk | Measure |
+| --- | --- |
+| An SMS to a patient whose clinic does not offer SMS, or without a phone | Checked at the dispatch and again at the send; tested against Postgres |
+| An SMS sent twice | One delivery per reminder and channel (`notification_delivery_once`); leaves pending once; tested with every job run twice |
+| The phone stored outside the profile | Read at the send only; no column holds it; nothing in a log, error or job argument |
+
+### Package M2: the clinic data export (migration 00070, docs/clinic-cms/WAVE4.md)
+
+**Processing added.** The clinic's admin asks for an export of the clinic's data (`POST /clinic/export`); the
+`clinic_export_build` job reads the price list, the staff (practitioner roles with the practitioners' names), the
+appointments (with the patient's id and name) and the receipts, writes them as CSV files into one zip, encrypts it
+as attachments are (`pkg/envelope`: a data key of its own, wrapped by the key-encryption key and bound to the export's
+id) and stores it in the object store under `clinicexport/<id>`. `clinic_export` keeps who asked, when, the status, the
+archive's size and its wrapped key: no patient field. The admin downloads the archive until 7 days after asking.
+
+- **Lawful basis**: the clinic, as controller, takes its own records with it (Art. 6(1)(c) and (f), Art. 9(2)(h)); the
+  export moves the data between the clinic's own systems and is not a new purpose.
+- **Minimisation**: the archive holds what the clinic's screens already show its admin; the appointments carry the
+  patient's id and name only (no birth date, contact, note or clinical content). The patients' FHIR records are not in
+  it yet (`docs/clinic-cms/PROGRESS.md`, M2 "Deferred").
+- **Access and audit**: only the clinic's admin asks, reads the status and downloads (refusals audited). Asking and every
+  download are `AuditEvent`s (entity `clinic_export`); every read the job makes goes through the owning service as the
+  admin who asked, which audits it (each appointment, the receipts' list, each practitioner); the job's own status
+  writes are audited with the agent `clinic_export_build`. The job's arguments are the export's and the clinic's ids.
+- **Retention**: the `clinic_export` rule deletes the archive and then the row 7 days after the request, as
+  `salus_retention`.
+- **Encryption**: the archive is never stored in plaintext; the store sees the key `clinicexport/<id>` and ciphertext only.
+
+| Risk | Measure |
+| --- | --- |
+| Another clinic's admin downloads the archive | Row-level security on `clinic_export` (`clinic_export_clinic`), the service's admin check and the archive bound to its id; tested |
+| A leaked download link | The route needs the admin's session; 7 days at most; every download audited |
+| A spreadsheet runs a formula from a patient's name | Every cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is prefixed with an apostrophe (tested) |
+| Exports pile up | One queued export per clinic (partial unique index); each deleted after 7 days |
+
+### Package M3: patient import (`docs/clinic-cms/WAVE4.md`)
+
+**Processing added.** The clinic's admin uploads a CSV or XLSX file of the clinic's patients (given and family name,
+birth date, an optional phone: the fields of F2's registration, nothing more; other columns are ignored) when the clinic
+moves from other software. The file is read in memory and never stored. A preview shows every row's errors and the
+likely duplicates: rows whose name and birth date are those of a patient already at the clinic (registered by it or
+with its active care consent) or of an earlier row. Saving registers all rows as profiles of the clinic without a
+consent, or none (V5: the desk records the in-person consent at the first booking, as for a walk-in, so an imported
+patient's visits cannot be booked before that). Appointments are not imported.
+
+**Audit.** A refused import is audited. The clinic's patients a preview finds as likely duplicates are each audited as a
+search; each saved profile as a create (`Patient/<id>`); and the import once, with the count of profiles
+(`entity.name` `patient`, `entity.detail` rows), never a row's content. No log line, error or job carries a row.
+
+**Retention.** The profiles are `patient` rows registered by the clinic and follow the rules of F2's registered
+profiles; nothing new is kept.
+
+| Risk | Measure |
+| --- | --- |
+| A file of another clinic's patients reveals whether they are patients here | The duplicate check reads only the caller's clinic's scope (row-level security and the query's clinic); tested against Postgres |
+| A receptionist or practitioner bulk-registers patients | The admin only, refusals audited |
+| A huge or crafted file exhausts the server | 2 MiB upload, 5 000 rows, an XLSX sheet at most a million cells |
+
+### Wave 4 integration: consent for an existing profile, the record's visits and receipts, the export's patients (docs/clinic-cms/PROGRESS.md)
+
+**Processing added.** No new personal-data field and no new table.
+
+- **An in-person consent for a profile the clinic registered** (`POST /clinic/patients/{id}/consent`): the desk records
+  the care consent a patient without an account gives in person when they have none active with the clinic, after an
+  import (V5) or a withdrawal. The same legal line and the same record as a walk-in's (given in person, the staff
+  account as who recorded it); admin and receptionist; another clinic's profile, or a patient's own, is not found; the
+  profile's read and the consent's creation are audited with the staff account, refusals too. The desk's patient search,
+  a registration, a correction and the desk's day say whether a care consent with the clinic is active
+  (`consentActive`, read from the consent domain, never stored on the profile), so the desk asks for it before a booking.
+- **The handed-over record and the export's patients** now hold, besides the profile and the clinic's consents, the
+  patient's appointments at the clinic (FHIR Appointment) and the receipts the clinic issued to them (FHIR Invoice: number,
+  status, date, total; no lines or fiscal data). One builder (`clinicexport.Service.PatientRecord`) for the hand-over's
+  download and the export's `patients/<id>.json`, one file per patient the clinic registered. Every read goes through the
+  owning service as the clinic's admin and is audited there: the profile with the patient's request (`PATRQT`) for a
+  hand-over and healthcare operations (`HOPERAT`) for the export, the list of registered patients as one search, each
+  appointment and the receipts as searches. Clinical documents, questionnaire answers and the history are not in either
+  until the owner and the lawyer decide who may hand them over; the export's `manifest.txt` says so.
+- **The export's `quotes.csv`**: id, dates, state, patient and visit ids, total. No note (free text a practitioner wrote)
+  and no lines.
+- **The desk row's reminder reason** (`reminderOff`: `sms_off` or `no_phone`): derived from the clinic's SMS option and
+  whether the profile has a phone; nothing new is read.
+
+| Risk | Measure |
+| --- | --- |
+| A clinic records a consent for another clinic's patient, or for an app patient | The service's registered check (the profile's `registered_by_organization_id`), the clinic's scope, and the database guard on an in-person consent; tested at the service and end to end |
+| A booking happens without the patient's consent | The booking still refuses without an active consent (`consent_required`); the screen asks for the consent first |
+| The handed-over file or the export shows another clinic's visits or receipts | The builder keeps only the clinic's own (checked against the clinic, not on row-level security alone); tested |
+| The export's file reveals more than the clinic may hand over | Clinical content is left out and the manifest says so; the lawyer's questions are in PROGRESS.md "Before production" |

@@ -56,5 +56,64 @@
   "register.invalidPhone": "Unesite broj telefona s pozivnim brojem države, npr. +387 61 123 456.",
   "register.invalidBirthDate": "Unesite datum rođenja u prošlosti.",
   "register.invalidName": "Unesite ime i prezime.",
-  "register.failed": "Pacijent se nije mogao upisati. Pokušajte ponovno."
+  "register.failed": "Pacijent se nije mogao upisati. Pokušajte ponovno.",
+  "patient.title": "Karton pacijenta",
+  "patient.profile": "Podaci",
+  "patient.save": "Spremi",
+  "patient.saving": "Spremanje",
+  "patient.saved": "Podaci su spremljeni.",
+  "patient.saveFailed": "Podaci se nisu mogli spremiti. Pokušajte ponovno.",
+  "patient.conflict": "Netko je u međuvremenu promijenio ove podatke. Zatvorite karton i otvorite ga ponovno.",
+  "patient.consentTitle": "Privola za liječenje",
+  "patient.withdraw": {
+    "defaultMessage": "Upiši povlačenje privole",
+    "description": "legal"
+  },
+  "patient.withdrawEffect": {
+    "defaultMessage": "Pacijent je povukao privolu za liječenje koju je klinici osobno dao. Predstojeći posjeti se otkazuju, upisi na listu čekanja povlače, a liječnici klinike više ne vide njegove podatke. Klinika zadržava karton koji već ima, kako zakon nalaže.",
+    "description": "legal"
+  },
+  "patient.confirmWithdraw": {
+    "defaultMessage": "Potvrdi povlačenje",
+    "description": "legal"
+  },
+  "patient.keep": "Zadrži privolu",
+  "patient.withdrawn": {
+    "defaultMessage": "Povlačenje je upisano.",
+    "description": "legal"
+  },
+  "patient.noConsent": "Nema aktivne privole dane osobno koja bi se povukla.",
+  "patient.withdrawFailed": "Povlačenje se nije moglo upisati. Pokušajte ponovno.",
+  "patient.recordTitle": "Karton pacijenta za predaju",
+  "patient.recordHint": {
+    "defaultMessage": "Podaci, privole, termini i računi u klinici kao FHIR datoteka, za predaju pacijentu kad zatraži svoje podatke. Klinička dokumentacija nije u njoj.",
+    "description": "legal"
+  },
+  "patient.download": "Preuzmi karton",
+  "patient.close": "Zatvori",
+  "move.open": "Premjesti",
+  "move.title": "Premjesti termin",
+  "move.submit": "Premjesti termin",
+  "move.moving": "Premještanje",
+  "move.time": "Novi termin",
+  "move.noSlots": "Ovaj liječnik nema slobodnih termina ove vrste u sljedeća dva tjedna.",
+  "move.changed": "Termin je u međuvremenu promijenjen. Zatvorite ovo i ponovno učitajte stranicu.",
+  "move.joinOpen": "Video termin ne može se premjestiti kada se poziv već može otvoriti.",
+  "move.failed": "Termin se nije mogao premjestiti. Pokušajte ponovno.",
+  "move.moved": "Termin je premješten.",
+  "consent.needed": {
+    "defaultMessage": "Ovaj pacijent nema aktivnu privolu za liječenje. Prije rezervacije upišite privolu koju daje osobno.",
+    "description": "legal"
+  },
+  "consent.record": "Upiši privolu",
+  "consent.recording": "Upisivanje",
+  "consent.recorded": {
+    "defaultMessage": "Privola je upisana.",
+    "description": "legal"
+  },
+  "consent.active": "Pacijent već ima aktivnu privolu za liječenje.",
+  "consent.failed": "Privola se nije mogla upisati. Pokušajte ponovno.",
+  "reminder.on": "Podsjetnik će biti poslan",
+  "reminder.noPhone": "Bez podsjetnika: nema broja telefona",
+  "reminder.smsOff": "Bez podsjetnika: SMS je isključen za kliniku"
 }

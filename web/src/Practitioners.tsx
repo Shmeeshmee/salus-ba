@@ -258,5 +258,6 @@ function inviteMessage(t: T, code?: string): string {
   if (code === 'invalid_email') return t('admin.invalidEmail')
   if (code === 'invalid_name') return t('admin.invalidName')
   if (code === 'forbidden') return t('admin.inviteForbidden')
+  if (code === 'invite_limit') return t('admin.inviteLimit')
   return t('common.somethingWrong')
 }

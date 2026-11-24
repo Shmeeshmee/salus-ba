@@ -46,3 +46,28 @@ WHERE (p.registered_by_organization_id = @organization_id
                     AND a.practitioner_role_id = sqlc.narg('practitioner_role_id')::uuid))
 ORDER BY p.family_name, p.given_name, p.id
 LIMIT @max_rows;
+
+-- The clinic corrects a profile it registered (docs/clinic-cms R2): only the current version, only its own.
+-- name: CorrectRegisteredPatient :one
+UPDATE patient
+SET given_name = @given_name, family_name = @family_name, birth_date = @birth_date, phone = sqlc.narg('phone'),
+    version_id = version_id + 1, updated_at = @updated_at
+WHERE id = @id AND registered_by_organization_id = @organization_id AND version_id = @version_id
+RETURNING id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id;
+
+-- The clinic's patients (those it registered and those with its active care consent) whose lower-case given name,
+-- family name and birth date, joined by the unit separator (chr 31), are one of the keys (the people of an import,
+-- docs/clinic-cms M3). Row-level security limits the rows to the scope too.
+-- name: MatchingClinicPatients :many
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+FROM patient p
+WHERE (p.registered_by_organization_id = @organization_id
+       OR EXISTS (SELECT 1 FROM consent c
+                  WHERE c.patient_id = p.id AND c.organization_id = @organization_id AND c.status = 'active'))
+  AND lower(p.given_name) || chr(31) || lower(p.family_name) || chr(31) || to_char(p.birth_date, 'YYYY-MM-DD') = ANY(@keys::text[])
+ORDER BY p.id;
+
+-- The ids of the patients the clinic registered (its data export, docs/clinic-cms M2 joined in wave 4). Row-level
+-- security limits the rows to the scope too.
+-- name: RegisteredByClinic :many
+SELECT id FROM patient WHERE registered_by_organization_id = @organization_id ORDER BY id;

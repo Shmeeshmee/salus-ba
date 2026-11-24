@@ -36,6 +36,11 @@ func (s *stubStaff) CancelForPatient(_ context.Context, _ appointment.Caller, id
 	return s.out, s.err
 }
 
+func (s *stubStaff) MoveForPatient(_ context.Context, _ appointment.Caller, id, slotID string, version int32) (appointment.Appointment, error) {
+	s.version, s.calls = version, append(s.calls, "Move "+id+" "+slotID)
+	return s.out, s.err
+}
+
 func (s *stubStaff) Arrive(_ context.Context, _ appointment.Caller, id string) (appointment.Appointment, error) {
 	s.calls = append(s.calls, "Arrive "+id)
 	return s.out, s.err
@@ -84,16 +89,32 @@ func TestStaffHandler_BooksCancelsAndMarksArrival(t *testing.T) {
 	}
 }
 
+// The desk's move (docs/clinic-cms WAVE4, M1): the slot from the body, the version from If-Match.
+func TestStaffHandler_MovesAVisit(t *testing.T) {
+	t.Parallel()
+	out := booked(newID, patientA, roleA2, clinicA, start)
+	out.VersionID = 3
+	svc := &stubStaff{out: out}
+	rec := serveStaff(t, svc, http.MethodPost, "/clinic/appointments/"+newID+"/reschedule", `{"slotId":"`+slotFree+`"}`, map[string]string{"If-Match": `W/"2"`})
+	if rec.Code != http.StatusOK || rec.Header().Get("ETag") != `W/"3"` || rec.Header().Get("Cache-Control") != "no-store" ||
+		svc.version != 2 || len(svc.calls) != 1 || svc.calls[0] != "Move "+newID+" "+slotFree {
+		t.Errorf("move = %d %s (ETag %s), asked %v at version %d", rec.Code, rec.Body, rec.Header().Get("ETag"), svc.calls, svc.version)
+	}
+	if !strings.Contains(rec.Body.String(), `"id":"`+newID+`"`) {
+		t.Errorf("move = %s, want the appointment", rec.Body)
+	}
+}
+
 func TestStaffHandler_GivesTheDesksDay(t *testing.T) {
 	t.Parallel()
 	a := booked(newID, patientC, roleA1, clinicA, start)
 	p := patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example", BirthDate: time.Date(1980, 3, 4, 0, 0, 0, 0, time.UTC), VersionID: 1, LastUpdated: now}
 	svc := &stubStaff{visits: []appointment.DeskVisit{{Appointment: a, Patient: p, ServiceName: "Synthetic exam",
-		Receipts: []appointment.VisitReceipt{{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}}}}}
+		Receipts: []appointment.VisitReceipt{{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}}, Reminder: true}}}
 	rec := serveStaff(t, svc, http.MethodGet, "/clinic/desk/today?date=2030-01-07", "", nil)
-	want := `"patient":{"lastUpdated":"2030-01-01T08:00:00Z","id":"` + patientC + `","givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","registeredByClinic":true,"versionId":1}`
+	want := `"patient":{"lastUpdated":"2030-01-01T08:00:00Z","id":"` + patientC + `","givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","registeredByClinic":true,"consentActive":false,"versionId":1}`
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) || !strings.HasPrefix(rec.Body.String(), `{"date":"2030-01-07","visits":[`) ||
-		!strings.Contains(rec.Body.String(), `"serviceName":"Synthetic exam"`) ||
+		!strings.Contains(rec.Body.String(), `"serviceName":"Synthetic exam"`) || !strings.Contains(rec.Body.String(), `"reminder":true`) ||
 		!strings.Contains(rec.Body.String(), `"receipts":[{"id":"e1000000-0000-4000-8000-0000000000e1","number":7,"reversed":true}]`) ||
 		rec.Header().Get("Cache-Control") != "no-store" || !svc.day.Equal(time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC)) {
 		t.Errorf("desk = %d %s (day %v)", rec.Code, rec.Body, svc.day)
@@ -107,6 +128,7 @@ func TestStaffHandler_GivesTheDesksDay(t *testing.T) {
 func TestStaffHandler_AnswersEachRefusalWithItsCode(t *testing.T) {
 	t.Parallel()
 	cancel := "/clinic/appointments/" + newID + "/cancel"
+	move := "/clinic/appointments/" + newID + "/reschedule"
 	match := map[string]string{"If-Match": `W/"1"`}
 	for name, tc := range map[string]struct {
 		err    error
@@ -117,16 +139,22 @@ func TestStaffHandler_AnswersEachRefusalWithItsCode(t *testing.T) {
 		code   string
 		status int
 	}{
-		"no slot":          {err: nil, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"` + patientA + `"}`, header: nil, status: 400, code: "invalid_request"},
-		"an unknown field": {err: nil, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"x","slotId":"y","z":1}`, header: nil, status: 400, code: "invalid_request"},
-		"no consent":       {err: appointment.ErrConsentRequired, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"x","slotId":"y"}`, header: nil, status: 403, code: "consent_required"},
-		"taken":            {err: appointment.ErrSlotUnavailable, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"x","slotId":"y"}`, header: nil, status: 409, code: "slot_unavailable"},
-		"no If-Match":      {err: nil, method: http.MethodPost, target: cancel, body: "", header: nil, status: 400, code: "if_match_required"},
-		"a stale version":  {err: appointment.ErrVersionConflict, method: http.MethodPost, target: cancel, body: "", header: match, status: 409, code: "version_conflict"},
-		"a video visit":    {err: appointment.ErrNotInPerson, method: http.MethodPost, target: "/clinic/appointments/" + newID + "/arrive", body: "", header: nil, status: 409, code: "not_in_person"},
-		"a bad date":       {err: nil, method: http.MethodGet, target: "/clinic/desk/today?date=7.1.2030", body: "", header: nil, status: 400, code: "invalid_request"},
-		"not the desk":     {err: appointment.ErrForbidden, method: http.MethodGet, target: "/clinic/desk/today", body: "", header: nil, status: 403, code: "forbidden"},
-		"an internal one":  {err: errors.New("boom"), method: http.MethodGet, target: "/clinic/desk/today", body: "", header: nil, status: 500, code: ""},
+		"no slot":                   {err: nil, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"` + patientA + `"}`, header: nil, status: 400, code: "invalid_request"},
+		"an unknown field":          {err: nil, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"x","slotId":"y","z":1}`, header: nil, status: 400, code: "invalid_request"},
+		"no consent":                {err: appointment.ErrConsentRequired, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"x","slotId":"y"}`, header: nil, status: 403, code: "consent_required"},
+		"taken":                     {err: appointment.ErrSlotUnavailable, method: http.MethodPost, target: "/clinic/appointments", body: `{"patientId":"x","slotId":"y"}`, header: nil, status: 409, code: "slot_unavailable"},
+		"no If-Match":               {err: nil, method: http.MethodPost, target: cancel, body: "", header: nil, status: 400, code: "if_match_required"},
+		"a stale version":           {err: appointment.ErrVersionConflict, method: http.MethodPost, target: cancel, body: "", header: match, status: 409, code: "version_conflict"},
+		"a video visit":             {err: appointment.ErrNotInPerson, method: http.MethodPost, target: "/clinic/appointments/" + newID + "/arrive", body: "", header: nil, status: 409, code: "not_in_person"},
+		"a move without a slot":     {err: nil, method: http.MethodPost, target: move, body: `{}`, header: match, status: 400, code: "invalid_request"},
+		"a move without If-Match":   {err: nil, method: http.MethodPost, target: move, body: `{"slotId":"y"}`, header: nil, status: 400, code: "if_match_required"},
+		"a move of a closed visit":  {err: appointment.ErrClosed, method: http.MethodPost, target: move, body: `{"slotId":"y"}`, header: match, status: 409, code: "appointment_closed"},
+		"a move to the other type":  {err: appointment.ErrNotReschedulable, method: http.MethodPost, target: move, body: `{"slotId":"y"}`, header: match, status: 409, code: "not_reschedulable"},
+		"a move of a stale version": {err: appointment.ErrVersionConflict, method: http.MethodPost, target: move, body: `{"slotId":"y"}`, header: match, status: 409, code: "version_conflict"},
+		"a move without consent":    {err: appointment.ErrConsentRequired, method: http.MethodPost, target: move, body: `{"slotId":"y"}`, header: match, status: 403, code: "consent_required"},
+		"a bad date":                {err: nil, method: http.MethodGet, target: "/clinic/desk/today?date=7.1.2030", body: "", header: nil, status: 400, code: "invalid_request"},
+		"not the desk":              {err: appointment.ErrForbidden, method: http.MethodGet, target: "/clinic/desk/today", body: "", header: nil, status: 403, code: "forbidden"},
+		"an internal one":           {err: errors.New("boom"), method: http.MethodGet, target: "/clinic/desk/today", body: "", header: nil, status: 500, code: ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

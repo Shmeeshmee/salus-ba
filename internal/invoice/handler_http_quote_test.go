@@ -37,6 +37,11 @@ func (s *stub) QuotePDF(_ context.Context, c invoice.Caller, id string) ([]byte,
 	return []byte("%PDF-synthetic"), s.err
 }
 
+func (s *stub) ClinicQuotePDF(_ context.Context, c invoice.Caller, id string) ([]byte, error) {
+	s.caller, s.id = c, "clinic:"+id
+	return []byte("%PDF-synthetic"), s.err
+}
+
 func sentQuote() invoice.Quote {
 	return invoice.Quote{
 		IssuedAt: at, ValidUntil: at.Add(30 * 24 * time.Hour), ID: "q-1", OrganizationID: org, PatientID: patientA, AppointmentID: visit,
@@ -103,6 +108,9 @@ func TestHandler_QuoteReads(t *testing.T) {
 		{&adminC, "/clinic/quotes/q-1", http.StatusOK},
 		{&patientC, "/me/quotes", http.StatusOK},
 		{&patientC, "/me/quotes/q-1/pdf", http.StatusOK},
+		{&adminC, "/clinic/quotes/q-1/pdf", http.StatusOK},
+		{nil, "/clinic/quotes/q-1/pdf", http.StatusUnauthorized},
+		{&patientC, "/clinic/quotes/q-1/pdf", http.StatusNotFound},
 		{nil, "/clinic/quotes", http.StatusUnauthorized},
 		{nil, "/me/quotes", http.StatusUnauthorized},
 		{&patientC, "/clinic/quotes", http.StatusNotFound},
@@ -122,11 +130,16 @@ func TestHandler_QuoteReads(t *testing.T) {
 	if rec.Header().Get("Content-Type") != "application/pdf" || s.id != "q-1" || !strings.Contains(rec.Header().Get("Content-Disposition"), "quote.pdf") {
 		t.Errorf("PDF: %v, id %q", rec.Header(), s.id)
 	}
+	rec = serve(t, s, &adminC, http.MethodGet, "/clinic/quotes/q-1/pdf", "")
+	if rec.Header().Get("Content-Type") != "application/pdf" || s.id != "clinic:q-1" || !strings.Contains(rec.Header().Get("Content-Disposition"), "quote.pdf") {
+		t.Errorf("clinic PDF: %v, id %q", rec.Header(), s.id)
+	}
 	if serve(t, s, &adminC, http.MethodGet, "/clinic/quotes?appointmentId="+visit, ""); s.id != visit {
 		t.Errorf("the visit asked = %q, want %q", s.id, visit)
 	}
-	rec = serve(t, &stub{err: invoice.ErrNotFound}, &adminC, http.MethodGet, "/clinic/quotes/q-x", "")
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("an unknown quote = %d, want 404", rec.Code)
+	for _, target := range []string{"/clinic/quotes/q-x", "/clinic/quotes/q-x/pdf"} {
+		if rec = serve(t, &stub{err: invoice.ErrNotFound}, &adminC, http.MethodGet, target, ""); rec.Code != http.StatusNotFound {
+			t.Errorf("%s: an unknown quote = %d, want 404", target, rec.Code)
+		}
 	}
 }

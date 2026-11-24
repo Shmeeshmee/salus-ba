@@ -118,7 +118,7 @@ func TestRegister_RefusesAPractitionerAPatientAndABadField(t *testing.T) {
 	t.Parallel()
 	valid := patient.Patient{GivenName: "Cy", FamilyName: "Example", BirthDate: date(1980, 3, 4)}
 	bad := valid
-	bad.Phone = "061 000"
+	bad.Phone = "061 ABC" // still no phone once read as +387 (a local 061 … is now accepted, wave 4)
 	for name, tc := range map[string]struct {
 		want   error
 		in     patient.Patient

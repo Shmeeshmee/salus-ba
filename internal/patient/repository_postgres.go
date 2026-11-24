@@ -100,6 +100,18 @@ func (r *postgresRepository) Register(ctx context.Context, p Patient, org string
 	return toPatient(patientdb.PatientByIDRow(row), err, errors.New("patient: register returned no row"))
 }
 
+func (r *postgresRepository) Correct(ctx context.Context, p Patient, org string, at time.Time) (Patient, error) {
+	var id, o pgtype.UUID
+	if id.Scan(p.ID) != nil || o.Scan(org) != nil {
+		return Patient{}, ErrConflict
+	}
+	row, err := patientdb.New(postgres.Conn(ctx, r.db)).CorrectRegisteredPatient(ctx, patientdb.CorrectRegisteredPatientParams{
+		ID: id, OrganizationID: o, VersionID: p.VersionID, GivenName: p.GivenName, FamilyName: p.FamilyName,
+		BirthDate: pgDate(p.BirthDate), Phone: pgText(p.Phone), UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	return toPatient(patientdb.PatientByIDRow(row), err, ErrConflict)
+}
+
 func (r *postgresRepository) SearchClinic(ctx context.Context, org, roleID string, q ClinicSearch, limit int32) ([]Patient, error) {
 	var o, role pgtype.UUID
 	if err := o.Scan(org); err != nil {
@@ -122,6 +134,46 @@ func (r *postgresRepository) SearchClinic(ctx context.Context, org, roleID strin
 			return nil, err
 		}
 		out = append(out, p)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) Matching(ctx context.Context, org string, in []Patient) ([]Patient, error) {
+	var o pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return nil, errors.New("patient: the clinic id is not a UUID")
+	}
+	keys := make([]string, len(in))
+	for i, p := range in {
+		keys[i] = strings.ToLower(p.GivenName) + "\x1f" + strings.ToLower(p.FamilyName) + "\x1f" + p.BirthDate.Format(dateLayout)
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).MatchingClinicPatients(ctx, patientdb.MatchingClinicPatientsParams{OrganizationID: o, Keys: keys})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Patient, 0, len(rows))
+	for _, row := range rows {
+		p, err := toPatient(patientdb.PatientByIDRow(row), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) RegisteredBy(ctx context.Context, org string) ([]string, error) {
+	var o pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return nil, errors.New("patient: the clinic id is not a UUID")
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).RegisteredByClinic(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, id := range rows {
+		out = append(out, id.String())
 	}
 	return out, nil
 }

@@ -25,6 +25,7 @@
   "sending": "Sending",
   "invalidEmail": "Enter a valid e-mail address.",
   "invalidName": "Enter the given and family name.",
+  "inviteLimit": "The clinic has 50 open invites. Wait until some are accepted or expire before sending another.",
   "inviteForbidden": "Only a clinic admin can send invites.",
   "clinicSettings": "Clinic settings",
   "clinicLoadFailed": "The clinic could not be loaded. Reload the page to try again.",
@@ -59,5 +60,16 @@
   "invalidLocation": "Choose a city of the region.",
   "addressLine": "Street and number",
   "postalCode": "Postal code",
-  "addressHint": "Patients with an appointment at the clinic get this address in their e-mails and reminders."
+  "addressHint": "Patients with an appointment at the clinic get this address in their e-mails and reminders.",
+  "exportTitle": "Clinic data export",
+  "exportHint": "One archive with the price list, the staff, the appointments, the receipts and the quotes as CSV files, and the record of each patient the clinic registered as a FHIR file. Clinical documents are not in it. It can be downloaded for 7 days after you ask for it, then it is deleted.",
+  "exportAsk": "Export the clinic’s data",
+  "exportAsking": "Starting the export",
+  "exportBuilding": "The archive is being built. This can take a few minutes.",
+  "exportBuildFailed": "The archive could not be built. Ask for a new export.",
+  "exportExpired": "This export has expired. Ask for a new one.",
+  "exportDownload": "Download the archive",
+  "exportUntil": "Available until {at}.",
+  "exportForbidden": "Only a clinic admin can export the clinic’s data.",
+  "exportFailed": "The export could not be started. Try again."
 }

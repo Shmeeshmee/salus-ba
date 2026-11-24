@@ -72,8 +72,8 @@ type ListedSchedulesRow struct {
 	Availability       []byte
 }
 
-// The hourly slot generation, in the directory scope: row-level security shows the schedules of active roles
-// of listed clinics.
+// Every schedule the scope shows: a clinic's own in its scope (the hourly slot generation, the online practice
+// report).
 func (q *Queries) ListedSchedules(ctx context.Context) ([]ListedSchedulesRow, error) {
 	rows, err := q.db.Query(ctx, listedSchedules)
 	if err != nil {

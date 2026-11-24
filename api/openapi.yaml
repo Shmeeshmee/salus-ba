@@ -369,6 +369,11 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`invite_limit`: the clinic has 50 open invites (V6 of docs/clinic-cms/WAVE4.md, package M4); replacing an open invite for the same e-mail is still allowed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
     get:
@@ -6286,6 +6291,236 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/patients/import:
+    post:
+      operationId: importClinicPatients
+      x-salus-package: cms-m3
+      summary: Import the clinic's patients from a file
+      description: >-
+        A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of patients (given name, family name, birth date,
+        an optional phone; headers in English, Bosnian, Croatian or Serbian), at most 5 000 rows. With `save` false (the
+        default) nothing is stored: every row comes back with its errors and whether it is a likely duplicate (a patient
+        of the same name and birth date is the clinic's already, or on an earlier row). With `save` true all rows are
+        registered as the clinic's profiles without a consent (the desk records it at the first booking) or, when any
+        row has an error, none (`saved` false). A likely duplicate is saved all the same. By the clinic's admin. Built in
+        package M3. The clinic's patients a preview finds are audited as a search, each saved profile as a create, and
+        the import with its count.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: save, in: query, required: false, schema: {type: boolean, default: false}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        "200":
+          description: The rows read, and whether they were saved.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PatientImport"}
+        "400":
+          description: >-
+            `invalid_request`, or `invalid_import`: not a CSV or XLSX file, no header naming the given name, family name
+            and birth date columns, no row under it, or more than 5 000 rows.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "413":
+          description: "`too_large`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}:
+    put:
+      operationId: correctClinicPatient
+      x-salus-package: cms-r2
+      summary: Correct a profile the clinic registered
+      description: >-
+        The names, birth date and phone of a patient without an account whom the caller's clinic registered (V2 of
+        docs/clinic-cms WAVE4.md: the patient's rectification, through the clinic). For the clinic's admin and its
+        receptionists. Versioned (`If-Match`). Built in package R2. Audited, also when refused. Another clinic's
+        profile, or a patient's own, is not found.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CorrectPatientRequest"}
+      responses:
+        "200":
+          description: The profile corrected, at its next version.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicPatient"}
+        "400":
+          description: "`if_match_required`, `invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`version_conflict`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/consent:
+    post:
+      operationId: recordClinicPatientConsent
+      x-salus-package: cms-w4
+      summary: Record the care consent a registered patient gave in person
+      description: >-
+        The care consent the patient gave the clinic in person, recorded with the caller as who recorded it, for a
+        patient the clinic registered who has no active care consent with it: one imported (V5 of docs/clinic-cms
+        WAVE4.md) or one who withdrew theirs. The desk asks for it before such a patient's booking. For the clinic's
+        admin and its receptionists. Built in the wave 4 integration. Audited, also when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The consent recorded.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_active`: the patient has an active care consent with the clinic already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/consent-withdrawal:
+    post:
+      operationId: withdrawClinicPatientConsent
+      x-salus-package: cms-r2
+      summary: Record that a registered patient withdrew their consent
+      description: >-
+        The care consent the patient gave the clinic in person is revoked, with the caller as who recorded it, and the
+        rest follows as for a patient's own revocation in the app: from the commit the clinic's practitioners lose
+        access, and a job cancels the visits ahead (with their notices) and withdraws the waitlist entries. For the
+        clinic's admin and its receptionists, on a patient the clinic registered. Built in package R2. Audited, also
+        when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The withdrawal recorded.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_inactive`: no active consent the patient gave the clinic in person."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/record:
+    get:
+      operationId: getClinicPatientRecord
+      x-salus-package: cms-r2
+      summary: Download a registered patient's record to hand over
+      description: >-
+        A FHIR R4 Bundle of type collection with the Patient and the Consents the patient gave the clinic, saved as a
+        file the admin hands to the patient (their access and portability, through the clinic). For the clinic's admin,
+        on a patient the clinic registered. Built in package R2. Audited with the patient's request as the purpose,
+        also when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The record.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            Content-Disposition: {schema: {type: string}, description: 'attachment; filename="patient-<id>.json"'}
+          content:
+            application/fhir+json:
+              schema: {type: object, description: A FHIR R4 Bundle of type collection.}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/appointments:
     post:
       operationId: bookForPatient
@@ -6346,8 +6581,11 @@ paths:
       x-salus-package: cms-f2
       summary: Move a patient's visit to another slot
       description: >-
-        To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in
-        package F2. Audited, also when refused.
+        By the clinic's admin or receptionist: a booked visit to any free slot of the clinic of the same visit mode,
+        another practitioner's too (docs/clinic-cms WAVE4 V4). Not counted toward the patient's own reschedules and
+        not a confirmation; recorded as staff's with the account; the reminders follow and the patient with an account
+        is e-mailed the new time. A video visit stops moving when its join window opens. Built in package M1.
+        Audited, also when refused.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -6377,17 +6615,17 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
-          description: "`forbidden`."
+          description: "`forbidden`, or `consent_required`."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such appointment or slot the caller may see."
+          description: "`not_found`: no such appointment the caller may see."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "409":
-          description: "`slot_unavailable`, `appointment_closed` or `version_conflict`."
+          description: "`slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened) or `version_conflict`."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -6694,8 +6932,13 @@ paths:
       x-salus-package: cms-o2
       summary: Ask for the clinic's data export
       description: >-
-        The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one
-        archive built by a job. By the clinic's admin. Built in package O2. Audited.
+        One zip archive built by a job (package M2, joined in the wave 4 integration): the price list, staff,
+        appointments, receipts and quotes as CSV, and the record of each patient the clinic registered as a FHIR
+        Bundle (`patients/<id>.json`: the profile, the clinic's consents, the patient's appointments and receipts at the
+        clinic), with a `manifest.txt` that says what the archive holds and what it leaves out (clinical documents,
+        questionnaire answers and history). Encrypted at rest, downloadable for 7 days after the request, then deleted.
+        One export at a time per clinic: asking again while one is queued returns that one. By the clinic's admin.
+        Audited, every read made for it too.
       tags: [directory]
       security:
         - sessionCookie: []
@@ -6719,7 +6962,7 @@ paths:
       operationId: getClinicExport
       x-salus-package: cms-o2
       summary: Where an export stands
-      description: By the clinic's admin. Built in package O2.
+      description: By the clinic's admin (package M2). Not audited; it holds no personal data.
       tags: [directory]
       security:
         - sessionCookie: []
@@ -6750,7 +6993,7 @@ paths:
       operationId: downloadClinicExport
       x-salus-package: cms-o2
       summary: Download a ready export
-      description: By the clinic's admin, until it expires. Built in package O2. Audited.
+      description: By the clinic's admin, until it expires (package M2). Audited.
       tags: [directory]
       security:
         - sessionCookie: []
@@ -6868,6 +7111,37 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Quote"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such quote the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/quotes/{id}/pdf:
+    get:
+      operationId: getClinicQuotePdf
+      x-salus-package: cms-m4
+      summary: A quote of the clinic as a PDF
+      description: >-
+        The PDF the patient gets (it says it is a quote, not a receipt), to the clinic's admin and the practitioner who
+        sent the quote; never to a receptionist. Built in package M4. Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "404":
@@ -7758,7 +8032,7 @@ components:
         billingEmail: {type: string, format: email}
     ClinicPatient:
       type: object
-      required: [id, givenName, familyName, birthDate, registeredByClinic, versionId, lastUpdated]
+      required: [id, givenName, familyName, birthDate, registeredByClinic, consentActive, versionId, lastUpdated]
       description: >-
         A patient as the clinic's staff find them (package F2 of docs/clinic-cms): what the desk needs (W2), nothing
         clinical. Health data: it shows the person is the clinic's patient.
@@ -7769,6 +8043,11 @@ components:
         birthDate: {type: string, format: date}
         phone: {type: string, description: E.164; absent when none was given.}
         registeredByClinic: {type: boolean, description: The clinic registered the profile; the patient has no Salus account.}
+        consentActive:
+          type: boolean
+          description: >-
+            The patient has an active care consent with the caller's clinic. When false, the desk records the consent
+            the patient gives in person (POST /clinic/patients/{id}/consent) before it books them.
         versionId: {type: integer, format: int32}
         lastUpdated: {type: string, format: date-time}
     RegisterPatientRequest:
@@ -7783,6 +8062,16 @@ components:
         consentGivenInPerson:
           type: boolean
           description: The patient gave the clinic their care consent in person; the caller records it. Must be true (`invalid_request` otherwise).
+    CorrectPatientRequest:
+      type: object
+      required: [givenName, familyName, birthDate]
+      additionalProperties: false
+      description: The corrected profile of a patient the clinic registered (package R2 of docs/clinic-cms); every field is replaced.
+      properties:
+        givenName: {type: string, maxLength: 200}
+        familyName: {type: string, maxLength: 200}
+        birthDate: {type: string, format: date}
+        phone: {type: string, description: E.164; omitted for none.}
     StaffBookingRequest:
       type: object
       required: [patientId, slotId]
@@ -7814,6 +8103,17 @@ components:
         appointment: {$ref: "#/components/schemas/Appointment"}
         patient: {$ref: "#/components/schemas/ClinicPatient"}
         serviceName: {type: string, description: The booked service's name; absent for none.}
+        reminder:
+          type: boolean
+          description: >-
+            Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the
+            channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone.
+        reminderOff:
+          type: string
+          enum: [sms_off, no_phone]
+          description: >-
+            Why no reminder will go, absent when one will: the clinic does not offer SMS, or the profile has no phone
+            (a patient without an account is reminded by SMS only).
         receipts:
           type: array
           description: >-
@@ -7856,6 +8156,36 @@ components:
         hours: {$ref: "#/components/schemas/SetupStepState"}
         practitioner: {$ref: "#/components/schemas/SetupStepState"}
         services: {$ref: "#/components/schemas/SetupStepState"}
+    PatientImport:
+      type: object
+      required: [rows, saved]
+      properties:
+        saved: {type: boolean, description: Every row was stored; false for a preview or when any row has an error.}
+        rows:
+          type: array
+          items: {$ref: "#/components/schemas/PatientImportRow"}
+    PatientImportRow:
+      type: object
+      required: [line, errors, duplicate]
+      properties:
+        line: {type: integer, format: int32, description: The row's line in the file, from 1.}
+        patient:
+          $ref: "#/components/schemas/ImportedPatient"
+          description: The profile the row would store; absent for a row with errors.
+        duplicate: {type: boolean, description: "A patient of the same name and birth date is the clinic's already, or on an earlier row."}
+        errors:
+          type: array
+          description: Codes of what is wrong with the row; empty when it is valid.
+          items: {type: string, enum: [given_name_invalid, family_name_invalid, birth_date_invalid, phone_invalid]}
+    ImportedPatient:
+      type: object
+      required: [givenName, familyName, birthDate]
+      properties:
+        id: {type: string, format: uuid, description: The profile's id; only once saved.}
+        givenName: {type: string}
+        familyName: {type: string}
+        birthDate: {type: string, format: date}
+        phone: {type: string, description: E.164.}
     ServiceImport:
       type: object
       required: [rows, saved]
@@ -9171,6 +9501,7 @@ components:
             - version_conflict
             - consent_active
             - consent_inactive
+            - consent_active
             - profile_required
             - invalid_specialty
             - invalid_slot_minutes
@@ -9178,6 +9509,7 @@ components:
             - consent_required
             - transcription_consent_required
             - slot_unavailable
+            - not_reschedulable # the staff move (docs/clinic-cms M1) and the patient's reschedule
             - cancellation_window_closed
             - appointment_closed
             - appointment_not_started

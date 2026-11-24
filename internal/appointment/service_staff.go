@@ -27,9 +27,11 @@ type StaffBooking struct {
 // and phone; nothing clinical).
 type DeskVisit struct {
 	ServiceName string // the booked service's, in the clinic's language; empty for none
+	ReminderOff string // why no reminder will go: ReminderOffSMS or ReminderOffNoPhone; empty when one will
 	Patient     patient.Patient
 	Receipts    []VisitReceipt // the visit's receipts, whoever issued them (reversals left out), by number
 	Appointment Appointment
+	Reminder    bool // a reminder reaches the patient (docs/clinic-cms R3): an account, or SMS offered and a phone
 }
 
 // VisitReceipt is a receipt of a visit as the desk shows it: its number and id (for its PDF), and whether it was
@@ -80,8 +82,8 @@ func (s *Service) actsFor(ctx context.Context, c Caller, roleID string) (bool, e
 // own. A clinic whose bookings are stopped (a suspended or cancelled membership) books nothing; the slot is resolved
 // in the clinic's own scope, listed or not, and must be of an active role; then, in one transaction in the
 // clinic's scope, the patient is read, their active care consent checked, the slot held, the appointment stored,
-// what follows a booking enqueued (for a patient without an account only the statistics: they get no e-mail and no
-// reminder) and the booking audited. ErrForbidden to a patient and to a practitioner for another role's slot,
+// what follows a booking enqueued (for a patient without an account the statistics and the reminders, which reach
+// them by SMS only: no e-mail or questionnaire request) and the booking audited. ErrForbidden to a patient and to a practitioner for another role's slot,
 // ErrNotFound for a patient the clinic does not have, ErrSlotUnavailable for a slot it does not have, one that is
 // not free and ahead or of an inactive role, and while its bookings are stopped, ErrInvalidService,
 // ErrConsentRequired; each refusal is audited.
@@ -167,8 +169,8 @@ func (s *Service) bookFor(ctx context.Context, c Caller, b StaffBooking, sl slot
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	if p.AccountID == "" { // registered by the clinic: no e-mail, no questionnaire in the app, no reminder
-		return out, nil, s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start)
+	if p.AccountID == "" { // registered by the clinic: no e-mail, no questionnaire in the app; reminders by SMS (R3)
+		return out, nil, s.bookedAtDesk(ctx, out, now)
 	}
 	return out, nil, s.booked(ctx, out, now)
 }
@@ -202,13 +204,6 @@ func (s *Service) CancelForPatient(ctx context.Context, c Caller, id string, ver
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeUpdate, refused)
 	}
 	return out, nil
-}
-
-// MoveForPatient moves the appointment id to the slot slotID as the staff caller c. Not built yet (package F2's
-// DEFERRED in docs/clinic-cms/PROGRESS.md): a staff move must not count against the patient's own reschedules nor
-// confirm the visit in the app, which the patient's Reschedule does.
-func (s *Service) MoveForPatient(ctx context.Context, c Caller, id, slotID string) (Appointment, error) {
-	return Appointment{}, errors.ErrUnsupported
 }
 
 // Arrive marks the booked in-person appointment id arrived at the desk (StatusArrived, W6) as the clinic's admin or
@@ -264,7 +259,8 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 
 // DeskDay is the clinic's visits, but the cancelled ones, of the calendar day day (its date; zero for today in the
 // clinic's zone) in the clinic's zone, by practitioner role and start, each with its patient and its booked service's
-// name, for the desk (package F3's screen): to the clinic's admin and receptionists only (ErrForbidden, audited, to
+// name, and whether a reminder reaches the patient, for the desk (package F3's screen): to the clinic's admin and
+// receptionists only (ErrForbidden, audited, to
 // anyone else). One search of Appointment is audited, and each patient shown as a read of Patient.
 func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error) {
 	if !c.desk() {
@@ -298,6 +294,9 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, e
 		if err := s.withReceipts(ctx, c, out.Visits); err != nil {
 			return err
 		}
+		if err := s.withReminders(ctx, c.OrganizationID, out.Visits); err != nil {
+			return err
+		}
 		return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)
 	})
 	if err != nil {
@@ -325,6 +324,11 @@ func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) (
 			} else if err != nil {
 				return nil, err
 			}
+			state, err := s.Consents.State(ctx, a.PatientID, c.OrganizationID)
+			if err != nil {
+				return nil, err
+			}
+			p.ConsentActive = state.Active
 			patients[a.PatientID] = p
 			if err := s.record(ctx, c, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess); err != nil {
 				return nil, err

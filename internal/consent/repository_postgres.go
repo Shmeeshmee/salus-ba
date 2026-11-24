@@ -132,6 +132,22 @@ func (r *postgresRepository) Revoke(ctx context.Context, kind Kind, id string, a
 	return toConsent(kind, consentdb.GrantConsentRow(row), err, ErrInactive)
 }
 
+func (r *postgresRepository) RevokeInPerson(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error) {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {
+		return Consent{}, ErrInactive
+	}
+	row, err := consentdb.New(postgres.Conn(ctx, r.db)).RevokeInPersonConsent(ctx, consentdb.RevokeInPersonConsentParams{
+		PatientID: p, OrganizationID: o, RevokedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	c, err := toConsent(KindCare, consentdb.GrantConsentRow(row), err, ErrInactive)
+	if err != nil {
+		return Consent{}, err
+	}
+	c.GivenInPerson = true
+	return c, nil
+}
+
 func (r *postgresRepository) RevokeTranscription(ctx context.Context, patientID, organizationID string, at time.Time) (Consent, error) {
 	var p, o pgtype.UUID
 	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {

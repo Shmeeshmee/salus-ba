@@ -173,8 +173,8 @@ func (s *fakeSchedules) Read(ctx context.Context, id string) (schedule.Schedule,
 	return schedule.Schedule{}, schedule.ErrNotFound
 }
 
-func (s *fakeSchedules) Listed(ctx context.Context) ([]schedule.Schedule, error) {
-	s.seen(ctx, "Listed")
+func (s *fakeSchedules) Generating(ctx context.Context) ([]schedule.Schedule, error) {
+	s.seen(ctx, "Generating")
 	return s.schedules, s.listErr
 }
 
@@ -352,7 +352,7 @@ func isWrite(call string) bool {
 
 func isInsert(call string) bool { return len(call) > 6 && call[:6] == "Insert" }
 
-func TestGenerateAll_GeneratesEveryListedScheduleInItsOwnClinicAndGoesOnAfterAFailure(t *testing.T) {
+func TestGenerateAll_GeneratesEveryScheduleInItsOwnClinicAndGoesOnAfterAFailure(t *testing.T) {
 	t.Parallel()
 	f := newFixture()
 	got, err := f.service(now).GenerateAll(t.Context())

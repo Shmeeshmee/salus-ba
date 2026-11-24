@@ -227,7 +227,8 @@ func TestAppointment_OnlyThePatientMovesOrConfirmsTheirBookedAppointment(t *test
 		GRANT EXECUTE ON FUNCTION test_move(uuid) TO salus_app`); err != nil {
 		t.Fatal(err)
 	}
-	if err := asApp(t, app, map[string]string{"app.organization_id": clinicA}, func(ctx context.Context, db postgres.Querier) error {
+	// In another clinic's scope: since docs/clinic-cms M1 the appointment's own clinic moves it without counting.
+	if err := asApp(t, app, map[string]string{"app.organization_id": clinicB}, func(ctx context.Context, db postgres.Querier) error {
 		_, err := db.Exec(ctx, "SELECT test_move($1)", a.aFuture)
 		return err
 	}); err == nil {

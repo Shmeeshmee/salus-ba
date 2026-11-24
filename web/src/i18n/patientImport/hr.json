@@ -1,0 +1,22 @@
+{
+  "open": "Uvezi pacijente",
+  "title": "Uvoz pacijenata",
+  "hint": "CSV ili XLSX datoteka s retkom zaglavlja. Stupci: ime, prezime i datum rođenja (npr. 31.01.1990), a po želji telefon. Najviše 5000 redaka. Pacijenti se dodaju klinici bez suglasnosti: recepcija je bilježi pri njihovu prvom naručivanju.",
+  "file": "Datoteka (CSV ili XLSX)",
+  "ready": "{count, plural, one {Pročitan je # pacijent} few {Pročitana su # pacijenta} other {Pročitano je # pacijenata}}. Ništa se ne sprema dok ne pokrenete uvoz.",
+  "wrong": "{count, plural, one {# od {total} redaka ima pogreške} few {# od {total} redaka imaju pogreške} other {# od {total} redaka ima pogreške}}. Ispravite ih u datoteci i ponovno je odaberite.",
+  "duplicates": "{count, plural, one {# redak ima ime i datum rođenja pacijenta koji je već u klinici ili u ranijem retku} few {# retka imaju ime i datum rođenja pacijenta koji je već u klinici ili u ranijem retku} other {# redaka ima ime i datum rođenja pacijenta koji je već u klinici ili u ranijem retku}}. Uvoze se svejedno: uklonite ih iz datoteke ako su to iste osobe.",
+  "line": "Redak {line}: {errors}",
+  "duplicateLine": "Redak {line}: {name}, rođen(a) {birthDate}, možda je već u klinici",
+  "givenNameInvalid": "ime nedostaje ili je dulje od 100 znakova",
+  "familyNameInvalid": "prezime nedostaje ili je dulje od 100 znakova",
+  "birthDateInvalid": "datum rođenja nije ispravan datum u prošlosti",
+  "phoneInvalid": "telefon nije ispravan broj",
+  "save": "{count, plural, one {Uvezi # pacijenta} few {Uvezi # pacijenta} other {Uvezi # pacijenata}}",
+  "unreadable": "Datoteka se ne može pročitati. Upotrijebite CSV ili XLSX datoteku s retkom zaglavlja koji imenuje barem stupce ime, prezime i datum rođenja, i najviše 5000 redaka.",
+  "tooLarge": "Datoteka je prevelika.",
+  "failed": "Datoteka se ne može uvesti. Pokušajte ponovno.",
+  "forbidden": "Samo administrator klinike može uvesti pacijente.",
+  "imported": "{count, plural, one {Uvezen je # pacijent.} few {Uvezena su # pacijenta.} other {Uvezeno je # pacijenata.}}",
+  "cancel": "Odustani"
+}

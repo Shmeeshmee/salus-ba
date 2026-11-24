@@ -16,15 +16,20 @@ import (
 // stubClinic answers with what it is given and keeps what it was asked.
 type stubClinic struct {
 	err    error
-	caller patient.Caller
 	search patient.ClinicSearch
+	asked  string // the patient id a rights route named
 	in     patient.Patient
+	caller patient.Caller
 	out    []patient.Patient
 }
 
 func (s *stubClinic) SearchClinic(_ context.Context, c patient.Caller, q patient.ClinicSearch) ([]patient.Patient, error) {
 	s.caller, s.search = c, q
 	return s.out, s.err
+}
+
+func (s *stubClinic) Import(context.Context, patient.Caller, []byte, bool) ([]patient.ImportRow, error) {
+	return nil, s.err
 }
 
 func (s *stubClinic) Register(_ context.Context, c patient.Caller, in patient.Patient) (patient.Patient, error) {
@@ -38,7 +43,7 @@ func (s *stubClinic) Register(_ context.Context, c patient.Caller, in patient.Pa
 var registeredC = patient.Patient{ID: registeredID, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example",
 	BirthDate: date(1980, 3, 4), Phone: "+38761000002", VersionID: 1, LastUpdated: now}
 
-const registeredJSON = `{"lastUpdated":"2026-11-04T09:30:00Z","id":"` + registeredID + `","givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","phone":"+38761000002","registeredByClinic":true,"versionId":1}`
+const registeredJSON = `{"lastUpdated":"2026-11-04T09:30:00Z","id":"` + registeredID + `","givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","phone":"+38761000002","registeredByClinic":true,"consentActive":false,"versionId":1}`
 
 func serveClinic(t *testing.T, svc *stubClinic, signedIn bool, log *bytes.Buffer, method, target, body string) *httptest.ResponseRecorder {
 	t.Helper()

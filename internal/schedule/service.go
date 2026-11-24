@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -23,9 +24,17 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
-// Roles reads a practitioner role for staff of its clinic (practitionerrole.Service).
+// Roles reads a practitioner role (practitionerrole.Service): Read for staff of its clinic, audited; Lookup for a
+// system step, in the clinic's scope, unaudited.
 type Roles interface {
 	Read(ctx context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error)
+	Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error)
+}
+
+// Clinics lists every clinic, listed or not (organization.Stats, on the salus_stats login): ids and time zones, no
+// personal data.
+type Clinics interface {
+	Locations(ctx context.Context) ([]organization.Location, error)
 }
 
 // Jobs enqueues background work in the transaction in ctx.
@@ -34,21 +43,22 @@ type Jobs interface {
 	EnqueueSlotsGenerate(ctx context.Context, scheduleID, org string) error
 }
 
-// Ports are the Service's dependencies. The worker builds it for generation only (ForGeneration, Listed),
-// which needs neither Roles nor Jobs.
+// Ports are the Service's dependencies. The worker builds it for generation only (ForGeneration, Generating),
+// which needs Roles and Clinics but not Jobs; the API needs no Clinics.
 type Ports struct {
-	Repo  Repository
-	Audit Auditor
-	Tx    Transactor
-	Clock clock.Clock
-	Roles Roles
-	Jobs  Jobs
+	Repo    Repository
+	Audit   Auditor
+	Tx      Transactor
+	Clock   clock.Clock
+	Roles   Roles
+	Jobs    Jobs
+	Clinics Clinics
 }
 
 // Service holds the schedule rules: the practitioner reads and edits their own role's availability, the
 // clinic's admin any role's; an edit is valid (validate) and names the version it changes, and enqueues the
 // schedule's slot generation in its transaction. Every staff read and edit is audited, also when refused.
-// The directory reads (Read, ByActor) and the generation's (ForGeneration, Listed) are not: they disclose
+// The directory reads (Read, ByActor) and the generation's (ForGeneration, Generating) are not: they disclose
 // only what a listed clinic publishes, or nothing.
 type Service struct {
 	Ports
@@ -281,22 +291,42 @@ func (s *Service) inClinic(ctx context.Context, org string, read func(ctx contex
 	return out, err
 }
 
-// Listed returns the schedules of the active roles of listed clinics, for the hourly slot generation. Not
-// audited, like the directory.
-func (s *Service) Listed(ctx context.Context) ([]Schedule, error) {
-	var out []Schedule
-	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		if err := s.Repo.SetDirectory(ctx); err != nil {
-			return err
-		}
-		var err error
-		out, err = s.Repo.Listed(ctx)
-		return err
-	})
+// Generating returns the schedules of the active roles of every clinic, listed or not, suspended or not, for the
+// hourly slot generation (docs/clinic-cms WAVE4 R1): only the directory hides an unlisted clinic, and a suspended
+// clinic's bookings are stopped where they are made. Each clinic is read in its own scope and transaction. Not
+// audited: nothing in a schedule is personal data.
+func (s *Service) Generating(ctx context.Context) ([]Schedule, error) {
+	clinics, err := s.Clinics.Locations(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("schedule: listed: %w", err)
+		return nil, fmt.Errorf("schedule: generating: %w", err)
 	}
-	return out, nil
+	var out []Schedule
+	var errs []error
+	for _, c := range clinics {
+		var theirs []Schedule
+		err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+			all, err := s.OfClinic(ctx, c.ID)
+			if err != nil {
+				return err
+			}
+			for _, sc := range all {
+				role, err := s.Roles.Lookup(ctx, c.ID, sc.PractitionerRoleID)
+				if err != nil {
+					return err
+				}
+				if role.Active {
+					theirs = append(theirs, sc)
+				}
+			}
+			return nil
+		})
+		if err != nil { // that clinic waits for the next run; the others are generated
+			errs = append(errs, fmt.Errorf("schedule: generating clinic %s: %w", c.ID, err))
+			continue
+		}
+		out = append(out, theirs...)
+	}
+	return out, errors.Join(errs...)
 }
 
 // record audits a read, create or update by c of the schedule id ("" for none).
