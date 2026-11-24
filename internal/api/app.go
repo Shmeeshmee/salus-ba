@@ -94,6 +94,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	// The patient's appointment facts come from the appointment repository alone, so the patient service can
 	// be built before the appointment service, which reads profiles through it.
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, appointment.NewFacts(appointmentRepo))
+	consents = consents.WithRestrictions(patients) // every other domain's consent state tells a restricted record (WAVE5.md S7)
 	schedules := schedule.NewService(schedule.Ports{
 		Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction

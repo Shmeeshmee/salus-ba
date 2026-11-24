@@ -174,7 +174,6 @@ var notServedYet = []string{
 	"GET /me/data-requests/{id}/export", "GET /me/data-requests/{id}/export/archive", "POST /me/account/close",
 	"GET /clinic/data-requests", "GET /clinic/data-requests/{id}", "POST /clinic/data-requests/{id}/answer",
 	"POST /clinic/data-requests/{id}/extend", "POST /clinic/patients/{id}/data-requests",
-	"PUT /clinic/patients/{id}/restriction", "DELETE /clinic/patients/{id}/restriction",
 }
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.

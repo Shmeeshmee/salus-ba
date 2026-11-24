@@ -53,6 +53,7 @@ func (fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context) e
 type fakeRepository struct {
 	err        error // returned by every read and write when set
 	profiles   map[string]patient.Patient
+	restricted map[string]string    // keyed patient/clinic: the staff account that restricted it, "" for the erasure job
 	search     patient.ClinicSearch // what SearchClinic was asked
 	account    string               // set by SetAccount
 	clinic     string               // set by SetClinic
@@ -443,7 +444,7 @@ func TestRead_HidesAnotherPatientAndEveryProfileFromStaffAndAuditsIt(t *testing.
 		calls  []string
 	}{
 		{name: "another patient", caller: me, calls: []string{"SetAccount", "ByID"}},
-		{name: "staff", caller: staff, calls: []string{"SetClinic"}},
+		{name: "staff", caller: staff, calls: []string{"SetClinic", "Restricted"}},
 	}
 	for _, tt := range tests {
 		repo, audit := newFakeRepository(), &fakeAuditor{}
@@ -502,18 +503,18 @@ func TestRead_GivesStaffTheProfileOnlyAtFullAccessAndAuditsIt(t *testing.T) {
 		want    bool // the profile is returned
 	}{
 		{name: "practitioner, active consent, an appointment with them", caller: practitioner, id: patientA,
-			consent: access.Consent{Active: true}, visits: []access.Visit{future}, want: true, calls: []string{"SetClinic", "ByID"}},
+			consent: access.Consent{Active: true}, visits: []access.Visit{future}, want: true, calls: []string{"SetClinic", "Restricted", "ByID"}},
 		{name: "practitioner, active consent, no appointment (none until package 6)", caller: practitioner, id: patientA,
-			consent: access.Consent{Active: true}, calls: []string{"SetClinic"}},
+			consent: access.Consent{Active: true}, calls: []string{"SetClinic", "Restricted"}},
 		{name: "practitioner, active consent, another practitioner's appointment", caller: practitioner, id: patientA,
-			consent: access.Consent{Active: true}, visits: []access.Visit{{PractitionerRole: roleA2, Start: future.Start}}, calls: []string{"SetClinic"}},
+			consent: access.Consent{Active: true}, visits: []access.Visit{{PractitionerRole: roleA2, Start: future.Start}}, calls: []string{"SetClinic", "Restricted"}},
 		{name: "practitioner, revoked, a past appointment: the name only", caller: practitioner, id: patientA,
-			consent: access.Consent{RevokedAt: revokedAt}, visits: []access.Visit{past}, calls: []string{"SetClinic"}},
-		{name: "practitioner, never consented", caller: practitioner, id: patientA, visits: []access.Visit{future}, calls: []string{"SetClinic"}},
+			consent: access.Consent{RevokedAt: revokedAt}, visits: []access.Visit{past}, calls: []string{"SetClinic", "Restricted"}},
+		{name: "practitioner, never consented", caller: practitioner, id: patientA, visits: []access.Visit{future}, calls: []string{"SetClinic", "Restricted"}},
 		{name: "admin, active consent: the name only", caller: admin, id: patientA,
-			consent: access.Consent{Active: true}, visits: []access.Visit{future}, calls: []string{"SetClinic"}},
+			consent: access.Consent{Active: true}, visits: []access.Visit{future}, calls: []string{"SetClinic", "Restricted"}},
 		{name: "full access but no row visible", caller: practitioner, id: "d9000000-0000-4000-8000-0000000000d9",
-			consent: access.Consent{Active: true}, visits: []access.Visit{future}, calls: []string{"SetClinic", "ByID"}},
+			consent: access.Consent{Active: true}, visits: []access.Visit{future}, calls: []string{"SetClinic", "Restricted", "ByID"}},
 	}
 	for _, tt := range tests {
 		repo, audit := newFakeRepository(), &fakeAuditor{}

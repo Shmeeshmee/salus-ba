@@ -1,0 +1,68 @@
+{
+  "nav": "Захтјеви за податке",
+  "loadFailed": "Захтјеви нису могли да се учитају. Поново учитајте страницу.",
+  "notFound": "Овај захтјев не постоји.",
+  "empty": "Нема захтјева за податке.",
+  "open": "Отвори",
+  "back": "Сви захтјеви",
+  "due": "Рок {date}",
+  "received": "Примљен {date}",
+  "filedAtDesk": "Поднесен на рецепцији",
+  "history": "Историја",
+  "kind.access": "Приступ",
+  "kind.portability": "Преносивост",
+  "kind.rectification": "Исправка",
+  "kind.restriction": "Ограничење",
+  "kind.objection": "Приговор",
+  "kind.erasure": "Брисање",
+  "status.received": "Примљен",
+  "status.in_progress": "У обради",
+  "status.fulfilled": "Испуњен",
+  "status.refused": "Одбијен",
+  "status.withdrawn": "Повучен",
+  "needs.access": "Предајте пацијенту његов картон.",
+  "needs.portability": "Предајте пацијенту његов картон у преносивом облику.",
+  "needs.rectification": "Исправите профил или додајте допуну која упућује на изворни унос. Потписани документ се никада не мијења.",
+  "needs.restriction": {
+    "defaultMessage": "Ограничите пацијентов картон у клиници.",
+    "description": "legal"
+  },
+  "needs.objection": {
+    "defaultMessage": "Од сада изоставите пацијента из аналитике.",
+    "description": "legal"
+  },
+  "needs.erasure": {
+    "defaultMessage": "Избришите оно за шта не постоји правни основ чувања. Медицински картон се чува током рока чувања и ограничава се.",
+    "description": "legal"
+  },
+  "answer": "Одговор",
+  "sendAnswer": "Пошаљи одговор",
+  "code.done": "Урађено",
+  "code.done_partly_kept": {
+    "defaultMessage": "Урађено, медицински картон се чува",
+    "description": "legal"
+  },
+  "code.identity_unverified": "Идентитет није потврђен",
+  "code.manifestly_unfounded": "Очигледно неоснован",
+  "code.excessive": "Претјеран",
+  "code.retention_law": {
+    "defaultMessage": "Чува се по закону о чувању",
+    "description": "legal"
+  },
+  "code.no_data": "Нема података",
+  "reason": "Разлог",
+  "reasons.complex": "Сложен захтјев",
+  "reasons.many_requests": "Много захтјева",
+  "extend": "Продужи за два мјесеца",
+  "handOver": "Отвори предају",
+  "restrict": "Ограничи картон",
+  "lift": "Укини ограничење",
+  "restricted": "Картон је ограничен.",
+  "lifted": "Ограничење је укинуто.",
+  "actionFailed": "Промјена није могла да се сачува. Покушајте поново.",
+  "conflict": "Захтјев се у међувремену промијенио. Поново учитајте страницу.",
+  "erasureKeeps": {
+    "defaultMessage": "Брисање држи овај картон ограниченим; клиника не може да укине ограничење.",
+    "description": "legal"
+  }
+}

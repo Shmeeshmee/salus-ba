@@ -326,6 +326,26 @@ func TestDeskDay_LeavesOutAVisitWhosePatientTheScopeHides(t *testing.T) {
 	}
 }
 
+// A patient whose record is restricted at the clinic (docs/clinic-cms/WAVE5.md S7) is not on the desk: their visits
+// are left out, unread and unaudited.
+func TestDeskDay_LeavesOutARestrictedPatient(t *testing.T) {
+	t.Parallel()
+	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
+	day := time.Date(2030, 1, 7, 0, 0, 0, 0, sarajevo)
+	restricted := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
+	f := staffFixture(restricted)
+	f.consents.state[patientA+clinicA] = access.Consent{Active: true, Restricted: true}
+	out, err := f.svc.DeskDay(t.Context(), desk, day)
+	if err != nil || len(out.Visits) != 0 {
+		t.Fatalf("DeskDay = %+v, %v; want no visit of the restricted patient", out, err)
+	}
+	for _, e := range f.audit.events {
+		if strings.HasPrefix(e.EntityReference, "Patient/") {
+			t.Errorf("audited %+v, want no read of the restricted patient", e)
+		}
+	}
+}
+
 // fakeReceipts gives the visits' receipts the desk shows, from the clinic it is asked for.
 type fakeReceipts map[string][]appointment.VisitReceipt
 

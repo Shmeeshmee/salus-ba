@@ -39,12 +39,27 @@ var errNoProfile = errors.New("consent: no profile")
 // read the consent's state; the job it enqueues cancels what was booked ahead. The package knows nothing of
 // appointments.
 type Service struct {
-	repo   Repository
-	audit  Auditor
-	tx     Transactor
-	clock  clock.Clock
-	jobs   Jobs
-	visits Visits
+	repo         Repository
+	audit        Auditor
+	tx           Transactor
+	clock        clock.Clock
+	jobs         Jobs
+	visits       Visits
+	restrictions Restrictions
+}
+
+// Restrictions tells whether the patient's record is restricted at the clinic (docs/clinic-cms/WAVE5.md S7), in the
+// caller's transaction and scope (patient.Service).
+type Restrictions interface {
+	Restricted(ctx context.Context, patientID, organizationID string) (bool, error)
+}
+
+// WithRestrictions returns a copy of s whose State tells a restricted record from r: the patients are built after
+// the consents, which they read.
+func (s *Service) WithRestrictions(r Restrictions) *Service {
+	out := *s
+	out.restrictions = r
+	return &out
 }
 
 // NewService returns a Service on its ports. jobs may be nil where Revoke is never called (the worker, which
@@ -312,6 +327,11 @@ func (s *Service) State(ctx context.Context, patientID, organizationID string) (
 	st, err := s.repo.State(ctx, patientID, organizationID)
 	if err != nil {
 		return access.Consent{}, fmt.Errorf("consent: state: %w", err)
+	}
+	if s.restrictions != nil {
+		if st.Restricted, err = s.restrictions.Restricted(ctx, patientID, organizationID); err != nil {
+			return access.Consent{}, fmt.Errorf("consent: state: %w", err)
+		}
 	}
 	return st, nil
 }

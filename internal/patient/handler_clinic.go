@@ -21,6 +21,8 @@ type ClinicPatients interface {
 	WithdrawConsent(ctx context.Context, c Caller, id string) (consent.Consent, error)
 	RecordConsent(ctx context.Context, c Caller, id string) (consent.Consent, error)
 	Import(ctx context.Context, c Caller, data []byte, save bool) ([]ImportRow, error)
+	Restrict(ctx context.Context, c Caller, id, requestID string) error
+	LiftRestriction(ctx context.Context, c Caller, id string) error
 }
 
 // ClinicHandler serves the clinic's own patients in the JSON API (package F2 of docs/clinic-cms): the staff's search
@@ -41,7 +43,8 @@ func NewClinicHandler(svc ClinicPatients, caller func(ctx context.Context) (Call
 func (h *ClinicHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/patients", h.search)
 	mux.HandleFunc("POST /clinic/patients", h.register)
-	h.rightsRoutes(mux) // docs/clinic-cms R2
+	h.rightsRoutes(mux)      // docs/clinic-cms R2
+	h.restrictionRoutes(mux) // docs/clinic-cms/WAVE5.md D4
 	mux.HandleFunc("POST /clinic/patients/import", h.importFile)
 }
 

@@ -178,6 +178,43 @@ func (r *postgresRepository) RegisteredBy(ctx context.Context, org string) ([]st
 	return out, nil
 }
 
+func (r *postgresRepository) Restrict(ctx context.Context, patientID, org, by, requestID string, at time.Time) error {
+	var p, o, b, req pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil || b.Scan(by) != nil || (requestID != "" && req.Scan(requestID) != nil) {
+		return ErrNotFound
+	}
+	q := patientdb.New(postgres.Conn(ctx, r.db))
+	n, err := q.RestrictPatient(ctx, patientdb.RestrictPatientParams{
+		RestrictedAt: pgtype.Timestamptz{Time: at, Valid: true}, PatientID: p, OrganizationID: o,
+		RestrictedByAccountID: b, DataRequestID: req,
+	})
+	if err != nil || n == 1 {
+		return err
+	}
+	// Nothing inserted: restricted already, or the request is not the clinic's and the patient's.
+	restricted, err := q.PatientRestricted(ctx, patientdb.PatientRestrictedParams{PatientID: p, OrganizationID: o})
+	if err == nil && !restricted {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (r *postgresRepository) Unrestrict(ctx context.Context, patientID, org string) error {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return nil
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).UnrestrictPatient(ctx, patientdb.UnrestrictPatientParams{PatientID: p, OrganizationID: o})
+}
+
+func (r *postgresRepository) Restricted(ctx context.Context, patientID, org string) (bool, error) {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return false, nil
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).PatientRestricted(ctx, patientdb.PatientRestrictedParams{PatientID: p, OrganizationID: o})
+}
+
 // likePattern is %name%, with LIKE's wildcards and escape in name taken literally.
 func likePattern(name string) string {
 	return "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(name) + "%"

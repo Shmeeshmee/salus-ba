@@ -40,7 +40,7 @@ writes under its own heading here.
 | D1 | not started | |
 | D2 | not started | |
 | D3 | not started | |
-| D4 | not started | |
+| D4 | done 2026-11-24 (migration `00076`) | `cms(D4)` |
 | D5 | not started | |
 | D6 | not started | |
 
@@ -2287,3 +2287,91 @@ order-dependent case in the closure test (map order) was fixed by resetting the 
 `make e2e` and `make fhir-validate` (no route is served and no golden file changed).
 
 **Copy waiting for the owner:** none. 5.0 adds no user-facing string; the API returns codes only.
+
+## D4: the clinic's handling and restricted records
+
+Status: done, 2026-11-24, on `wt/cms/D4`, one commit `cms(D4)`. Migration `00076_analytics_left_out.sql`.
+
+**Built.**
+
+- **Restriction (S7).** `patient.Service.Restrict` and `LiftRestriction` (5.0's refusing stubs filled): the clinic's
+  admin only, for a patient of the clinic (registered by it, with a consent there, active or withdrawn, or a visit),
+  optionally naming the request; idempotent; audited as an update of the Patient (`PATRQT`), refusals without the id.
+  The erasure's restriction (by nobody) is not lifted (`ErrForbidden`, 403). `PUT` and `DELETE
+  /clinic/patients/{id}/restriction` mounted (`handler_clinic_restriction.go`), off `notServedYet`.
+  `patient.Service.Restricted` reads it in the caller's scope; queries `RestrictPatient`, `UnrestrictPatient`,
+  `PatientRestricted`.
+- **Every staff read's scope.** `access.Consent.Restricted` and `access.Restricted` (`internal/access/restricted.go`):
+  `staffOf` refuses staff of the clinic whose record of the patient is restricted, so every rule of the care record and
+  the chat refuses practitioners, the admin and the desk; `GuestChat` refuses guests of a restricted conversation;
+  `ClinicRecord` (the admin's hand-over, read with its purpose and audited) still opens it. The flag travels with the
+  consent state: `consent.Service.WithRestrictions(patients)` in `internal/api/app.go` (the patient service fills it
+  itself in `readAsStaff`), so no domain changed its own reads. Not through access, fixed one by one: the clinic's
+  patient search (`SearchClinicPatients` leaves restricted patients out), the desk's day (`DeskDay` skips them, unread
+  and unaudited) and reminders (`reminderNotice` skips a restricted patient's reminder, through `appointment.Patients`
+  gaining `Restricted`).
+- **Analytics (S9, and S7's "never used for analytics").** `analytics_left_out(patient, clinic)`, a SECURITY DEFINER
+  function (00076) executable by `salus_stats` only: an objection leaves the patient out at every clinic, a restriction
+  at that clinic. `ListBookedForStats`, `ListFulfilledForStats` (appointment) and `ListDiagnoses` (condition)
+  ask it, so `clinicstats` and the platform `trends` both leave them out of new aggregates.
+- **Web.** `DataRequests.tsx` (`/data-requests`, the admin's queue: kind, state, due date in the clinic's zone, the
+  extended one once extended, what an open request needs, filed at the desk) and `DataRequestDetail.tsx`
+  (`/data-requests/{id}`: dates, what it needs, history; while open: answer with a code at the version read, extend once
+  with a reason, open the hand-over, restrict and lift). `App.tsx`: the routes and an admin menu entry with a shield
+  icon (`PrivacyIcon`). Catalog `web/src/i18n/privacy/` in the five staff languages; the needs of restriction,
+  objection and erasure and the two retention answers tagged legal.
+- **Docs.** The DPIA's "Package D4" block.
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Where the restriction is enforced | In `access` through the consent state every domain already reads (one wiring line), not in each domain's reads; the reads that bypass `access` (search, desk day, reminders) check it themselves |
+| The admin's opening "with a stated reason" | The hand-over (`ClinicRecord`, purpose `PATRQT` audited, or `HOPERAT` for the export): the contract has no other opening route, and the restriction names the request that is the reason. A free-text reason would be a contract change |
+| Who is the clinic's patient for a restriction | Registered by it, a consent there (active or withdrawn) or a visit there; anyone else 404, audited |
+| Lifting the erasure's restriction | 403 `forbidden` (the contract's `ClinicAdminOnly` response); the row stays |
+| What an objection leaves out | All of the patient's events in every aggregate built after it (the 35-day window is recomputed without them); older aggregates stay (S9) |
+| The stats role and the patient table | No column grant (the existing test says `salus_stats` reads no `patient`): a SECURITY DEFINER function answering a boolean |
+| The clinic data export (M2) | Still exports a restricted record: healthcare operations of the controller, admin-only and audited, not an everyday screen |
+| Hand-over link on the detail | `/clinic/patients/{id}/record` (wave 4), opened in a new tab; for an app patient D2's export follows |
+| Restriction state on the detail | The `DataRequest` schema does not carry it, so both actions show (both idempotent) and the result is announced |
+
+**Test first.** Red before green: the access tests (no `Restricted`), the patient service and repository tests (the
+refusing stubs, then the search still finding the patient), the reminder and desk-day cases, the equality test (the
+objecting patient counted: 95 booked against 81), the route test (the practitioner's and admin's FHIR Appointment
+reads with the restricted patient's name while `WithRestrictions` was not wired). The consent `State` test and the web
+tests were written first but run green on their first run (build red only for the consent test).
+
+**Review** (a fresh subagent over the diff, Copilot being out of quota; one round). Fixed: a restriction naming a
+request of another clinic or patient failed its transaction (the row-level security refusal aborted it, so the
+refusal's audit failed and the route answered 500): the insert now checks the request first and inserts nothing, 404,
+audited (route test case); the detail's restrict and lift were shown only while the request was open, so a restriction
+made for an answered request could not be lifted: they now show on every request with a patient, and lifting the
+erasure's restriction says so (`privacy.erasureKeeps`). Left (see "Deferred").
+
+**Deferred.**
+
+- **A guest of another clinic in the patient's chat.** The restriction is read in the caller's clinic scope, so a
+  practitioner of clinic B the patient invited into their conversation with clinic A does not see A's restriction and
+  keeps the conversation. The patient's own grant; S7 speaks of the clinic's screens. Owner to decide; closing it needs
+  the restriction readable outside the clinic's scope (a policy or a function, a migration).
+- **Worker paths.** The worker's consent services (chat notification, consultation, suggestion, agent) are built without
+  `WithRestrictions`: the clinic's staff are still told that a restricted patient wrote in the chat (the message stays
+  unreadable to them, `ReadsChat` refuses), and a consultation's jobs follow its access as started (no restricted
+  consultation can be started or read by the clinic). The invoice and quote services gate on the consent only: the
+  desk could still bill a restricted patient through a visit it cannot see on its screens.
+- **`analytics_left_out` as a probe.** `salus_stats` may call it with any ids; it learns only a yes or no about an
+  objection or restriction, which its builds need.
+
+**Checks** (compose project `salus-cms-d4`): the fast layer (vet and tests of every Go package, migrations changed;
+oxlint, vitest related, i18n-check) passes. `runner.sh full`, run twice: the first stopped at `make lint` (funlen on
+`api.New` by one line, three test structs' fieldalignment), fixed; the second passed `make lint`, `make test`,
+`make archcheck`, `web-lint`, `web-typecheck` and failed `web-test` on the catalog test's list of areas (the new
+`privacy`), fixed, then `make web-test web-build` pass (1335 web tests). Not run: `make cover`, `make e2e`,
+`make fhir-validate` (no FHIR route or golden file changed).
+
+**Copy waiting for the owner:** the `privacy` catalog (five staff languages): the kinds, states, answer codes,
+extension reasons, what each kind needs, the actions and their results.
+
+**Not done here.** No browser walk of the two screens: their reads and the answer and extension are D1's routes, not
+mounted on this branch, so the screens would show only their load error; walk them at the wave 5 integration.

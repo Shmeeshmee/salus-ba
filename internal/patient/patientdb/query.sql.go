@@ -252,6 +252,22 @@ func (q *Queries) PatientByID(ctx context.Context, id pgtype.UUID) (PatientByIDR
 	return i, err
 }
 
+const patientRestricted = `-- name: PatientRestricted :one
+SELECT EXISTS (SELECT 1 FROM patient_restriction WHERE patient_id = $1 AND organization_id = $2)
+`
+
+type PatientRestrictedParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+func (q *Queries) PatientRestricted(ctx context.Context, arg PatientRestrictedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, patientRestricted, arg.PatientID, arg.OrganizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const registerPatient = `-- name: RegisterPatient :one
 INSERT INTO patient (registered_by_organization_id, given_name, family_name, birth_date, phone, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -330,6 +346,41 @@ func (q *Queries) RegisteredByClinic(ctx context.Context, organizationID pgtype.
 	return items, nil
 }
 
+const restrictPatient = `-- name: RestrictPatient :execrows
+INSERT INTO patient_restriction (restricted_at, patient_id, organization_id, restricted_by_account_id, data_request_id)
+SELECT $1, $2, $3, $4, $5::uuid
+WHERE $5::uuid IS NULL
+   OR EXISTS (SELECT 1 FROM data_request r WHERE r.id = $5::uuid
+              AND r.organization_id = $3 AND r.patient_id = $2)
+ON CONFLICT (patient_id, organization_id) DO NOTHING
+`
+
+type RestrictPatientParams struct {
+	RestrictedAt          pgtype.Timestamptz
+	PatientID             pgtype.UUID
+	OrganizationID        pgtype.UUID
+	RestrictedByAccountID pgtype.UUID
+	DataRequestID         pgtype.UUID
+}
+
+// A restriction of the patient's record at the clinic (docs/clinic-cms/WAVE5.md S7), by its staff; nothing changes
+// for a record restricted already. Row-level security admits only the clinic's scope and its own staff and requests.
+// A request it names must be the clinic's and the patient's (as row-level security checks; tested first so a refusal
+// inserts nothing instead of failing the transaction).
+func (q *Queries) RestrictPatient(ctx context.Context, arg RestrictPatientParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restrictPatient,
+		arg.RestrictedAt,
+		arg.PatientID,
+		arg.OrganizationID,
+		arg.RestrictedByAccountID,
+		arg.DataRequestID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const searchClinicPatients = `-- name: SearchClinicPatients :many
 SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient p
@@ -342,6 +393,7 @@ WHERE (p.registered_by_organization_id = $1
        OR EXISTS (SELECT 1 FROM appointment a
                   WHERE a.patient_id = p.id AND a.organization_id = $1
                     AND a.practitioner_role_id = $4::uuid))
+  AND NOT EXISTS (SELECT 1 FROM patient_restriction r WHERE r.patient_id = p.id AND r.organization_id = $1)
 ORDER BY p.family_name, p.given_name, p.id
 LIMIT $5
 `
@@ -403,6 +455,22 @@ func (q *Queries) SearchClinicPatients(ctx context.Context, arg SearchClinicPati
 		return nil, err
 	}
 	return items, nil
+}
+
+const unrestrictPatient = `-- name: UnrestrictPatient :exec
+DELETE FROM patient_restriction
+WHERE patient_id = $1 AND organization_id = $2 AND restricted_by_account_id IS NOT NULL
+`
+
+type UnrestrictPatientParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+// Lifts a staff restriction; the erasure's (by nobody) stays, by row-level security and here.
+func (q *Queries) UnrestrictPatient(ctx context.Context, arg UnrestrictPatientParams) error {
+	_, err := q.db.Exec(ctx, unrestrictPatient, arg.PatientID, arg.OrganizationID)
+	return err
 }
 
 const updatePatient = `-- name: UpdatePatient :one

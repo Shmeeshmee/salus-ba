@@ -1,0 +1,68 @@
+{
+  "nav": "Zahtjevi za podatke",
+  "loadFailed": "Zahtjevi nisu mogli da se učitaju. Ponovo učitajte stranicu.",
+  "notFound": "Ovaj zahtjev ne postoji.",
+  "empty": "Nema zahtjeva za podatke.",
+  "open": "Otvori",
+  "back": "Svi zahtjevi",
+  "due": "Rok {date}",
+  "received": "Primljen {date}",
+  "filedAtDesk": "Podnesen na recepciji",
+  "history": "Istorija",
+  "kind.access": "Pristup",
+  "kind.portability": "Prenosivost",
+  "kind.rectification": "Ispravka",
+  "kind.restriction": "Ograničenje",
+  "kind.objection": "Prigovor",
+  "kind.erasure": "Brisanje",
+  "status.received": "Primljen",
+  "status.in_progress": "U obradi",
+  "status.fulfilled": "Ispunjen",
+  "status.refused": "Odbijen",
+  "status.withdrawn": "Povučen",
+  "needs.access": "Predajte pacijentu njegov karton.",
+  "needs.portability": "Predajte pacijentu njegov karton u prenosivom obliku.",
+  "needs.rectification": "Ispravite profil ili dodajte dopunu koja upućuje na izvorni unos. Potpisani dokument se nikada ne mijenja.",
+  "needs.restriction": {
+    "defaultMessage": "Ograničite pacijentov karton u klinici.",
+    "description": "legal"
+  },
+  "needs.objection": {
+    "defaultMessage": "Od sada izostavite pacijenta iz analitike.",
+    "description": "legal"
+  },
+  "needs.erasure": {
+    "defaultMessage": "Izbrišite ono za šta ne postoji pravni osnov čuvanja. Medicinski karton se čuva tokom roka čuvanja i ograničava se.",
+    "description": "legal"
+  },
+  "answer": "Odgovor",
+  "sendAnswer": "Pošalji odgovor",
+  "code.done": "Urađeno",
+  "code.done_partly_kept": {
+    "defaultMessage": "Urađeno, medicinski karton se čuva",
+    "description": "legal"
+  },
+  "code.identity_unverified": "Identitet nije potvrđen",
+  "code.manifestly_unfounded": "Očigledno neosnovan",
+  "code.excessive": "Pretjeran",
+  "code.retention_law": {
+    "defaultMessage": "Čuva se po zakonu o čuvanju",
+    "description": "legal"
+  },
+  "code.no_data": "Nema podataka",
+  "reason": "Razlog",
+  "reasons.complex": "Složen zahtjev",
+  "reasons.many_requests": "Mnogo zahtjeva",
+  "extend": "Produži za dva mjeseca",
+  "handOver": "Otvori predaju",
+  "restrict": "Ograniči karton",
+  "lift": "Ukini ograničenje",
+  "restricted": "Karton je ograničen.",
+  "lifted": "Ograničenje je ukinuto.",
+  "actionFailed": "Promjena nije mogla da se sačuva. Pokušajte ponovo.",
+  "conflict": "Zahtjev se u međuvremenu promijenio. Ponovo učitajte stranicu.",
+  "erasureKeeps": {
+    "defaultMessage": "Brisanje drži ovaj karton ograničenim; klinika ne može da ukine ograničenje.",
+    "description": "legal"
+  }
+}

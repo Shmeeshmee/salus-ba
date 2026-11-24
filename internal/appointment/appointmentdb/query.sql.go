@@ -1453,7 +1453,8 @@ func (q *Queries) ListAppointmentChanges(ctx context.Context, appointmentID pgty
 const listBookedForStats = `-- name: ListBookedForStats :many
 SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status, booked_via
 FROM appointment
-WHERE organization_id = $1 AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+WHERE appointment.organization_id = $1 AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+  AND NOT analytics_left_out(appointment.patient_id, appointment.organization_id)
 ORDER BY lower(period), status
 `
 
@@ -1471,7 +1472,8 @@ type ListBookedForStatsRow struct {
 	BookedVia          string
 }
 
-// A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read.
+// A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read. A patient who
+// objected to the analytics, or whose record is restricted at the clinic, is left out (docs/clinic-cms/WAVE5.md S7, S9).
 func (q *Queries) ListBookedForStats(ctx context.Context, arg ListBookedForStatsParams) ([]ListBookedForStatsRow, error) {
 	rows, err := q.db.Query(ctx, listBookedForStats, arg.OrganizationID, arg.FromAt, arg.ToAt)
 	if err != nil {
@@ -1601,8 +1603,9 @@ func (q *Queries) ListClinicWaitlistEntries(ctx context.Context, arg ListClinicW
 const listFulfilledForStats = `-- name: ListFulfilledForStats :many
 SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
 FROM appointment
-WHERE organization_id = $1 AND status = 'fulfilled'
+WHERE appointment.organization_id = $1 AND status = 'fulfilled'
   AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+  AND NOT analytics_left_out(appointment.patient_id, appointment.organization_id)
 ORDER BY lower(period)
 `
 
@@ -1619,7 +1622,8 @@ type ListFulfilledForStatsRow struct {
 	Status             string
 }
 
-// A clinic's fulfilled appointments starting in [from, to), oldest first: the platform heatmap reads no other.
+// A clinic's fulfilled appointments starting in [from, to), oldest first: the platform heatmap reads no other. Left out as
+// ListBookedForStats.
 func (q *Queries) ListFulfilledForStats(ctx context.Context, arg ListFulfilledForStatsParams) ([]ListFulfilledForStatsRow, error) {
 	rows, err := q.db.Query(ctx, listFulfilledForStats, arg.OrganizationID, arg.FromAt, arg.ToAt)
 	if err != nil {

@@ -69,6 +69,9 @@ type Consent struct {
 	Active        bool // the care consent is active
 	Transcription bool // the transcription consent (transcription, translation, AI assistance) is active
 	History       bool // the history consent is active
+	// Restricted: the patient's record is restricted at the clinic (docs/clinic-cms/WAVE5.md S7), gathered with the
+	// consent state; every rule for the clinic's staff then refuses, but ClinicRecord (Restricted, restricted.go).
+	Restricted bool
 }
 
 // Visit is one of the patient's appointments in the clinic, of any status.
@@ -138,6 +141,7 @@ func Appointment(v Viewer, f Facts, a Visit) Level {
 // and status of every one, the visits a withdrawal cancelled included, since the clinic holds the booking and the data
 // is the patient's; everyone else nothing. Only the hand-over and the export read through it.
 func ClinicRecord(v Viewer, f Facts, a Visit) Level {
+	f.Consent.Restricted = false // the admin's audited opening of a restricted record (restricted.go)
 	if v.Role != RoleAdmin || !staffOf(v, f) {
 		return None
 	}
@@ -235,9 +239,9 @@ func self(v Viewer, f Facts) bool {
 	return v.Role == RolePatient && v.Patient != "" && v.Patient == f.Patient
 }
 
-// staffOf reports whether v is staff of the facts' clinic.
+// staffOf reports whether v is staff of the facts' clinic, whose record of the patient is not restricted there.
 func staffOf(v Viewer, f Facts) bool {
-	return (v.Role == RolePractitioner || v.Role == RoleAdmin) && v.Clinic != "" && v.Clinic == f.Clinic
+	return (v.Role == RolePractitioner || v.Role == RoleAdmin) && v.Clinic != "" && v.Clinic == f.Clinic && !Restricted(v, f)
 }
 
 // ofPractitioner reports whether a is with the practitioner v.
@@ -279,7 +283,7 @@ func WritesChat(v Viewer, f Facts, participant bool) bool {
 // and only while the patient's care consent with the treating clinic is active, which rules every doctor's access.
 func GuestChat(v Viewer, f Facts, granted bool) bool {
 	return v.Role == RolePractitioner && v.Clinic != "" && v.Clinic != f.Clinic && v.PractitionerRole != "" &&
-		granted && f.Consent.Active
+		granted && f.Consent.Active && !f.Consent.Restricted
 }
 
 // ManagesChat reports whether viewer may add practitioners to and remove them from a conversation whose treating
