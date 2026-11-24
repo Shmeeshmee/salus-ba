@@ -18,18 +18,20 @@ merged into `feat/cms`, `wave docs/clinic-cms D1 D2 D3 D4 D5 D6 --max 3`. Integr
 | S2 | Kinds | access, portability, rectification, restriction, objection, erasure. Access and portability are served by the same export |
 | S3 | Deadline | One month from receipt, extendable once by two months with a reason told to the patient (GDPR Art. 12(3)); the request shows its due date; the answerer is warned 7 days and 1 day before |
 | S4 | A patient's own export | Everything the patient can already read in the app, from every clinic, plus their account data, as FHIR Bundles in one encrypted archive, downloadable in the app for 7 days. Built by a job with every read audited as the patient's request |
-| S5 | Closing the account | At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn, consents revoked. Not reversible by the patient; the operator may reopen within 30 days |
-| S6 | Erasure | 30 days after closure a job erases what has no legal basis to stay (the account's e-mail, password and MFA, language choices, device tokens, notification logs, unsubmitted questionnaire answers, chat uploads never attached) and records what it erased and what it kept. The clinical record stays with each clinic for the medical-record retention period (placeholder, the lawyer's L1 to L3), marked restricted |
+| S5 | Closing the account | At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn, consents revoked. Not reversible by the patient; the operator may reopen within 21 days (owner, 2026-11-24) |
+| S6 | Erasure | 21 days after closure (owner, 2026-11-24) a job erases what has no legal basis to stay (the account's e-mail, password and MFA, language choices, device tokens, notification logs, unsubmitted questionnaire answers, chat uploads never attached) and records what it erased and what it kept. The clinical record stays with each clinic for the medical-record retention period (placeholder, the lawyer's L1 to L3), marked restricted |
 | S7 | Restricted record | Hidden from the clinic's everyday screens and searches; the clinic's admin may open it with a stated reason, audited; never used for analytics, reminders or messages |
 | S8 | Rectification | A patient corrects their own profile themselves. For a clinical entry or a signed document they ask the clinic: the clinic answers and may add an amendment that refers to the original; a signed document is never changed |
 | S9 | Objection | To the use of their data in the anonymised analytics: from the request on, the patient's events are left out of new aggregates. Existing k-anonymous aggregates are not recomputed |
 | S10 | Patients the clinic registered | The clinic files the request on the patient's behalf at the desk (target: the record at that clinic), after checking identity; the same handling follows |
 | S11 | Withdrawn consent and the record (walk finding 9) | The hand-over and the export include the visits cancelled by a withdrawal: the builder reads them with the job's own scope, audited, because the data is the patient's |
+| S12 | Extending an overdue request | Refused: a request cannot be extended once its due date has passed (Art. 12(3) asks for the extension within the first month); answered `request_overdue` (integration, 2026-11-24) |
+| S13 | The export's window | The 7 days run from when the archive is ready, not from the request (integration, 2026-11-24) |
 
 ## Packages
 
 Migration numbers (main's next free is `00071`): 5.0 `00071`; FX `00072`, D1 `00073`, D2 `00074`, D3 `00075`, D4
-`00076`, D5 `00077`, each only if needed.
+`00076`, D5 `00077`, D7 `00078`, each only if needed; the integration renumbers them to follow `00072` without gaps.
 
 | Package | Depends on | Check sets | Its own files | Touches, appending its own block |
 | --- | --- | --- | --- | --- |
@@ -39,8 +41,9 @@ Migration numbers (main's next free is `00071`): 5.0 `00071`; FX `00072`, D1 `00
 | D2 | 5.0 | go | `internal/datarequest/service_export.go`, its job | `internal/clinicexport` (the builder gains the patient's own scope), `internal/worker` |
 | D3 | 5.0 | go | `internal/datarequest/service_closure.go`, `service_erasure.go`, their jobs; `internal/auth/service_close.go` | `auth`, `appointment`, `consent`, `retention` core files |
 | D4 | 5.0 | go, web | `internal/access/restricted.go`; web `DataRequests.tsx`, `DataRequestDetail.tsx` | every staff read's scope (restricted records), `clinicstats` (S9), web `App.tsx` (the admin's route) |
-| D5 | 5.0 | go | `cmd/salusctl` datarequest commands; `internal/notification` templates for the deadline warnings | `internal/worker` |
+| D5 | D1, D3 | go | `cmd/salusctl` datarequest commands; `internal/notification` templates for the deadline warnings | `internal/worker` |
 | D6 | 5.0 | mobile | mobile `privacy_screen.dart`, `data_request_screen.dart`, `close_account_screen.dart` | mobile home (the entry), the ARB catalogs |
+| D7 | D2, D4 | go, e2e | `internal/clinicexport` own-scope builders for the clinical content; `internal/datarequest/service_export_build.go` | `internal/worker` (the export job), the domains whose patient reads it calls |
 
 ### 5.0: the contract
 
@@ -87,7 +90,7 @@ in progress per patient. A clinic-registered patient's export is the hand-over t
 
 Closing per S5 in one transaction with its notices; erasure per S6 as a retention applier driven by `erase_after`,
 writing its record on the erasure request (what was erased, what was kept and under which rule). A patient with no
-clinical record anywhere is erased whole. The operator may reopen within 30 days (salusctl is D5's: expose the
+clinical record anywhere is erased whole. The operator may reopen within 21 days (salusctl is D5's: expose the
 service method). Tests: after erasure no query as any role returns the erased fields; the retained record is
 restricted; a second run erases nothing more.
 
@@ -103,6 +106,23 @@ reason, audited. An objection leaves the patient out of new analytics aggregates
 `salusctl datarequest list | show | answer | extend | reopen-account`, connected as the owner, for requests
 targeting the account. The deadline warnings by e-mail to the clinic's admin or the operator, in the recipient's
 language, naming the request's kind and due date and never the patient.
+
+D5 runs at the wave 5 integration, after D1 to D4 are merged: its stop report (`.claude/runs/cms/D5.report.md` in the
+first attempt) laid out what follows. The deadline warning e-mail `data_request_deadline` in all ten languages and its
+worker for `datarequest.WarningArgs`: the clinic's admins for a clinic target, each in their language; the operator for
+the account target, whose address and language come from configuration (`SALUS_OPERATOR_EMAIL`,
+`SALUS_OPERATOR_LANGUAGE`; `[OPERATOR EMAIL]` in `configs/.env.example`). Without an operator address the binary that
+runs the worker refuses to start outside `SALUS_ENV=dev`, and in dev logs the warning's opaque ids instead of sending. A
+closed or answered request completes the job without sending. The operator's service methods on the owner pool
+(`service_operator.go`: list, show with history, answer, extend once, reopen the account within 21 days), audited as
+salusctl, and `salusctl datarequest list | show | answer | extend | reopen-account`.
+
+### D7: the export's clinical content
+
+S4 in full: for each clinic, everything the patient can read in the app today (visits, signed documents and their PDFs,
+submitted questionnaire answers with their files, history entries, receipts, quotes, chat), every read audited as the
+patient's request (the audit events name the request); nothing the patient cannot read in the app. A clinic target reads
+only that clinic. No race on the archive's object key between two build attempts; one retry after a failed build.
 
 ### D6: the patient app
 
