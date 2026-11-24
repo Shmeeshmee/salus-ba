@@ -24,16 +24,18 @@ func NewExportPurger(repo ExportRepository, store Store) *ExportPurger {
 func (p *ExportPurger) Purge(ctx context.Context, before time.Time) (int64, error) {
 	var n int64
 	for {
-		ids, err := p.repo.ExportsDoneBefore(ctx, before, purgeBatch)
-		if err != nil || len(ids) == 0 {
+		done, err := p.repo.ExportsDoneBefore(ctx, before, purgeBatch)
+		if err != nil || len(done) == 0 {
 			return n, err
 		}
 		round := n
-		for _, id := range ids {
-			if err := p.store.Delete(ctx, ExportObjectKey(id)); err != nil {
-				return n, err
+		for _, x := range done {
+			if x.ObjectKey != "" {
+				if err := p.store.Delete(ctx, x.ObjectKey); err != nil {
+					return n, err
+				}
 			}
-			ok, err := p.repo.DeleteExport(ctx, id)
+			ok, err := p.repo.DeleteExport(ctx, x.RequestID)
 			if err != nil {
 				return n, err
 			}

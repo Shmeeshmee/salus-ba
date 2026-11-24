@@ -174,7 +174,7 @@ type ConversationsOfParticipantRow struct {
 
 // The conversations the patient or the practitioner role takes part in (one of the two is null), newest activity
 // first, before the cursor when there is one, with that participant's read position. A practitioner's list leaves out
-// the conversations about a patient whose record the treating clinic restricted (S7, 00079), a guest's too; the
+// the conversations about a patient whose record the treating clinic restricted (S7, 00078), a guest's too; the
 // patient's own list keeps them.
 func (q *Queries) ConversationsOfParticipant(ctx context.Context, arg ConversationsOfParticipantParams) ([]ConversationsOfParticipantRow, error) {
 	rows, err := q.db.Query(ctx, conversationsOfParticipant,

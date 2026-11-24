@@ -619,6 +619,7 @@ type DataRequestExport struct {
 	Size          pgtype.Int8
 	KekID         pgtype.Text
 	WrappedKey    []byte
+	ObjectKey     pgtype.Text
 }
 
 type DiagnosisGroup struct {

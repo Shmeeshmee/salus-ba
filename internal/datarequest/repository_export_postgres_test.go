@@ -76,19 +76,19 @@ func TestExportRepository_OneQueuedSeenByThePatientReadyAndFulfilled(t *testing.
 		if done, err := repo.Fulfil(ctx, req[0]); err != nil || done {
 			t.Errorf("Fulfil before ready = %v, %v; want false", done, err)
 		}
-		ready := got
-		ready.ReadyAt, ready.ExpiresAt, ready.Size, ready.KEKID, ready.WrappedKey = asked, asked.Add(datarequest.ExportWindow), 10, "k", []byte{1}
-		if ok, err := repo.MarkExportReady(ctx, ready); err != nil || !ok {
-			t.Errorf("MarkExportReady = %v, %v", ok, err)
-		}
-		if ok, _ := repo.MarkExportReady(ctx, ready); ok {
-			t.Error("marked ready twice")
-		}
+		checkClaims(ctx, t, repo, req[0])
+		checkReadyOnlyByTheClaim(ctx, t, repo, got)
 		if done, err := repo.Fulfil(ctx, req[0]); err != nil || !done {
 			t.Errorf("Fulfil = %v, %v; want true", done, err)
 		}
 		if ok, err := repo.MarkExportFailed(ctx, req[0]); err != nil || ok {
 			t.Errorf("failed a ready export: %v, %v", ok, err)
+		}
+		if _, ok, err := repo.ClaimExport(ctx, req[0], "datarequest/"+req[0]+"/late"); err != nil || ok {
+			t.Errorf("claimed a ready export: %v, %v", ok, err)
+		}
+		if got, err := repo.ExportOf(ctx, req[0]); err != nil || got.ObjectKey != "datarequest/"+req[0]+"/second" {
+			t.Errorf("ExportOf = %+v, %v; want the winning key", got, err)
 		}
 		return nil
 	})
@@ -113,8 +113,8 @@ func TestExportRepository_RetentionDeletesDoneExports(t *testing.T) {
 	owner, retention := pgtest.NewRetentionDatabase(t)
 	account, req := seedRequests(t, owner)
 	if _, err := owner.Exec(t.Context(), `INSERT INTO data_request_export (data_request_id, account_id, requested_at, status, ready_at,
-		expires_at, size, kek_id, wrapped_key) VALUES ($1, $3, now() - interval '9 days', 'ready', now() - interval '8 days',
-		now() - interval '1 day', 1, 'k', '\x01'), ($2, $3, now() - interval '8 days', 'queued', NULL, NULL, NULL, NULL, NULL)`, req[0], req[1], account); err != nil {
+		expires_at, size, kek_id, wrapped_key, object_key) VALUES ($1, $3, now() - interval '9 days', 'ready', now() - interval '8 days',
+		now() - interval '1 day', 1, 'k', '\x01', 'datarequest/a'), ($2, $3, now() - interval '8 days', 'queued', NULL, NULL, NULL, NULL, NULL, NULL)`, req[0], req[1], account); err != nil {
 		t.Fatal(err)
 	}
 	repo := datarequest.NewExportRepository(retention)
@@ -123,7 +123,8 @@ func TestExportRepository_RetentionDeletesDoneExports(t *testing.T) {
 		t.Fatal(err)
 	}
 	ids, err := repo.ExportsDoneBefore(t.Context(), cutoff, 10)
-	if err != nil || len(ids) != 2 || ids[0] != req[0] || ids[1] != req[1] {
+	if err != nil || len(ids) != 2 || ids[0].RequestID != req[0] || ids[0].ObjectKey != "datarequest/a" ||
+		ids[1].RequestID != req[1] || ids[1].ObjectKey != "" {
 		t.Fatalf("ExportsDoneBefore = %v, %v; want the ready one and the one stuck queued", ids, err)
 	}
 	if ok, err := repo.DeleteExport(t.Context(), req[0]); err != nil || !ok {
@@ -189,5 +190,37 @@ func TestExportRepository_NotReadyOnceTheRequestIsWithdrawn(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// checkClaims claims the queued export id twice: the second claim replaces the first's key.
+func checkClaims(ctx context.Context, t *testing.T, repo datarequest.ExportRepository, id string) {
+	t.Helper()
+	if prev, ok, err := repo.ClaimExport(ctx, id, "datarequest/"+id+"/first"); err != nil || !ok || prev != "" {
+		t.Errorf("ClaimExport = %q, %v, %v; want claimed with no previous key", prev, ok, err)
+	}
+	if prev, ok, err := repo.ClaimExport(ctx, id, "datarequest/"+id+"/second"); err != nil || !ok || prev != "datarequest/"+id+"/first" {
+		t.Errorf("a second claim = %q, %v, %v; want the first's key replaced", prev, ok, err)
+	}
+}
+
+// checkReadyOnlyByTheClaim marks the export got ready: refused with the first claim's key, done once with the second's.
+func checkReadyOnlyByTheClaim(ctx context.Context, t *testing.T, repo datarequest.ExportRepository, got datarequest.StoredExport) {
+	t.Helper()
+	ready := got
+	ready.ReadyAt, ready.ExpiresAt, ready.Size, ready.KEKID, ready.WrappedKey = got.RequestedAt, got.RequestedAt.Add(datarequest.ExportWindow), 10, "k", []byte{1}
+	ready.ObjectKey = "datarequest/" + got.RequestID + "/first"
+	if ok, err := repo.MarkExportReady(ctx, ready); err != nil || ok {
+		t.Errorf("MarkExportReady with a lost claim = %v, %v; want false", ok, err)
+	}
+	if ok, err := repo.MarkClaimFailed(ctx, ready); err != nil || ok {
+		t.Errorf("MarkClaimFailed with a lost claim = %v, %v; want false", ok, err)
+	}
+	ready.ObjectKey = "datarequest/" + got.RequestID + "/second"
+	if ok, err := repo.MarkExportReady(ctx, ready); err != nil || !ok {
+		t.Errorf("MarkExportReady = %v, %v", ok, err)
+	}
+	if ok, _ := repo.MarkExportReady(ctx, ready); ok {
+		t.Error("marked ready twice")
 	}
 }

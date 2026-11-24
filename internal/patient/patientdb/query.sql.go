@@ -261,7 +261,7 @@ type PatientRestrictedParams struct {
 	OrganizationID pgtype.UUID
 }
 
-// Read from any scope (00079): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
+// Read from any scope (00078): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
 func (q *Queries) PatientRestricted(ctx context.Context, arg PatientRestrictedParams) (bool, error) {
 	row := q.db.QueryRow(ctx, patientRestricted, arg.PatientID, arg.OrganizationID)
 	var restricted bool

@@ -10,8 +10,9 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-// ExportAttempts is how often the build is tried before the export is marked failed.
-const ExportAttempts = 3
+// ExportAttempts is how often the build is tried before the export is marked failed: one retry after a failed build
+// (D7).
+const ExportAttempts = 2
 
 type riverExportJobs struct {
 	client *river.Client[pgx.Tx]

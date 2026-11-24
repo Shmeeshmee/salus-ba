@@ -114,6 +114,18 @@ func TestSearch_APatientFindsOnlyTheirOwnAndEachIsAudited(t *testing.T) {
 	checkEvents(t, "Search", f.audit, want...)
 }
 
+// A patient's own search narrowed to one clinic reads and audits that clinic's only (the export of a clinic target,
+// docs/clinic-cms/WAVE5.md D7).
+func TestSearch_APatientNarrowsTheirOwnToOneClinic(t *testing.T) {
+	f := cancelFixture(start)
+	got, err := f.svc.Search(t.Context(), me, appointment.Filter{OrganizationID: clinicB})
+	if err != nil || len(got) != 1 || got[0].Appointment.ID != apptX {
+		t.Fatalf("Search() = %+v, %v; want patient A's one at clinic B", got, err)
+	}
+	checkEvents(t, "Search", f.audit, event(me, auditevent.CodeSearchType, "Appointment", apptX, auditevent.OutcomeSuccess),
+		event(me, auditevent.CodeSearchType, "Patient", patientA, auditevent.OutcomeSuccess))
+}
+
 func TestSearch_APractitionerSearchesOnlyTheirOwnRole(t *testing.T) {
 	f := cancelFixture(start)
 	f.consents.state[patientB+clinicA] = access.Consent{Active: true}

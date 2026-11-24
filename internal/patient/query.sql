@@ -101,6 +101,6 @@ WHERE patient_id = @patient_id AND organization_id = @organization_id AND restri
 -- name: RestrictedAtClinic :many
 SELECT patient_id FROM patient_restriction WHERE organization_id = @organization_id ORDER BY patient_id;
 
--- Read from any scope (00079): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
+-- Read from any scope (00078): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
 -- name: PatientRestricted :one
 SELECT patient_record_restricted(@patient_id::uuid, @organization_id::uuid)::boolean AS restricted;

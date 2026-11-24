@@ -11,6 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimExport = `-- name: ClaimExport :one
+UPDATE data_request_export n SET object_key = $1
+FROM (SELECT q.data_request_id, q.object_key FROM data_request_export q
+      WHERE q.data_request_id = $2 AND q.status = 'queued' FOR UPDATE) o
+WHERE n.data_request_id = o.data_request_id
+RETURNING o.object_key AS previous
+`
+
+type ClaimExportParams struct {
+	ObjectKey     pgtype.Text
+	DataRequestID pgtype.UUID
+}
+
+// A build attempt claims the queued export's object key (D7) and gets the key it replaces, whose object it deletes.
+func (q *Queries) ClaimExport(ctx context.Context, arg ClaimExportParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, claimExport, arg.ObjectKey, arg.DataRequestID)
+	var previous pgtype.Text
+	err := row.Scan(&previous)
+	return previous, err
+}
+
 const deleteExport = `-- name: DeleteExport :execrows
 DELETE FROM data_request_export WHERE data_request_id = $1
 `
@@ -24,7 +45,7 @@ func (q *Queries) DeleteExport(ctx context.Context, dataRequestID pgtype.UUID) (
 }
 
 const exportOf = `-- name: ExportOf :one
-SELECT x.data_request_id, x.requested_at, x.ready_at, x.expires_at, x.account_id, x.status, x.size, x.kek_id, x.wrapped_key, r.kind, r.organization_id FROM data_request_export x JOIN data_request r ON r.id = x.data_request_id
+SELECT x.data_request_id, x.requested_at, x.ready_at, x.expires_at, x.account_id, x.status, x.size, x.kek_id, x.wrapped_key, x.object_key, r.kind, r.organization_id FROM data_request_export x JOIN data_request r ON r.id = x.data_request_id
 WHERE x.data_request_id = $1
 `
 
@@ -38,6 +59,7 @@ type ExportOfRow struct {
 	Size           pgtype.Int8
 	KekID          pgtype.Text
 	WrappedKey     []byte
+	ObjectKey      pgtype.Text
 	Kind           string
 	OrganizationID pgtype.UUID
 }
@@ -56,6 +78,7 @@ func (q *Queries) ExportOf(ctx context.Context, dataRequestID pgtype.UUID) (Expo
 		&i.Size,
 		&i.KekID,
 		&i.WrappedKey,
+		&i.ObjectKey,
 		&i.Kind,
 		&i.OrganizationID,
 	)
@@ -63,7 +86,7 @@ func (q *Queries) ExportOf(ctx context.Context, dataRequestID pgtype.UUID) (Expo
 }
 
 const exportsDoneBefore = `-- name: ExportsDoneBefore :many
-SELECT data_request_id FROM data_request_export
+SELECT data_request_id, object_key FROM data_request_export
 WHERE ready_at < $1 OR status <> 'ready' AND requested_at < $1
 ORDER BY requested_at LIMIT $2
 `
@@ -73,21 +96,26 @@ type ExportsDoneBeforeParams struct {
 	Max    int32
 }
 
+type ExportsDoneBeforeRow struct {
+	DataRequestID pgtype.UUID
+	ObjectKey     pgtype.Text
+}
+
 // The retention job (salus_retention): the exports ready before @before, and those asked for before it that never
 // became ready (failed, or a build that never finished).
-func (q *Queries) ExportsDoneBefore(ctx context.Context, arg ExportsDoneBeforeParams) ([]pgtype.UUID, error) {
+func (q *Queries) ExportsDoneBefore(ctx context.Context, arg ExportsDoneBeforeParams) ([]ExportsDoneBeforeRow, error) {
 	rows, err := q.db.Query(ctx, exportsDoneBefore, arg.Before, arg.Max)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []ExportsDoneBeforeRow
 	for rows.Next() {
-		var data_request_id pgtype.UUID
-		if err := rows.Scan(&data_request_id); err != nil {
+		var i ExportsDoneBeforeRow
+		if err := rows.Scan(&i.DataRequestID, &i.ObjectKey); err != nil {
 			return nil, err
 		}
-		items = append(items, data_request_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -111,7 +139,7 @@ const insertExport = `-- name: InsertExport :one
 INSERT INTO data_request_export (data_request_id, account_id, requested_at)
 VALUES ($1, $2, $3)
 ON CONFLICT (account_id) WHERE status = 'queued' DO NOTHING
-RETURNING data_request_id, requested_at, ready_at, expires_at, account_id, status, size, kek_id, wrapped_key
+RETURNING data_request_id, requested_at, ready_at, expires_at, account_id, status, size, kek_id, wrapped_key, object_key
 `
 
 type InsertExportParams struct {
@@ -135,8 +163,28 @@ func (q *Queries) InsertExport(ctx context.Context, arg InsertExportParams) (Dat
 		&i.Size,
 		&i.KekID,
 		&i.WrappedKey,
+		&i.ObjectKey,
 	)
 	return i, err
+}
+
+const markClaimFailed = `-- name: MarkClaimFailed :execrows
+UPDATE data_request_export SET status = 'failed'
+WHERE data_request_id = $1 AND status = 'queued' AND object_key = $2
+`
+
+type MarkClaimFailedParams struct {
+	DataRequestID pgtype.UUID
+	ObjectKey     pgtype.Text
+}
+
+// A build attempt whose request closed meanwhile fails the export only while its claim is still the row's (D7).
+func (q *Queries) MarkClaimFailed(ctx context.Context, arg MarkClaimFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markClaimFailed, arg.DataRequestID, arg.ObjectKey)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markExportFailed = `-- name: MarkExportFailed :execrows
@@ -154,7 +202,7 @@ func (q *Queries) MarkExportFailed(ctx context.Context, dataRequestID pgtype.UUI
 const markExportReady = `-- name: MarkExportReady :execrows
 UPDATE data_request_export SET status = 'ready', ready_at = $1, expires_at = $2, size = $3,
     kek_id = $4, wrapped_key = $5
-WHERE data_request_id = $6 AND status = 'queued'
+WHERE data_request_id = $6 AND status = 'queued' AND object_key = $7
   AND EXISTS (SELECT 1 FROM data_request r WHERE r.id = $6 AND r.status IN ('received', 'in_progress'))
 `
 
@@ -165,8 +213,10 @@ type MarkExportReadyParams struct {
 	KekID         pgtype.Text
 	WrappedKey    []byte
 	DataRequestID pgtype.UUID
+	ObjectKey     pgtype.Text
 }
 
+// Only the attempt whose claim is still the row's: of two overlapping attempts, the later claim wins.
 func (q *Queries) MarkExportReady(ctx context.Context, arg MarkExportReadyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markExportReady,
 		arg.ReadyAt,
@@ -175,6 +225,7 @@ func (q *Queries) MarkExportReady(ctx context.Context, arg MarkExportReadyParams
 		arg.KekID,
 		arg.WrappedKey,
 		arg.DataRequestID,
+		arg.ObjectKey,
 	)
 	if err != nil {
 		return 0, err

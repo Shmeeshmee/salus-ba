@@ -37,3 +37,26 @@ func TestRiverJobs_EnqueuesTheWarningInTheTransactionWithOnlyItsID(t *testing.T)
 		t.Errorf("EnqueueWarning() outside a transaction = %v, want postgres.ErrNoTx", err)
 	}
 }
+
+// The export's build is tried twice: one retry after a failed build, then the worker marks the export failed (D7).
+func TestRiverExportJobs_BuildIsRetriedOnce(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	client, err := river.NewClient(riverpgxv5.New(app), &river.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := datarequest.NewRiverExportJobs(client)
+	args := datarequest.ExportArgs{RequestID: profileA, AccountID: accountA}
+	if err := postgres.NewTransactor(app).WithTx(t.Context(), func(ctx context.Context) error { return jobs.EnqueueExport(ctx, args) }); err != nil {
+		t.Fatalf("EnqueueExport() = %v", err)
+	}
+	var kind string
+	var attempts int
+	if err := owner.QueryRow(t.Context(), "SELECT kind, max_attempts FROM river_job").Scan(&kind, &attempts); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "data_request_export_build" || attempts != 2 {
+		t.Errorf("job %s with %d attempts, want data_request_export_build with 2", kind, attempts)
+	}
+}

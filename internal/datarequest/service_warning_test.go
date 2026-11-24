@@ -27,7 +27,10 @@ func TestWarning_TheOpenRequestAndItsAnswerersTimeZone(t *testing.T) {
 	if len(f.audit.events) != 2 {
 		t.Fatalf("%d audit events, want 2", len(f.audit.events))
 	}
-	e := f.audit.events[1]
+	e := f.audit.events[0] // the map's order is random: the clinic request's event
+	if e.OrganizationID == "" {
+		e = f.audit.events[1]
+	}
 	if e.AgentName != datarequest.AgentWarning || e.AgentAccountID != "" || e.Action != auditevent.ActionRead ||
 		e.EntityReference != "Patient/"+profileA || e.OrganizationID != clinicA {
 		t.Errorf("audit event %+v, want the warning's read", e)

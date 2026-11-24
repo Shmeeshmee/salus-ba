@@ -44,7 +44,7 @@ ORDER BY role = 'patient' DESC, added_at, id;
 -- name: ConversationsOfParticipant :many
 -- The conversations the patient or the practitioner role takes part in (one of the two is null), newest activity
 -- first, before the cursor when there is one, with that participant's read position. A practitioner's list leaves out
--- the conversations about a patient whose record the treating clinic restricted (S7, 00079), a guest's too; the
+-- the conversations about a patient whose record the treating clinic restricted (S7, 00078), a guest's too; the
 -- patient's own list keeps them.
 SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.practitioner_role_id, c.encounter_id, c.parent_id,
        c.created_by, c.last_seq, c.staff_only, p.read_seq
