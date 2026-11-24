@@ -59,7 +59,7 @@ export const deskDay = { date: '2026-11-23', visits: [anaVisit, boVisit, cleoVis
 export const cySchedule = 'd0000000-0000-4000-8000-0000000000d1'
 const slotModeURL = 'https://salus.invalid/fhir/StructureDefinition/visit-mode'
 
-function slot(id: string, start: string, end: string, mode: 'in-person' | 'video') {
+export function slot(id: string, start: string, end: string, mode: 'in-person' | 'video') {
   return {
     fullUrl: `https://api.example.test/fhir/R4/Slot/${id}`,
     resource: {

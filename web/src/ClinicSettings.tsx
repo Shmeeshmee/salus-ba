@@ -3,6 +3,7 @@ import type { ApiClient } from './api/client'
 import { FhirError, settingsOf, withSettings, type ClinicSettings as Settings, type FhirClient, type Organization } from './api/fhir'
 import { attempt } from './api/result'
 import { ClinicExport } from './ClinicExport'
+import { ClinicSettingsNav } from './ClinicSettingsNav'
 import { ClinicSettingsNoShows } from './ClinicSettingsNoShows'
 import { ClinicSettingsReminders } from './ClinicSettingsReminders'
 import { isStaffLanguage, staffLanguages } from './i18n/languages'
@@ -66,8 +67,9 @@ export function ClinicSettings({
 
   return (
     <>
-      <section className="panel">
+      <section className="panel" id="clinic-details">
         <h1>{t('admin.clinicSettings')}</h1>
+        <ClinicSettingsNav />
         <p>
           <Link to="/price-list">{t('prices.title')}</Link>
         </p>
@@ -88,8 +90,11 @@ export function ClinicSettings({
         {load.name === 'loaded' && <ClinicSettingsReschedule api={api} />}
         {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
       </section>
-      <ClinicSettingsReminders api={api} />
-      {load.name === 'loaded' && <ClinicExport api={api} zone={settingsOf(load.org).timeZone} />}
+      <div id="clinic-reminders">
+        <ClinicSettingsReminders api={api} />
+      </div>
+      <div id="clinic-export">{load.name === 'loaded' && <ClinicExport api={api} zone={settingsOf(load.org).timeZone} />}</div>
+      <div id="clinic-import">
       {importing ? (
         <PatientImport
           api={api}
@@ -113,6 +118,7 @@ export function ClinicSettings({
         </p>
       )}
       {imported !== undefined && <Notice message={t('patientImport.imported', { count: imported })} />}
+      </div>
       <p>
         <Link to="/membership">{t('subscription.link')}</Link>
       </p>

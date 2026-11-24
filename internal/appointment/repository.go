@@ -7,7 +7,8 @@ import (
 
 // Repository stores appointments. Row-level security shows a transaction the appointments of the patient set
 // by SetPatient; of the clinic set by SetClinic, those with an active consent and, after a revocation, those
-// that started before it; and, with SetNotice beside SetClinic, the one appointment of a job.
+// that started before it; with SetNotice beside SetClinic, the one appointment of a job; and with SetRecord beside
+// SetClinic, every appointment of the clinic, for its record.
 type Repository interface {
 	// SetPatient scopes the rest of the transaction in ctx to the patient id.
 	SetPatient(ctx context.Context, id string) error
@@ -15,6 +16,9 @@ type Repository interface {
 	SetClinic(ctx context.Context, id string) error
 	// SetNotice adds the appointment id of an e-mail job to the clinic scope.
 	SetNotice(ctx context.Context, id string) error
+	// SetRecord adds the clinic record's reading to the clinic scope (docs/clinic-cms/WAVE5.md S11): every appointment
+	// of the clinic and its patient, whatever the consent, for the hand-over and the export only.
+	SetRecord(ctx context.Context) error
 	// Create stores a booked appointment, created at a.Created, and returns it; ErrSlotUnavailable when the
 	// role has an appointment at an overlapping time, or another is being booked at one at the same moment
 	// (either aborts the transaction).

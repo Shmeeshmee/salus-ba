@@ -688,3 +688,10 @@ p.hint.join { margin-bottom: 20px; }
 .desk-dialog section { display: grid; gap: 8px; justify-items: start; }
 .desk-dialog section h3 { margin: 0; font-size: 15px; }
 .desk-dialog section p { margin: 0; }
+
+/* The clinic settings page's in-page navigation (ClinicSettingsNav): its sections as a wrapping row of links; a
+   section scrolled to keeps a little space above its title. */
+.settings-nav ul { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; padding: 0; list-style: none; }
+.settings-nav a { font-size: 0.875rem; }
+[id^='clinic-'], #reschedule-settings, #noshow-settings { scroll-margin-top: 16px; }
+[id^='clinic-']:focus, #reschedule-settings:focus, #noshow-settings:focus { outline: none; }

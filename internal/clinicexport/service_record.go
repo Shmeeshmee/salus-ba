@@ -10,7 +10,8 @@ import (
 )
 
 // Record is what the clinic holds of a patient it registered, as it hands it over (docs/clinic-cms R2, V2) and as its
-// data export writes it (M2): the profile, the consents the patient gave the clinic, their appointments and the
+// data export writes it (M2): the profile, the consents the patient gave the clinic, their appointments (those a
+// withdrawal of consent cancelled included, docs/clinic-cms/WAVE5.md S11) and the
 // receipts the clinic issued to them. Clinical documents, questionnaire answers and the history are left out until
 // the owner and a lawyer decide who may hand them over (docs/clinic-cms/PROGRESS.md, wave 4 integration).
 type Record struct {
@@ -43,7 +44,7 @@ func (s *Service) record(ctx context.Context, account, org string, admin bool, i
 		return Record{}, err
 	}
 	out := Record{Patient: rec}
-	visits, err := s.p.Appointments.Search(ctx, appointment.Caller{AccountID: account, OrganizationID: org, Admin: true}, appointment.Filter{PatientID: id})
+	visits, err := s.p.Appointments.ClinicRecord(ctx, appointment.Caller{AccountID: account, OrganizationID: org, Admin: true}, appointment.Filter{PatientID: id})
 	if err != nil {
 		return Record{}, err
 	}

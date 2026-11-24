@@ -23,7 +23,7 @@ export function ClinicProfile({ api }: { api: ApiClient }) {
     return { profile: res.data, version: res.response.headers.get('ETag') ?? '' }
   }, [api])
   return (
-    <section className="panel">
+    <section className="panel" id="clinic-profile">
       <h2>{t('clinicProfile.title')}</h2>
       <p className="hint">{t('clinicProfile.intro')}</p>
       {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}

@@ -28,6 +28,8 @@
   "inviteLimit": "Klinika ima 50 otvorenih pozivnica. Pričekajte da neke budu prihvaćene ili isteknu prije slanja nove.",
   "inviteForbidden": "Samo administrator klinike može slati pozivnice.",
   "clinicSettings": "Postavke klinike",
+  "settingsNav": "Na ovoj stranici",
+  "settingsNavDetails": "Podaci o klinici",
   "clinicLoadFailed": "Klinika se nije mogla učitati. Osvježite stranicu i pokušajte ponovno.",
   "placesLoadFailed": "Regije i gradovi nisu se mogli učitati. Osvježite stranicu i pokušajte ponovno.",
   "clinicName": "Naziv klinike",

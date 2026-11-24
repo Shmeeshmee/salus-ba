@@ -6,6 +6,7 @@ import { Dialog } from './chat/Dialog'
 import { DeskConsent } from './DeskConsent'
 import { useT } from './i18n/useT'
 import { useLoad } from './load'
+import { groupPhone } from './phone'
 import { Alert, Field, Notice, Submit } from './ui'
 
 type ClinicPatient = components['schemas']['ClinicPatient']
@@ -83,7 +84,7 @@ function Profile({ api, patient, onSaved }: { api: ApiClient; patient: ClinicPat
   const [givenName, setGivenName] = useState(patient.givenName)
   const [familyName, setFamilyName] = useState(patient.familyName)
   const [birthDate, setBirthDate] = useState(patient.birthDate)
-  const [phone, setPhone] = useState(patient.phone ?? '')
+  const [phone, setPhone] = useState(groupPhone(patient.phone ?? ''))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [saved, setSaved] = useState<string>()

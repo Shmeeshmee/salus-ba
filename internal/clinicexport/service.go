@@ -46,9 +46,10 @@ type Practitioners interface {
 	Read(ctx context.Context, c practitioner.Caller, id string) (practitioner.Practitioner, error)
 }
 
-// Appointments searches the clinic's appointments, each one audited (appointment.Service).
+// Appointments reads the clinic's appointments as its record holds them, the visits a withdrawal of consent cancelled
+// included (docs/clinic-cms/WAVE5.md S11), each one audited (appointment.Service).
 type Appointments interface {
-	Search(ctx context.Context, c appointment.Caller, f appointment.Filter) ([]appointment.Seen, error)
+	ClinicRecord(ctx context.Context, c appointment.Caller, f appointment.Filter) ([]appointment.Seen, error)
 }
 
 // Receipts lists the clinic's receipts, and those it issued to one patient, audited (invoice.Service).

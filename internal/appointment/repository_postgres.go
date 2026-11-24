@@ -47,6 +47,10 @@ func (r *postgresRepository) SetNotice(ctx context.Context, id string) error {
 	return postgres.SetLocal(ctx, "app.appointment_id", id)
 }
 
+func (r *postgresRepository) SetRecord(ctx context.Context) error {
+	return postgres.SetLocal(ctx, "app.clinic_record", "on")
+}
+
 func (r *postgresRepository) Create(ctx context.Context, a Appointment) (Appointment, error) {
 	var p, role, org, sl, service, by pgtype.UUID
 	if p.Scan(a.PatientID) != nil || role.Scan(a.PractitionerRoleID) != nil || org.Scan(a.OrganizationID) != nil || sl.Scan(a.SlotID) != nil {

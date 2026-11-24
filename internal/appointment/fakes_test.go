@@ -92,6 +92,7 @@ type fakeRepository struct {
 	clinic   string               // set by SetClinic
 	notice   string               // set by SetNotice
 	calls    []string
+	record   bool // set by SetRecord
 }
 
 func (r *fakeRepository) seen(ctx context.Context, call string) {
@@ -109,7 +110,7 @@ func (r *fakeRepository) visible(a appointment.Appointment) bool {
 		return false
 	}
 	st := r.consents.state[a.PatientID+a.OrganizationID]
-	return st.Active || a.Start.Before(st.RevokedAt) || a.ID == r.notice
+	return st.Active || a.Start.Before(st.RevokedAt) || a.ID == r.notice || r.record
 }
 
 func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
@@ -127,6 +128,12 @@ func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 func (r *fakeRepository) SetNotice(ctx context.Context, id string) error {
 	r.seen(ctx, "SetNotice")
 	r.notice = id
+	return nil
+}
+
+func (r *fakeRepository) SetRecord(ctx context.Context) error {
+	r.seen(ctx, "SetRecord")
+	r.record = true
 	return nil
 }
 
