@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
+	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/datarequest"
@@ -80,6 +81,11 @@ func newDataRequestExports(pool *pgxpool.Pool, files Files, appointments *appoin
 			}),
 			Answers: answers, Questionnaires: questionnaires,
 			Files: binary.NewService(binary.Ports{Repo: binary.NewPostgresRepository(pool), Store: files.Store, Holder: answers, Audit: audit, Tx: tx, Clock: clk, KEK: files.KEK}),
+			Chat: communication.NewService(communication.Ports{ // the patient's own reads, as the app's chat makes them
+				Repo: communication.NewPostgresRepository(pool), Consents: consents, ChatConsents: consents, Visits: appointment.NewFacts(appointment.NewPostgresRepository(pool)),
+				Roles: roles, Directory: roles, Encounters: encounters, Audit: audit, Tx: tx, Clock: clk,
+				Files: binary.NewService(binary.Ports{Repo: binary.NewPostgresRepository(pool), Store: files.Store, Audit: audit, Tx: tx, Clock: clk, KEK: files.KEK}),
+			}),
 		}),
 		Accounts: auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 	}})

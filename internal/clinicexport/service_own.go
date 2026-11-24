@@ -11,6 +11,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -75,6 +76,15 @@ type OwnFiles interface {
 	Content(ctx context.Context, f binary.File, from, to int64) (io.ReadCloser, error)
 }
 
+// OwnChat reads the calling patient's own conversations, their messages and the files the patient may open, each read
+// audited (communication.Service).
+type OwnChat interface {
+	List(ctx context.Context, c appointment.Caller, before *communication.ListCursor) ([]communication.Conversation, *communication.ListCursor, error)
+	Messages(ctx context.Context, c appointment.Caller, id string, before *communication.Cursor, limit int) (communication.Page, error)
+	Attachment(ctx context.Context, c appointment.Caller, id, attachmentID string, thumbnail bool) (binary.File, error)
+	Content(ctx context.Context, f binary.File, from, to int64) (io.ReadCloser, error)
+}
+
 // OwnPorts are the services a patient reads their own record through in the app.
 type OwnPorts struct {
 	Profile        OwnProfile
@@ -87,6 +97,7 @@ type OwnPorts struct {
 	Answers        OwnAnswers
 	Questionnaires OwnQuestionnaires
 	Files          OwnFiles
+	Chat           OwnChat
 }
 
 // OwnRecords is the record builder in the patient's own scope (docs/clinic-cms/WAVE5.md D2, D7, S4): what the patient
@@ -109,8 +120,9 @@ type OwnFile struct {
 
 // OwnPart is what the patient reads in the app of one clinic: record.json (a FHIR Bundle of type collection: the
 // profile, consents, appointments, encounters, signed Compositions, submitted QuestionnaireResponses and receipts),
-// quotes.json when there are quotes, and files/<id>.<ext>, the signed documents' PDFs (by their Composition's id) and
-// the answers' uploaded files (by Binary id). Holds says what it holds, a line each, for the manifest.
+// quotes.json when there are quotes, chat.json when there are conversations, and files/<id>.<ext>, the signed
+// documents' PDFs (by their Composition's id), the answers' uploaded files (by Binary id) and the chat's files (by
+// attachment id). Holds says what it holds, a line each, for the manifest.
 type OwnPart struct {
 	OrganizationID string
 	Files          []OwnFile
@@ -155,6 +167,8 @@ func (o *OwnRecords) Export(ctx context.Context, account, org string) (*OwnExpor
 // own is everything read of the patient, of every clinic or one; the files by clinic.
 type own struct {
 	files      map[string][]OwnFile
+	chatFiles  map[string]int // how many of files are the chat's, by clinic
+	chats      []conversation
 	consents   []consent.Consent
 	visits     []appointment.Seen
 	encounters []encounter.Encounter
@@ -173,7 +187,7 @@ type answered struct {
 // read reads, as the patient c, their consents, the visits of org (every clinic's when empty) with their encounters,
 // signed documents and PDFs, submitted answers and their clean files, and their receipts and quotes.
 func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string) (own, error) {
-	out := own{files: map[string][]OwnFile{}}
+	out := own{files: map[string][]OwnFile{}, chatFiles: map[string]int{}}
 	var err error
 	if out.consents, err = o.p.Consents.Mine(ctx, consent.Caller{AccountID: c.AccountID, PatientID: c.PatientID}); err != nil {
 		return own{}, err
@@ -191,6 +205,9 @@ func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string)
 		return own{}, err
 	}
 	if out.quotes, err = o.p.Quotes.MyQuotes(ctx, ic); err != nil {
+		return own{}, err
+	}
+	if err := o.chat(ctx, c, org, &out); err != nil {
 		return own{}, err
 	}
 	return out, nil
@@ -280,6 +297,9 @@ func (x own) clinics(org string) []string {
 	for _, q := range x.quotes {
 		add(q.OrganizationID)
 	}
+	for _, k := range x.chats {
+		add(k.OrganizationID)
+	}
 	slices.Sort(out)
 	return out
 }
@@ -305,9 +325,16 @@ func (x own) part(me patient.Patient, org string) (OwnPart, error) {
 		}
 		out.Files = append(out.Files, OwnFile{Name: "quotes.json", Body: append(q, '\n')})
 	}
+	chats, err := x.chatJSON(org)
+	if err != nil {
+		return OwnPart{}, err
+	}
+	if chats.n > 0 {
+		out.Files = append(out.Files, OwnFile{Name: "chat.json", Body: chats.body})
+	}
 	out.Files = append(out.Files, x.files[org]...)
 	out.Holds = holds([]int{len(rec.Patient.Consents), len(rec.Visits), len(b.encounters), len(b.documents), len(b.answers),
-		len(x.files[org]) - len(b.documents), len(rec.Receipts), len(quotes)})
+		len(x.files[org]) - len(b.documents) - x.chatFiles[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org]})
 	return out, nil
 }
 
@@ -359,6 +386,7 @@ type clinical struct {
 var holdsOf = []string{
 	"consent", "appointment (the cancelled ones too)", "visit record (Encounter)", "signed document (its PDF in files/)",
 	"submitted questionnaire answer", "file you uploaded with your answers (in files/)", "receipt", "quote (quotes.json)",
+	"chat conversation (chat.json)", "file of the chat (in files/)",
 }
 
 // holds are the manifest's lines of a part: what it holds, by count in holdsOf's order, leaving out what it has none

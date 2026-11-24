@@ -222,7 +222,7 @@ func exportManifest(record *clinicexport.OwnExport, account bool) string {
 			}
 		}
 	}
-	return out + "\nNot in this archive yet: your chat messages and their attachments. You can read them in the app.\n"
+	return out
 }
 
 // sealExport encrypts the archive under a new data key bound to the request's id, stores it outside any transaction,

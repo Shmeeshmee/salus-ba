@@ -15,6 +15,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
+	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
@@ -36,6 +37,9 @@ type ownSources struct {
 	docs      []composition.Document
 	answers   []questionnaireresponse.Seen
 	files     map[string]string // clean files by binary id; any other is not found
+	convs     []communication.Conversation
+	msgs      map[string][]communication.Message // by conversation
+	chatFiles map[string]string                  // the chat's clean files by attachment id
 	calls     []string
 	visitOrgs []string
 }
@@ -169,7 +173,7 @@ func newOwn() (*ownSources, *clinicexport.OwnRecords) {
 	inv := ownInvoices{o}
 	return o, clinicexport.NewOwnRecords(clinicexport.OwnPorts{
 		Profile: o, Consents: o, Appointments: o, Receipts: inv, Quotes: inv, Encounters: ownEncounters{o},
-		Documents: ownDocuments{o}, Answers: ownAnswers{o}, Questionnaires: ownAnswers{o}, Files: ownFiles{o},
+		Documents: ownDocuments{o}, Answers: ownAnswers{o}, Questionnaires: ownAnswers{o}, Files: ownFiles{o}, Chat: ownChat{o},
 	})
 }
 
