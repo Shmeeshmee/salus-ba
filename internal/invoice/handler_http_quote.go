@@ -53,6 +53,9 @@ type sendQuoteJSON struct {
 	Lines         []pickJSON `json:"lines"`
 }
 
+// QuoteJSON is the quote as the API's Quote schema serves it to the patient (the patient's export writes it too, D7).
+func QuoteJSON(q Quote) any { return quoteToJSON(q) }
+
 func quoteToJSON(q Quote) quoteJSON {
 	out := quoteJSON{
 		IssuedAt: q.IssuedAt, ValidUntil: q.ValidUntil, ID: q.ID, OrganizationID: q.OrganizationID, PatientID: q.PatientID,

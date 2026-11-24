@@ -7,14 +7,17 @@ import (
 	"errors"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
 const (
@@ -65,14 +68,33 @@ func (r *fakeExports) ExportOf(_ context.Context, id string) (datarequest.Stored
 	return x, nil
 }
 
+func (r *fakeExports) ClaimExport(_ context.Context, id, key string) (string, bool, error) {
+	cur, ok := r.rows[id]
+	if !ok || cur.AccountID != r.scope || cur.Status != datarequest.ExportQueued {
+		return "", false, nil
+	}
+	previous := cur.ObjectKey
+	cur.ObjectKey = key
+	r.rows[id] = cur
+	return previous, true, nil
+}
+
 func (r *fakeExports) MarkExportReady(_ context.Context, x datarequest.StoredExport) (bool, error) {
 	cur, ok := r.rows[x.RequestID]
-	if !ok || cur.AccountID != r.scope || cur.Status != datarequest.ExportQueued || r.closed[x.RequestID] {
+	if !ok || cur.AccountID != r.scope || cur.Status != datarequest.ExportQueued || r.closed[x.RequestID] ||
+		cur.ObjectKey != x.ObjectKey {
 		return false, nil
 	}
 	x.Status = datarequest.ExportReady
 	r.rows[x.RequestID] = x
 	return true, nil
+}
+
+func (r *fakeExports) MarkClaimFailed(_ context.Context, x datarequest.StoredExport) (bool, error) {
+	if r.rows[x.RequestID].ObjectKey != x.ObjectKey {
+		return false, nil
+	}
+	return r.MarkExportFailed(context.Background(), x.RequestID)
 }
 
 func (r *fakeExports) MarkExportFailed(_ context.Context, id string) (bool, error) {
@@ -93,15 +115,15 @@ func (r *fakeExports) Fulfil(_ context.Context, id string) (bool, error) {
 	return true, nil
 }
 
-func (r *fakeExports) ExportsDoneBefore(_ context.Context, before time.Time, _ int32) ([]string, error) {
-	var out []string
-	for id, x := range r.rows {
+func (r *fakeExports) ExportsDoneBefore(_ context.Context, before time.Time, _ int32) ([]datarequest.StoredExport, error) {
+	var out []datarequest.StoredExport
+	for _, x := range r.rows {
 		if x.Status == datarequest.ExportReady && x.ReadyAt.Before(before) ||
 			x.Status != datarequest.ExportReady && x.RequestedAt.Before(before) {
-			out = append(out, id)
+			out = append(out, x)
 		}
 	}
-	slices.Sort(out)
+	slices.SortFunc(out, func(a, b datarequest.StoredExport) int { return strings.Compare(a.RequestID, b.RequestID) })
 	return out, nil
 }
 
@@ -111,7 +133,11 @@ func (r *fakeExports) DeleteExport(_ context.Context, id string) (bool, error) {
 	return ok, nil
 }
 
-type fakeStore struct{ objects map[string][]byte }
+// fakeStore keeps the objects in memory; afterPut, when set, runs once after the next Put (an overlapping attempt).
+type fakeStore struct {
+	objects  map[string][]byte
+	afterPut []func()
+}
 
 func (s *fakeStore) Put(_ context.Context, key string, r io.Reader, size int64) error {
 	b, err := io.ReadAll(r)
@@ -119,6 +145,11 @@ func (s *fakeStore) Put(_ context.Context, key string, r io.Reader, size int64) 
 		return errors.New("fakeStore: short write")
 	}
 	s.objects[key] = b
+	if len(s.afterPut) > 0 {
+		f := s.afterPut[0]
+		s.afterPut = s.afterPut[1:]
+		f()
+	}
 	return nil
 }
 
@@ -135,21 +166,24 @@ func (s *fakeStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
-// fakeSources are the patient's own record and account, and who read them.
+// fakeSources are the patient's own record and account, who read them and the request id each read carried.
 type fakeSources struct {
-	bundle   []byte
+	record   *clinicexport.OwnExport
 	orgs     []string
 	accounts []string
+	requests []string
 }
 
-func (f *fakeSources) Bundle(_ context.Context, account, org string) ([]byte, error) {
+func (f *fakeSources) Export(ctx context.Context, account, org string) (*clinicexport.OwnExport, error) {
 	f.accounts = append(f.accounts, account)
 	f.orgs = append(f.orgs, org)
-	return f.bundle, nil
+	f.requests = append(f.requests, middleware.RequestIDFrom(ctx))
+	return f.record, nil
 }
 
-func (f *fakeSources) Me(_ context.Context, id string) (auth.Account, error) {
+func (f *fakeSources) Me(ctx context.Context, id string) (auth.Account, error) {
 	f.accounts = append(f.accounts, id)
+	f.requests = append(f.requests, middleware.RequestIDFrom(ctx))
 	return auth.Account{ID: id, Email: "patient@example.test", Language: "bs", PasswordHash: "secret-hash"}, nil
 }
 
@@ -172,7 +206,12 @@ func newExportEnv(t *testing.T) *exportEnv {
 		t.Fatal(err)
 	}
 	e := &exportEnv{repo: newFakeExports(), store: &fakeStore{objects: map[string][]byte{}}, jobs: &fakeJobs{},
-		audit: &fakeAudit{}, sources: &fakeSources{bundle: []byte(`{"resourceType":"Bundle"}` + "\n")}, clk: &clock.Fixed{T: now}}
+		audit: &fakeAudit{}, sources: &fakeSources{record: &clinicexport.OwnExport{
+			Patient: []byte(`{"resourceType":"Bundle","entry":["Patient"]}` + "\n"),
+			Parts: []clinicexport.OwnPart{{OrganizationID: clinicA, Holds: []string{"1 signed document (its PDF in files/)"}, Files: []clinicexport.OwnFile{
+				{Name: "record.json", Body: []byte(`{"resourceType":"Bundle"}` + "\n")}, {Name: "files/dr1.pdf", Body: []byte("%PDF")},
+			}}},
+		}}, clk: &clock.Fixed{T: now}}
 	e.svc = datarequest.NewService(datarequest.Ports{Clock: e.clk, Export: datarequest.ExportPorts{
 		Repo: e.repo, Audit: e.audit, Tx: fakeTx{}, Jobs: e.jobs, Store: e.store, KEK: kek, Records: e.sources, Accounts: e.sources,
 	}})
@@ -265,9 +304,7 @@ func TestBuildExport_StoresItEncryptedFulfilsAndServesItForSevenDays(t *testing.
 	if !slices.Equal(e.repo.fulfilled, []string{request1}) {
 		t.Errorf("fulfilled %v, want request1", e.repo.fulfilled)
 	}
-	if obj := e.store.objects[datarequest.ExportObjectKey(request1)]; bytes.Contains(obj, []byte("patient@example.test")) || len(obj) == 0 {
-		t.Error("the stored archive is not encrypted")
-	}
+	checkSealed(t, e.store)
 	got, err := e.svc.Export(ctx, datarequest.Patient{AccountID: accountA}, request1)
 	if err != nil || got.Status != datarequest.ExportReady || !got.ExpiresAt.Equal(now.Add(datarequest.ExportWindow)) {
 		t.Fatalf("Export = %+v, %v; want ready until 7 days on", got, err)
@@ -278,8 +315,14 @@ func TestBuildExport_StoresItEncryptedFulfilsAndServesItForSevenDays(t *testing.
 	}
 	fs := files(t, body)
 	_ = body.Close()
-	if fs["record.json"] != string(e.sources.bundle) || fs["manifest.txt"] == "" {
-		t.Errorf("archive %v, want the record and the manifest", fs)
+	part := "clinics/" + clinicA + "/"
+	if fs[part+"record.json"] != `{"resourceType":"Bundle"}`+"\n" || fs[part+"files/dr1.pdf"] != "%PDF" ||
+		fs["patient.json"] != string(e.sources.record.Patient) {
+		t.Errorf("archive %v, want the profile and the clinic's record and files", fs)
+	}
+	if m := fs["manifest.txt"]; !strings.Contains(m, part) || !strings.Contains(m, "1 signed document (its PDF in files/)") ||
+		strings.Contains(m, "documents, questionnaire answers") {
+		t.Errorf("manifest.txt %q, want what the clinic's part holds", m)
 	}
 	if a := fs["account.json"]; !bytes.Contains([]byte(a), []byte("patient@example.test")) || bytes.Contains([]byte(a), []byte("secret-hash")) {
 		t.Errorf("account.json %q, want the e-mail and no credential", a)
@@ -328,7 +371,7 @@ func TestBuildExport_ClinicTargetAndNotQueued(t *testing.T) {
 	}
 	fs := files(t, body)
 	_ = body.Close()
-	if _, ok := fs["account.json"]; ok || !slices.Equal(e.sources.orgs, []string{clinicA}) {
+	if _, ok := fs["account.json"]; ok || fs["clinics/"+clinicA+"/record.json"] == "" || !slices.Equal(e.sources.orgs, []string{clinicA}) {
 		t.Errorf("archive %v read for %v, want the clinic's record only", fs, e.sources.orgs)
 	}
 	if err := e.svc.BuildExport(ctx, args); err != nil || len(e.sources.orgs) != 1 {
@@ -408,5 +451,139 @@ func TestBuildExport_WithdrawnMeanwhileIsNeverServed(t *testing.T) {
 	}
 	if n, err := datarequest.NewExportPurger(e.repo, e.store).Purge(ctx, now.Add(time.Second)); err != nil || n != 1 || len(e.store.objects) != 0 {
 		t.Errorf("Purge = %d, %v, %d objects left; want the archive gone", n, err, len(e.store.objects))
+	}
+}
+
+// S13: the 7 days run from when the archive is ready, not from the request.
+func TestBuildExport_WindowRunsFromReady(t *testing.T) {
+	t.Parallel()
+	e := newExportEnv(t)
+	ctx := t.Context()
+	if err := e.svc.QueueExport(ctx, access(request1, accountA)); err != nil {
+		t.Fatal(err)
+	}
+	ready := now.Add(3 * 24 * time.Hour)
+	e.clk.T = ready
+	if err := e.svc.BuildExport(ctx, e.jobs.queued[0]); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.svc.Export(ctx, datarequest.Patient{AccountID: accountA}, request1)
+	if err != nil || !got.ExpiresAt.Equal(ready.Add(datarequest.ExportWindow)) {
+		t.Fatalf("Export = %+v, %v; want ready until 7 days after it was ready", got, err)
+	}
+	e.clk.T = now.Add(datarequest.ExportWindow)
+	if got, _ := e.svc.Export(ctx, datarequest.Patient{AccountID: accountA}, request1); got.Status != datarequest.ExportReady {
+		t.Errorf("7 days after the request but 4 after ready: %q, want ready", got.Status)
+	}
+}
+
+// Every audit event the build writes, its own and those of the services it reads through, names the request: the
+// job's context carries the request as its request id, which auditevent stores on each event.
+func TestBuildExport_AuditEventsNameTheRequest(t *testing.T) {
+	t.Parallel()
+	e := newExportEnv(t)
+	ctx := t.Context()
+	if err := e.svc.QueueExport(ctx, access(request1, accountA)); err != nil {
+		t.Fatal(err)
+	}
+	queued := len(e.audit.requests)
+	if err := e.svc.BuildExport(ctx, e.jobs.queued[0]); err != nil {
+		t.Fatal(err)
+	}
+	want := datarequest.AuditRequestID(request1)
+	if want != "data_request/"+request1 {
+		t.Errorf("AuditRequestID = %q", want)
+	}
+	for i, got := range e.audit.requests[queued:] {
+		if got != want {
+			t.Errorf("build event %d names %q, want %q", i, got, want)
+		}
+	}
+	if !slices.Equal(e.sources.requests, []string{want, want}) {
+		t.Errorf("the record and account read with %v, want the request", e.sources.requests)
+	}
+	for i, got := range e.audit.requests[:queued] {
+		if got != want {
+			t.Errorf("queue event %d names %q, want %q", i, got, want)
+		}
+	}
+}
+
+// Two overlapping attempts of one build: the later claim wins and serves its archive; the earlier deletes only its own
+// object and the later deleted the earlier's when it claimed, so one archive is left and it is the one served.
+func TestBuildExport_OverlappingAttemptsKeepTheWinnersArchive(t *testing.T) {
+	t.Parallel()
+	e := newExportEnv(t)
+	ctx := t.Context()
+	if err := e.svc.QueueExport(ctx, access(request1, accountA)); err != nil {
+		t.Fatal(err)
+	}
+	args := e.jobs.queued[0]
+	var second error
+	e.store.afterPut = []func(){func() { second = e.svc.BuildExport(ctx, args) }} // the second attempt runs while the first stores
+	if err := e.svc.BuildExport(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if second != nil {
+		t.Fatal(second)
+	}
+	row := e.repo.rows[request1]
+	if row.Status != datarequest.ExportReady || len(e.store.objects) != 1 || e.store.objects[row.ObjectKey] == nil {
+		t.Fatalf("export %q at %q with %d objects, want ready on the one object left", row.Status, row.ObjectKey, len(e.store.objects))
+	}
+	body, _, err := e.svc.ExportArchive(ctx, datarequest.Patient{AccountID: accountA}, request1)
+	if err != nil {
+		t.Fatalf("ExportArchive = %v", err)
+	}
+	_ = body.Close()
+	if !slices.Equal(e.repo.fulfilled, []string{request1}) {
+		t.Errorf("fulfilled %v, want once", e.repo.fulfilled)
+	}
+}
+
+// checkSealed fails unless the store holds one archive, encrypted, under a key of request1's.
+func checkSealed(t *testing.T, store *fakeStore) {
+	t.Helper()
+	if len(store.objects) != 1 {
+		t.Fatalf("stored %d objects, want the one archive", len(store.objects))
+	}
+	for key, obj := range store.objects {
+		if bytes.Contains(obj, []byte("patient@example.test")) || len(obj) == 0 || !strings.HasPrefix(key, "datarequest/"+request1+"/") {
+			t.Errorf("stored %q unencrypted or outside the request's keys", key)
+		}
+	}
+}
+
+// The other order: the earlier attempt finishes while the later one, which claimed after it, is still building. The
+// earlier one, whose claim is gone, neither serves nor fails the export; the later one then makes it ready.
+func TestBuildExport_AStaleAttemptLeavesTheExportToTheLaterClaim(t *testing.T) {
+	t.Parallel()
+	e := newExportEnv(t)
+	ctx := t.Context()
+	if err := e.svc.QueueExport(ctx, access(request1, accountA)); err != nil {
+		t.Fatal(err)
+	}
+	args := e.jobs.queued[0]
+	stored, release, second := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	e.store.afterPut = []func(){
+		func() { // the first attempt has stored: the second starts, claims and stores, and waits
+			go func() { second <- e.svc.BuildExport(ctx, args) }()
+			<-stored
+		},
+		func() { stored <- struct{}{}; <-release },
+	}
+	if err := e.svc.BuildExport(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.repo.rows[request1].Status; got != datarequest.ExportQueued {
+		t.Errorf("after the stale attempt: %q, want still queued", got)
+	}
+	close(release)
+	if err := <-second; err != nil {
+		t.Fatal(err)
+	}
+	row := e.repo.rows[request1]
+	if row.Status != datarequest.ExportReady || len(e.store.objects) != 1 || e.store.objects[row.ObjectKey] == nil {
+		t.Fatalf("export %q at %q with %d objects, want ready on the one object left", row.Status, row.ObjectKey, len(e.store.objects))
 	}
 }

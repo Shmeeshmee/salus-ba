@@ -138,13 +138,14 @@ func (s *Service) find(ctx context.Context, c Caller, f Filter, record bool) ([]
 
 // search runs the caller's search in the transaction in ctx and audits each result, or gives the refusal.
 func (s *Service) search(ctx context.Context, c Caller, f Filter, record bool) (out []Seen, refused, err error) {
+	clinic := f.OrganizationID // a patient's own search may narrow to one clinic; staff's is set below
 	f.OrganizationID = ""
 	var viewer access.Viewer
 	switch {
 	case c.patient() && c.PatientID == "":
 		return nil, nil, nil
 	case c.patient():
-		f.PatientID = c.PatientID
+		f.PatientID, f.OrganizationID = c.PatientID, clinic
 		viewer = access.Viewer{Role: access.RolePatient, Patient: c.PatientID}
 		err = s.Repo.SetPatient(ctx, c.PatientID)
 	default:

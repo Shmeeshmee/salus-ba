@@ -61,7 +61,8 @@ func TestDataRequestExport_OwnScopeOneQueuedAndFulfil(t *testing.T) {
 	}
 	if err := asApp(t, app, a, func(ctx context.Context, db postgres.Querier) error {
 		_, err := db.Exec(ctx, `UPDATE data_request_export SET status = 'ready', ready_at = now(),
-			expires_at = now() + interval '7 days', size = 1, kek_id = 'k', wrapped_key = '\x00' WHERE data_request_id = $1`, mine)
+			expires_at = now() + interval '7 days', size = 1, kek_id = 'k', wrapped_key = '\x00',
+			object_key = 'datarequest/' || data_request_id || '/a' WHERE data_request_id = $1`, mine)
 		return err
 	}); err != nil {
 		t.Fatal(err)

@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
 // The synthetic ids of the requests' tests.
@@ -165,10 +166,15 @@ func (r *fakeRepo) MarkWarned(_ context.Context, id string, seen, at time.Time) 
 	return true, nil
 }
 
-type fakeAudit struct{ events []auditevent.AuditEvent }
+// fakeAudit keeps the events and, beside each, the request id its context carried (auditevent.Service stores it).
+type fakeAudit struct {
+	events   []auditevent.AuditEvent
+	requests []string
+}
 
-func (a *fakeAudit) Record(_ context.Context, e auditevent.AuditEvent) error {
+func (a *fakeAudit) Record(ctx context.Context, e auditevent.AuditEvent) error {
 	a.events = append(a.events, e)
+	a.requests = append(a.requests, middleware.RequestIDFrom(ctx))
 	return nil
 }
 

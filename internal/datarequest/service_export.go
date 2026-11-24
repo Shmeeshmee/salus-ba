@@ -9,17 +9,19 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
+	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
 // AgentExport names the agent of the build job's own audit events (AuditEvent.agent.name): the job, which is no
 // account. The reads it makes through the other services are audited by them, as the patient's own request.
 const AgentExport = "data_request_export_build"
 
-// Records builds the patient's own record as a FHIR Bundle, from every clinic for an empty org and from the clinic org
+// Records reads what the patient reads in the app, from every clinic for an empty org and from the clinic org
 // otherwise, each read audited as the patient's; nil for an account with no profile (clinicexport.OwnRecords).
 type Records interface {
-	Bundle(ctx context.Context, account, org string) ([]byte, error)
+	Export(ctx context.Context, account, org string) (*clinicexport.OwnExport, error)
 }
 
 // ExportAccounts reads the patient's account, audited (auth.Service).
@@ -53,6 +55,7 @@ type StoredExport struct {
 	Status         ExportStatus
 	Kind           Kind
 	KEKID          string
+	ObjectKey      string // where its archive is stored: the key the build attempt claimed (ExportObjectKey)
 	WrappedKey     []byte
 	Size           int64
 }
@@ -78,8 +81,20 @@ type ExportArgs struct {
 // Kind names the job in the river_job table.
 func (ExportArgs) Kind() string { return "data_request_export_build" }
 
-// ExportObjectKey is where the archive of the request id's export is stored.
-func ExportObjectKey(requestID string) string { return "datarequest/" + requestID }
+// ExportObjectKey is where the build attempt attempt of the request id's export stores its archive: a key of its own,
+// so two overlapping attempts never write one object (D7).
+func ExportObjectKey(requestID, attempt string) string {
+	return "datarequest/" + requestID + "/" + attempt
+}
+
+// AuditRequestID is the request id every audit event of the export of the request id carries (AuditEvent's request
+// id, set on the context): the data request it serves, as a data request is no FHIR resource to name as its entity.
+func AuditRequestID(requestID string) string { return "data_request/" + requestID }
+
+// forRequest is ctx with the export of the request id as its request id, for the audit events written in it.
+func forRequest(ctx context.Context, requestID string) context.Context {
+	return middleware.WithRequestID(ctx, AuditRequestID(requestID))
+}
 
 // exports reports whether a request of kind k is served by the export (S2).
 func exports(k Kind) bool { return k == KindAccess || k == KindPortability }
@@ -107,7 +122,7 @@ func (s *Service) QueueExport(ctx context.Context, r Request) error {
 		if err := x.Jobs.EnqueueExport(ctx, ExportArgs{RequestID: r.ID, AccountID: r.AccountID}); err != nil {
 			return err
 		}
-		return x.Audit.Record(ctx, exportEvent(r.AccountID, auditevent.CodeCreate, auditevent.OutcomeSuccess))
+		return x.Audit.Record(forRequest(ctx, r.ID), exportEvent(r.AccountID, auditevent.CodeCreate, auditevent.OutcomeSuccess))
 	})
 	switch {
 	case errors.Is(err, ErrExportInProgress):
@@ -162,7 +177,7 @@ func (s *Service) ownExport(ctx context.Context, p Patient, id string, ready boo
 		if ready && out.at(s.p.Clock.Now()).Status != ExportReady {
 			return ErrNotFound
 		}
-		return x.Audit.Record(ctx, exportEvent(p.AccountID, auditevent.CodeRead, auditevent.OutcomeSuccess))
+		return x.Audit.Record(forRequest(ctx, id), exportEvent(p.AccountID, auditevent.CodeRead, auditevent.OutcomeSuccess))
 	})
 	switch {
 	case errors.Is(err, ErrNotFound):
@@ -179,7 +194,7 @@ func (s *Service) openExport(ctx context.Context, x StoredExport) (io.ReadCloser
 	if err != nil {
 		return nil, err
 	}
-	src, err := s.p.Export.Store.GetRange(ctx, ExportObjectKey(x.RequestID), 0, envelope.CiphertextSize(x.Size)-1)
+	src, err := s.p.Export.Store.GetRange(ctx, x.ObjectKey, 0, envelope.CiphertextSize(x.Size)-1)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +222,7 @@ func (s *Service) FailExport(ctx context.Context, args ExportArgs) error {
 		if err != nil || !ok {
 			return err
 		}
-		return x.Audit.Record(ctx, exportJobEvent(auditevent.OutcomeSeriousFailure))
+		return x.Audit.Record(forRequest(ctx, args.RequestID), exportJobEvent(auditevent.OutcomeSeriousFailure))
 	})
 	if err != nil {
 		return fmt.Errorf("datarequest: fail export: %w", err)
@@ -216,7 +231,7 @@ func (s *Service) FailExport(ctx context.Context, args ExportArgs) error {
 }
 
 // exportEvent is the audit event of the patient's interaction with their export: the table, as an export is no FHIR
-// resource, for the patient's own request.
+// resource, for the patient's own request; the context names the request (forRequest).
 func exportEvent(account, interaction string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	action := map[string]auditevent.Action{
 		auditevent.CodeCreate: auditevent.ActionCreate, auditevent.CodeRead: auditevent.ActionRead,

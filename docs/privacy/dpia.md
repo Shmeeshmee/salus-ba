@@ -2975,3 +2975,27 @@ cleared from the field; it is never stored or logged.
 | A patient closes the account without knowing what it does | The closure screen says what happens at once, what is erased after 21 days, what stays and how to keep a copy first, all tagged legal; the password confirms |
 | A patient misreads what a kind of request does | Each kind carries its plain explanation (S6, S8, S9), tagged legal |
 | The closed session lingers on the device | After closure the app signs out and forgets the token whatever the API answers; a token it could not drop is refused and dropped at the next start |
+
+### Package D7: the export's clinical content (migration 00078, docs/clinic-cms/WAVE5.md S4)
+
+**Processing changed.** The patient's own export (Package D2) now holds, for each clinic (the one clinic of a clinic
+target), what the patient reads in the app there, and nothing they cannot.
+
+- **What is read, as the patient** (the services the app's routes call, each auditing the read with the patient's
+  account as the agent and the purpose PATRQT): the profile (`patient.Me`), consents (`consent.Mine`), appointments
+  (`appointment.Search`, the visits a withdrawal cancelled included, S11; narrowed to the clinic for a clinic target),
+  each visit's encounters (`encounter.Search`), the encounters' signed documents and their PDFs (`composition.Signed`,
+  `composition.PDF`: never a draft), each visit's submitted questionnaire answers (`questionnaireresponse.Search`,
+  status completed: never an unsubmitted one) with the version they answer (`questionnaire.Read`) and their uploaded
+  files that are clean (`binary.Download`, `binary.Content`: a file still scanned or quarantined is left out, as the
+  app cannot open it), receipts (`invoice.Mine`) and quotes (`invoice.MyQuotes`). A record the clinic restricted (D4,
+  S7) is in it: the restriction limits the clinic's staff, not the patient's own access. Chat messages and their
+  attachments are not in it yet (recorded in `docs/clinic-cms/PROGRESS.md`).
+- **Audit.** Every audit event the build writes, its own and those of the services it reads through, carries the
+  data request as its request id (`data_request/<id>`), so the reads of one export are found by the request.
+- **Archive.** `clinics/<organization id>/record.json` (a FHIR R4 Bundle), `quotes.json` and `files/<id>.<ext>`, files
+  named by opaque ids (Composition, Binary); for the account target also `account.json` and `patient.json`. The
+  whole archive stays encrypted with its own data key; each build attempt stores it under a key of its own
+  (`data_request_export.object_key`, `datarequest/<request id>/<attempt>`), so two overlapping attempts never write one
+  object, the losing attempt deletes its own object, and the retention rule deletes the object the row names.
+- **Retention and logs.** Unchanged: 7 days from ready (S13), then deleted; the job logs the request's id only.

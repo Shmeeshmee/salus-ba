@@ -43,6 +43,7 @@ writes under its own heading here.
 | D4 | done 2026-11-24 (migration `00076`) | `cms(D4)` |
 | D5 | not started | |
 | D6 | done 2026-11-24 | `cms(D6)` |
+| D7 | done 2026-11-24 (migration `00078`) | `cms(D7)` |
 
 ## A: visit modes
 
@@ -2738,3 +2739,106 @@ D2 (export) and D3 (closure) serve their routes.
 **Copy waiting for the owner:** the 62 strings above, in particular the `[legal]` ones for the lawyer: the closure's
 list of what is erased follows S6 word for word, and "the medical-record law" stands in for the retention period
 (L1 to L3) the lawyer has not named yet.
+
+## D7: the export's clinical content
+
+Status: done 2026-11-24 on `wt/cms/D7`, one commit `cms(D7)`. Migration `00078_data_request_export_object_key.sql`.
+Specification: `WAVE5.md` "D7", S4, S11, S13; D2's deferred items 1 to 5 above.
+
+**Built.**
+
+- **What the archive holds (S4).** `clinicexport.OwnRecords.Export` (replacing D2's `Bundle`) reads what the patient
+  reads in the app, through the services the app's routes call, in the patient's own caller scope, so the "can read in
+  the app" rule is the same code: one part per clinic with `record.json` (a FHIR R4 Bundle, collection: Patient,
+  Consents, Appointments, Encounters, signed Compositions, submitted QuestionnaireResponses, Invoices), `quotes.json`
+  (the API's Quote schema) and `files/` (the signed documents' PDFs as `<Composition id>.pdf`, the answers'
+  clean uploads as `<Binary id>.<ext>`; an answer's attachment url names its file in the archive).
+- **The reads and the service each uses** (all audited by that service as the patient's request, PATRQT):
+
+  | What | Service method | Clinic target |
+  | --- | --- | --- |
+  | Profile | `patient.Service.Me` | the profile (shared) |
+  | Consents | `consent.Service.Mine` | read across clinics, kept per clinic (left, below) |
+  | Visits (cancelled ones too, S11) | `appointment.Service.Search` | narrowed in the query (`Filter.OrganizationID`, now honoured for a patient's own search) |
+  | Encounters | `encounter.Service.Search` (by appointment, as `Encounter?appointment=`) | per visit of the clinic |
+  | Signed documents, PDFs | `composition.Service.Signed`, `composition.Service.PDF` | per encounter of the clinic |
+  | Submitted answers | `questionnaireresponse.Service.Search` (by appointment, status completed) | per visit of the clinic |
+  | Their questionnaire versions | `questionnaire.Service.Read` | per answer |
+  | Uploaded files | `binary.Service.Download`, `binary.Service.Content` (a file not clean is left out) | per answer |
+  | Receipts | `invoice.Service.Mine` | read across clinics, kept per clinic (left, below) |
+  | Quotes | `invoice.Service.MyQuotes` | read across clinics, kept per clinic (left, below) |
+  | Account (account target only) | `auth.Service.Me` | not read |
+
+  The history entries are the timeline's view over the visits, encounters, documents, answers and files above (the
+  `history` domain owns no data), so the archive holds what each entry shows. Mappers reused, now exported:
+  `encounter.FHIR`, `composition.CompositionFHIR`, `questionnaireresponse.FHIR` (the handler's mapping with the file
+  url as a parameter), `invoice.QuoteJSON`.
+- **Archive layout.** `manifest.txt` (last), for the account target `account.json` and `patient.json`, then
+  `clinics/<organization id>/record.json`, `quotes.json`, `files/…`. The manifest lists each clinic's folder with what it
+  holds by count; its "missing" sentence now names only the chat.
+- **Audit names the request.** `BuildExport` (and the export's own create, status read, download and failure events)
+  runs with `middleware.WithRequestID(ctx, datarequest.AuditRequestID(id))` = `data_request/<id>`, which
+  `auditevent.Service` stores on every event, those of the services read through included.
+- **No race on the object key.** Migration 00078 adds `data_request_export.object_key` (back-filled with D2's
+  `datarequest/<request id>`, required once ready, salus_app may update it). Each attempt claims a key of its own
+  (`ClaimExport`: `datarequest/<request id>/<random attempt id>`, returning the key it replaced, whose object it
+  deletes); `MarkExportReady` needs the claim to still be the row's; an attempt that lost deletes only its own object.
+  `ExportsDoneBefore` returns each export's key and the purger deletes that object.
+- **One retry.** `ExportAttempts` is 2; the worker marks the export failed on the last attempt, the request stays open.
+- **S13.** `TestBuildExport_WindowRunsFromReady` pins the 7 days from ready (build 3 days after the request).
+- **Wiring.** `internal/worker/datarequestexport.go` builds the encounter, questionnaire, questionnaire response,
+  composition (reads only: repository, encounters, store, KEK) and binary services on the job's pool.
+
+**Test first.** Red first: the datarequest service tests for the window, the request naming and the overlapping
+attempts (build failure: no `ObjectKey`), the retry count (`max_attempts` 3, want 2), the appointment narrowing (three
+visits found, want one), and the builder tests (`service_own_test.go`, undefined `Export`). The repository, migration
+and worker tests were extended with their code and run green.
+
+**Review** (a fresh subagent over the diff, Copilot being out of quota). Fixed, with a test: an earlier attempt that
+finished while a later one (which had claimed after it) was still building marked the export failed, so the later
+attempt could not make it ready (`MarkClaimFailed` now fails it only while the claim is still the attempt's own;
+`TestBuildExport_AStaleAttemptLeavesTheExportToTheLaterClaim`, red first); the job had River's default one-minute
+timeout for a build that now reads every PDF and file (`exportTimeout`, 15 minutes, not measured); a PDF named by its
+DocumentReference id that no entry of the Bundle names (now `files/<Composition id>.pdf`, the Composition's own id).
+Left, below: the archive held in memory, one file the service cannot open (a rotated KEK, a missing object) failing
+the build, orphan objects after a crash, the worker test not reaching a PDF or an upload.
+
+**Checks** (compose project `salus-cms-d7`): the fast layer after each change; targeted runs of `datarequest`,
+`clinicexport`, `appointment`, `encounter`, `composition`, `questionnaireresponse`, `invoice`, `worker`, `migrations`;
+golangci-lint on the touched packages (first full run: `make lint` failed on one funlen and two gocognit findings in
+this package's tests, split into helpers); coverage of the touched packages (`go test -cover`): datarequest 83.0%,
+clinicexport 84.3%, appointment 84.9%, encounter 94.1%, composition 91.6%, questionnaireresponse 93.1%, invoice 86.1%,
+worker 90.0%. Final `runner.sh full` (`make lint test archcheck`) after the review's fixes: all pass. Not run: `make e2e` (no
+journey's steps changed; the export has no screen here), `make fhir-validate` (no golden file changed; the export's
+Bundles are not golden files).
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Which reads | The patient-facing service methods the app's routes call, in the patient's caller scope | The "can read in the app" rule stays one piece of code (WAVE5 D7) |
+| Drafts, unsubmitted answers, unclean files | Left out | The app shows none of them (`composition.Signed`, status completed, `binary.Download` refuses) |
+| History entries | Not a file of their own: the archive holds the resources each timeline entry shows | `history` owns no data; its items are views over visits, documents, answers and files |
+| Restricted records (D4, S7) | In the patient's export | The restriction limits the clinic's staff (`access`), not the patient's own reads |
+| A clinic target | Visits narrowed in the appointment query, so only that clinic's encounters, documents, answers and files are read | D2's deferred item 2; the narrowing is a patient's own search, staff's path unchanged |
+| Naming the request in audit | `request_id` = `data_request/<id>` on every export event, the build's reads included, and on the export's own create, status read and download | AuditEvent's entity is a FHIR reference and a data request is none; the HTTP request id stays in the access log |
+| Object key | Per attempt, claimed in the row (migration 00078), the purger deletes the row's key | D2's deferred item 4; the loser never touches the winner's object |
+| Retry | `ExportAttempts` 2: one retry, then failed, the request open | D2's deferred item 5 |
+| Quotes | `quotes.json` in the API's Quote schema (`invoice.QuoteJSON`) | No FHIR resource maps a quote here; the app reads that JSON |
+| File names | `files/<opaque id>.<ext>` from the content type | Opaque ids only; the extension lets the patient open the file |
+
+**Deferred.**
+
+- **Chat** (messages and attachments the patient can see): `communication.List`, `Messages`, `Attachment` and
+  `Content` as the patient, wired with the chat's consent ports; the manifest says chat is not in the archive yet.
+- **Receipts' and quotes' PDFs**: the worker's invoice service has no clinic port for the letterhead; the receipts are
+  in the Bundle as Invoices and the quotes in `quotes.json`.
+- **Consents, receipts and quotes of a clinic target** are still read across clinics (each audited) and kept for the
+  one clinic: `consent.Mine`, `invoice.Mine` and `invoice.MyQuotes` have no clinic narrowing for a patient.
+- **Memory**: the archive is built in memory (files, zip, sealed copy); a patient with large videos could exhaust the
+  worker. Stream the zip into the envelope writer and the store, and measure the build's time for the timeout.
+- **An unreadable file** (a rotated KEK, a missing object) fails the build instead of being left out with a note.
+- **Orphan objects** after a crash between the store and the claim's row; nothing sweeps `datarequest/` keys no row names.
+- **The worker test** seeds a visit, an encounter and a submitted answer, not a signed PDF or a clean upload.
+- **Clinic names in the manifest**: the clinics are named by id; the Bundles refer to `Organization/<id>`.
+

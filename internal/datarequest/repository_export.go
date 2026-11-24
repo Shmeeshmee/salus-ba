@@ -15,17 +15,23 @@ type ExportRepository interface {
 	InsertExport(ctx context.Context, x StoredExport) (bool, error)
 	// ExportOf returns the export of the request id with its request's kind and target, or ErrNotFound.
 	ExportOf(ctx context.Context, requestID string) (StoredExport, error)
+	// ClaimExport sets key as the object key of the queued export of the request id, for the build attempt about to
+	// store its archive there, and returns the key it replaces (empty for none); false when the export is not queued.
+	ClaimExport(ctx context.Context, requestID, key string) (string, bool, error)
 	// MarkExportReady sets the queued export x.RequestID ready with x's ReadyAt, ExpiresAt, Size, KEKID and WrappedKey
-	// while its request is still open, and reports whether it did.
+	// while its request is still open and x.ObjectKey is still its claim, and reports whether it did.
 	MarkExportReady(ctx context.Context, x StoredExport) (bool, error)
+	// MarkClaimFailed sets the queued export x.RequestID failed while x.ObjectKey is still its claim, and reports whether
+	// it did.
+	MarkClaimFailed(ctx context.Context, x StoredExport) (bool, error)
 	// MarkExportFailed sets the queued export of the request id failed and reports whether it did.
 	MarkExportFailed(ctx context.Context, requestID string) (bool, error)
 	// Fulfil answers the scope's open request id done once its export is ready, with its history entry by the job, and
 	// reports whether it did.
 	Fulfil(ctx context.Context, requestID string) (bool, error)
-	// ExportsDoneBefore returns up to max request ids of the exports ready before before, or asked for before it and
-	// never ready (salus_retention).
-	ExportsDoneBefore(ctx context.Context, before time.Time, max int32) ([]string, error)
+	// ExportsDoneBefore returns up to max exports (their request id and object key) ready before before, or asked for
+	// before it and never ready (salus_retention).
+	ExportsDoneBefore(ctx context.Context, before time.Time, max int32) ([]StoredExport, error)
 	// DeleteExport deletes the export of the request id and reports whether it did (salus_retention).
 	DeleteExport(ctx context.Context, requestID string) (bool, error)
 }
