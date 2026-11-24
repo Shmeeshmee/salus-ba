@@ -29,6 +29,10 @@ func (s *stubClinic) SearchClinic(_ context.Context, c patient.Caller, q patient
 	return s.out, s.err
 }
 
+func (s *stubClinic) Import(context.Context, patient.Caller, []byte, bool) ([]patient.ImportRow, error) {
+	return nil, s.err
+}
+
 func (s *stubClinic) Register(_ context.Context, c patient.Caller, in patient.Patient) (patient.Patient, error) {
 	s.caller, s.in = c, in
 	if len(s.out) == 0 {

@@ -59,6 +59,25 @@ type fakeRepository struct {
 	searchRole string               // the role SearchClinic was asked for
 	calls      []string             // the calls, "outside:" prefixed when made outside a transaction
 	found      []patient.Patient    // what SearchClinic gives
+	matching   []patient.Patient    // the clinic's patients Matching may find
+	asked      []patient.Patient    // what Matching was asked
+}
+
+func (r *fakeRepository) Matching(ctx context.Context, org string, in []patient.Patient) ([]patient.Patient, error) {
+	r.seen(ctx, "Matching")
+	if org != r.clinic {
+		return nil, errors.New("matched outside the clinic's scope")
+	}
+	r.asked = in
+	var out []patient.Patient
+	for _, p := range r.matching {
+		if slices.ContainsFunc(in, func(q patient.Patient) bool {
+			return strings.EqualFold(q.GivenName, p.GivenName) && strings.EqualFold(q.FamilyName, p.FamilyName) && q.BirthDate.Equal(p.BirthDate)
+		}) {
+			out = append(out, p)
+		}
+	}
+	return out, r.err
 }
 
 // registeredID is the id Register gives.

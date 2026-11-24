@@ -20,10 +20,11 @@ type ClinicPatients interface {
 	Correct(ctx context.Context, c Caller, in Patient) (Patient, error)
 	WithdrawConsent(ctx context.Context, c Caller, id string) (consent.Consent, error)
 	ClinicRecord(ctx context.Context, c Caller, id string) (ClinicRecord, error)
+	Import(ctx context.Context, c Caller, data []byte, save bool) ([]ImportRow, error)
 }
 
 // ClinicHandler serves the clinic's own patients in the JSON API (package F2 of docs/clinic-cms): the staff's search
-// and the registration of a patient without an account. Errors as Handler's.
+// the registration of a patient without an account and the import of a list of them (M3). Errors as Handler's.
 type ClinicHandler struct {
 	svc ClinicPatients
 	// caller is the staff caller, with its admin flag and practitioner role, false for nobody (internal/api).
@@ -41,6 +42,8 @@ func (h *ClinicHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/patients", h.search)
 	mux.HandleFunc("POST /clinic/patients", h.register)
 	h.rightsRoutes(mux) // docs/clinic-cms R2
+
+	mux.HandleFunc("POST /clinic/patients/import", h.importFile)
 }
 
 // clinicPatientJSON is the ClinicPatient schema of api/openapi.yaml.

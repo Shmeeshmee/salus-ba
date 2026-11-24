@@ -20,4 +20,7 @@ var (
 	ErrInvalidPhone = errors.New("patient: invalid phone")
 	// ErrInvalidSearch is returned for a clinic search whose name has fewer than 2 characters.
 	ErrInvalidSearch = errors.New("patient: invalid search")
+	// ErrInvalidImport is returned for an import file that is not a CSV or XLSX file, has no header naming the given
+	// name, family name and birth date columns (or names one twice), no row under it, or more than 5 000 rows.
+	ErrInvalidImport = errors.New("patient: invalid import")
 )

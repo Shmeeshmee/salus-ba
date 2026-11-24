@@ -6286,6 +6286,62 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/patients/import:
+    post:
+      operationId: importClinicPatients
+      x-salus-package: cms-m3
+      summary: Import the clinic's patients from a file
+      description: >-
+        A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of patients (given name, family name, birth date,
+        an optional phone; headers in English, Bosnian, Croatian or Serbian), at most 5 000 rows. With `save` false (the
+        default) nothing is stored: every row comes back with its errors and whether it is a likely duplicate (a patient
+        of the same name and birth date is the clinic's already, or on an earlier row). With `save` true all rows are
+        registered as the clinic's profiles without a consent (the desk records it at the first booking) or, when any
+        row has an error, none (`saved` false). A likely duplicate is saved all the same. By the clinic's admin. Built in
+        package M3. The clinic's patients a preview finds are audited as a search, each saved profile as a create, and
+        the import with its count.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - {name: save, in: query, required: false, schema: {type: boolean, default: false}}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        "200":
+          description: The rows read, and whether they were saved.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PatientImport"}
+        "400":
+          description: >-
+            `invalid_request`, or `invalid_import`: not a CSV or XLSX file, no header naming the given name, family name
+            and birth date columns, no row under it, or more than 5 000 rows.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "413":
+          description: "`too_large`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/patients/{id}:
     put:
       operationId: correctClinicPatient
@@ -8009,6 +8065,36 @@ components:
         hours: {$ref: "#/components/schemas/SetupStepState"}
         practitioner: {$ref: "#/components/schemas/SetupStepState"}
         services: {$ref: "#/components/schemas/SetupStepState"}
+    PatientImport:
+      type: object
+      required: [rows, saved]
+      properties:
+        saved: {type: boolean, description: Every row was stored; false for a preview or when any row has an error.}
+        rows:
+          type: array
+          items: {$ref: "#/components/schemas/PatientImportRow"}
+    PatientImportRow:
+      type: object
+      required: [line, errors, duplicate]
+      properties:
+        line: {type: integer, format: int32, description: The row's line in the file, from 1.}
+        patient:
+          $ref: "#/components/schemas/ImportedPatient"
+          description: The profile the row would store; absent for a row with errors.
+        duplicate: {type: boolean, description: "A patient of the same name and birth date is the clinic's already, or on an earlier row."}
+        errors:
+          type: array
+          description: Codes of what is wrong with the row; empty when it is valid.
+          items: {type: string, enum: [given_name_invalid, family_name_invalid, birth_date_invalid, phone_invalid]}
+    ImportedPatient:
+      type: object
+      required: [givenName, familyName, birthDate]
+      properties:
+        id: {type: string, format: uuid, description: The profile's id; only once saved.}
+        givenName: {type: string}
+        familyName: {type: string}
+        birthDate: {type: string, format: date}
+        phone: {type: string, description: E.164.}
     ServiceImport:
       type: object
       required: [rows, saved]

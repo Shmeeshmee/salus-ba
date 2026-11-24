@@ -217,6 +217,7 @@ Class | Method | HTTP request | Description
 *PatientApi* | [**correctClinicPatient**](doc//PatientApi.md#correctclinicpatient) | **PUT** /clinic/patients/{id} | Correct a profile the clinic registered
 *PatientApi* | [**getClinicPatientRecord**](doc//PatientApi.md#getclinicpatientrecord) | **GET** /clinic/patients/{id}/record | Download a registered patient's record to hand over
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
+*PatientApi* | [**importClinicPatients**](doc//PatientApi.md#importclinicpatients) | **POST** /clinic/patients/import | Import the clinic's patients from a file
 *PatientApi* | [**registerClinicPatient**](doc//PatientApi.md#registerclinicpatient) | **POST** /clinic/patients | Register a patient who has no Salus account
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 *PatientApi* | [**searchClinicPatients**](doc//PatientApi.md#searchclinicpatients) | **GET** /clinic/patients | Search the clinic's patients
@@ -381,6 +382,7 @@ Class | Method | HTTP request | Description
  - [HistorySharing](doc//HistorySharing.md)
  - [HistorySharingList](doc//HistorySharingList.md)
  - [HistorySummary](doc//HistorySummary.md)
+ - [ImportedPatient](doc//ImportedPatient.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
@@ -405,6 +407,8 @@ Class | Method | HTTP request | Description
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
+ - [PatientImport](doc//PatientImport.md)
+ - [PatientImportRow](doc//PatientImportRow.md)
  - [PaymentMethod](doc//PaymentMethod.md)
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)

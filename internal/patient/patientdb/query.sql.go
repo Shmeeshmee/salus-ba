@@ -122,6 +122,66 @@ func (q *Queries) CreatePatient(ctx context.Context, arg CreatePatientParams) (C
 	return i, err
 }
 
+const matchingClinicPatients = `-- name: MatchingClinicPatients :many
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+FROM patient p
+WHERE (p.registered_by_organization_id = $1
+       OR EXISTS (SELECT 1 FROM consent c
+                  WHERE c.patient_id = p.id AND c.organization_id = $1 AND c.status = 'active'))
+  AND lower(p.given_name) || chr(31) || lower(p.family_name) || chr(31) || to_char(p.birth_date, 'YYYY-MM-DD') = ANY($2::text[])
+ORDER BY p.id
+`
+
+type MatchingClinicPatientsParams struct {
+	OrganizationID pgtype.UUID
+	Keys           []string
+}
+
+type MatchingClinicPatientsRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// The clinic's patients (those it registered and those with its active care consent) whose lower-case given name,
+// family name and birth date, joined by the unit separator (chr 31), are one of the keys (the people of an import,
+// docs/clinic-cms M3). Row-level security limits the rows to the scope too.
+func (q *Queries) MatchingClinicPatients(ctx context.Context, arg MatchingClinicPatientsParams) ([]MatchingClinicPatientsRow, error) {
+	rows, err := q.db.Query(ctx, matchingClinicPatients, arg.OrganizationID, arg.Keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MatchingClinicPatientsRow
+	for rows.Next() {
+		var i MatchingClinicPatientsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.AccountID,
+			&i.VersionID,
+			&i.BirthDate,
+			&i.GivenName,
+			&i.FamilyName,
+			&i.Phone,
+			&i.RegisteredByOrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const patientByAccount = `-- name: PatientByAccount :one
 SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient

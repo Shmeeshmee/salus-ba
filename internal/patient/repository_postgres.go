@@ -138,6 +138,30 @@ func (r *postgresRepository) SearchClinic(ctx context.Context, org, roleID strin
 	return out, nil
 }
 
+func (r *postgresRepository) Matching(ctx context.Context, org string, in []Patient) ([]Patient, error) {
+	var o pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return nil, errors.New("patient: the clinic id is not a UUID")
+	}
+	keys := make([]string, len(in))
+	for i, p := range in {
+		keys[i] = strings.ToLower(p.GivenName) + "\x1f" + strings.ToLower(p.FamilyName) + "\x1f" + p.BirthDate.Format(dateLayout)
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).MatchingClinicPatients(ctx, patientdb.MatchingClinicPatientsParams{OrganizationID: o, Keys: keys})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Patient, 0, len(rows))
+	for _, row := range rows {
+		p, err := toPatient(patientdb.PatientByIDRow(row), nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
 // likePattern is %name%, with LIKE's wildcards and escape in name taken literally.
 func likePattern(name string) string {
 	return "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(name) + "%"

@@ -1,12 +1,8 @@
 package chargeitemdefinition
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
-	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,7 +11,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/schedule"
-	"github.com/Shmeeshmee/salus/pkg/xlsx"
+	"github.com/Shmeeshmee/salus/pkg/tabular"
 )
 
 // maxImportRows bounds the services of one import.
@@ -54,12 +50,6 @@ var modeNames = map[string]schedule.VisitMode{
 	"video": schedule.ModeVideo, "online": schedule.ModeVideo, "видео": schedule.ModeVideo,
 }
 
-// record is a non-blank row of the file and its line.
-type record struct {
-	cells []string
-	line  int
-}
-
 // Import reads f into the admin caller's clinic's price list. With save false it only previews every row and its
 // errors; with save true it stores all rows (each audited as a create) or, when any row has an error, none. Imported
 // services are active. ErrForbidden for other staff and ErrNotFound for anyone else, audited; ErrInvalidImport for a
@@ -72,7 +62,7 @@ func (s *Service) Import(ctx context.Context, c Caller, f ImportFile, save bool)
 	if err != nil {
 		return nil, err
 	}
-	columns, err := columnsOf(records[0].cells)
+	columns, err := columnsOf(records[0].Cells)
 	if err != nil {
 		return nil, err
 	}
@@ -105,47 +95,11 @@ func (s *Service) Import(ctx context.Context, c Caller, f ImportFile, save bool)
 	return rows, nil
 }
 
-// read returns the file's non-blank rows, the header first: an XLSX file by its zip signature, otherwise a CSV in
-// UTF-8 or Windows-1250 (see utf8Text) whose delimiter (semicolon, comma or tab) is the one its first line uses most.
-func read(data []byte) ([]record, error) {
-	var out []record
-	if bytes.HasPrefix(data, []byte("PK\x03\x04")) {
-		all, err := xlsx.Rows(data)
-		if err != nil {
-			return nil, ErrInvalidImport
-		}
-		for i, cells := range all {
-			out = append(out, record{cells: cells, line: i + 1})
-		}
-	} else {
-		data, ok := utf8Text(bytes.TrimPrefix(data, []byte("\ufeff")))
-		if !ok {
-			return nil, ErrInvalidImport
-		}
-		first, _, _ := bytes.Cut(data, []byte("\n"))
-		r := csv.NewReader(bytes.NewReader(data))
-		r.FieldsPerRecord, r.Comma = -1, ';'
-		for _, d := range []rune{',', '\t'} {
-			if bytes.Count(first, []byte(string(d))) > bytes.Count(first, []byte(string(r.Comma))) {
-				r.Comma = d
-			}
-		}
-		for {
-			cells, err := r.Read()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				return nil, ErrInvalidImport
-			}
-			line, _ := r.FieldPos(0)
-			out = append(out, record{cells: cells, line: line})
-		}
-	}
-	out = slices.DeleteFunc(out, func(r record) bool {
-		return !slices.ContainsFunc(r.cells, func(c string) bool { return strings.TrimSpace(c) != "" })
-	})
-	if len(out) < 2 || len(out) > maxImportRows+1 {
+// read returns the file's non-blank rows, the header first (tabular.Read), or ErrInvalidImport for a file it cannot
+// read, without a row under its header or with more than maxImportRows.
+func read(data []byte) ([]tabular.Row, error) {
+	out, err := tabular.Read(data)
+	if err != nil || len(out) < 2 || len(out) > maxImportRows+1 {
 		return nil, ErrInvalidImport
 	}
 	return out, nil
@@ -176,7 +130,7 @@ func columnsOf(header []string) (map[string]int, error) {
 
 // parseRows reads each record as a service of the clinic org, with the codes of what is wrong with it. A name or a
 // code already in the price list or on an earlier row is a duplicate (case does not matter).
-func parseRows(records []record, columns map[string]int, existing []Definition, org string) []ImportRow {
+func parseRows(records []tabular.Row, columns map[string]int, existing []Definition, org string) []ImportRow {
 	names, codes := map[string]bool{}, map[string]bool{}
 	for _, d := range existing {
 		names[strings.ToLower(d.Name)] = true
@@ -187,13 +141,13 @@ func parseRows(records []record, columns map[string]int, existing []Definition, 
 	out := make([]ImportRow, 0, len(records))
 	for _, rec := range records {
 		cell := func(name string) string {
-			if i, ok := columns[name]; ok && i < len(rec.cells) {
-				return strings.TrimSpace(rec.cells[i])
+			if i, ok := columns[name]; ok && i < len(rec.Cells) {
+				return strings.TrimSpace(rec.Cells[i])
 			}
 			return ""
 		}
 		row := parseRow(cell, org)
-		row.Line = rec.line
+		row.Line = rec.Line
 		name, code := strings.ToLower(row.Service.Name), strings.ToLower(row.Service.Code)
 		if name != "" && names[name] || code != "" && codes[code] {
 			row.Errors = append(row.Errors, "duplicate")
@@ -276,45 +230,6 @@ func modesOf(v string) ([]schedule.VisitMode, bool) {
 	}
 	slices.Sort(out)
 	return out, true
-}
-
-// windows1250 maps the bytes 0x80 to 0xFF of Windows-1250 to their runes; 0 marks the five bytes it leaves undefined.
-var windows1250 = [128]rune{
-	0x20AC, 0x0000, 0x201A, 0x0000, 0x201E, 0x2026, 0x2020, 0x2021,
-	0x0000, 0x2030, 0x0160, 0x2039, 0x015A, 0x0164, 0x017D, 0x0179,
-	0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
-	0x0000, 0x2122, 0x0161, 0x203A, 0x015B, 0x0165, 0x017E, 0x017A,
-	0x00A0, 0x02C7, 0x02D8, 0x0141, 0x00A4, 0x0104, 0x00A6, 0x00A7,
-	0x00A8, 0x00A9, 0x015E, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x017B,
-	0x00B0, 0x00B1, 0x02DB, 0x0142, 0x00B4, 0x00B5, 0x00B6, 0x00B7,
-	0x00B8, 0x0105, 0x015F, 0x00BB, 0x013D, 0x02DD, 0x013E, 0x017C,
-	0x0154, 0x00C1, 0x00C2, 0x0102, 0x00C4, 0x0139, 0x0106, 0x00C7,
-	0x010C, 0x00C9, 0x0118, 0x00CB, 0x011A, 0x00CD, 0x00CE, 0x010E,
-	0x0110, 0x0143, 0x0147, 0x00D3, 0x00D4, 0x0150, 0x00D6, 0x00D7,
-	0x0158, 0x016E, 0x00DA, 0x0170, 0x00DC, 0x00DD, 0x0162, 0x00DF,
-	0x0155, 0x00E1, 0x00E2, 0x0103, 0x00E4, 0x013A, 0x0107, 0x00E7,
-	0x010D, 0x00E9, 0x0119, 0x00EB, 0x011B, 0x00ED, 0x00EE, 0x010F,
-	0x0111, 0x0144, 0x0148, 0x00F3, 0x00F4, 0x0151, 0x00F6, 0x00F7,
-	0x0159, 0x016F, 0x00FA, 0x0171, 0x00FC, 0x00FD, 0x0163, 0x02D9,
-}
-
-// utf8Text returns data as UTF-8: unchanged when it is valid UTF-8, otherwise decoded as Windows-1250, the encoding
-// Excel in Bosnia and Herzegovina saves a CSV in. ok is false for a byte Windows-1250 does not define.
-func utf8Text(data []byte) (text []byte, ok bool) {
-	if utf8.Valid(data) {
-		return data, true
-	}
-	text = make([]byte, 0, len(data)+len(data)/2)
-	for _, b := range data {
-		r := rune(b)
-		if b >= 0x80 {
-			if r = windows1250[b-0x80]; r == 0 {
-				return nil, false
-			}
-		}
-		text = utf8.AppendRune(text, r)
-	}
-	return text, true
 }
 
 func ptrTo(v int32) *int32 { return &v }

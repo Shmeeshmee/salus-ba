@@ -1884,6 +1884,67 @@ and run red (undefined `Service`) before the code; the handler's and the web com
 - A worker test of `clinicExportWorker` (fail on the last attempt) against River; the service's `Fail` is tested.
 - Not walked in a browser (no browser tool in this session).
 
+## M3: patient import
+
+Status: done, 2026-11-24, on `wt/cms/M3`, one commit `cms(M3)`. No migration: 00071 stays unused.
+
+**Decisions applied** (WAVE4.md, agent's defaults of 2026-11-24, owner to confirm): V5, imported patients are
+clinic-registered profiles without a consent and appointments are not imported. Taken here:
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| A likely duplicate | A flag on the row, not an error: shown in the preview and saved all the same | "Likely": the admin decides, by removing the row from the file; same name and birth date can be two people |
+| Who imports | The clinic's admin only (receptionist and practitioner refused, audited) | M3 says "the admin uploads" |
+| The audit | Each likely duplicate found audited as a search of that patient, each saved profile as a create, and the import once with `entity.name` `patient` and the count (`HOPERAT`) | "With the count, never the rows"; the per-profile create keeps every write of a profile audited, as F2's registration |
+| Birth date cells | `1990-01-31`, `31.01.1990` (final point optional), `31/01/1990`, or an Excel date number (an XLSX date cell) | What a clinic's spreadsheet holds |
+| Phone cells | Spaces, dashes, slashes, points, parentheses dropped; `00` read as `+`; a single leading `0` as `+387` | The clinics are in Bosnia and Herzegovina; the result must be E.164 or the row has `phone_invalid` |
+| The preview on the screen | Only rows with errors and likely duplicates are listed; the others are counted | Up to 5 000 rows: show what needs a look |
+| The shared reader | `pkg/tabular` (CSV in UTF-8 or Windows-1250, or XLSX through `pkg/xlsx` with its million-cell cap); the row limits stay with each caller; the multipart upload reader moved to `httpx.FormFile` | Two real uses now (O2's price list, M3) |
+
+**Built.**
+
+- **`pkg/tabular`** (new, product-agnostic): O2's reader moved out of `chargeitemdefinition/service_import.go` unchanged
+  (encoding, delimiter, blank rows, lines); `chargeitemdefinition` keeps its 1000-row limit and `ErrInvalidImport`.
+  **`httpx.FormFile`**: O2's `readUpload`, the part's name and bytes or the 400/413 status.
+- **`patient.Import`** (`service_import.go`): admin only; a header in English or bs/hr/sr (`given name`/`first name`/`ime`/
+  `име`, `family name`/`last name`/`surname`/`prezime`/`презиме`, `birth date`/`date of birth`/`datum rođenja`/`датум
+  рођења`, `phone`/`mobile`/`telefon`/`mobitel`/`mobilni`/`телефон`), the three first required, a column named twice
+  refused; at most 5 000 rows; per row `given_name_invalid`, `family_name_invalid`, `birth_date_invalid` (not a date, before
+  1900 or not in the past), `phone_invalid`, and the `duplicate` flag (case ignored, against the clinic's patients and the
+  earlier rows). Saving registers every row in one transaction or none. `ErrInvalidImport` for a file it cannot read.
+- **`Repository.Matching`** (`MatchingClinicPatients`): the clinic's patients (registered by it or with its active care
+  consent) whose lower-case names and birth date are one of the keys sent; tested against Postgres for another clinic's
+  registered profile, a patient without a consent, another birth date and case.
+- **`POST /clinic/patients/import`** (`handler_import.go`): the multipart part `file`, at most 2 MiB (`413 too_large`),
+  `save` a boolean, `400 invalid_import`, `403 forbidden`; a row with errors comes back without its `patient`. OpenAPI
+  (`PatientImport`, `PatientImportRow`, `ImportedPatient`), `make gen-clients`. The receptionist route table classifies it
+  `refused`.
+- **Web.** `PatientImport.tsx` (choose a file, the preview, "Import N patients" only when no row has an error) opened from
+  a button in `ClinicSettings.tsx`, which then says "N patients imported." Strings in the new `patientImport` area for
+  the five staff languages.
+- DPIA: "Package M3: patient import".
+
+**Checks** (this worktree's own stack): `make gen-clients` (then no diff), `make lint` (gofmt, vet, golangci-lint,
+i18n-check, migrations, Caddy routes), `make test`, `make archcheck`, `make cover` (90.6% total; `pkg/tabular` 100%,
+every package at 80% or more), `make web-lint`, `web-typecheck`, `web-test` (1279), `web-build`, `make mobile-analyze`,
+`mobile-test` (680): all pass. One test changed on purpose: `web/src/i18n/catalog.test.ts`'s list of areas gains
+`patientImport`. No golden FHIR file changed, so no `fhir-validate`. Test first: the tests were written before the code
+in each layer, but run red only as a failing build (the package or method did not exist yet), not as a failing assertion.
+
+**Not walked in a browser**: the session's time budget went to the full check set. `PatientImport` and its opening from
+the clinic settings are covered by component tests; the integration session should walk `/clinic` (the clinic settings)
+at desktop width and 390 px with a file that has errors, a likely duplicate, and a clean one.
+
+**Not measured**: a 5 000-row save is 5 000 profile inserts and 5 000 audit inserts in one transaction, one statement
+each; the integration session's stack can time it. The duplicate check is one query for the whole file.
+
+**Gap for the integration (V5).** V5 says the desk records the consent of an imported patient at the first booking, as
+for a walk-in. No path does that today: the in-person consent is recorded only by `POST /clinic/patients` when it
+registers a walk-in, and `POST /clinic/appointments` books only for a patient with an active care consent. Until a route
+records the in-person consent of an existing clinic-registered profile (and the desk's picker offers it), an imported
+patient is found by the desk's search but cannot be booked. That is the patient and consent core files and the desk
+screens (R2's and F3's), so it is left out of M3.
+
 ## Facts
 
 - Main's next free migration number on 2026-11-21: `00060`. After wave 1: A `00060`, D `00061`; wave 2 takes E `00062`,
