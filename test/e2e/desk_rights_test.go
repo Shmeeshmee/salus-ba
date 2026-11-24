@@ -13,7 +13,9 @@ import (
 // TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered (docs/clinic-cms R2, V2): the receptionist registers a
 // patient without an account and books them; corrects their name at the version read; records that they withdrew the
 // consent given in person, after which the visit ahead is cancelled by the revocation's job and leaves the desk's day;
-// the admin downloads the record as a FHIR collection, which the receptionist and another clinic are refused.
+// the admin downloads the record as a FHIR collection, the cancelled visit included (WAVE5 S11), which the receptionist
+// and another clinic are refused. The web journey (desk-rights.spec.ts, WAVE5 FX) then finds the withdrawn patient from
+// the desk's patient search, opens the move of another patient's visit, and walks the clinic settings' navigation.
 func TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered(t *testing.T) {
 	clinic := newBookableClinic(t)
 	atTheClinic(t, clinic)
@@ -46,13 +48,7 @@ func TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered(t *testing.T) {
 		t.Errorf("a correction at the old version = %d, want 409", code)
 	}
 
-	other := newBookableClinic(t)
-	if code := other.admin.do(http.MethodGet, "/clinic/patients/"+reg.ID+"/record", nil, nil); code != http.StatusNotFound {
-		t.Errorf("another clinic's admin downloads the record: %d, want 404", code)
-	}
-	if code := other.admin.do(http.MethodPost, "/clinic/patients/"+reg.ID+"/consent-withdrawal", nil, nil); code != http.StatusNotFound {
-		t.Errorf("another clinic's admin records a withdrawal: %d, want 404", code)
-	}
+	anotherClinicIsRefused(t, reg.ID)
 
 	desk.must(http.StatusNoContent, http.MethodPost, "/clinic/patients/"+reg.ID+"/consent-withdrawal", nil, nil)
 	if code := desk.do(http.MethodPost, "/clinic/patients/"+reg.ID+"/consent-withdrawal", nil, nil); code != http.StatusConflict {
@@ -75,7 +71,45 @@ func TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered(t *testing.T) {
 	if code := desk.do(http.MethodGet, "/clinic/patients/"+reg.ID+"/record", nil, nil); code != http.StatusForbidden {
 		t.Errorf("the receptionist downloads the record: %d, want 403", code)
 	}
-	code, raw := clinic.admin.send(nil, http.MethodGet, "/clinic/patients/"+reg.ID+"/record", nil)
+	theRecordHoldsTheCancelledVisit(t, clinic, reg.ID, visit.ID)
+
+	walkTheDeskFixes(t, desk, clinic)
+}
+
+// walkTheDeskFixes runs the web journey of WAVE5 FX (desk-rights.spec.ts) as the clinic's second admin: another
+// registered patient with a visit ahead, to move from the desk, their phone typed as the desk types it.
+func walkTheDeskFixes(t *testing.T, desk *api, clinic *bookableClinic) {
+	t.Helper()
+	adminAddr := email(t, "admin2")
+	clinic.admin.must(http.StatusCreated, http.MethodPost, "/invites", map[string]string{"email": adminAddr, "role": "admin"}, nil)
+	_, adminTOTP := enrolFromInvite(t, adminAddr)
+	var kept struct{ ID string }
+	desk.must(http.StatusCreated, http.MethodPost, "/clinic/patients", map[string]any{
+		"givenName": "Mirsada", "familyName": "Pomjerena", "birthDate": "1981-02-03", "phone": "061 000 377", "consentGivenInPerson": true,
+	}, &kept)
+	keptSlot, _ := deskFreeTime(t, desk, clinic)
+	desk.must(http.StatusCreated, http.MethodPost, "/clinic/appointments", map[string]string{"patientId": kept.ID, "slotId": keptSlot}, nil)
+	runDeskJourney(t, adminAddr, adminTOTP, "desk-rights.spec.ts", "E2E_RIGHTS_PATIENT=Radmila Registrovana", "E2E_RIGHTS_BOOKED=Mirsada Pomjerena")
+}
+
+// anotherClinicIsRefused checks that another clinic's admin can neither download the record of the patient id nor
+// record their withdrawal.
+func anotherClinicIsRefused(t *testing.T, id string) {
+	t.Helper()
+	other := newBookableClinic(t)
+	if code := other.admin.do(http.MethodGet, "/clinic/patients/"+id+"/record", nil, nil); code != http.StatusNotFound {
+		t.Errorf("another clinic's admin downloads the record: %d, want 404", code)
+	}
+	if code := other.admin.do(http.MethodPost, "/clinic/patients/"+id+"/consent-withdrawal", nil, nil); code != http.StatusNotFound {
+		t.Errorf("another clinic's admin records a withdrawal: %d, want 404", code)
+	}
+}
+
+// theRecordHoldsTheCancelledVisit downloads, as the admin, the record of the patient id the clinic registered: the
+// patient, the withdrawn consent and the visit the withdrawal cancelled (docs/clinic-cms/WAVE5.md S11), once the
+// revocation's job has cancelled it (the desk's day hides it at once, by the consent rule).
+func theRecordHoldsTheCancelledVisit(t *testing.T, clinic *bookableClinic, id, visitID string) {
+	t.Helper()
 	var record struct {
 		ResourceType, Type string
 		Entry              []struct {
@@ -85,13 +119,19 @@ func TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered(t *testing.T) {
 			}
 		}
 	}
-	if code != http.StatusOK || json.Unmarshal(raw, &record) != nil || record.Type != "collection" || len(record.Entry) != 2 {
-		t.Fatalf("the admin's record = %d %s, want a collection of the patient and the consent", code, raw)
+	var code int
+	var raw []byte
+	eventually(t, "the record shows the visit cancelled", func() bool {
+		record.Entry = nil
+		code, raw = clinic.admin.send(nil, http.MethodGet, "/clinic/patients/"+id+"/record", nil)
+		return code == http.StatusOK && json.Unmarshal(raw, &record) == nil && len(record.Entry) == 3 && record.Entry[2].Resource.Status == "cancelled"
+	})
+	if record.Type != "collection" || len(record.Entry) != 3 {
+		t.Fatalf("the admin's record = %d %s, want a collection of the patient, the consent and the visit", code, raw)
 	}
-	// The visit the withdrawal cancelled is not in it: after a withdrawal the clinic's scope shows only the visits
-	// before it (the export's manifest says so; docs/clinic-cms/PROGRESS.md, wave 4 integration).
-	if p, c := record.Entry[0].Resource, record.Entry[1].Resource; p.ResourceType != "Patient" || p.ID != reg.ID || p.Name[0].Given[0] != "Radmila" ||
-		c.ResourceType != "Consent" || c.Status != "inactive" {
-		t.Errorf("the record's entries = %+v, want the corrected patient and the withdrawn consent", record.Entry)
+	p, c, a := record.Entry[0].Resource, record.Entry[1].Resource, record.Entry[2].Resource
+	if p.ResourceType != "Patient" || p.ID != id || p.Name[0].Given[0] != "Radmila" || c.ResourceType != "Consent" || c.Status != "inactive" ||
+		a.ResourceType != "Appointment" || a.ID != visitID || a.Status != "cancelled" {
+		t.Errorf("the record's entries = %+v, want the corrected patient, the withdrawn consent and the cancelled visit", record.Entry)
 	}
 }

@@ -5,8 +5,8 @@ import { newApiClient } from './api/client'
 import { newFhirClient } from './api/fhir'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import type { Member } from './staff'
-import { anaVisit, boVisit, cySchedule, freeInPerson, freeVideo, now, scheduleRoute, slotsRoute } from './test/desk'
-import { apiError, expectCsrfOnWrites, fakeFetch, type Route } from './test/fakeFetch'
+import { anaVisit, boVisit, cySchedule, freeInPerson, freeVideo, now, scheduleRoute, slot, slotsRoute } from './test/desk'
+import { apiError, expectCsrfOnWrites, fakeFetch, fhirJSON, type Route } from './test/fakeFetch'
 import { cy, dee } from './test/fixtures'
 
 afterEach(cleanup)
@@ -47,7 +47,8 @@ describe('DeskMove', () => {
     const time = (await dialog.findByLabelText('New time')) as HTMLSelectElement
     // Only the in-person slot: the visit is at the clinic.
     await waitFor(() => expect(Array.from(time.options).map((o) => o.textContent)).toEqual(['Choose a time', '11:00–11:30']))
-    expect(time.querySelector('optgroup')?.label).toBe('Monday, 23 November 2026')
+    const day = dialog.getByLabelText('Day') as HTMLSelectElement
+    expect(Array.from(day.options).map((o) => o.textContent)).toEqual(['Monday, 23 November 2026'])
     fireEvent.change(time, { target: { value: freeInPerson } })
     fireEvent.click(dialog.getByRole('button', { name: 'Move visit' }))
 
@@ -90,6 +91,25 @@ describe('DeskMove', () => {
       expect(reads).toBe(code === 'slot_unavailable' ? 2 : 1)
       cleanup()
     }
+  })
+
+  it('offers the free times of one day at a time, the first day with any first (wave 4 walk, finding 7)', async () => {
+    const later = 'f0000000-0000-4000-8000-0000000000f9'
+    const { dialog } = renderMove({
+      'GET /fhir/R4/Slot': () =>
+        fhirJSON({
+          resourceType: 'Bundle', type: 'searchset', total: 2,
+          entry: [slot(freeInPerson, '2026-11-23T10:00:00Z', '2026-11-23T10:30:00Z', 'in-person'), slot(later, '2026-11-25T13:00:00Z', '2026-11-25T13:30:00Z', 'in-person')],
+        }),
+    })
+    const day = (await dialog.findByLabelText('Day')) as HTMLSelectElement
+    expect(Array.from(day.options).map((o) => o.textContent)).toEqual(['Monday, 23 November 2026', 'Wednesday, 25 November 2026'])
+    const time = dialog.getByLabelText('New time') as HTMLSelectElement
+    fireEvent.change(time, { target: { value: freeInPerson } })
+    fireEvent.change(day, { target: { value: day.options[1].value } })
+    expect(Array.from(time.options).map((o) => o.textContent)).toEqual(['Choose a time', '14:00–14:30'])
+    expect(time.value).toBe('')
+    expect((dialog.getByRole('button', { name: 'Move visit' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('closes without moving', async () => {

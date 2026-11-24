@@ -203,7 +203,8 @@ func (f practitioners) Read(_ context.Context, c practitioner.Caller, id string)
 
 type visits struct{ *fakeSources }
 
-func (f visits) Search(_ context.Context, c appointment.Caller, filter appointment.Filter) ([]appointment.Seen, error) {
+// ClinicRecord is the clinic record's read (S11): what the clinic holds, the visits a withdrawal cancelled included.
+func (f visits) ClinicRecord(_ context.Context, c appointment.Caller, filter appointment.Filter) ([]appointment.Seen, error) {
 	f.visitCallers = append(f.visitCallers, c)
 	f.filters = append(f.filters, filter)
 	return f.appointments, nil

@@ -73,6 +73,16 @@ describe('ClinicSettings', () => {
     expect(within(screen.getByRole('heading', { name: 'Clinic settings' }).closest('section')!).getByText('Loading')).toBeTruthy()
   })
 
+  it('leads to each of its sections from the in-page navigation (wave 4 walk, finding 8)', async () => {
+    renderSettings({ [`GET ${path}`]: () => fhirJSON(org) })
+    await screen.findByLabelText('Clinic name')
+    const nav = within(screen.getByRole('navigation', { name: 'On this page' }))
+    // Waitlist and the profile for patients abroad follow this component on the page (App).
+    for (const link of nav.getAllByRole('link').slice(0, -2)) {
+      expect(document.getElementById(link.getAttribute('href')!.slice(1)), link.textContent!).toBeTruthy()
+    }
+  })
+
   it('links to the price list', () => {
     renderSettings({ [`GET ${path}`]: () => new Promise<Response>(() => {}) })
 

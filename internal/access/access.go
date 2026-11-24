@@ -133,6 +133,20 @@ func Appointment(v Viewer, f Facts, a Visit) Level {
 	return None
 }
 
+// ClinicRecord is what viewer may see of the patient's appointment a for the record the clinic hands over or exports
+// (docs/clinic-cms/WAVE5.md S11): the clinic's admin all of it with an active consent, and otherwise the name, times
+// and status of every one, the visits a withdrawal cancelled included, since the clinic holds the booking and the data
+// is the patient's; everyone else nothing. Only the hand-over and the export read through it.
+func ClinicRecord(v Viewer, f Facts, a Visit) Level {
+	if v.Role != RoleAdmin || !staffOf(v, f) {
+		return None
+	}
+	if level := Appointment(v, f, a); level != None {
+		return level
+	}
+	return Name
+}
+
 // RecordsOutcome reports whether viewer may record how appointment a went (fulfilled or noshow): its
 // practitioner, with an active consent, or after a revocation for a past appointment, which is the care
 // record (Art. 9(2)(h)). That a has started is the service's check; cancelling a past one stays refused.

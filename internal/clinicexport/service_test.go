@@ -205,7 +205,8 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 	}
 	checkPatientFile(t, files["patients/pt1.json"])
 	if m := files["manifest.txt"]; !strings.Contains(m, "Patients' records in this archive: 1\n") ||
-		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") {
+		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") ||
+		!strings.Contains(m, "the visits a withdrawal of consent cancelled are in it too") || strings.Contains(m, "in neither") {
 		t.Errorf("manifest.txt =\n%s", m)
 	}
 	if len(files) != len(want)+2 {

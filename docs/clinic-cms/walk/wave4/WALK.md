@@ -201,3 +201,30 @@ Left open (`docs/clinic-cms/PROGRESS.md`): finding 5 (the card is reached only f
 the admin downloads the record by its URL; a patient search on the desk that opens the card), 6 (the phone shown
 unspaced), 7 (the move's one long select of free times), 8 (the long clinic settings page). Finding 1 is the specified
 all-or-none import.
+
+## Rerun
+
+Package FX (`docs/clinic-cms/WAVE5.md`), 2026-11-24, in the worktree `salus-cms-FX` on its own compose project
+(`salus-cms-fx`), started as `make e2e` starts it. Driven by the committed web journey `test/e2e/web/desk-rights.spec.ts`,
+which `TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered` runs at the end of the rights journey as the clinic's
+second admin (invited and enrolled with TOTP), headless Chromium from the `playwright` service at 1280 × 900 and
+390 × 844; screenshots taken with `E2E_WALK_DIR` set and animations off. Synthetic data only: the withdrawn patient
+Radmila Registrovana (5 June 1970, registered at the desk, consent withdrawn, her one visit cancelled), and Mirsada
+Pomjerena (3 February 1981, phone typed `061 000 377`) with a visit today.
+
+| # | Finding | Step | Expected | 1280 px | 390 px | Screenshots |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 5 | Desk, "Patients", search "Radmila" | The withdrawn patient is found with her birth date | pass | pass | [1280](1280-01-desk-patients-search.png), [390](390-01-desk-patients-search.png) |
+| 2 | 5 | Open her card from the result | The card opens without a visit or an active consent: "Record consent" and, for the admin, "Download the record" | pass | pass | [1280](1280-02-withdrawn-patient-card.png), [390](390-02-withdrawn-patient-card.png) |
+| 3 | 6, 7 | Mirsada's row, then "Move" | The row shows `+387 61 000 377`; the dialog offers a "Day" list (more than one day) and that day's times (under 60) | pass | pass | [1280](1280-03-move-day-and-time.png), [390](390-03-move-day-and-time.png) |
+| 4 | 8 | `/clinic` | "On this page" lists the eight sections | pass | pass | [1280](1280-04-clinic-settings-nav.png), [390](390-04-clinic-settings-nav.png) |
+| 5 | 8 | Its last link, "Profile for patients abroad" | That section's heading is in view | pass | pass | [1280](1280-05-clinic-settings-profile-section.png), [390](390-05-clinic-settings-profile-section.png) |
+| 6 | 9 | The admin downloads Radmila's record (the Go journey, by the API) | Patient, the inactive Consent and the cancelled Appointment | pass | (not width-bound) | none |
+
+At every screenshot the page's `scrollWidth` equals the viewport: nothing scrolls sideways.
+
+**Noticed.** In the patient search's results the name button sits centred above the birth date at 390 px (step 1), while
+the desk's rows put it on the left. Cosmetic; left for the integration's walk.
+
+**Still open.** Finding 1 is the specified all-or-none import. Findings 2, 3, 4, 10 and 11 were fixed in the wave 4
+integration; 5 to 9 are fixed here.

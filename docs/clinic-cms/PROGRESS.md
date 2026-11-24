@@ -2094,6 +2094,64 @@ that stack: pass (403 s). After the review's and the walk's fixes the Go, web an
 | `consent_active` at the screen | Taken as recorded | Another desk recorded it meanwhile |
 | The 5 000-row import | Not batched | 1.3 to 1.7 s measured |
 
+## FX: desk fixes from the wave 4 walk
+
+Status: done 2026-11-24 on `wt/cms/FX`, one commit `cms(FX)`. Migration `00072_clinic_record_scope.sql`. Specification:
+`WAVE5.md` "FX" and S11; `walk/wave4/WALK.md` findings 5 to 9.
+
+**Built.**
+
+- **The record keeps the visits a withdrawal cancelled (S11, finding 9).** `access.ClinicRecord` (the clinic's admin: all
+  of an appointment with an active consent, the name, times and status of every other one of the clinic; nobody else
+  anything) and `appointment.Service.ClinicRecord` (the admin only, refused and audited otherwise; the clinic scope plus
+  `Repository.SetRecord`, the setting `app.clinic_record`; each appointment and patient name audited as `Search` audits).
+  Migration 00072 adds two read-only policies, `appointment_clinic_record` and `patient_clinic_record`. `clinicexport`
+  reads its visits through it for both the hand-over (`PatientRecord`) and the export's `appointments.csv` and
+  `patients/<id>.json`; the manifest now says the archive holds the cancelled visits too. Every other screen keeps
+  `Search` and the consent rule. The e2e journey `desk_rights_test.go` expects the cancelled visit in the record again.
+- **Web.** `DeskPatients.tsx`: a "Patients" button on the desk's toolbar opens a search of the clinic's patients (name,
+  optional birth date; the existing `GET /clinic/patients`), whatever their consent, each one opening the card of a
+  patient the clinic registered (finding 5). `phone.ts` `groupPhone`: a stored +387 number shown as `+387 61 000 399`
+  on the desk row, in the search and in the card's field (finding 6; saving strips the spaces as before). `DeskMove.tsx`:
+  a "Day" select of the days with free times, then that day's times (finding 7). `ClinicSettingsNav.tsx`: "On this
+  page", eight links that scroll to and focus each section of `/clinic` (finding 8); the sections carry ids
+  (`ClinicSettings.tsx`, and one `id` each on `ClinicSettingsWaitlist.tsx` and `ClinicProfile.tsx`, which `App.tsx`
+  renders below it).
+- **New strings** (five staff languages): `desk.patients.title`, `desk.patients.hint`, `desk.move.day`,
+  `admin.settingsNav`, `admin.settingsNavDetails`.
+- **e2e web journey** `test/e2e/web/desk-rights.spec.ts` (started at the end of the rights journey as a second admin):
+  the search finds the withdrawn patient and opens their card; the move dialog picks a day then a time; the settings
+  navigation reaches its last section; at 1280 and 390 px with no sideways scroll. `E2E_WALK_DIR` keeps screenshots.
+- **DPIA**: "Package FX" in `docs/privacy/dpia.md`.
+
+**Test first.** Each Go and web test was written and run red before its code: `TestClinicRecord_…` in `access` (undefined
+function) and `appointment` (undefined method, then the fake's RLS hiding the cancelled visit, which asked for
+`SetRecord`), `TestSetRecord_…` against Postgres, the clinicexport fake moved to `ClinicRecord` and the manifest's
+assertion; `phone.test.ts`, `DeskPatients.test.tsx`, the Day test in `DeskMove.test.tsx`, `ClinicSettingsNav.test.tsx`
+and the new cases in `Desk.test.tsx`, `DeskPatient.test.tsx`, `ClinicSettings.test.tsx`.
+
+**Checks** (compose project `salus-cms-fx`): the fast layer after each change; `runner.sh full` (`make lint test archcheck
+web-lint web-typecheck web-test web-build`): the first run failed `make lint` on two findings of this package (funlen on the
+rights journey, fieldalignment on the appointment fake), fixed; the second passed (web-test 1325, web-lint with the one
+warning in `analytics/ClinicView.tsx` that was there plus one of `ClinicSettingsNav.tsx`, fixed after and checked with the
+fast layer's oxlint: 0 warnings). `make e2e`: every journey passed except the rights journey, whose record was read before
+the revocation's job had cancelled the visit (the desk's day hides it at once by the consent rule, so the existing wait
+passed early); it now waits for the record to show the visit cancelled, and the `TestDesk_` journeys rerun on the same
+stack passed (with the new web journey at both widths). `make cover`: pass (90.4% total, every package at 80% or more). Not run: `make fhir-validate` (no golden FHIR file
+changed); `make i18n-check` ran in the fast layer and in `make lint`.
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| How the record reads a withdrawn patient's cancelled visits | A scope of its own (`app.clinic_record`) with read-only policies, set only by `appointment.Service.ClinicRecord`, which only the clinic's admin passes | S11 says "the job's own scope, audited"; the everyday clinic scope keeps the consent rule, so no screen changes |
+| The level of such a visit | Name (times, status, practitioner, patient's name), as a past visit after a revocation | What the hand-over needs; nothing clinical |
+| The patient search | Its own dialog on the desk, not the walk-in's picker | The picker registers and books; the search only opens cards |
+| The phone's grouping | `+387 NN NNN NNN(N)`; other countries as stored | The desk's numbers are Bosnian; another country's grouping is not known here |
+| No row in the table above | 5.0 adds the rows for 5.0, FX and D1 to D6 | Its contract, to keep the merge clean |
+
+**Deferred.** Nothing of FX. The move's long single select is replaced; a calendar-style day picker was not asked for.
+
 ## Facts
 
 - Main's next free migration number on 2026-11-21: `00060`. After wave 1: A `00060`, D `00061`; wave 2 takes E `00062`,

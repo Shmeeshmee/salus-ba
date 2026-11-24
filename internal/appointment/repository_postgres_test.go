@@ -306,11 +306,52 @@ func TestSetNotice_ShowsTheJobOneAppointmentOfItsClinic(t *testing.T) {
 	}
 }
 
+// The clinic record's scope (docs/clinic-cms/WAVE5.md S11) shows the clinic every appointment of its own, and the
+// patient of each, whatever the consent; the clinic's everyday scope does not, and neither does another clinic's.
+func TestSetRecord_ShowsTheClinicItsAppointmentsWhateverTheConsent(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner)
+	if err := inScope(t, app, asPatient(s.patientB), func(ctx context.Context, r appointment.Repository) error {
+		_, err := r.Create(ctx, newAppt(s, s.patientB, start))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	record := func(org string) func(ctx context.Context, r appointment.Repository) error {
+		return func(ctx context.Context, r appointment.Repository) error {
+			if err := r.SetClinic(ctx, org); err != nil {
+				return err
+			}
+			return r.SetRecord(ctx)
+		}
+	}
+	scopes := map[string]func(ctx context.Context, r appointment.Repository) error{
+		"the clinic": asClinic, "the clinic's record": record(clinicA), "another clinic's record": record("b0000000-0000-4000-8000-00000000000b"),
+	}
+	for name, scope := range scopes {
+		var visits, patients int
+		err := inScope(t, app, scope, func(ctx context.Context, r appointment.Repository) error {
+			all, err := r.Search(ctx, appointment.Filter{PatientID: s.patientB})
+			visits = len(all)
+			if err != nil {
+				return err
+			}
+			return postgres.Conn(ctx, app).QueryRow(ctx, "SELECT count(*) FROM patient WHERE id = $1", s.patientB).Scan(&patients)
+		})
+		want := map[string]int{"the clinic's record": 1}[name]
+		if err != nil || visits != want || patients != want {
+			t.Errorf("%s sees %d of patient B's appointments and %d patient rows, %v; want %d", name, visits, patients, err, want)
+		}
+	}
+}
+
 func TestSetScope_NeedsATransaction(t *testing.T) {
 	t.Parallel()
 	_, app := pgtest.NewAppDatabase(t)
 	r := appointment.NewPostgresRepository(app)
-	for name, set := range map[string]func(ctx context.Context, id string) error{"SetPatient": r.SetPatient, "SetClinic": r.SetClinic, "SetNotice": r.SetNotice} {
+	for name, set := range map[string]func(ctx context.Context, id string) error{"SetPatient": r.SetPatient, "SetClinic": r.SetClinic, "SetNotice": r.SetNotice,
+		"SetRecord": func(ctx context.Context, _ string) error { return r.SetRecord(ctx) }} {
 		if err := set(t.Context(), clinicA); !errors.Is(err, postgres.ErrNoTx) {
 			t.Errorf("%s outside a transaction = %v, want postgres.ErrNoTx", name, err)
 		}

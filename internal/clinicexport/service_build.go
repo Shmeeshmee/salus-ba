@@ -193,8 +193,9 @@ func manifest(patients int) string {
 		"Not in this archive: clinical documents, questionnaire answers and the patient's history. Who may hand\n" +
 		"them over is not decided yet. A patient with their own Salus account has no file in patients/; their\n" +
 		"appointments, receipts and quotes at the clinic are in the CSV files.\n\n" +
-		"After a patient withdraws their consent, the clinic sees only their visits from before the withdrawal:\n" +
-		"the visits the withdrawal cancelled are in neither the CSV files nor the patient's record.\n"
+		"After a patient withdraws their consent, the clinic's screens show only their visits from before the\n" +
+		"withdrawal; this archive holds every visit at the clinic: the visits a withdrawal of consent cancelled are in it too,\n" +
+		"in appointments.csv and in the patient's record, with the status cancelled.\n"
 }
 
 // cells guards each cell against formula injection: one that a spreadsheet would read as a formula (=, +, -, @, a tab
@@ -248,7 +249,7 @@ func (s *Service) staff(ctx context.Context, x Export) ([][]string, error) {
 }
 
 func (s *Service) appointments(ctx context.Context, x Export) ([][]string, error) {
-	seen, err := s.p.Appointments.Search(ctx, appointment.Caller{AccountID: x.RequestedBy, OrganizationID: x.OrganizationID, Admin: true}, appointment.Filter{})
+	seen, err := s.p.Appointments.ClinicRecord(ctx, appointment.Caller{AccountID: x.RequestedBy, OrganizationID: x.OrganizationID, Admin: true}, appointment.Filter{})
 	if err != nil {
 		return nil, err
 	}

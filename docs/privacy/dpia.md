@@ -2824,3 +2824,23 @@ D1 to D6 fill them, and each of those adds its own block here. What the contract
 (D1 decides how, in its own migration if it needs a role or policy); the erasure job needs to blank the account's
 fields and delete what S6 lists as `salus_retention` (D3's migration); a request references the patient's profile and
 account, so erasure blanks rather than deletes the rows they name (D3).
+### Package FX: the desk's patient search and the visits a withdrawal cancelled (migration 00072, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** No new personal-data field and no new table.
+
+- **The record keeps the visits a withdrawal cancelled** (S11, walk finding 9). The handed-over record and the export
+  (`appointments.csv`, `patients/<id>.json`) read the clinic's appointments through `appointment.Service.ClinicRecord`:
+  the clinic's admin only, in the clinic scope with the record's setting (`app.clinic_record`, migration 00072: two
+  read-only policies, the clinic's own appointments and their patients whatever the consent). Everyday screens keep the
+  consent rule (`Search`): a withdrawn patient's visits after the withdrawal stay hidden from practitioners, the calendar
+  and the desk. The visits come at the name level (times, status, practitioner, patient's name), each read audited as a
+  search by the admin, as the record's appointment reads were before; the profile's read keeps its purpose (`PATRQT`
+  for a hand-over, `HOPERAT` for the export).
+- **The desk's patient search** (`DeskPatients.tsx`): the existing `GET /clinic/patients` (name and birth date, each
+  patient found audited), opened from the desk's toolbar, so a patient with no visit today, a withdrawn one included, can
+  have their card opened (correct the profile, record a consent, the admin hands over the record). Nothing new is read.
+
+| Risk | Measure |
+| --- | --- |
+| The record's scope reaches an everyday screen | Set only inside `ClinicRecord`, which refuses anyone but the clinic's admin (audited); only `clinicexport` calls it; the policies need the setting, the clinic and no patient setting; repository and service tests |
+| A withdrawn patient's cancelled visits reach a practitioner | Practitioners never get the scope; `Search` and its tests are unchanged |
