@@ -35,6 +35,7 @@ type fakeRepo struct {
 	changes   []datarequest.Change
 	next      int
 	deadlines bool
+	owner     bool // the operator's connection: the table's owner, which row-level security does not hold
 }
 
 func newFakeRepo() *fakeRepo {
@@ -65,7 +66,7 @@ func (r *fakeRepo) visible(x datarequest.Request) bool {
 	case r.deadlines:
 		return x.Status == datarequest.StatusReceived || x.Status == datarequest.StatusInProgress
 	}
-	return false
+	return r.owner
 }
 
 func (r *fakeRepo) Insert(_ context.Context, x datarequest.Request) (datarequest.Request, error) {
@@ -116,6 +117,17 @@ func (r *fakeRepo) ForClinic(_ context.Context, id string) ([]datarequest.Reques
 	var out []datarequest.Request
 	for _, x := range r.requests {
 		if r.visible(x) && x.OrganizationID == id {
+			out = append(out, x)
+		}
+	}
+	slices.SortFunc(out, func(a, b datarequest.Request) int { return a.Deadline().Compare(b.Deadline()) })
+	return out, nil
+}
+
+func (r *fakeRepo) ForOperator(context.Context) ([]datarequest.Request, error) {
+	var out []datarequest.Request
+	for _, x := range r.requests {
+		if r.visible(x) && x.OrganizationID == "" {
 			out = append(out, x)
 		}
 	}

@@ -106,6 +106,10 @@ func (r *postgresRepository) ForClinic(ctx context.Context, organizationID strin
 	return many(r.q(ctx).RequestsForClinic(ctx, u))
 }
 
+func (r *postgresRepository) ForOperator(ctx context.Context) ([]Request, error) {
+	return many(r.q(ctx).RequestsForOperator(ctx))
+}
+
 // Update stores x if its version is still x.Version-1, with a history entry when its status changed: at its answer, or
 // at the transaction's time for a withdrawal.
 func (r *postgresRepository) Update(ctx context.Context, x Request, changedBy string) (bool, error) {

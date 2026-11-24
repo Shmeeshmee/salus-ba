@@ -1,0 +1,9 @@
+Subject: Rok za zahtjev ispitanika istječe za 7 dana
+
+Rok za odgovor na zahtjev ispitanika je četvrtak, 24. prosinca 2026. u 23:59 (Europe/Sarajevo), za 7 dana.
+
+Vrsta: Brisanje
+Zahtjev: 00000000-0000-4000-8000-0000000000f1
+
+Da biste ga obradili, prijavite se u Salus:
+https://app.example.test/data-requests/00000000-0000-4000-8000-0000000000f1

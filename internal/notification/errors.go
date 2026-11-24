@@ -6,6 +6,10 @@ import "errors"
 // cannot carry it, so no retry can send the e-mail. It names no address.
 var ErrRecipientNotASCII = errors.New("notification: the recipient's address is not ASCII, which SMTP cannot carry")
 
+// ErrNoOperator is a deadline warning to the operator when no operator address is configured: only in dev
+// (config.LoadOperator), where the worker logs it instead.
+var ErrNoOperator = errors.New("notification: no operator address")
+
 // The errors of the chat's notifications. Their text carries no token, address, URL or secret.
 var (
 	// ErrNotFound is returned for a device, an endpoint or a clinic the caller may not see.

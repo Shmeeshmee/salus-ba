@@ -1,0 +1,9 @@
+Рок за захтјев лица на које се подаци односе истиче за {{if eq .Days 1}}1 дан{{else}}{{.Days}} дана{{end}}
+
+Рок за одговор на захтјев лица на које се подаци односе је {{.When}}, за {{if eq .Days 1}}1 дан{{else}}{{.Days}} дана{{end}}.
+
+Врста: {{if eq .Kind "access"}}Приступ{{else if eq .Kind "portability"}}Преносивост{{else if eq .Kind "rectification"}}Исправка{{else if eq .Kind "restriction"}}Ограничење{{else if eq .Kind "objection"}}Приговор{{else if eq .Kind "erasure"}}Брисање{{end}}
+Захтјев: {{.Request}}
+
+{{if .Link}}Да бисте га обрадили, пријавите се у Salus:
+{{.Link}}{{else}}Да бисте га обрадили: salusctl datarequest show {{.Request}}{{end}}

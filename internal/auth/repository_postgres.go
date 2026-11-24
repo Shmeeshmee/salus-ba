@@ -66,6 +66,22 @@ func (r *postgresRepository) ByPractitioner(ctx context.Context, practitionerID 
 	return toAccount(authdb.AccountByEmailRow(row), err)
 }
 
+func (r *postgresRepository) ClinicAdmins(ctx context.Context, org string) ([]Contact, error) {
+	u, err := uuidOf(org)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.q(ctx).ClinicAdmins(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Contact, len(rows))
+	for i, row := range rows {
+		out[i] = Contact{Email: row.Email, Language: languageOf(Account{Language: string(row.Language.Language), DetectedLanguage: string(row.DetectedLanguage.Language)})}
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) SetPasswordHash(ctx context.Context, id, hash string) error {
 	u, err := uuidOf(id)
 	if err != nil {

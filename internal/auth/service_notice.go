@@ -67,6 +67,26 @@ func languageOf(a Account) string {
 	return a.DetectedLanguage
 }
 
+// ClinicAdmins returns the e-mail and language of each admin of the clinic org, for a message the job agent sends to
+// them (a data request's deadline warning, docs/clinic-cms/WAVE5.md D5). The read is audited as one, with the job as
+// agent and the number of accounts read. Errors carry no address.
+func (s *Service) ClinicAdmins(ctx context.Context, agent, org string) ([]Contact, error) {
+	var out []Contact
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		var err error
+		if out, err = s.repo.ClinicAdmins(ctx, org); err != nil {
+			return err
+		}
+		e := event(restCoding, interaction(auditevent.CodeSearchType), auditevent.ActionRead, Account{OrganizationID: org}, auditevent.OutcomeSuccess)
+		e.AgentName, e.EntityName, e.EntityCount = agent, "account", int64(len(out))
+		return s.audit.Record(ctx, e)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("auth: clinic admins: %w", err)
+	}
+	return out, nil
+}
+
 // PractitionerAccount returns the account of the practitioner practitionerID of the clinic org, with its e-mail and
 // language, for a message the job agent sends to them (the chat's notifications, SAL-29). The read is audited with
 // the job as agent, also when there is no such account in the clinic (ErrNotFound). Errors carry no address.

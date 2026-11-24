@@ -21,6 +21,13 @@ ORDER BY status IN ('received', 'in_progress') DESC,
          CASE WHEN status IN ('received', 'in_progress') THEN COALESCE(extended_until, due_at) END,
          received_at DESC, id;
 
+-- name: RequestsForOperator :many
+-- The requests to the account (salusctl, the owner): the open ones by their deadline first, then the others, newest first.
+SELECT * FROM data_request WHERE organization_id IS NULL
+ORDER BY status IN ('received', 'in_progress') DESC,
+         CASE WHEN status IN ('received', 'in_progress') THEN COALESCE(extended_until, due_at) END,
+         received_at DESC, id;
+
 -- name: UpdateRequest :execrows
 UPDATE data_request
 SET status = @status, extended_until = @extended_until, extension_reason = @extension_reason,

@@ -124,6 +124,9 @@ func (r Request) Deadline() time.Time {
 	return r.ExtendedUntil
 }
 
+// overdue reports whether the request's due date has passed at now: it can no longer be extended (S12).
+func (r Request) overdue(now time.Time) bool { return now.After(r.DueAt) }
+
 // The warnings before a deadline (S3): the answerer is warned this many days before it.
 const (
 	WarnDays     = 7

@@ -124,6 +124,20 @@ func (r *fakeRepository) ByPractitioner(ctx context.Context, practitionerID stri
 	return auth.Account{}, auth.ErrNotFound
 }
 
+func (r *fakeRepository) ClinicAdmins(ctx context.Context, org string) ([]auth.Contact, error) {
+	r.seen(ctx, "ClinicAdmins")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []auth.Contact
+	for _, a := range r.accounts {
+		if a.Role == auth.RoleAdmin && a.OrganizationID == org {
+			out = append(out, auth.Contact{Email: a.Email, Language: a.Language})
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeRepository) SetPasswordHash(ctx context.Context, id, hash string) error {
 	r.seen(ctx, "SetPasswordHash")
 	r.rehashed[id] = hash

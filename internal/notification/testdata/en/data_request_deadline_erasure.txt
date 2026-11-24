@@ -1,0 +1,8 @@
+Subject: A data subject request is due in 1 day
+
+A data subject request is due on Thursday 24 December 2026, 23:59 (Europe/Sarajevo), in 1 day.
+
+Kind: Erasure
+Request: 00000000-0000-4000-8000-0000000000f1
+
+To handle it: salusctl datarequest show 00000000-0000-4000-8000-0000000000f1

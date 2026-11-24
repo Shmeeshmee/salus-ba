@@ -55,6 +55,10 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if _, err := config.LoadSMS(); err != nil { // the fake only, until an SMS provider is chosen
 		return err
 	}
+	operator, err := config.LoadOperator() // the data requests' deadline warnings to the account's answerer
+	if err != nil {
+		return err
+	}
 	pushCfg, err := config.LoadPush()
 	if err != nil {
 		return err
@@ -72,6 +76,7 @@ func run(ctx context.Context, logOut io.Writer) error {
 	client, err := worker.NewNotifier(pool, log, worker.Notifier{
 		Sender: sender, Pusher: pusher, SMS: &smstest.Sender{}, WebBaseURL: cfg.WebBaseURL, PatientAppURL: cfg.PatientAppURL,
 		LinkURL: cfg.AppointmentLinkURL, Seller: subscription.Seller(cfg.Seller),
+		OperatorEmail: operator.Email, OperatorLanguage: operator.Language,
 	})
 	if err != nil {
 		return err

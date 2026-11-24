@@ -1,0 +1,9 @@
+Rok za zahtjev ispitanika istječe za {{if eq .Days 1}}1 dan{{else}}{{.Days}} dana{{end}}
+
+Rok za odgovor na zahtjev ispitanika je {{.When}}, za {{if eq .Days 1}}1 dan{{else}}{{.Days}} dana{{end}}.
+
+Vrsta: {{if eq .Kind "access"}}Pristup{{else if eq .Kind "portability"}}Prenosivost{{else if eq .Kind "rectification"}}Ispravak{{else if eq .Kind "restriction"}}Ograničenje{{else if eq .Kind "objection"}}Prigovor{{else if eq .Kind "erasure"}}Brisanje{{end}}
+Zahtjev: {{.Request}}
+
+{{if .Link}}Da biste ga obradili, prijavite se u Salus:
+{{.Link}}{{else}}Da biste ga obradili: salusctl datarequest show {{.Request}}{{end}}

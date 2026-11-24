@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -470,9 +469,6 @@ func (a Answer) valid() bool {
 	}
 	return false
 }
-
-// overdue: the request's due date (before any extension) has passed at now.
-func (r Request) overdue(now time.Time) bool { return !now.Before(r.DueAt) }
 
 func (r Request) closed() bool {
 	return r.Status == StatusFulfilled || r.Status == StatusRefused || r.Status == StatusWithdrawn

@@ -49,6 +49,12 @@ type Ports struct {
 	Tx           Transactor
 	Clock        clock.Clock
 
+	// The data requests' deadline warnings (docs/clinic-cms/WAVE5.md D5, service_datarequest.go): the clinics' admins,
+	// and the operator's address and language (SALUS_OPERATOR_EMAIL, SALUS_OPERATOR_LANGUAGE), none in dev.
+	Admins           Admins
+	OperatorEmail    string
+	OperatorLanguage string
+
 	// WebBaseURL is WEB_BASE_URL: invite links point at <WebBaseURL>/invite#<token>, signup verification links at
 	// <WebBaseURL>/signup/verify#<token>.
 	WebBaseURL string

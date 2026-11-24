@@ -1,0 +1,9 @@
+Una richiesta dell'interessato scade tra {{if eq .Days 1}}1 giorno{{else}}{{.Days}} giorni{{end}}
+
+Il termine per rispondere a una richiesta dell'interessato scade il {{.When}}, tra {{if eq .Days 1}}1 giorno{{else}}{{.Days}} giorni{{end}}.
+
+Tipo: {{if eq .Kind "access"}}Accesso{{else if eq .Kind "portability"}}Portabilità{{else if eq .Kind "rectification"}}Rettifica{{else if eq .Kind "restriction"}}Limitazione{{else if eq .Kind "objection"}}Opposizione{{else if eq .Kind "erasure"}}Cancellazione{{end}}
+Richiesta: {{.Request}}
+
+{{if .Link}}Per gestirla, acceda a Salus:
+{{.Link}}{{else}}Per gestirla: salusctl datarequest show {{.Request}}{{end}}
