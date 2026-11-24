@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:salus_api/api.dart' as api;
 
+import 'data_requests.dart';
 import 'fhir.dart';
 import 'file_prep.dart' show Prepared;
 import 'health_profile.dart';
@@ -30,6 +31,7 @@ class Booking {
     : _client = client,
       fhir = Fhir(client),
       health = HealthProfile(client),
+      privacy = DataRequests(client),
       notifications = api.NotificationsApi(client),
       _patient = api.PatientApi(client),
       _consents = api.ConsentsApi(client),
@@ -44,6 +46,9 @@ class Booking {
 
   /// The allergies and medications of the profile (SAL-41).
   final HealthProfile health;
+
+  /// The patient's data subject requests and account closure (docs/clinic-cms/WAVE5.md, D6).
+  final DataRequests privacy;
 
   /// The patient's reminder channels, quiet hours and zone (SAL-33).
   final api.NotificationsApi notifications;

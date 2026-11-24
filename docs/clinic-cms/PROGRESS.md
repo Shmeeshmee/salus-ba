@@ -42,7 +42,7 @@ writes under its own heading here.
 | D3 | not started | |
 | D4 | not started | |
 | D5 | not started | |
-| D6 | not started | |
+| D6 | done 2026-11-24 | `cms(D6)` |
 
 ## A: visit modes
 
@@ -2287,3 +2287,77 @@ order-dependent case in the closure test (map order) was fixed by resetting the 
 `make e2e` and `make fhir-validate` (no route is served and no golden file changed).
 
 **Copy waiting for the owner:** none. 5.0 adds no user-facing string; the API returns codes only.
+
+## D6: the patient app
+
+Status: done, 2026-11-24, on `wt/cms/D6`, one commit `cms(D6)`. No migration. Specification: `WAVE5.md` "D6", S1 to
+S9, and the owner's change of 2026-11-24 (erasure 21 days after closure, `notes/D6.txt`). Mobile only, against 5.0's
+generated `PrivacyApi`, tested with the fake API (`test/support.dart`); the routes are served by D1 to D3.
+
+**Built.**
+
+- **`lib/data_requests.dart`** (`DataRequests`, on `Booking` as `privacy`, as `health` is): the patient's routes of the
+  contract: list, file (account target, or a clinic with its id), withdraw (`If-Match: W/"<version>"`), the export's
+  status (a 404 is "no export yet"), the archive's bytes (`application/zip`, read outside the generated client as the
+  receipts' PDFs are), and the closure with the password.
+- **`lib/privacy_screen.dart`**, the "Privacy" entry on home (after "My profile"): what a request can ask and the
+  deadline (legal), the requests newest first, each with its kind, whom it went to ("To Salus, about your account" or
+  "To <clinic>"), its state, when received, the due date while open (or the extension and its reason, Art. 12(3)), the
+  answer by its code, and under a refusal the right to complain (Art. 12(4)). An access or portability request not
+  withdrawn or refused reads its export: being prepared, ready with its expiry and a "Download my data" button (the
+  share sheet, `salus-export-<id>.zip`), failed, or expired. An open request the patient filed can be withdrawn behind
+  a confirmation that says what withdrawing does; `data_request_closed` and `version_conflict` (list read again) have
+  their sentences. Dates are long dates in the answerer's zone: the clinic's, `Europe/Sarajevo` for the account target.
+- **`lib/data_request_screen.dart`**: the six kinds, each with its plain explanation (legal; rectification per S8,
+  objection per S9, erasure per S6 with "to erase your Salus account, close it"), and the target: Salus about the
+  account (the default) or one of the patient's clinics (those of their consents, active or not, named from the
+  directory). `not_found` from a clinic target says that clinic holds no record of the patient.
+- **`lib/close_account_screen.dart`**: what happens at once (S5), the reopening window and what is erased after
+  21 days (S6, the owner's change), what stays and how (S6, S7), the advice to download a copy first, then the
+  password (validated as at sign-in; `wrong_credentials` and `rate_limited` as at sign-in). Closed: "Your account is
+  closed and you are signed out", and "Done" (or back) signs out on the device, whatever `/auth/logout` answers, and
+  goes to sign-in with the token forgotten.
+- **Strings**: 62 new keys in all ten languages (`privacy`, `privacyIntro`, `noDataRequests`, `newDataRequest`,
+  `closeMyAccount`, `dataRequest*` kinds, states, dates and extensions, `explain*`, `answer*`, `withdrawDataRequest*`,
+  `keepDataRequest`, `export*`, `downloadExport`, `noRecordAtClinic`, `closeAccount*`, `accountClosed`); the
+  explanations, the target hint, the withdrawal's effect, the complaint line, the extensions, the refusals and the
+  closure texts are tagged `[legal]`, and `strings_test.dart` asserts the tag on the fifteen main ones. sr-Cyrl (and
+  the `sr` fallback) are transliterated from sr-Latn.
+
+**Review** (a fresh subagent over the diff, Copilot being out of quota). Fixed, each with its failing case first where
+it is behaviour: the token could survive a closure when `/auth/logout` failed for another reason than 401 (now
+`Session.forget()` in a `finally`; test with a 503); one unreadable export blanked the whole list (a 5xx or no network
+on an export now shows no export on that card only; test); a share-sheet failure was uncaught (now "something went
+wrong"); "Done" after closure could run the sign-out twice (guarded). Copy: sr-Latn/sr-Cyrl `closeMyAccount` and
+`downloadExport` with "svoj"; de "komplex" for Art. 12(3); fr "entrée" in `explainRectification`. Left: the OpenAPI's
+and WAVE5's "30 days" (not D6's files, see Decisions); how a closed patient asks Salus to reopen (no contact is given
+yet: a placeholder for the owner); "your devices" in `closeAccountErased` means the devices registered for
+notifications, for the owner to reword if wanted.
+
+**Test first.** `test/privacy_test.dart` (27 cases) was written before any code and run red (no "Privacy" entry,
+16 failures); then the code, then the cases for a version conflict, the many-requests extension and a failed export,
+each before the branch it covers was kept. The legal tag assertions were added to `strings_test.dart` with the strings.
+
+**Checks** (compose project `salus-cms-d6`): the fast layer (`flutter analyze`, the matching tests, `make i18n-check`)
+after each change; `runner.sh full` (`make lint test archcheck mobile-analyze mobile-test`): passed (698 mobile tests);
+after the review's fixes the fast layer and `make mobile-analyze mobile-test` once more: passed (700 tests).
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| The clinics a patient can target | Those of their consents, active or revoked | A consent is how a clinic comes to hold the patient's record in the app; a revoked one still leaves the record (S11) |
+| Default target | Salus, about the account | One choice fewer for the common request; a clinic is one tap |
+| Which requests read an export | Access and portability not withdrawn or refused; a 404 shows nothing | D2 builds the export for those (S2, S4); before the job starts there is no export to show |
+| The closure's confirmation | The screen itself, with the password field, not an extra dialog | WAVE5 asks for "a confirmation that asks for the password"; a second dialog would repeat it |
+| After closure | A closed screen, then sign-out on the device whatever the API answers | The session is gone with the account; going back into the app would only fail |
+| The 21 days | The closure text says 21 days, as the owner's change; `api/openapi.yaml` still says 30 in `closeMyAccount`'s description | The OpenAPI and `EraseAfter` are D3's; the integration aligns them |
+| Refused answers | Each code has its sentence; a refusal adds the right to complain to the supervisory authority | Art. 12(4) |
+
+**Deferred.** The walk at 1280 and 390 px: the patient app runs on a device or emulator, a manual step on the host
+(README.md); the screens are covered by widget tests only. The screens show nothing until D1 (list, file, withdraw),
+D2 (export) and D3 (closure) serve their routes.
+
+**Copy waiting for the owner:** the 62 strings above, in particular the `[legal]` ones for the lawyer: the closure's
+list of what is erased follows S6 word for word, and "the medical-record law" stands in for the retention period
+(L1 to L3) the lawyer has not named yet.

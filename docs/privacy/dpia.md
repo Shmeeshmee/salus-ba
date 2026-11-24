@@ -2844,3 +2844,16 @@ account, so erasure blanks rather than deletes the rows they name (D3).
 | --- | --- |
 | The record's scope reaches an everyday screen | Set only inside `ClinicRecord`, which refuses anyone but the clinic's admin (audited); only `clinicexport` calls it; the policies need the setting, the clinic and no patient setting; repository and service tests |
 | A withdrawn patient's cancelled visits reach a practitioner | Practitioners never get the scope; `Search` and its tests are unchanged |
+
+### Package D6: the patient's privacy screens (docs/clinic-cms/WAVE5.md)
+
+**Processing added.** None: the app shows the patient their own requests through the routes of 5.0 (served by D1 to
+D3) and keeps nothing on the device. The export's archive goes through a temporary copy to the share sheet and is
+deleted after it, as the receipts' PDFs are (`files.dart`). The password that confirms a closure is sent once and
+cleared from the field; it is never stored or logged.
+
+| Risk | Measure |
+| --- | --- |
+| A patient closes the account without knowing what it does | The closure screen says what happens at once, what is erased after 21 days, what stays and how to keep a copy first, all tagged legal; the password confirms |
+| A patient misreads what a kind of request does | Each kind carries its plain explanation (S6, S8, S9), tagged legal |
+| The closed session lingers on the device | After closure the app signs out and forgets the token whatever the API answers; a token it could not drop is refused and dropped at the next start |

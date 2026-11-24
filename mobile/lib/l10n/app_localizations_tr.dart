@@ -2095,4 +2095,226 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get clinicServices => 'Hizmetler ve fiyatlar';
+
+  @override
+  String get privacy => 'Gizlilik';
+
+  @override
+  String get privacyIntro =>
+      'Salus\'a veya kliniklerinizden birine hakkınızda hangi verileri tuttuklarını sorun ya da bunların düzeltilmesini, kısıtlanmasını veya silinmesini isteyin. Her talep bir ay içinde yanıtlanır. Süre bir kez, en fazla iki ay uzatılabilir ve size nedeni bildirilir.';
+
+  @override
+  String get noDataRequests => 'Henüz bir talepte bulunmadınız.';
+
+  @override
+  String get newDataRequest => 'Talepte bulun';
+
+  @override
+  String get closeMyAccount => 'Hesabımı kapat';
+
+  @override
+  String get dataRequestAccess => 'Verilerimi görmek';
+
+  @override
+  String get dataRequestPortability => 'Verilerimi başka yere taşımak';
+
+  @override
+  String get dataRequestRectification => 'Verilerimi düzeltmek';
+
+  @override
+  String get dataRequestRestriction => 'Verilerimin kullanımını kısıtlamak';
+
+  @override
+  String get dataRequestObjection => 'Verilerimin kullanımına itiraz etmek';
+
+  @override
+  String get dataRequestErasure => 'Verilerimi silmek';
+
+  @override
+  String get explainAccess =>
+      'Hakkınızda tutulan verilerin bir kopyasını, burada 7 gün boyunca indirebileceğiniz bir arşiv olarak alırsınız.';
+
+  @override
+  String get explainPortability =>
+      'Aynı arşivi, başka bir sağlayıcının okuyabileceği standart bir biçimde (FHIR) alırsınız.';
+
+  @override
+  String get explainRectification =>
+      'Profilinizi Profilim bölümünden kendiniz düzeltin. Tıbbi kaydınızdaki bir giriş için kliniğe başvurun: klinik, asıl girişe atıfta bulunan bir düzeltme ekleyebilir. İmzalı bir belge asla değiştirilmez.';
+
+  @override
+  String get explainRestriction =>
+      'Verileriniz, onlarla ilgili bir soru çözülene kadar saklanır ancak yasanın gerektirdiği dışında kullanılmaz.';
+
+  @override
+  String get explainObjection =>
+      'Verileriniz bundan sonra anonimleştirilmiş istatistiklerin dışında tutulur. Daha önce hazırlanmış istatistikler değiştirilmez; onlarda kimse tanınamaz.';
+
+  @override
+  String get explainErasure =>
+      'Hiçbir yasanın saklanmasını gerektirmediği veriler silinir. Tıbbi kaydınız, tıbbi kayıt yasasının belirlediği süre boyunca kısıtlanmış olarak her klinikte kalır. Salus hesabınızı silmek için hesabı kapatın.';
+
+  @override
+  String get dataRequestKind => 'Ne talep ediyorsunuz';
+
+  @override
+  String get chooseDataRequestKind => 'Ne talep ettiğinizi seçin.';
+
+  @override
+  String get dataRequestTarget => 'Kim yanıtlamalı';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Hesabınız için Salus yanıt verir. Her klinik, sizinle ilgili tuttuğu kayıt için yanıt verir.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, hesabımla ilgili';
+
+  @override
+  String get requestToSalus => 'Salus\'a, hesabınızla ilgili';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'Alıcı: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Talebi gönder';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'Talebiniz alındı. Yanıt en geç $date tarihinde verilmelidir.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Alındı';
+
+  @override
+  String get dataRequestInProgress => 'İşleniyor';
+
+  @override
+  String get dataRequestFulfilled => 'Yanıtlandı';
+
+  @override
+  String get dataRequestRefused => 'Reddedildi';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Geri çekildi';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Alındığı tarih: $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Yanıt için son tarih: $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Talep karmaşık olduğundan süre $date tarihine uzatıldı.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Aynı anda çok sayıda talep geldiğinden süre $date tarihine uzatıldı.';
+  }
+
+  @override
+  String get answerDone => 'Yerine getirildi.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Yerine getirildi. Tıbbi kayıt yasasının saklanmasını gerektirdiği veriler kısıtlanmış olarak saklanır.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Reddedildi: kimliğiniz doğrulanamadı.';
+
+  @override
+  String get answerManifestlyUnfounded =>
+      'Açıkça dayanaksız olduğu için reddedildi.';
+
+  @override
+  String get answerExcessive =>
+      'Aşırı olduğu için reddedildi; örneğin daha önceki bir talebi tekrarladığı için.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Reddedildi: yasa bu verilerin saklanmasını gerektiriyor.';
+
+  @override
+  String get answerNoData => 'Orada hakkınızda hiçbir veri tutulmuyor.';
+
+  @override
+  String get answerComplaint =>
+      'Bir yanıta katılmıyorsanız veri koruma otoritesine şikâyette bulunabilirsiniz.';
+
+  @override
+  String get withdrawDataRequest => 'Talebi geri çek';
+
+  @override
+  String get withdrawDataRequestTitle => 'Talebiniz geri çekilsin mi?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'Talep yanıtlanmadan kapatılır ve listenizde kalır. İstediğiniz zaman yeni bir talepte bulunabilirsiniz.';
+
+  @override
+  String get keepDataRequest => 'Talebi koru';
+
+  @override
+  String get dataRequestWithdrawn => 'Talebiniz geri çekildi.';
+
+  @override
+  String get exportPreparing =>
+      'Verileriniz hazırlanıyor. Daha sonra buraya tekrar bakın.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return '$date tarihine kadar indirilebilir.';
+  }
+
+  @override
+  String get downloadExport => 'Verilerimi indir';
+
+  @override
+  String get exportFailed => 'Arşiv hazırlanamadı.';
+
+  @override
+  String get exportExpired =>
+      'İndirme süresi doldu. Yeni bir kopya için yeni bir talepte bulunun.';
+
+  @override
+  String get dataRequestClosed => 'Bu talep zaten kapatıldı.';
+
+  @override
+  String get noRecordAtClinic => 'Bu klinikte sizinle ilgili bir kayıt yok.';
+
+  @override
+  String get dataRequestChanged =>
+      'Bu talep bu arada değişti. Liste onu şimdiki hâliyle gösteriyor.';
+
+  @override
+  String get closeAccountNow =>
+      'Hesabınızı kapattığınızda hemen şunlar olur: tüm cihazlarda oturumunuz kapanır ve yeniden oturum açamazsınız, gelecekteki randevularınız iptal edilir ve kliniklere bildirilir, bekleme listelerindeki yerleriniz bırakılır ve onaylarınız geri alınır. Bunu kendiniz geri alamazsınız.';
+
+  @override
+  String get closeAccountErased =>
+      'Fikrinizi değiştirirseniz Salus hesabı 21 gün içinde yeniden açabilir. 21 günün sonunda Salus e-posta adresinizi, parolanızı ve oturum açma kodlarınızı, dil seçiminizi, cihazlarınızı, size gönderilen mesajların kaydını, göndermediğiniz anket yanıtlarını ve bir sohbete ekleyip hiç göndermediğiniz dosyaları siler.';
+
+  @override
+  String get closeAccountKept =>
+      'Tıbbi kaydınız, tıbbi kayıt yasasının belirlediği süre boyunca her klinikte kalır. Kliniğin günlük işlerinden gizlenir ve yalnızca belirtilen bir gerekçeyle açılır.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Verilerinizin bir kopyasını saklamak istiyorsanız hesabı kapatmadan önce Gizlilik bölümünden isteyin: hesap kapandıktan sonra indirmek için oturum açamazsınız.';
+
+  @override
+  String get closeAccountConfirm => 'Onaylamak için parolanızı girin.';
+
+  @override
+  String get accountClosed => 'Hesabınız kapatıldı ve oturumunuz kapandı.';
 }

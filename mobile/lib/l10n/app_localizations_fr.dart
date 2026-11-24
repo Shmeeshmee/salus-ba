@@ -2120,4 +2120,227 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get clinicServices => 'Services et tarifs';
+
+  @override
+  String get privacy => 'Confidentialité';
+
+  @override
+  String get privacyIntro =>
+      'Demandez à Salus ou à l’une de vos cliniques quelles données elles conservent sur vous, ou demandez-leur de les corriger, de les limiter ou de les effacer. Chaque demande reçoit une réponse dans un délai d’un mois. Ce délai peut être prolongé une fois, de deux mois au plus, et le motif vous est indiqué.';
+
+  @override
+  String get noDataRequests => 'Vous n’avez encore fait aucune demande.';
+
+  @override
+  String get newDataRequest => 'Faire une demande';
+
+  @override
+  String get closeMyAccount => 'Fermer mon compte';
+
+  @override
+  String get dataRequestAccess => 'Consulter mes données';
+
+  @override
+  String get dataRequestPortability => 'Emporter mes données ailleurs';
+
+  @override
+  String get dataRequestRectification => 'Corriger mes données';
+
+  @override
+  String get dataRequestRestriction => 'Limiter l’utilisation de mes données';
+
+  @override
+  String get dataRequestObjection => 'M’opposer à l’utilisation de mes données';
+
+  @override
+  String get dataRequestErasure => 'Effacer mes données';
+
+  @override
+  String get explainAccess =>
+      'Vous recevez une copie des données conservées sur vous, sous forme d’archive à télécharger ici pendant 7 jours.';
+
+  @override
+  String get explainPortability =>
+      'Vous recevez la même archive, dans un format standard (FHIR) qu’un autre prestataire peut lire.';
+
+  @override
+  String get explainRectification =>
+      'Corrigez vous-même votre profil dans Mon profil. Pour une entrée dans votre dossier médical, adressez-vous à la clinique : elle peut ajouter une correction qui renvoie à l’original. Un document signé n’est jamais modifié.';
+
+  @override
+  String get explainRestriction =>
+      'Vos données sont conservées mais pas utilisées, sauf ce que la loi exige, le temps qu’une question à leur sujet soit réglée.';
+
+  @override
+  String get explainObjection =>
+      'Vos données sont désormais exclues des statistiques anonymisées. Les statistiques établies auparavant ne sont pas modifiées ; personne ne peut y être identifié.';
+
+  @override
+  String get explainErasure =>
+      'Ce qu’aucune loi n’oblige à conserver est effacé. Votre dossier médical reste auprès de chaque clinique, limité, pendant la durée fixée par la loi sur les dossiers médicaux. Pour effacer votre compte Salus, fermez-le.';
+
+  @override
+  String get dataRequestKind => 'Ce que vous demandez';
+
+  @override
+  String get chooseDataRequestKind => 'Choisissez ce que vous demandez.';
+
+  @override
+  String get dataRequestTarget => 'Qui doit répondre';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Salus répond pour votre compte. Chaque clinique répond pour le dossier qu’elle tient sur vous.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, au sujet de mon compte';
+
+  @override
+  String get requestToSalus => 'À Salus, au sujet de votre compte';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'À : $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Envoyer la demande';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'Votre demande a été reçue. La réponse est attendue au plus tard le $date.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Reçue';
+
+  @override
+  String get dataRequestInProgress => 'En cours';
+
+  @override
+  String get dataRequestFulfilled => 'Traitée';
+
+  @override
+  String get dataRequestRefused => 'Refusée';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Retirée';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Reçue le $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Réponse attendue au plus tard le $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Prolongé jusqu’au $date, car la demande est complexe.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Prolongé jusqu’au $date, car de nombreuses demandes sont arrivées en même temps.';
+  }
+
+  @override
+  String get answerDone => 'Fait.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Fait. Ce que la loi sur les dossiers médicaux oblige à conserver est conservé, limité.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Refusée : votre identité n’a pas pu être confirmée.';
+
+  @override
+  String get answerManifestlyUnfounded => 'Refusée car manifestement infondée.';
+
+  @override
+  String get answerExcessive =>
+      'Refusée car excessive, par exemple parce qu’elle répète une demande antérieure.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Refusée : la loi oblige à conserver ces données.';
+
+  @override
+  String get answerNoData => 'Aucune donnée vous concernant n’y est conservée.';
+
+  @override
+  String get answerComplaint =>
+      'Si vous n’êtes pas d’accord avec une réponse, vous pouvez déposer une plainte auprès de l’autorité de protection des données.';
+
+  @override
+  String get withdrawDataRequest => 'Retirer la demande';
+
+  @override
+  String get withdrawDataRequestTitle => 'Retirer votre demande ?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'La demande est close sans réponse et reste dans votre liste. Vous pouvez faire une nouvelle demande à tout moment.';
+
+  @override
+  String get keepDataRequest => 'Garder la demande';
+
+  @override
+  String get dataRequestWithdrawn => 'Votre demande a été retirée.';
+
+  @override
+  String get exportPreparing =>
+      'Vos données sont en cours de préparation. Revenez ici plus tard.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'Prêt à télécharger jusqu’au $date.';
+  }
+
+  @override
+  String get downloadExport => 'Télécharger mes données';
+
+  @override
+  String get exportFailed => 'L’archive n’a pas pu être préparée.';
+
+  @override
+  String get exportExpired =>
+      'Le téléchargement a expiré. Faites une nouvelle demande pour obtenir une nouvelle copie.';
+
+  @override
+  String get dataRequestClosed => 'Cette demande est déjà close.';
+
+  @override
+  String get noRecordAtClinic =>
+      'Cette clinique ne tient aucun dossier sur vous.';
+
+  @override
+  String get dataRequestChanged =>
+      'Cette demande a changé entre-temps. La liste la montre telle qu’elle est maintenant.';
+
+  @override
+  String get closeAccountNow =>
+      'Lorsque vous fermez votre compte, immédiatement : vous êtes déconnecté sur tous vos appareils et ne pouvez plus vous connecter, vos rendez-vous à venir sont annulés et les cliniques en sont informées, vos places sur les listes d’attente sont libérées et vos consentements sont révoqués. Vous ne pouvez pas l’annuler vous-même.';
+
+  @override
+  String get closeAccountErased =>
+      'Si vous changez d’avis, Salus peut rouvrir le compte dans un délai de 21 jours. Après 21 jours, Salus efface votre adresse e-mail, votre mot de passe et vos codes de connexion, votre choix de langue, vos appareils, la trace des messages qui vous ont été envoyés, les réponses aux questionnaires que vous n’avez pas envoyées et les fichiers ajoutés à une conversation mais jamais envoyés.';
+
+  @override
+  String get closeAccountKept =>
+      'Votre dossier médical reste auprès de chaque clinique pendant la durée fixée par la loi sur les dossiers médicaux. Il est masqué du travail quotidien de la clinique et n’est ouvert qu’avec un motif indiqué.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Pour garder une copie de vos données, demandez-la dans Confidentialité avant de fermer le compte : une fois fermé, vous ne pourrez plus vous connecter pour la télécharger.';
+
+  @override
+  String get closeAccountConfirm =>
+      'Saisissez votre mot de passe pour confirmer.';
+
+  @override
+  String get accountClosed => 'Votre compte est fermé et vous êtes déconnecté.';
 }

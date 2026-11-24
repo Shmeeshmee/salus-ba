@@ -2121,4 +2121,228 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get clinicServices => 'Leistungen und Preise';
+
+  @override
+  String get privacy => 'Datenschutz';
+
+  @override
+  String get privacyIntro =>
+      'Fragen Sie Salus oder eine Ihrer Kliniken, welche Daten dort über Sie gespeichert sind, oder verlangen Sie, dass sie berichtigt, eingeschränkt oder gelöscht werden. Jede Anfrage wird innerhalb eines Monats beantwortet. Die Frist kann einmal um bis zu zwei Monate verlängert werden; Sie erfahren den Grund.';
+
+  @override
+  String get noDataRequests => 'Sie haben noch keine Anfrage gestellt.';
+
+  @override
+  String get newDataRequest => 'Anfrage stellen';
+
+  @override
+  String get closeMyAccount => 'Mein Konto schließen';
+
+  @override
+  String get dataRequestAccess => 'Meine Daten einsehen';
+
+  @override
+  String get dataRequestPortability => 'Meine Daten mitnehmen';
+
+  @override
+  String get dataRequestRectification => 'Meine Daten berichtigen';
+
+  @override
+  String get dataRequestRestriction => 'Die Nutzung meiner Daten einschränken';
+
+  @override
+  String get dataRequestObjection => 'Der Nutzung meiner Daten widersprechen';
+
+  @override
+  String get dataRequestErasure => 'Meine Daten löschen';
+
+  @override
+  String get explainAccess =>
+      'Sie erhalten eine Kopie der über Sie gespeicherten Daten als Archiv, das Sie hier 7 Tage lang herunterladen können.';
+
+  @override
+  String get explainPortability =>
+      'Sie erhalten dasselbe Archiv in einem Standardformat (FHIR), das ein anderer Anbieter lesen kann.';
+
+  @override
+  String get explainRectification =>
+      'Ihr Profil berichtigen Sie selbst unter Mein Profil. Für einen Eintrag in Ihrer Krankenakte wenden Sie sich an die Klinik: Sie kann eine Berichtigung hinzufügen, die auf das Original verweist. Ein unterschriebenes Dokument wird nie geändert.';
+
+  @override
+  String get explainRestriction =>
+      'Ihre Daten werden aufbewahrt, aber nicht genutzt, außer wenn das Gesetz es verlangt, solange eine Frage zu ihnen geklärt wird.';
+
+  @override
+  String get explainObjection =>
+      'Ihre Daten bleiben ab jetzt in anonymisierten Statistiken unberücksichtigt. Früher erstellte Statistiken werden nicht geändert; in ihnen ist niemand erkennbar.';
+
+  @override
+  String get explainErasure =>
+      'Gelöscht wird, was kein Gesetz aufzubewahren verlangt. Ihre Krankenakte bleibt eingeschränkt bei jeder Klinik, so lange das Gesetz über die Patientendokumentation es vorschreibt. Um Ihr Salus-Konto zu löschen, schließen Sie es.';
+
+  @override
+  String get dataRequestKind => 'Worum Sie bitten';
+
+  @override
+  String get chooseDataRequestKind => 'Wählen Sie, worum Sie bitten.';
+
+  @override
+  String get dataRequestTarget => 'Wer antworten soll';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Salus antwortet für Ihr Konto. Jede Klinik antwortet für die Akte, die sie über Sie führt.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, zu meinem Konto';
+
+  @override
+  String get requestToSalus => 'An Salus, zu Ihrem Konto';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'An: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Anfrage senden';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'Ihre Anfrage ist eingegangen. Die Antwort ist bis $date fällig.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Eingegangen';
+
+  @override
+  String get dataRequestInProgress => 'In Bearbeitung';
+
+  @override
+  String get dataRequestFulfilled => 'Beantwortet';
+
+  @override
+  String get dataRequestRefused => 'Abgelehnt';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Zurückgezogen';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Eingegangen am $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Antwort fällig bis $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Verlängert bis $date, da die Anfrage komplex ist.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Verlängert bis $date, da viele Anfragen gleichzeitig eingegangen sind.';
+  }
+
+  @override
+  String get answerDone => 'Erledigt.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Erledigt. Was das Gesetz über die Patientendokumentation aufzubewahren verlangt, bleibt eingeschränkt gespeichert.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Abgelehnt: Ihre Identität konnte nicht bestätigt werden.';
+
+  @override
+  String get answerManifestlyUnfounded =>
+      'Abgelehnt als offenkundig unbegründet.';
+
+  @override
+  String get answerExcessive =>
+      'Abgelehnt als exzessiv, zum Beispiel weil sie eine frühere Anfrage wiederholt.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Abgelehnt: Das Gesetz verlangt, dass diese Daten aufbewahrt werden.';
+
+  @override
+  String get answerNoData => 'Dort sind keine Daten über Sie gespeichert.';
+
+  @override
+  String get answerComplaint =>
+      'Wenn Sie mit einer Antwort nicht einverstanden sind, können Sie sich bei der Datenschutzaufsichtsbehörde beschweren.';
+
+  @override
+  String get withdrawDataRequest => 'Anfrage zurückziehen';
+
+  @override
+  String get withdrawDataRequestTitle => 'Anfrage zurückziehen?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'Die Anfrage wird ohne Antwort geschlossen und bleibt in Ihrer Liste. Sie können jederzeit eine neue Anfrage stellen.';
+
+  @override
+  String get keepDataRequest => 'Anfrage behalten';
+
+  @override
+  String get dataRequestWithdrawn => 'Ihre Anfrage wurde zurückgezogen.';
+
+  @override
+  String get exportPreparing =>
+      'Ihre Daten werden vorbereitet. Schauen Sie später wieder hier nach.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'Bereit zum Herunterladen bis $date.';
+  }
+
+  @override
+  String get downloadExport => 'Meine Daten herunterladen';
+
+  @override
+  String get exportFailed => 'Das Archiv konnte nicht vorbereitet werden.';
+
+  @override
+  String get exportExpired =>
+      'Der Download ist abgelaufen. Stellen Sie für eine neue Kopie eine neue Anfrage.';
+
+  @override
+  String get dataRequestClosed => 'Diese Anfrage ist bereits abgeschlossen.';
+
+  @override
+  String get noRecordAtClinic => 'Diese Klinik führt keine Akte über Sie.';
+
+  @override
+  String get dataRequestChanged =>
+      'Diese Anfrage hat sich inzwischen geändert. Die Liste zeigt sie, wie sie jetzt ist.';
+
+  @override
+  String get closeAccountNow =>
+      'Wenn Sie Ihr Konto schließen, geschieht sofort Folgendes: Sie werden auf allen Geräten abgemeldet und können sich nicht wieder anmelden, Ihre künftigen Termine werden abgesagt und die Kliniken benachrichtigt, Ihre Plätze auf Wartelisten werden aufgegeben und Ihre Einwilligungen widerrufen. Sie können das nicht selbst rückgängig machen.';
+
+  @override
+  String get closeAccountErased =>
+      'Wenn Sie es sich anders überlegen, kann Salus das Konto innerhalb von 21 Tagen wieder öffnen. Nach 21 Tagen löscht Salus Ihre E-Mail-Adresse, Ihr Passwort und Ihre Anmeldecodes, Ihre Sprachwahl, Ihre Geräte, die Aufzeichnung der an Sie gesendeten Nachrichten, nicht abgeschickte Antworten auf Fragebögen und Dateien, die Sie einem Chat hinzugefügt, aber nie gesendet haben.';
+
+  @override
+  String get closeAccountKept =>
+      'Ihre Krankenakte bleibt bei jeder Klinik so lange, wie das Gesetz über die Patientendokumentation es vorschreibt. Sie ist aus der täglichen Arbeit der Klinik ausgeblendet und wird nur mit einem angegebenen Grund geöffnet.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Wenn Sie eine Kopie Ihrer Daten behalten möchten, fordern Sie sie unter Datenschutz an, bevor Sie das Konto schließen: Danach können Sie sich nicht mehr anmelden, um sie herunterzuladen.';
+
+  @override
+  String get closeAccountConfirm =>
+      'Geben Sie zur Bestätigung Ihr Passwort ein.';
+
+  @override
+  String get accountClosed =>
+      'Ihr Konto ist geschlossen und Sie sind abgemeldet.';
 }

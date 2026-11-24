@@ -2761,5 +2761,288 @@
   "clinicServices": "Services and prices",
   "@clinicServices": {
     "description": "Heading above a clinic's services on its profile."
+  },
+  "privacy": "Privacy",
+  "@privacy": {
+    "description": "Home button and screen title: the patient's data requests and account closure."
+  },
+  "privacyIntro": "Ask Salus or one of your clinics what data they hold about you, or ask them to correct, limit or erase it. Each request is answered within one month. The time may be extended once, by up to two months, and you are told why.",
+  "@privacyIntro": {
+    "description": "[legal] Privacy screen: what a request can ask and its deadline (GDPR Art. 12(3))."
+  },
+  "noDataRequests": "You have not made a request yet.",
+  "@noDataRequests": {
+    "description": "Privacy screen, empty list."
+  },
+  "newDataRequest": "Make a request",
+  "@newDataRequest": {
+    "description": "Privacy screen button and the new request screen's title."
+  },
+  "closeMyAccount": "Close my account",
+  "@closeMyAccount": {
+    "description": "Privacy screen button, the closure screen's title and its confirming button."
+  },
+  "dataRequestAccess": "See my data",
+  "@dataRequestAccess": {
+    "description": "The kind of a data request: access (Art. 15)."
+  },
+  "dataRequestPortability": "Take my data elsewhere",
+  "@dataRequestPortability": {
+    "description": "The kind of a data request: portability (Art. 20)."
+  },
+  "dataRequestRectification": "Correct my data",
+  "@dataRequestRectification": {
+    "description": "The kind of a data request: rectification (Art. 16)."
+  },
+  "dataRequestRestriction": "Limit the use of my data",
+  "@dataRequestRestriction": {
+    "description": "The kind of a data request: restriction (Art. 18)."
+  },
+  "dataRequestObjection": "Object to the use of my data",
+  "@dataRequestObjection": {
+    "description": "The kind of a data request: objection (Art. 21)."
+  },
+  "dataRequestErasure": "Erase my data",
+  "@dataRequestErasure": {
+    "description": "The kind of a data request: erasure (Art. 17)."
+  },
+  "explainAccess": "You receive a copy of the data held about you, as an archive you can download here for 7 days.",
+  "@explainAccess": {
+    "description": "[legal] New request screen: what an access request gives (S4)."
+  },
+  "explainPortability": "You receive the same archive, in a standard format (FHIR) another provider can read.",
+  "@explainPortability": {
+    "description": "[legal] New request screen: what a portability request gives (S4)."
+  },
+  "explainRectification": "Correct your profile yourself under My profile. For an entry in your clinical record, ask the clinic: it may add a correction that refers to the original. A signed document is never changed.",
+  "@explainRectification": {
+    "description": "[legal] New request screen: how a correction is made (S8)."
+  },
+  "explainRestriction": "Your data is kept but not used, apart from what the law requires, while a question about it is settled.",
+  "@explainRestriction": {
+    "description": "[legal] New request screen: what a restriction does (Art. 18)."
+  },
+  "explainObjection": "Your data is left out of anonymised statistics from now on. Statistics made earlier are not changed; no one can be identified in them.",
+  "@explainObjection": {
+    "description": "[legal] New request screen: what an objection does (S9)."
+  },
+  "explainErasure": "Data that no law requires to be kept is erased. Your clinical record stays with each clinic for the period the medical-record law sets, restricted. To erase your Salus account, close it.",
+  "@explainErasure": {
+    "description": "[legal] New request screen: what an erasure does and what stays (S6)."
+  },
+  "dataRequestKind": "What you are asking for",
+  "@dataRequestKind": {
+    "description": "New request screen: heading above the kinds."
+  },
+  "chooseDataRequestKind": "Choose what you are asking for.",
+  "@chooseDataRequestKind": {
+    "description": "New request screen: sent without a kind."
+  },
+  "dataRequestTarget": "Who should answer",
+  "@dataRequestTarget": {
+    "description": "New request screen: heading above who answers."
+  },
+  "dataRequestTargetHint": "Salus answers for your account. Each clinic answers for the record it keeps about you.",
+  "@dataRequestTargetHint": {
+    "description": "[legal] New request screen: who answers which request (S1)."
+  },
+  "dataRequestToSalusOption": "Salus, about my account",
+  "@dataRequestToSalusOption": {
+    "description": "New request screen: the account target."
+  },
+  "requestToSalus": "To Salus, about your account",
+  "@requestToSalus": {
+    "description": "Privacy screen: a request to the account target."
+  },
+  "requestToClinic": "To {clinic}",
+  "@requestToClinic": {
+    "description": "Privacy screen: a request to a clinic; the clinic's name.",
+    "placeholders": {
+      "clinic": {
+        "type": "String"
+      }
+    }
+  },
+  "sendDataRequest": "Send request",
+  "@sendDataRequest": {
+    "description": "New request screen: the send button."
+  },
+  "dataRequestSent": "Your request was received. The answer is due by {date}.",
+  "@dataRequestSent": {
+    "description": "Privacy screen after filing; the due date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dataRequestReceived": "Received",
+  "@dataRequestReceived": {
+    "description": "Privacy screen: a request's state, received."
+  },
+  "dataRequestInProgress": "In progress",
+  "@dataRequestInProgress": {
+    "description": "Privacy screen: a request's state, in progress."
+  },
+  "dataRequestFulfilled": "Answered",
+  "@dataRequestFulfilled": {
+    "description": "Privacy screen: a request's state, answered."
+  },
+  "dataRequestRefused": "Refused",
+  "@dataRequestRefused": {
+    "description": "Privacy screen: a request's state, refused."
+  },
+  "dataRequestWithdrawnStatus": "Withdrawn",
+  "@dataRequestWithdrawnStatus": {
+    "description": "Privacy screen: a request's state, withdrawn."
+  },
+  "dataRequestReceivedOn": "Received on {date}",
+  "@dataRequestReceivedOn": {
+    "description": "Privacy screen: when a request was received; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dataRequestDueBy": "Answer due by {date}",
+  "@dataRequestDueBy": {
+    "description": "Privacy screen: an open request's due date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dataRequestExtendedComplex": "Extended to {date}, as the request is complex.",
+  "@dataRequestExtendedComplex": {
+    "description": "[legal] Privacy screen: an extended deadline and its reason (Art. 12(3)).",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dataRequestExtendedMany": "Extended to {date}, as many requests arrived at the same time.",
+  "@dataRequestExtendedMany": {
+    "description": "[legal] Privacy screen: an extended deadline and its reason (Art. 12(3)).",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "answerDone": "Done.",
+  "@answerDone": {
+    "description": "Privacy screen: the answer, done."
+  },
+  "answerDonePartlyKept": "Done. What the medical-record law requires to be kept is kept, restricted.",
+  "@answerDonePartlyKept": {
+    "description": "[legal] Privacy screen: the answer, done with the record the law keeps (S6)."
+  },
+  "answerIdentityUnverified": "Refused: your identity could not be confirmed.",
+  "@answerIdentityUnverified": {
+    "description": "[legal] Privacy screen: the answer, refused (Art. 12(6))."
+  },
+  "answerManifestlyUnfounded": "Refused as clearly unfounded.",
+  "@answerManifestlyUnfounded": {
+    "description": "[legal] Privacy screen: the answer, refused (Art. 12(5))."
+  },
+  "answerExcessive": "Refused as excessive, for example because it repeats an earlier request.",
+  "@answerExcessive": {
+    "description": "[legal] Privacy screen: the answer, refused (Art. 12(5))."
+  },
+  "answerRetentionLaw": "Refused: the law requires this data to be kept.",
+  "@answerRetentionLaw": {
+    "description": "[legal] Privacy screen: the answer, refused (Art. 17(3))."
+  },
+  "answerNoData": "No data about you is held there.",
+  "@answerNoData": {
+    "description": "Privacy screen: the answer, no data held."
+  },
+  "answerComplaint": "If you disagree with an answer, you can complain to the data protection authority.",
+  "@answerComplaint": {
+    "description": "[legal] Privacy screen, under a refusal: the right to complain (Art. 12(4))."
+  },
+  "withdrawDataRequest": "Withdraw request",
+  "@withdrawDataRequest": {
+    "description": "Privacy screen: button under an open request, and the dialog's confirming button."
+  },
+  "withdrawDataRequestTitle": "Withdraw your request?",
+  "@withdrawDataRequestTitle": {
+    "description": "Dialog title."
+  },
+  "withdrawDataRequestBody": "The request is closed without an answer and stays in your list. You can make a new request at any time.",
+  "@withdrawDataRequestBody": {
+    "description": "[legal] Dialog text: the effect of withdrawing a request."
+  },
+  "keepDataRequest": "Keep request",
+  "@keepDataRequest": {
+    "description": "Dialog: keep the request."
+  },
+  "dataRequestWithdrawn": "Your request was withdrawn.",
+  "@dataRequestWithdrawn": {
+    "description": "Privacy screen after withdrawing."
+  },
+  "exportPreparing": "Your data is being prepared. Look here again later.",
+  "@exportPreparing": {
+    "description": "Privacy screen: the export is being built."
+  },
+  "exportReadyUntil": "Ready to download until {date}.",
+  "@exportReadyUntil": {
+    "description": "Privacy screen: the export can be downloaded until a date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadExport": "Download my data",
+  "@downloadExport": {
+    "description": "Privacy screen: the button that downloads the export."
+  },
+  "exportFailed": "The archive could not be prepared.",
+  "@exportFailed": {
+    "description": "Privacy screen: the export could not be built."
+  },
+  "exportExpired": "The download has expired. Make a new request for a fresh copy.",
+  "@exportExpired": {
+    "description": "Privacy screen: the download window has passed."
+  },
+  "dataRequestClosed": "This request is already closed.",
+  "@dataRequestClosed": {
+    "description": "Privacy screen: withdrawing a request already answered or withdrawn."
+  },
+  "noRecordAtClinic": "That clinic holds no record of you.",
+  "@noRecordAtClinic": {
+    "description": "New request screen: the clinic has no record of the patient."
+  },
+  "dataRequestChanged": "This request has changed meanwhile. The list shows it as it is now.",
+  "@dataRequestChanged": {
+    "description": "Privacy screen: the request changed since it was read."
+  },
+  "closeAccountNow": "When you close your account, at once: you are signed out on every device and cannot sign in again, your future appointments are cancelled and the clinics are told, your places on waiting lists are given up and your consents are revoked. You cannot undo this yourself.",
+  "@closeAccountNow": {
+    "description": "[legal] Closure screen: what happens at once (S5)."
+  },
+  "closeAccountErased": "If you change your mind, Salus can reopen the account within 21 days. After 21 days Salus erases your e-mail address, password and sign-in codes, your language choice, your devices, the record of the messages sent to you, questionnaire answers you did not send, and files you added to a chat but never sent.",
+  "@closeAccountErased": {
+    "description": "[legal] Closure screen: the reopening window and what is erased after it (S5, S6; 21 days, owner 2026-11-24)."
+  },
+  "closeAccountKept": "Your clinical record stays with each clinic for the period the medical-record law sets. It is hidden from the clinic's everyday work and opened only with a stated reason.",
+  "@closeAccountKept": {
+    "description": "[legal] Closure screen: what stays after erasure (S6, S7)."
+  },
+  "closeAccountCopyFirst": "To keep a copy of your data, ask for it under Privacy before you close the account: once it is closed you cannot sign in to download it.",
+  "@closeAccountCopyFirst": {
+    "description": "[legal] Closure screen: download the data before closing."
+  },
+  "closeAccountConfirm": "Enter your password to confirm.",
+  "@closeAccountConfirm": {
+    "description": "Closure screen: under the password field."
+  },
+  "accountClosed": "Your account is closed and you are signed out.",
+  "@accountClosed": {
+    "description": "[legal] Closure screen after closing."
   }
 }
