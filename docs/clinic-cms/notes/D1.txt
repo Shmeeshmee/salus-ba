@@ -1,0 +1,3 @@
+Package D1. Your specification is the "D1" section of docs/clinic-cms/WAVE5.md; read that file whole first, and
+5.0's record in docs/clinic-cms/PROGRESS.md (every place the contract changed). Migration, only if needed: 00073.
+The other D packages run in parallel in internal/datarequest: write only your own files there.

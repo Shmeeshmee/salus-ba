@@ -1,0 +1,5 @@
+Package D4. Your specification is the "D4" section of docs/clinic-cms/WAVE5.md; read that file whole first, and
+5.0's record in docs/clinic-cms/PROGRESS.md (every place the contract changed). Migration, only if needed: 00076.
+The other D packages run in parallel in internal/datarequest: write only your own files there.
+The proof for restricted records is F1's kind of test: route by route, a restricted patient's data is not returned
+to a practitioner or the desk.

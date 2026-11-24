@@ -1,0 +1,3 @@
+Package 5.0. Your specification is the "5.0" section of docs/clinic-cms/WAVE5.md; read that file whole first.
+Migration: 00071. Work as 3.0 did (its record is in docs/clinic-cms/PROGRESS.md): contract only, no behaviour, a
+fresh subagent's review before the commit. FX runs in parallel and shares no file with you.

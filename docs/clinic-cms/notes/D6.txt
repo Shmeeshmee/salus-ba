@@ -1,0 +1,2 @@
+Package D6. Your specification is the "D6" section of docs/clinic-cms/WAVE5.md; read that file whole first, and
+5.0's record in docs/clinic-cms/PROGRESS.md. Mobile only, against 5.0's generated client with a fake API in tests.
