@@ -74,7 +74,8 @@ ORDER BY p.id;
 SELECT id FROM patient WHERE registered_by_organization_id = @organization_id ORDER BY id;
 
 -- The erasure's restriction of the record a clinic keeps (docs/clinic-cms/WAVE5.md S6, D3): by the job, in the clinic's
--- scope with the erasure scope (00075); a record restricted there already stays as it is.
+-- scope with the erasure scope (00075), after any staff restriction there is lifted (UnrestrictPatient), so the job's
+-- replaces it.
 -- name: RestrictForErasure :exec
 INSERT INTO patient_restriction (restricted_at, patient_id, organization_id)
 VALUES (@restricted_at, @patient_id, @organization_id)
@@ -96,5 +97,10 @@ ON CONFLICT (patient_id, organization_id) DO NOTHING;
 DELETE FROM patient_restriction
 WHERE patient_id = @patient_id AND organization_id = @organization_id AND restricted_by_account_id IS NOT NULL;
 
+-- The patients whose record the clinic restricts, for its data export's manifest (D4); in the clinic's scope.
+-- name: RestrictedAtClinic :many
+SELECT patient_id FROM patient_restriction WHERE organization_id = @organization_id ORDER BY patient_id;
+
+-- Read from any scope (00079): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
 -- name: PatientRestricted :one
-SELECT EXISTS (SELECT 1 FROM patient_restriction WHERE patient_id = @patient_id AND organization_id = @organization_id);
+SELECT patient_record_restricted(@patient_id::uuid, @organization_id::uuid)::boolean AS restricted;

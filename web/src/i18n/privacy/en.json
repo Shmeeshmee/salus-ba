@@ -61,6 +61,7 @@
   "lifted": "The restriction is lifted.",
   "actionFailed": "The change could not be saved. Try again.",
   "conflict": "The request changed meanwhile. Reload the page.",
+  "overdue": "Its due date has passed, so it can no longer be extended.",
   "erasureKeeps": {
     "defaultMessage": "The erasure keeps this record restricted; the clinic cannot lift it.",
     "description": "legal"

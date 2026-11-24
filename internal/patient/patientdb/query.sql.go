@@ -253,7 +253,7 @@ func (q *Queries) PatientByID(ctx context.Context, id pgtype.UUID) (PatientByIDR
 }
 
 const patientRestricted = `-- name: PatientRestricted :one
-SELECT EXISTS (SELECT 1 FROM patient_restriction WHERE patient_id = $1 AND organization_id = $2)
+SELECT patient_record_restricted($1::uuid, $2::uuid)::boolean AS restricted
 `
 
 type PatientRestrictedParams struct {
@@ -261,11 +261,12 @@ type PatientRestrictedParams struct {
 	OrganizationID pgtype.UUID
 }
 
+// Read from any scope (00079): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
 func (q *Queries) PatientRestricted(ctx context.Context, arg PatientRestrictedParams) (bool, error) {
 	row := q.db.QueryRow(ctx, patientRestricted, arg.PatientID, arg.OrganizationID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
+	var restricted bool
+	err := row.Scan(&restricted)
+	return restricted, err
 }
 
 const registerPatient = `-- name: RegisterPatient :one
@@ -359,7 +360,8 @@ type RestrictForErasureParams struct {
 }
 
 // The erasure's restriction of the record a clinic keeps (docs/clinic-cms/WAVE5.md S6, D3): by the job, in the clinic's
-// scope with the erasure scope (00075); a record restricted there already stays as it is.
+// scope with the erasure scope (00075), after any staff restriction there is lifted (UnrestrictPatient), so the job's
+// replaces it.
 func (q *Queries) RestrictForErasure(ctx context.Context, arg RestrictForErasureParams) error {
 	_, err := q.db.Exec(ctx, restrictForErasure, arg.RestrictedAt, arg.PatientID, arg.OrganizationID)
 	return err
@@ -398,6 +400,31 @@ func (q *Queries) RestrictPatient(ctx context.Context, arg RestrictPatientParams
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const restrictedAtClinic = `-- name: RestrictedAtClinic :many
+SELECT patient_id FROM patient_restriction WHERE organization_id = $1 ORDER BY patient_id
+`
+
+// The patients whose record the clinic restricts, for its data export's manifest (D4); in the clinic's scope.
+func (q *Queries) RestrictedAtClinic(ctx context.Context, organizationID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, restrictedAtClinic, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var patient_id pgtype.UUID
+		if err := rows.Scan(&patient_id); err != nil {
+			return nil, err
+		}
+		items = append(items, patient_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const searchClinicPatients = `-- name: SearchClinicPatients :many

@@ -60,6 +60,11 @@ describe('DataRequestDetail', () => {
     renderDetail({ [`POST /clinic/data-requests/${id}/answer`]: () => apiError(412, 'version_conflict') })
     fireEvent.click(await screen.findByRole('button', { name: 'Send the answer' }))
     expect((await screen.findByRole('alert')).textContent).toBe('The request changed meanwhile. Reload the page.')
+    cleanup()
+
+    renderDetail({ [`POST /clinic/data-requests/${id}/extend`]: () => apiError(409, 'request_overdue') })
+    fireEvent.click(await screen.findByRole('button', { name: 'Extend by two months' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Its due date has passed, so it can no longer be extended.')
   })
 
   it("restricts the patient's record for the request and lifts the restriction", async () => {

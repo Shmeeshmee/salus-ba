@@ -2310,6 +2310,10 @@ class AppLocalizationsHr extends AppLocalizations {
   String get exportFailed => 'Arhivu nije bilo moguće pripremiti.';
 
   @override
+  String get exportInProgress =>
+      'Vaši se podaci po ranijem zahtjevu još pripremaju. Ponovno ih možete zatražiti kad budu spremni.';
+
+  @override
   String get exportExpired =>
       'Rok za preuzimanje je istekao. Za novu kopiju podnesite novi zahtjev.';
 
@@ -2344,4 +2348,9 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get accountClosed => 'Vaš je račun zatvoren i odjavljeni ste.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ako želite da Salus ponovno otvori račun u roku od 21 dana, pišite na $email.';
+  }
 }

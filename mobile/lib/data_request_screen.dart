@@ -74,7 +74,11 @@ class _DataRequestScreenState extends LoadingState<DataRequestScreen, List<(Stri
       final t = context.t;
       setState(() {
         _busy = false;
-        _error = failure.code == 'not_found' ? t.noRecordAtClinic : bookingMessage(t, failure);
+        _error = switch (failure.code) {
+          'not_found' => t.noRecordAtClinic,
+          'export_in_progress' => t.exportInProgress,
+          _ => bookingMessage(t, failure),
+        };
       });
     }
   }

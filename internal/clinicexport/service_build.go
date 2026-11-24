@@ -132,7 +132,11 @@ func (s *Service) archive(ctx context.Context, x Export) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := write(zw, x, "manifest.txt", []byte(manifest(patients))); err != nil {
+	restricted, err := s.p.Patients.RestrictedRecords(ctx, patient.Caller{AccountID: x.RequestedBy, OrganizationID: x.OrganizationID, Admin: true})
+	if err != nil {
+		return nil, err
+	}
+	if err := write(zw, x, "manifest.txt", []byte(manifest(patients, restricted))); err != nil {
 		return nil, err
 	}
 	if err := zw.Close(); err != nil {
@@ -179,8 +183,9 @@ func write(zw *zip.Writer, x Export, name string, body []byte) error {
 }
 
 // manifest is the archive's manifest.txt: what each file holds, how many patients' records it has, and what it leaves
-// out. Plain text in English: the archive is for the clinic's next software and whoever sets it up.
-func manifest(patients int) string {
+// out, and the records the clinic restricts (S7). Plain text in English: the archive is for the clinic's next software
+// and whoever sets it up.
+func manifest(patients int, restricted []string) string {
 	return "Salus clinic data export\n\n" +
 		"prices.csv        the price list\n" +
 		"staff.csv         the practitioners and their roles\n" +
@@ -195,7 +200,19 @@ func manifest(patients int) string {
 		"appointments, receipts and quotes at the clinic are in the CSV files.\n\n" +
 		"After a patient withdraws their consent, the clinic's screens show only their visits from before the\n" +
 		"withdrawal; this archive holds every visit at the clinic: the visits a withdrawal of consent cancelled are in it too,\n" +
-		"in appointments.csv and in the patient's record, with the status cancelled.\n"
+		"in appointments.csv and in the patient's record, with the status cancelled.\n" +
+		restrictedNote(restricted)
+}
+
+// restrictedNote names the patients whose record the clinic restricts (GDPR Art. 18): the clinic's next software must
+// keep them restricted. Empty when there are none.
+func restrictedNote(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	return "\nRestricted records (GDPR Art. 18), by patient id:\n" + strings.Join(ids, "\n") + "\n" +
+		"These records are kept but may not be used, except to store them, for legal claims or with the patient's\n" +
+		"consent; keep them restricted in the software that takes this archive over.\n"
 }
 
 // cells guards each cell against formula injection: one that a spreadsheet would read as a formula (=, +, -, @, a tab

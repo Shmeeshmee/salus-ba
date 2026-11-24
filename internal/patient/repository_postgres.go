@@ -162,6 +162,22 @@ func (r *postgresRepository) Matching(ctx context.Context, org string, in []Pati
 	return out, nil
 }
 
+func (r *postgresRepository) RestrictedAt(ctx context.Context, org string) ([]string, error) {
+	var o pgtype.UUID
+	if o.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).RestrictedAtClinic(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, id := range rows {
+		out = append(out, id.String())
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) RegisteredBy(ctx context.Context, org string) ([]string, error) {
 	var o pgtype.UUID
 	if err := o.Scan(org); err != nil {
@@ -238,7 +254,12 @@ func (r *postgresRepository) RestrictForErasure(ctx context.Context, patientID, 
 	if p.Scan(patientID) != nil || o.Scan(org) != nil {
 		return ErrNotFound
 	}
-	return patientdb.New(postgres.Conn(ctx, r.db)).RestrictForErasure(ctx, patientdb.RestrictForErasureParams{
+	q := patientdb.New(postgres.Conn(ctx, r.db))
+	// A staff restriction gives way to the job's, which the clinic cannot lift (00071's restrictive policy).
+	if err := q.UnrestrictPatient(ctx, patientdb.UnrestrictPatientParams{PatientID: p, OrganizationID: o}); err != nil {
+		return err
+	}
+	return q.RestrictForErasure(ctx, patientdb.RestrictForErasureParams{
 		RestrictedAt: pgtype.Timestamptz{Time: at, Valid: true}, PatientID: p, OrganizationID: o,
 	})
 }

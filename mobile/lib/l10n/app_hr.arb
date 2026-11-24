@@ -597,6 +597,7 @@
   "exportReadyUntil": "Spremno za preuzimanje do {date}.",
   "downloadExport": "Preuzmi moje podatke",
   "exportFailed": "Arhivu nije bilo moguće pripremiti.",
+  "exportInProgress": "Vaši se podaci po ranijem zahtjevu još pripremaju. Ponovno ih možete zatražiti kad budu spremni.",
   "exportExpired": "Rok za preuzimanje je istekao. Za novu kopiju podnesite novi zahtjev.",
   "dataRequestClosed": "Ovaj je zahtjev već zatvoren.",
   "noRecordAtClinic": "Ta klinika ne vodi vaš zapis.",
@@ -606,5 +607,6 @@
   "closeAccountKept": "Vaš medicinski zapis ostaje u svakoj klinici onoliko dugo koliko propisuje zakon o medicinskoj dokumentaciji. Skriven je iz svakodnevnog rada klinike i otvara se samo uz navedeni razlog.",
   "closeAccountCopyFirst": "Ako želite zadržati kopiju svojih podataka, zatražite je pod Privatnost prije nego što zatvorite račun: kada je zatvoren, ne možete se prijaviti kako biste je preuzeli.",
   "closeAccountConfirm": "Unesite lozinku kako biste potvrdili.",
-  "accountClosed": "Vaš je račun zatvoren i odjavljeni ste."
+  "accountClosed": "Vaš je račun zatvoren i odjavljeni ste.",
+  "accountClosedReopen": "Ako želite da Salus ponovno otvori račun u roku od 21 dana, pišite na {email}."
 }

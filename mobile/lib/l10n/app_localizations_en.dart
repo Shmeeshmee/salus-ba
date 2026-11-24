@@ -2276,6 +2276,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportFailed => 'The archive could not be prepared.';
 
   @override
+  String get exportInProgress =>
+      'Your data from an earlier request is still being prepared. You can ask again once it is ready.';
+
+  @override
   String get exportExpired =>
       'The download has expired. Make a new request for a fresh copy.';
 
@@ -2310,4 +2314,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountClosed => 'Your account is closed and you are signed out.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'To ask for your account to be reopened within 21 days, write to $email.';
+  }
 }

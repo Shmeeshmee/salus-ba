@@ -3005,6 +3005,10 @@
   "@exportFailed": {
     "description": "Privacy screen: the export could not be built."
   },
+  "exportInProgress": "Your data from an earlier request is still being prepared. You can ask again once it is ready.",
+  "@exportInProgress": {
+    "description": "Filing an access or portability request while the patient's export of an earlier one is still being prepared (export_in_progress)."
+  },
   "exportExpired": "The download has expired. Make a new request for a fresh copy.",
   "@exportExpired": {
     "description": "Privacy screen: the download window has passed."
@@ -3044,5 +3048,15 @@
   "accountClosed": "Your account is closed and you are signed out.",
   "@accountClosed": {
     "description": "[legal] Closure screen after closing."
+  },
+  "accountClosedReopen": "To ask for your account to be reopened within 21 days, write to {email}.",
+  "@accountClosedReopen": {
+    "description": "[legal] Closure screen after closing: where to ask Salus to reopen the account (the operator may, within 21 days). email is the support address set at build time (SUPPORT_EMAIL).",
+    "placeholders": {
+      "email": {
+        "type": "String",
+        "example": "support@example.test"
+      }
+    }
   }
 }

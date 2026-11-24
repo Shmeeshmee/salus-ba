@@ -13,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/llm"
@@ -35,6 +36,7 @@ func NewSuggestions(pool *pgxpool.Pool, rdb *goredis.Client, model llm.Suggester
 	// Only Lookup is asked of the encounters, only State of the consents, only DefaultLanguage of the clinics.
 	encounters := encounter.NewService(encounter.Ports{Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}})
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, nil)
+	consents = consents.WithRestrictions(patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, nil)) // S7
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil)
 	// No Records: the worker sets no practitioner's status.
 	svc := suggestion.NewService(suggestion.Ports{

@@ -597,6 +597,7 @@
   "exportReadyUntil": "Prêt à télécharger jusqu’au {date}.",
   "downloadExport": "Télécharger mes données",
   "exportFailed": "L’archive n’a pas pu être préparée.",
+  "exportInProgress": "Vos données d’une demande précédente sont encore en préparation. Vous pourrez redemander lorsqu’elles seront prêtes.",
   "exportExpired": "Le téléchargement a expiré. Faites une nouvelle demande pour obtenir une nouvelle copie.",
   "dataRequestClosed": "Cette demande est déjà close.",
   "noRecordAtClinic": "Cette clinique ne tient aucun dossier sur vous.",
@@ -606,5 +607,6 @@
   "closeAccountKept": "Votre dossier médical reste auprès de chaque clinique pendant la durée fixée par la loi sur les dossiers médicaux. Il est masqué du travail quotidien de la clinique et n’est ouvert qu’avec un motif indiqué.",
   "closeAccountCopyFirst": "Pour garder une copie de vos données, demandez-la dans Confidentialité avant de fermer le compte : une fois fermé, vous ne pourrez plus vous connecter pour la télécharger.",
   "closeAccountConfirm": "Saisissez votre mot de passe pour confirmer.",
-  "accountClosed": "Votre compte est fermé et vous êtes déconnecté."
+  "accountClosed": "Votre compte est fermé et vous êtes déconnecté.",
+  "accountClosedReopen": "Pour demander la réouverture de votre compte dans un délai de 21 jours, écrivez à {email}."
 }

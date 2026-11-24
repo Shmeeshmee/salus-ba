@@ -202,6 +202,26 @@ func TestNoticeConversation_GivesOnlyActiveParticipantsAndGrantedGuests(t *testi
 	}
 }
 
+// While the treating clinic restricts the patient's record (docs/clinic-cms/WAVE5.md S7) no doctor is told of a
+// message, the clinic's own or a granted guest; the patient still is.
+func TestNoticeConversation_ARestrictedRecordNotifiesThePatientOnly(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	c := f.open(t)
+	invited := f.add(t, c.ID, roleB1, clinicB)
+	if err := f.svc.DecideInvitation(t.Context(), me, invited.ID, communication.DecisionGrant); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	st := f.consent[patientA+clinicA]
+	st.Restricted = true
+	f.consent[patientA+clinicA] = st
+	f.mu.Unlock()
+	if got := noticed(t, f, c.ID); len(got) != 1 || got["patient"].ID == "" {
+		t.Errorf("while restricted: %+v, want the patient alone", got)
+	}
+}
+
 // A side thread is the doctors' only: its notices never name the patient, whatever its rows say.
 func TestNoticeConversation_ASideThreadNeverNotifiesThePatient(t *testing.T) {
 	t.Parallel()

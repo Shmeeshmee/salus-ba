@@ -15,6 +15,9 @@ var (
 	ErrClosed = errors.New("datarequest: closed")
 	// ErrAlreadyExtended is returned for a second extension.
 	ErrAlreadyExtended = errors.New("datarequest: already extended")
+	// ErrOverdue is returned for an extension once the request's due date has passed (S12: Art. 12(3) asks for it
+	// within the first month).
+	ErrOverdue = errors.New("datarequest: overdue")
 	// ErrVersionConflict is returned when the request changed since the caller read it.
 	ErrVersionConflict = errors.New("datarequest: version conflict")
 	// ErrWrongPassword is returned when the password that confirms an account's closure is wrong.

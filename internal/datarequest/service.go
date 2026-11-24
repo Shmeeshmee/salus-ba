@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -63,8 +64,9 @@ func NewService(p Ports) *Service {
 
 // File files the patient's request for its target (S1, S2): their account, or a clinic where they have a record (one
 // they gave a consent, active or not). It is received now and due DueMonths later in the answerer's time zone (S3).
-// ErrInvalid for an unknown kind or target, ErrNotFound for a clinic where they have no record, ErrForbidden, audited,
-// without an account. Audited as the patient's own request.
+// An access or portability request queues its export in the same transaction (S4). ErrInvalid for an unknown kind or
+// target, ErrNotFound for a clinic where they have no record, ErrExportInProgress (nothing filed) while an export of
+// theirs is still queued, ErrForbidden, audited, without an account. Audited as the patient's own request.
 func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error) {
 	if p.AccountID == "" {
 		return Request{}, s.refuse(ctx, p.AccountID, "", auditevent.CodeCreate, auditevent.CodePATRQT)
@@ -84,10 +86,13 @@ func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error
 		if r, err = s.p.Repo.Insert(ctx, r); err != nil {
 			return err
 		}
-		return s.p.Audit.Record(ctx, event(p.AccountID, r, auditevent.CodeCreate, auditevent.CodePATRQT, 1))
+		if err := s.p.Audit.Record(ctx, event(p.AccountID, r, auditevent.CodeCreate, auditevent.CodePATRQT, 1)); err != nil {
+			return err
+		}
+		return s.QueueExport(ctx, r) // an access or portability request's export, in this transaction (D2)
 	})
 	if err != nil {
-		return Request{}, fmt.Errorf("datarequest: file: %w", err)
+		return Request{}, wrap("file", err)
 	}
 	return r, nil
 }
@@ -302,8 +307,8 @@ func (s *Service) Answer(ctx context.Context, st Staff, id string, a Answer) (Re
 }
 
 // Extend extends an open request targeting the admin's clinic once, by ExtensionMonths after its due date in the
-// clinic's time zone, with its reason (Art. 12(3)). ErrInvalid for an unknown reason, ErrAlreadyExtended, ErrClosed,
-// ErrVersionConflict; ErrForbidden, audited, to other staff. Audited.
+// clinic's time zone, with its reason (Art. 12(3)), before its due date has passed (S12). ErrInvalid for an unknown
+// reason, ErrAlreadyExtended, ErrOverdue, ErrClosed, ErrVersionConflict; ErrForbidden, audited, to other staff. Audited.
 func (s *Service) Extend(ctx context.Context, st Staff, id string, reason ExtensionReason, version int) (Request, error) {
 	if !st.admin() {
 		return Request{}, s.refuse(ctx, st.AccountID, st.OrganizationID, auditevent.CodeUpdate, auditevent.CodeHOPERAT)
@@ -321,8 +326,11 @@ func (s *Service) Extend(ctx context.Context, st Staff, id string, reason Extens
 		if err != nil {
 			return err
 		}
-		if !r.ExtendedUntil.IsZero() {
+		switch {
+		case !r.ExtendedUntil.IsZero():
 			return ErrAlreadyExtended
+		case r.overdue(s.p.Clock.Now()):
+			return ErrOverdue
 		}
 		r.ExtendedUntil, r.ExtensionReason = extendedUntil(r.DueAt, loc), reason
 		if out, err = s.update(ctx, r, st.AccountID); err != nil {
@@ -404,7 +412,7 @@ func (s *Service) refuse(ctx context.Context, account, org, interaction, purpose
 
 // wrap returns the domain's errors as they are and wraps the others with the operation.
 func wrap(op string, err error) error {
-	for _, e := range []error{ErrInvalid, ErrNotFound, ErrForbidden, ErrClosed, ErrAlreadyExtended, ErrVersionConflict} {
+	for _, e := range []error{ErrInvalid, ErrNotFound, ErrForbidden, ErrClosed, ErrAlreadyExtended, ErrOverdue, ErrVersionConflict, ErrExportInProgress} {
 		if errors.Is(err, e) {
 			return e
 		}
@@ -462,6 +470,9 @@ func (a Answer) valid() bool {
 	}
 	return false
 }
+
+// overdue: the request's due date (before any extension) has passed at now.
+func (r Request) overdue(now time.Time) bool { return !now.Before(r.DueAt) }
 
 func (r Request) closed() bool {
 	return r.Status == StatusFulfilled || r.Status == StatusRefused || r.Status == StatusWithdrawn

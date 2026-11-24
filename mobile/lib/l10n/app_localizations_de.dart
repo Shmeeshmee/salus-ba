@@ -2309,6 +2309,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get exportFailed => 'Das Archiv konnte nicht vorbereitet werden.';
 
   @override
+  String get exportInProgress =>
+      'Ihre Daten aus einer früheren Anfrage werden noch vorbereitet. Sie können erneut anfragen, sobald sie bereit sind.';
+
+  @override
   String get exportExpired =>
       'Der Download ist abgelaufen. Stellen Sie für eine neue Kopie eine neue Anfrage.';
 
@@ -2345,4 +2349,9 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get accountClosed =>
       'Ihr Konto ist geschlossen und Sie sind abgemeldet.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an $email.';
+  }
 }

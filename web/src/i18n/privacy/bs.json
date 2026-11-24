@@ -61,6 +61,7 @@
   "lifted": "Ograničenje je ukinuto.",
   "actionFailed": "Promjena se nije mogla sačuvati. Pokušajte ponovo.",
   "conflict": "Zahtjev se u međuvremenu promijenio. Ponovo učitajte stranicu.",
+  "overdue": "Rok je istekao, pa se zahtjev više ne može produžiti.",
   "erasureKeeps": {
     "defaultMessage": "Brisanje drži ovaj karton ograničenim; klinika ne može ukinuti ograničenje.",
     "description": "legal"

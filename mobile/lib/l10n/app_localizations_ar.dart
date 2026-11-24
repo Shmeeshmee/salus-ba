@@ -2343,6 +2343,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get exportFailed => 'تعذّر تجهيز الملف المضغوط.';
 
   @override
+  String get exportInProgress =>
+      'لا تزال بياناتك من طلب سابق قيد التجهيز. يمكنك الطلب مرة أخرى عندما تصبح جاهزة.';
+
+  @override
   String get exportExpired =>
       'انتهت مهلة التنزيل. قدّم طلبًا جديدًا للحصول على نسخة جديدة.';
 
@@ -2377,4 +2381,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get accountClosed => 'تم إغلاق حسابك وتسجيل خروجك.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'لطلب إعادة فتح حسابك خلال 21 يومًا، راسل $email.';
+  }
 }

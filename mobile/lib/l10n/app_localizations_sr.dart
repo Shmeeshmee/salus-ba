@@ -2305,6 +2305,10 @@ class AppLocalizationsSr extends AppLocalizations {
   String get exportFailed => 'Архиву није било могуће припремити.';
 
   @override
+  String get exportInProgress =>
+      'Ваши подаци по ранијем захтјеву се још припремају. Поново можете да затражите када буду спремни.';
+
+  @override
   String get exportExpired =>
       'Рок за преузимање је истекао. За нову копију поднесите нови захтјев.';
 
@@ -2339,6 +2343,11 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get accountClosed => 'Ваш налог је затворен и одјављени сте.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
+  }
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4641,6 +4650,10 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String get exportFailed => 'Архиву није било могуће припремити.';
 
   @override
+  String get exportInProgress =>
+      'Ваши подаци по ранијем захтјеву се још припремају. Поново можете да затражите када буду спремни.';
+
+  @override
   String get exportExpired =>
       'Рок за преузимање је истекао. За нову копију поднесите нови захтјев.';
 
@@ -4675,6 +4688,11 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get accountClosed => 'Ваш налог је затворен и одјављени сте.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
+  }
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6979,6 +6997,10 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String get exportFailed => 'Arhivu nije bilo moguće pripremiti.';
 
   @override
+  String get exportInProgress =>
+      'Vaši podaci po ranijem zahtjevu se još pripremaju. Ponovo možete da zatražite kada budu spremni.';
+
+  @override
   String get exportExpired =>
       'Rok za preuzimanje je istekao. Za novu kopiju podnesite novi zahtjev.';
 
@@ -7013,4 +7035,9 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get accountClosed => 'Vaš nalog je zatvoren i odjavljeni ste.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ako želite da Salus ponovo otvori nalog u roku od 21 dana, pišite na $email.';
+  }
 }

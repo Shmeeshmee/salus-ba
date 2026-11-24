@@ -597,6 +597,7 @@
   "exportReadyUntil": "Bereit zum Herunterladen bis {date}.",
   "downloadExport": "Meine Daten herunterladen",
   "exportFailed": "Das Archiv konnte nicht vorbereitet werden.",
+  "exportInProgress": "Ihre Daten aus einer früheren Anfrage werden noch vorbereitet. Sie können erneut anfragen, sobald sie bereit sind.",
   "exportExpired": "Der Download ist abgelaufen. Stellen Sie für eine neue Kopie eine neue Anfrage.",
   "dataRequestClosed": "Diese Anfrage ist bereits abgeschlossen.",
   "noRecordAtClinic": "Diese Klinik führt keine Akte über Sie.",
@@ -606,5 +607,6 @@
   "closeAccountKept": "Ihre Krankenakte bleibt bei jeder Klinik so lange, wie das Gesetz über die Patientendokumentation es vorschreibt. Sie ist aus der täglichen Arbeit der Klinik ausgeblendet und wird nur mit einem angegebenen Grund geöffnet.",
   "closeAccountCopyFirst": "Wenn Sie eine Kopie Ihrer Daten behalten möchten, fordern Sie sie unter Datenschutz an, bevor Sie das Konto schließen: Danach können Sie sich nicht mehr anmelden, um sie herunterzuladen.",
   "closeAccountConfirm": "Geben Sie zur Bestätigung Ihr Passwort ein.",
-  "accountClosed": "Ihr Konto ist geschlossen und Sie sind abgemeldet."
+  "accountClosed": "Ihr Konto ist geschlossen und Sie sind abgemeldet.",
+  "accountClosedReopen": "Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an {email}."
 }

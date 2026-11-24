@@ -49,6 +49,7 @@ func NewAgent(pool *pgxpool.Pool, rdb *goredis.Client, video Video, recognizer s
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil) // State only
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, nil, nil)
+	consents = consents.WithRestrictions(patients) // S7
 	appointments := appointment.NewService(appointment.Ports{
 		Repo: appointment.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk, Patients: patients, // Lookup, Notice
 	})

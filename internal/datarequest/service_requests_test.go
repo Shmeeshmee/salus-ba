@@ -44,13 +44,38 @@ func TestFile_ToTheAccountOrAClinicOfTheirs(t *testing.T) {
 	if toClinic.OrganizationID != clinicA || toClinic.Target() != datarequest.TargetClinic || !toClinic.DueAt.Equal(want) {
 		t.Errorf("to clinic A: %+v", toClinic)
 	}
-	if len(f.audit.events) != 2 {
-		t.Fatalf("%d audit events, want 2", len(f.audit.events))
+	if len(f.audit.events) != 3 { // the access request's, its export's (D2) and the erasure request's
+		t.Fatalf("%d audit events, want 3", len(f.audit.events))
 	}
-	e := f.audit.events[1]
+	e := f.audit.events[2]
 	if e.Action != auditevent.ActionCreate || e.Purpose.Code != auditevent.CodePATRQT || e.AgentAccountID != accountA ||
 		e.EntityReference != "Patient/"+profileA || e.EntityName != "data_request" || e.OrganizationID != clinicA {
 		t.Errorf("audit event %+v", e)
+	}
+}
+
+// Filing an access or portability request queues its export in the filing's transaction; while the patient's export
+// is still queued another one is refused with ErrExportInProgress (D1 with D2, S4). Other kinds queue nothing.
+func TestFile_AnAccessRequestQueuesItsExport(t *testing.T) {
+	t.Parallel()
+	f := newFixture(filedAt)
+	ctx := t.Context()
+	r, err := f.svc.File(ctx, patientA, datarequest.Filing{Kind: datarequest.KindAccess, Target: datarequest.TargetAccount})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.jobs.queued) != 1 || f.jobs.queued[0] != (datarequest.ExportArgs{RequestID: r.ID, AccountID: accountA}) {
+		t.Fatalf("queued %+v, want the export of %s", f.jobs.queued, r.ID)
+	}
+	if _, err := f.svc.File(ctx, patientA, datarequest.Filing{Kind: datarequest.KindRectification, Target: datarequest.TargetAccount}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.jobs.queued) != 1 {
+		t.Errorf("a rectification queued %+v, want no export", f.jobs.queued[1:])
+	}
+	_, err = f.svc.File(ctx, patientA, datarequest.Filing{Kind: datarequest.KindPortability, Target: datarequest.TargetAccount})
+	if !errors.Is(err, datarequest.ErrExportInProgress) {
+		t.Errorf("a portability request while the export is queued: %v, want ErrExportInProgress", err)
 	}
 }
 
@@ -302,6 +327,7 @@ func TestExtend(t *testing.T) {
 	}{
 		"an unknown reason": {datarequest.ErrInvalid, "busy", open},
 		"withdrawn":         {datarequest.ErrClosed, datarequest.ExtensionComplex, func() datarequest.Request { r := open; r.Status = datarequest.StatusWithdrawn; return r }()},
+		"overdue (S12)":     {datarequest.ErrOverdue, datarequest.ExtensionComplex, func() datarequest.Request { r := open; r.DueAt = filedAt.Add(-time.Second); return r }()},
 	} {
 		f := newFixture(filedAt)
 		f.repo.put(tc.stored)

@@ -255,7 +255,7 @@ class PrivacyApi {
 
   /// Extend a request's deadline once
   ///
-  /// By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open. Built in package D1. Audited.
+  /// By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open and its due date has not passed (S12). Built in package D1. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -308,7 +308,7 @@ class PrivacyApi {
 
   /// Extend a request's deadline once
   ///
-  /// By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open. Built in package D1. Audited.
+  /// By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open and its due date has not passed (S12). Built in package D1. Audited.
   ///
   /// Parameters:
   ///
@@ -441,7 +441,7 @@ class PrivacyApi {
 
   /// File a data subject request
   ///
-  /// A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). For a patient. Built in package D1. Audited.
+  /// A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). An access or portability request queues the patient's export (S4). For a patient. Built in package D1. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -486,7 +486,7 @@ class PrivacyApi {
 
   /// File a data subject request
   ///
-  /// A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). For a patient. Built in package D1. Audited.
+  /// A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). An access or portability request queues the patient's export (S4). For a patient. Built in package D1. Audited.
   ///
   /// Parameters:
   ///

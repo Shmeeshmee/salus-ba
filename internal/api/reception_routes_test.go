@@ -169,9 +169,7 @@ var receptionRoutes = map[string]receptionClass{
 // notServedYet are the routes in the contract that are not mounted: wave 5's, declared by its contract (5.0) and
 // served by D1 to D4. A route declared before it is built goes here and answers the router's own 404; when it is
 // mounted, the test fails until it is taken off this list, and the route is then held to its class above.
-var notServedYet = []string{
-	"POST /me/account/close",
-}
+var notServedYet = []string{}
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.
 func contractOperations(t *testing.T) map[string]bool {

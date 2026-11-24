@@ -2283,6 +2283,10 @@ class AppLocalizationsTr extends AppLocalizations {
   String get exportFailed => 'Arşiv hazırlanamadı.';
 
   @override
+  String get exportInProgress =>
+      'Önceki bir talebinizdeki verileriniz hâlâ hazırlanıyor. Hazır olduğunda yeniden talep edebilirsiniz.';
+
+  @override
   String get exportExpired =>
       'İndirme süresi doldu. Yeni bir kopya için yeni bir talepte bulunun.';
 
@@ -2317,4 +2321,9 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get accountClosed => 'Hesabınız kapatıldı ve oturumunuz kapandı.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Hesabınızın 21 gün içinde yeniden açılmasını istemek için $email adresine yazın.';
+  }
 }

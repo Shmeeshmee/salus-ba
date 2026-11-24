@@ -7330,8 +7330,8 @@ paths:
       summary: File a data subject request
       description: >-
         A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic
-        they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). For a patient.
-        Built in package D1. Audited.
+        they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). An access or
+        portability request queues the patient's export (S4). For a patient. Built in package D1. Audited.
       tags: [privacy]
       security:
         - sessionCookie: []
@@ -7363,6 +7363,11 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
           description: "`not_found`: no record of the patient at that clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`export_in_progress`: an access or portability request while the patient's export of an earlier one is still being prepared; nothing is filed."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -7636,7 +7641,7 @@ paths:
       summary: Extend a request's deadline once
       description: >-
         By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the
-        request is open. Built in package D1. Audited.
+        request is open and its due date has not passed (S12). Built in package D1. Audited.
       tags: [privacy]
       security:
         - sessionCookie: []
@@ -7671,7 +7676,7 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "409":
-          description: "`data_request_closed`: answered or withdrawn already; `already_extended`: extended once already."
+          description: "`data_request_closed`: answered or withdrawn already; `already_extended`: extended once already; `request_overdue`: its due date has passed (S12)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -10155,6 +10160,8 @@ components:
             - invalid_data_request
             - data_request_closed
             - already_extended
+            - request_overdue
+            - export_in_progress
         linkIds:
           type: array
           items: {type: string}

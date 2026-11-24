@@ -597,6 +597,7 @@
   "exportReadyUntil": "{date} tarihine kadar indirilebilir.",
   "downloadExport": "Verilerimi indir",
   "exportFailed": "Arşiv hazırlanamadı.",
+  "exportInProgress": "Önceki bir talebinizdeki verileriniz hâlâ hazırlanıyor. Hazır olduğunda yeniden talep edebilirsiniz.",
   "exportExpired": "İndirme süresi doldu. Yeni bir kopya için yeni bir talepte bulunun.",
   "dataRequestClosed": "Bu talep zaten kapatıldı.",
   "noRecordAtClinic": "Bu klinikte sizinle ilgili bir kayıt yok.",
@@ -606,5 +607,6 @@
   "closeAccountKept": "Tıbbi kaydınız, tıbbi kayıt yasasının belirlediği süre boyunca her klinikte kalır. Kliniğin günlük işlerinden gizlenir ve yalnızca belirtilen bir gerekçeyle açılır.",
   "closeAccountCopyFirst": "Verilerinizin bir kopyasını saklamak istiyorsanız hesabı kapatmadan önce Gizlilik bölümünden isteyin: hesap kapandıktan sonra indirmek için oturum açamazsınız.",
   "closeAccountConfirm": "Onaylamak için parolanızı girin.",
-  "accountClosed": "Hesabınız kapatıldı ve oturumunuz kapandı."
+  "accountClosed": "Hesabınız kapatıldı ve oturumunuz kapandı.",
+  "accountClosedReopen": "Hesabınızın 21 gün içinde yeniden açılmasını istemek için {email} adresine yazın."
 }

@@ -94,6 +94,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		exports:     newClinicExports(pool, files, appointments, receipts, clock.System{}),
 		requests:    newDataRequests(pool, inserter, clock.System{}),
 		dataExports: newDataRequestExports(pool, files, appointments, receipts, clock.System{}),
+		erasure:     newErasure(pool, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
 	cfg := workConfig(log, river.QueueDefault, workers)
@@ -126,7 +127,7 @@ type defaultServices struct {
 	exports      *clinicexport.Service // the clinic's data export (clinic-cms M2)
 	requests     *datarequest.Service  // the data subject's requests' deadline warnings (clinic-cms D1)
 	dataExports  *datarequest.Service  // the patient's own export (clinic-cms D2)
-	erasure      accountEraser         // the closed accounts' erasure (clinic-cms D3); nil until wired with D1's repository
+	erasure      accountEraser         // the closed accounts' erasure (clinic-cms D3)
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:

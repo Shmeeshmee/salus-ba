@@ -166,6 +166,7 @@ type fakeSources struct {
 	receipts     []invoice.Invoice
 	quotes       []invoice.Quote
 	registered   []string
+	restricted   []string                        // the patients whose record the clinic restricts (D4)
 	records      map[string]patient.ClinicRecord // by patient id; any other is not found
 	recordErr    error                           // ClinicRecord's refusal, when set
 	err          error
@@ -235,6 +236,11 @@ type patients struct{ *fakeSources }
 func (f patients) Registered(_ context.Context, c patient.Caller) ([]string, error) {
 	f.patientCalls = append(f.patientCalls, c)
 	return f.registered, nil
+}
+
+func (f patients) RestrictedRecords(_ context.Context, c patient.Caller) ([]string, error) {
+	f.patientCalls = append(f.patientCalls, c)
+	return f.restricted, nil
 }
 
 func (f patients) ClinicRecord(_ context.Context, c patient.Caller, id, purpose string) (patient.ClinicRecord, error) {

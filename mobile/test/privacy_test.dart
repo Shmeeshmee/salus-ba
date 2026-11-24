@@ -147,6 +147,16 @@ void main() {
     expect(find.text('That clinic holds no record of you.'), findsOneWidget);
   });
 
+  testWidgets('an export still being prepared says so', (tester) async {
+    final h = await atPrivacy(tester, []);
+    h.api.answer('POST /me/data-requests', 409, error('export_in_progress'));
+    await tapButton(tester, 'Make a request');
+    await tapText(tester, 'See my data');
+    await tapButton(tester, 'Send request');
+
+    expect(find.text('Your data from an earlier request is still being prepared. You can ask again once it is ready.'), findsOneWidget);
+  });
+
   testWidgets('withdraws an open request after the confirmation, with the version read', (tester) async {
     final h = await atPrivacy(tester, [dataRequest(version: 3)]);
     h.api.answer('POST /me/data-requests/$requestId/withdraw', 200, dataRequest(status: 'withdrawn', version: 4));
@@ -307,6 +317,8 @@ void main() {
 
       expect(sent(h.api.last('POST /me/account/close').body), {'password': password});
       expect(find.text('Your account is closed and you are signed out.'), findsOneWidget);
+      // SUPPORT_EMAIL is set at build time; the widget tests build without it, so the placeholder shows.
+      expect(find.text('To ask for your account to be reopened within 21 days, write to [SUPPORT EMAIL].'), findsOneWidget);
       await tapButton(tester, 'Done');
 
       expect(find.text('Sign in to Salus'), findsOneWidget);

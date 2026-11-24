@@ -67,6 +67,7 @@ type Quotes interface {
 // each read audited with its purpose (patient.Service).
 type Patients interface {
 	Registered(ctx context.Context, c patient.Caller) ([]string, error)
+	RestrictedRecords(ctx context.Context, c patient.Caller) ([]string, error)
 	ClinicRecord(ctx context.Context, c patient.Caller, id, purpose string) (patient.ClinicRecord, error)
 }
 

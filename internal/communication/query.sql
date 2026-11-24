@@ -43,12 +43,15 @@ ORDER BY role = 'patient' DESC, added_at, id;
 
 -- name: ConversationsOfParticipant :many
 -- The conversations the patient or the practitioner role takes part in (one of the two is null), newest activity
--- first, before the cursor when there is one, with that participant's read position.
+-- first, before the cursor when there is one, with that participant's read position. A practitioner's list leaves out
+-- the conversations about a patient whose record the treating clinic restricted (S7, 00079), a guest's too; the
+-- patient's own list keeps them.
 SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.practitioner_role_id, c.encounter_id, c.parent_id,
        c.created_by, c.last_seq, c.staff_only, p.read_seq
 FROM conversation c
 JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL AND p.status = 'active'
 WHERE (p.patient_id = sqlc.narg(patient_id) OR p.practitioner_role_id = sqlc.narg(practitioner_role_id))
+  AND (sqlc.narg(practitioner_role_id)::uuid IS NULL OR NOT patient_record_restricted(c.patient_id, c.organization_id))
   AND (sqlc.narg(before_at)::timestamptz IS NULL
        OR (coalesce(c.last_sent_at, c.created_at), c.id) < (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid))
 ORDER BY coalesce(c.last_sent_at, c.created_at) DESC, c.id DESC

@@ -597,6 +597,7 @@
   "exportReadyUntil": "Pronto da scaricare fino al {date}.",
   "downloadExport": "Scarica i miei dati",
   "exportFailed": "Non è stato possibile preparare l'archivio.",
+  "exportInProgress": "I Suoi dati di una richiesta precedente sono ancora in preparazione. Potrà chiederli di nuovo quando saranno pronti.",
   "exportExpired": "Il download è scaduto. Per una nuova copia presenti una nuova richiesta.",
   "dataRequestClosed": "Questa richiesta è già chiusa.",
   "noRecordAtClinic": "Quella clinica non ha alcuna cartella su di Lei.",
@@ -606,5 +607,6 @@
   "closeAccountKept": "La Sua cartella clinica resta presso ogni clinica per il periodo stabilito dalla legge sulla documentazione sanitaria. È nascosta dal lavoro quotidiano della clinica e viene aperta solo indicando un motivo.",
   "closeAccountCopyFirst": "Per conservare una copia dei Suoi dati, la chieda in Privacy prima di chiudere l'account: dopo la chiusura non potrà accedere per scaricarla.",
   "closeAccountConfirm": "Inserisca la password per confermare.",
-  "accountClosed": "Il Suo account è chiuso ed è stato disconnesso."
+  "accountClosed": "Il Suo account è chiuso ed è stato disconnesso.",
+  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}."
 }

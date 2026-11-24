@@ -3696,6 +3696,12 @@ abstract class AppLocalizations {
   /// **'The archive could not be prepared.'**
   String get exportFailed;
 
+  /// Filing an access or portability request while the patient's export of an earlier one is still being prepared (export_in_progress).
+  ///
+  /// In en, this message translates to:
+  /// **'Your data from an earlier request is still being prepared. You can ask again once it is ready.'**
+  String get exportInProgress;
+
   /// Privacy screen: the download window has passed.
   ///
   /// In en, this message translates to:
@@ -3755,6 +3761,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your account is closed and you are signed out.'**
   String get accountClosed;
+
+  /// [legal] Closure screen after closing: where to ask Salus to reopen the account (the operator may, within 21 days). email is the support address set at build time (SUPPORT_EMAIL).
+  ///
+  /// In en, this message translates to:
+  /// **'To ask for your account to be reopened within 21 days, write to {email}.'**
+  String accountClosedReopen(String email);
 }
 
 class _AppLocalizationsDelegate

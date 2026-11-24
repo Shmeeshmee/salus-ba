@@ -3468,7 +3468,7 @@ export interface paths {
         put?: never;
         /**
          * File a data subject request
-         * @description A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). For a patient. Built in package D1. Audited.
+         * @description A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). An access or portability request queues the patient's export (S4). For a patient. Built in package D1. Audited.
          */
         post: operations["fileMyDataRequest"];
         delete?: never;
@@ -3628,7 +3628,7 @@ export interface paths {
         put?: never;
         /**
          * Extend a request's deadline once
-         * @description By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open. Built in package D1. Audited.
+         * @description By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open and its due date has not passed (S12). Built in package D1. Audited.
          */
         post: operations["extendClinicDataRequest"];
         delete?: never;
@@ -5060,7 +5060,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person" | "invalid_data_request" | "data_request_closed" | "already_extended";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person" | "invalid_data_request" | "data_request_closed" | "already_extended" | "request_overdue" | "export_in_progress";
             /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -15100,6 +15100,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description `export_in_progress`: an access or portability request while the patient's export of an earlier one is still being prepared; nothing is filed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };
@@ -15464,7 +15473,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `data_request_closed`: answered or withdrawn already; `already_extended`: extended once already. */
+            /** @description `data_request_closed`: answered or withdrawn already; `already_extended`: extended once already; `request_overdue`: its due date has passed (S12). */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -51,6 +51,26 @@ func withRegistered() *fakeRepository {
 	return repo
 }
 
+// The clinic's admin lists the patients whose record the clinic restricts, for its data export's manifest (D4), in the
+// clinic's scope and audited; other staff are refused.
+func TestRestrictedRecords_GivesTheAdminTheClinicsRestrictedPatientsAudited(t *testing.T) {
+	t.Parallel()
+	repo, audit := withRegistered(), &fakeAuditor{}
+	repo.restricted = map[string]string{patientR + "/" + clinicA: "acct", patientS + "/" + clinicB: ""}
+	got, err := newService(repo, audit).RestrictedRecords(t.Context(), admin)
+	if err != nil || !slices.Equal(got, []string{patientR}) || repo.clinic != clinicA {
+		t.Fatalf("RestrictedRecords = %v, %v in scope %q; want patient R in clinic A's", got, err, repo.clinic)
+	}
+	e := searchEvent(admin, "", auditevent.OutcomeSuccess)
+	e.Purpose.Code = auditevent.CodeHOPERAT
+	checkEvents(t, audit, e)
+	for name, c := range map[string]patient.Caller{"receptionist": reception, "practitioner": practitioner} {
+		if _, err := newService(withRegistered(), &fakeAuditor{}).RestrictedRecords(t.Context(), c); !errors.Is(err, patient.ErrForbidden) {
+			t.Errorf("%s: %v, want ErrForbidden", name, err)
+		}
+	}
+}
+
 func TestCorrect_UpdatesTheRegisteredProfileInTheClinicsScopeVersionedAndAudited(t *testing.T) {
 	t.Parallel()
 	for name, c := range map[string]patient.Caller{"admin": admin, "receptionist": reception} {

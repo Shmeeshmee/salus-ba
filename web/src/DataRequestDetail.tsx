@@ -16,6 +16,8 @@ type Reason = components['schemas']['DataRequestExtensionReason']
 const fulfilling: AnswerCode[] = ['done', 'done_partly_kept']
 const codes: AnswerCode[] = [...fulfilling, 'identity_unverified', 'manifestly_unfounded', 'excessive', 'retention_law', 'no_data']
 const reasons: Reason[] = ['complex', 'many_requests']
+// The answer's and the extension's refusals the admin can act on; any other is privacy.actionFailed.
+const failures: Record<string, string> = { version_conflict: 'privacy.conflict', request_overdue: 'privacy.overdue' }
 
 type Props = { api: ApiClient; fhir: FhirClient; account: Account; id: string }
 
@@ -87,7 +89,7 @@ function Actions({ api, request: r, onChange }: { api: ApiClient; request: DataR
     setError(undefined)
     const res = await attempt(request)
     if (res.ok) onChange(res.data)
-    else setError(t(res.code === 'version_conflict' ? 'privacy.conflict' : 'privacy.actionFailed'))
+    else setError(t(failures[res.code ?? ''] ?? 'privacy.actionFailed'))
   }
   return (
     <>

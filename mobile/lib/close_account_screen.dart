@@ -7,6 +7,10 @@ import 'ui.dart' as ui;
 
 /// Closing the patient's account (docs/clinic-cms/WAVE5.md S5, S6): what happens at once, what is erased after 21
 /// days and what stays, confirmed with the password. Once closed, [onClosed] ends the session on the device.
+/// Where a patient asks Salus to reopen a closed account (the operator may, within 21 days), set at build time:
+/// `--dart-define=SUPPORT_EMAIL=…`. The default is a placeholder until the address is decided (before production).
+const supportEmail = String.fromEnvironment('SUPPORT_EMAIL', defaultValue: '[SUPPORT EMAIL]');
+
 class CloseAccountScreen extends StatefulWidget {
   const CloseAccountScreen({super.key, required this.privacy, required this.onClosed});
 
@@ -72,6 +76,7 @@ class _CloseAccountScreenState extends State<CloseAccountScreen> {
           title: t.closeMyAccount,
           children: [
             ui.Message(t.accountClosed),
+            Text(t.accountClosedReopen(supportEmail)),
             ui.SubmitButton(t.done, busy: _leaving, onPressed: _leave),
           ],
         ),

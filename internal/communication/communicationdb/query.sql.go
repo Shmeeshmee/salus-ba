@@ -142,6 +142,7 @@ SELECT c.id, c.created_at, c.last_sent_at, c.organization_id, c.patient_id, c.pr
 FROM conversation c
 JOIN conversation_participant p ON p.conversation_id = c.id AND p.removed_at IS NULL AND p.status = 'active'
 WHERE (p.patient_id = $1 OR p.practitioner_role_id = $2)
+  AND ($2::uuid IS NULL OR NOT patient_record_restricted(c.patient_id, c.organization_id))
   AND ($3::timestamptz IS NULL
        OR (coalesce(c.last_sent_at, c.created_at), c.id) < ($3::timestamptz, $4::uuid))
 ORDER BY coalesce(c.last_sent_at, c.created_at) DESC, c.id DESC
@@ -172,7 +173,9 @@ type ConversationsOfParticipantRow struct {
 }
 
 // The conversations the patient or the practitioner role takes part in (one of the two is null), newest activity
-// first, before the cursor when there is one, with that participant's read position.
+// first, before the cursor when there is one, with that participant's read position. A practitioner's list leaves out
+// the conversations about a patient whose record the treating clinic restricted (S7, 00079), a guest's too; the
+// patient's own list keeps them.
 func (q *Queries) ConversationsOfParticipant(ctx context.Context, arg ConversationsOfParticipantParams) ([]ConversationsOfParticipantRow, error) {
 	rows, err := q.db.Query(ctx, conversationsOfParticipant,
 		arg.PatientID,

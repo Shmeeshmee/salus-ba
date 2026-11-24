@@ -122,6 +122,9 @@ func TestSendQuote_Refuses(t *testing.T) {
 		{name: "a revoked care consent", want: invoice.ErrNotFound, caller: adminC, draft: with(func(d *invoice.QuoteDraft) {
 			d.AppointmentID, d.PatientID = revokedVisit, "patient-revoked"
 		}), audited: true},
+		{name: "a restricted record (S7)", want: invoice.ErrNotFound, caller: adminC, draft: with(func(d *invoice.QuoteDraft) {
+			d.AppointmentID, d.PatientID = restrictedVisit, "patient-restricted"
+		}), audited: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(theSeller)

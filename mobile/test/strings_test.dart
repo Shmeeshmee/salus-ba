@@ -118,6 +118,7 @@ void main() {
       'closeAccountKept',
       'closeAccountCopyFirst',
       'accountClosed',
+      'accountClosedReopen',
     ]) {
       expect(legal(key), isTrue, reason: key);
     }

@@ -321,6 +321,10 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		writeCode(w, http.StatusConflict, "data_request_closed")
 	case errors.Is(err, ErrAlreadyExtended):
 		writeCode(w, http.StatusConflict, "already_extended")
+	case errors.Is(err, ErrOverdue):
+		writeCode(w, http.StatusConflict, "request_overdue")
+	case errors.Is(err, ErrExportInProgress):
+		writeCode(w, http.StatusConflict, "export_in_progress")
 	case errors.Is(err, ErrVersionConflict):
 		writeCode(w, http.StatusPreconditionFailed, "version_conflict")
 	default:
