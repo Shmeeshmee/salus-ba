@@ -426,9 +426,17 @@ func (s *fakeSlots) Release(ctx context.Context, org, id string) (bool, error) {
 
 // fakePatients gives a profile when the scope of the fake repository shows the patient.
 type fakePatients struct {
-	err    error
-	repo   *fakeRepository
-	lookup []string
+	err        error
+	repo       *fakeRepository
+	restricted string // the patient and clinic, joined, whose record is restricted
+	lookup     []string
+}
+
+func (p *fakePatients) Restricted(ctx context.Context, id, org string) (bool, error) {
+	if ctx.Value(txKey{}) == nil {
+		return false, errors.New("Restricted outside a transaction")
+	}
+	return p.restricted != "" && p.restricted == id+org, p.err
 }
 
 func (p *fakePatients) Lookup(ctx context.Context, id string) (patient.Patient, error) {

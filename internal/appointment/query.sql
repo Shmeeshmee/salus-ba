@@ -61,10 +61,12 @@ RETURNING id, created_at, updated_at, cancelled_at, patient_id, practitioner_rol
           lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at;
 
 -- name: ListBookedForStats :many
--- A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read.
+-- A clinic's appointments starting in [from, to), oldest first: the columns salus_stats may read. A patient who
+-- objected to the analytics, or whose record is restricted at the clinic, is left out (docs/clinic-cms/WAVE5.md S7, S9).
 SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status, booked_via
 FROM appointment
-WHERE organization_id = @organization_id AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+WHERE appointment.organization_id = @organization_id AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+  AND NOT analytics_left_out(appointment.patient_id, appointment.organization_id)
 ORDER BY lower(period), status;
 
 -- SAL-32 step 0 (docs/plans/appointments.md): the history and the one-time links.
@@ -103,11 +105,13 @@ DELETE FROM appointment_action_token
 WHERE expires_at < @before::timestamptz;
 
 -- name: ListFulfilledForStats :many
--- A clinic's fulfilled appointments starting in [from, to), oldest first: the platform heatmap reads no other.
+-- A clinic's fulfilled appointments starting in [from, to), oldest first: the platform heatmap reads no other. Left out as
+-- ListBookedForStats.
 SELECT lower(period)::timestamptz AS start_at, patient_id, practitioner_role_id, status
 FROM appointment
-WHERE organization_id = @organization_id AND status = 'fulfilled'
+WHERE appointment.organization_id = @organization_id AND status = 'fulfilled'
   AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+  AND NOT analytics_left_out(appointment.patient_id, appointment.organization_id)
 ORDER BY lower(period);
 
 -- SAL-34 (docs/plans/appointments.md): the patient's confirmation and reschedule, and the use of a one-time link.

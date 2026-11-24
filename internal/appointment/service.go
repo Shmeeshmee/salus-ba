@@ -47,9 +47,11 @@ type Slots interface {
 	Release(ctx context.Context, org, id string) (bool, error)
 }
 
-// Patients reads a profile in the caller's transaction and scope, unaudited (patient.Service).
+// Patients reads a profile, and whether the patient's record is restricted at a clinic (docs/clinic-cms/WAVE5.md S7),
+// in the caller's transaction and scope, unaudited (patient.Service).
 type Patients interface {
 	Lookup(ctx context.Context, id string) (patient.Patient, error)
+	Restricted(ctx context.Context, id, org string) (bool, error)
 }
 
 // Clinics reads a clinic in its own scope, to check it is listed (organization.Service).

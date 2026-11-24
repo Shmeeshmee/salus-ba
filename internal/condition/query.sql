@@ -5,11 +5,13 @@ VALUES (@id, @recorded_at, @organization_id, @patient_id, @encounter_id, @docume
         @practitioner_role_id, @field_key, @code, @verification_status);
 
 -- name: ListDiagnoses :many
--- A clinic's confirmed Conditions recorded in [from, to), oldest first: the columns salus_stats may read.
+-- A clinic's confirmed Conditions recorded in [from, to), oldest first: the columns salus_stats may read. A patient
+-- who objected to the analytics, or whose record is restricted at the clinic, is left out (docs/clinic-cms/WAVE5.md S7, S9).
 SELECT recorded_at, patient_id, practitioner_role_id, code
 FROM condition
-WHERE organization_id = @organization_id AND recorded_at >= @from_at AND recorded_at < @to_at
+WHERE condition.organization_id = @organization_id AND recorded_at >= @from_at AND recorded_at < @to_at
   AND verification_status = 'confirmed'
+  AND NOT analytics_left_out(condition.patient_id, condition.organization_id)
 ORDER BY recorded_at, code;
 
 -- name: ListUnconfirmed :many

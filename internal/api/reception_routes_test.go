@@ -171,7 +171,6 @@ var receptionRoutes = map[string]receptionClass{
 // mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{
 	"POST /me/account/close",
-	"PUT /clinic/patients/{id}/restriction", "DELETE /clinic/patients/{id}/restriction",
 }
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.

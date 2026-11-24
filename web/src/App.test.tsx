@@ -160,6 +160,24 @@ describe('App', () => {
     }
   })
 
+  it("gives the admin the clinic's data requests and their detail, and a practitioner and a receptionist neither (clinic-cms D4)", async () => {
+    const request = { id: 'f1000000-0000-4000-8000-000000000001', kind: 'access', target: 'clinic', status: 'received', receivedAt: '2026-11-02T09:00:00Z',
+      dueAt: '2026-12-02T09:00:00Z', filedByPatient: true, version: 1 }
+    renderAt('/', { ...staff(admin), 'GET /clinic/data-requests': () => Response.json([request]), [`GET /clinic/data-requests/${request.id}`]: () => Response.json(request) })
+    fireEvent.click(await screen.findByRole('link', { name: 'Data requests' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Open' }))
+    expect(await screen.findByRole('heading', { name: 'Access' })).toBeTruthy()
+    expect(location.pathname).toBe(`/data-requests/${request.id}`)
+    cleanup()
+    for (const role of ['practitioner', 'reception'] as const) {
+      const { requests } = renderAt('/data-requests', staff({ ...admin, role }))
+      expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Data requests' })).toBeNull()
+      expect(requests.some((r) => r.url.includes('/clinic/data-requests'))).toBe(false)
+      cleanup()
+    }
+  })
+
   it('gives a practitioner no clinic settings', async () => {
     renderAt('/clinic', staff({ ...admin, role: 'practitioner' }))
 

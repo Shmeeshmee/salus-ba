@@ -2934,3 +2934,31 @@ columns' constraints relaxed). Sessions are revoked at closure and deleted by th
 closed account and the restriction of a due profile; set only by `datarequest`. A wrong password at closure is a 403;
 the password is never logged. Nothing personal goes into a job's arguments or a log line (account and request ids, the
 number of clinics that keep a record).
+
+### Package D4: the clinic's handling of requests and restricted records (migration 00076, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** No new personal-data field and no new table: D4 writes and reads 5.0's `patient_restriction` and
+reads `patient.analytics_objected_at`.
+
+- **Restricting a record** (`PUT`, `DELETE /clinic/patients/{id}/restriction`, S7): the clinic's admin only, for a
+  patient of the clinic (registered by it, with a consent there, active or withdrawn, or a visit), optionally naming the
+  request it answers; each restriction and lifting is audited as an update of the Patient at the patient's request
+  (`PATRQT`), refusals too. The erasure's restriction (by nobody) is not the clinic's to lift (403).
+- **What a restriction hides.** The consent state every domain reads (`consent.Service.State`) carries whether the
+  record is restricted at the clinic (read in the caller's clinic scope; a patient's scope sees no restriction), and
+  `access` then refuses every rule of the care record and of the chat to the clinic's staff (`access.Restricted`): the
+  practitioner's FHIR reads and searches, the profile, the chat, history and entries. The desk's day and the clinic's
+  patient search leave the patient out; their reminders are skipped when due. Only the admin's hand-over of the record
+  (`ClinicRecord`, read with its purpose and audited) still opens it. The patient keeps every read of their own record.
+- **The analytics leave out** a patient who objected (S9), at every clinic, and a patient whose record is restricted at a
+  clinic, at that clinic: the aggregate builds' source queries (appointments, confirmed Conditions) ask
+  `analytics_left_out(patient, clinic)`, a SECURITY DEFINER function (00076) that answers the one question, so
+  `salus_stats` still reads no patient table. Aggregates built before stay; the builds' own window (35 days) is
+  recomputed without the patient.
+
+| Risk | Measure |
+| --- | --- |
+| A screen bypasses access and shows a restricted patient | The route test (`internal/api/restricted_routes_test.go`): every GET route of the contract and every FHIR read and search as the practitioner, the admin and the receptionist, none returns the patient's data once restricted (nine did before), and all of them again once lifted |
+| A reminder or message reaches a restricted patient from the clinic | The reminder dispatch skips it; staff cannot write in the chat (`WritesChat` refuses) |
+| The analytics count an objecting or restricted patient | Equality test: the figures with the patient's appointments and diagnoses equal those without them, and differ once lifted (`internal/worker/clinicstats_objection_test.go`) |
+| The stats role reads more of the patient than the flag | No grant on `patient` or `patient_restriction`; the function returns a boolean; migration test |

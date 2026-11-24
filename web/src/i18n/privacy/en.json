@@ -1,0 +1,68 @@
+{
+  "nav": "Data requests",
+  "loadFailed": "The requests could not be loaded. Reload the page to try again.",
+  "notFound": "This request does not exist.",
+  "empty": "No data requests.",
+  "open": "Open",
+  "back": "All requests",
+  "due": "Due {date}",
+  "received": "Received {date}",
+  "filedAtDesk": "Filed at the desk",
+  "history": "History",
+  "kind.access": "Access",
+  "kind.portability": "Portability",
+  "kind.rectification": "Rectification",
+  "kind.restriction": "Restriction",
+  "kind.objection": "Objection",
+  "kind.erasure": "Erasure",
+  "status.received": "Received",
+  "status.in_progress": "In progress",
+  "status.fulfilled": "Fulfilled",
+  "status.refused": "Refused",
+  "status.withdrawn": "Withdrawn",
+  "needs.access": "Hand over the patient's record.",
+  "needs.portability": "Hand over the patient's record in a portable form.",
+  "needs.rectification": "Correct the profile, or add an amendment that refers to the original entry. A signed document is never changed.",
+  "needs.restriction": {
+    "defaultMessage": "Restrict the patient's record at the clinic.",
+    "description": "legal"
+  },
+  "needs.objection": {
+    "defaultMessage": "Leave the patient out of the analytics from now on.",
+    "description": "legal"
+  },
+  "needs.erasure": {
+    "defaultMessage": "Erase what has no legal basis to stay. The medical record is kept for the retention period and restricted.",
+    "description": "legal"
+  },
+  "answer": "Answer",
+  "sendAnswer": "Send the answer",
+  "code.done": "Done",
+  "code.done_partly_kept": {
+    "defaultMessage": "Done, the medical record kept",
+    "description": "legal"
+  },
+  "code.identity_unverified": "Identity not verified",
+  "code.manifestly_unfounded": "Manifestly unfounded",
+  "code.excessive": "Excessive",
+  "code.retention_law": {
+    "defaultMessage": "Kept under the retention law",
+    "description": "legal"
+  },
+  "code.no_data": "No data held",
+  "reason": "Reason",
+  "reasons.complex": "Complex request",
+  "reasons.many_requests": "Many requests",
+  "extend": "Extend by two months",
+  "handOver": "Open the hand-over",
+  "restrict": "Restrict the record",
+  "lift": "Lift the restriction",
+  "restricted": "The record is restricted.",
+  "lifted": "The restriction is lifted.",
+  "actionFailed": "The change could not be saved. Try again.",
+  "conflict": "The request changed meanwhile. Reload the page.",
+  "erasureKeeps": {
+    "defaultMessage": "The erasure keeps this record restricted; the clinic cannot lift it.",
+    "description": "legal"
+  }
+}

@@ -832,3 +832,37 @@ func TestEndChat_RefusesAPatient(t *testing.T) {
 		t.Error("the patient's EndChat ended the consent")
 	}
 }
+
+// fakeRestrictions answers Restricted for one patient at one clinic, or fails.
+type fakeRestrictions struct {
+	err             error
+	patient, clinic string
+	calls           int
+}
+
+func (r *fakeRestrictions) Restricted(_ context.Context, patientID, organizationID string) (bool, error) {
+	r.calls++
+	return patientID == r.patient && organizationID == r.clinic, r.err
+}
+
+// With the patient's restrictions (docs/clinic-cms/WAVE5.md S7), State tells whether the record is restricted at the
+// clinic, in the caller's transaction and scope; a failed read fails State.
+func TestState_TellsARestrictedRecord(t *testing.T) {
+	f := newFixture()
+	r := &fakeRestrictions{patient: patientA, clinic: clinicB}
+	s := f.svc.WithRestrictions(r)
+	got, err := s.State(t.Context(), patientA, clinicB)
+	if err != nil || !got.Restricted || !got.RevokedAt.Equal(revoked) {
+		t.Errorf("State() = %+v, %v; want restricted with its consent state", got, err)
+	}
+	if got, err := s.State(t.Context(), patientA, clinicA); err != nil || got.Restricted {
+		t.Errorf("State(another clinic) = %+v, %v; want unrestricted", got, err)
+	}
+	if got, _ := f.svc.State(t.Context(), patientA, clinicB); got.Restricted || r.calls != 2 {
+		t.Errorf("State() without restrictions = %+v after %d reads, want unrestricted and the copy alone reading", got, r.calls)
+	}
+	r.err = errors.New("boom")
+	if _, err := s.State(t.Context(), patientA, clinicB); err == nil {
+		t.Error("State() with a failing read = nil error")
+	}
+}
