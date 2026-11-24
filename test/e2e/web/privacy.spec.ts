@@ -26,7 +26,7 @@ for (const width of [1280, 390]) {
     await page.goto('/data-requests')
     const queue = page.getByRole('list', { name: 'Data requests' })
     const row = queue.locator('li').filter({ hasText: 'Restriction' })
-    await expect(row.getByText(/^Due /)).toBeVisible()
+    await expect(row.getByText(/Restriction · Due /)).toBeVisible()
     await expect(row.getByText("Restrict the patient's record at the clinic.")).toBeVisible()
     await shot(page, width, '02-queue')
     await row.getByRole('link', { name: 'Open' }).click()
@@ -34,18 +34,18 @@ for (const width of [1280, 390]) {
     const detail = page.url()
     await shot(page, width, '03-detail')
     await page.getByRole('button', { name: 'Restrict the record' }).click()
-    await expect(page.getByRole('status')).toHaveText('The record is restricted.')
+    await expect(page.getByRole('status').filter({ hasText: 'The record is restricted.' })).toBeVisible()
     await shot(page, width, '04-restricted')
 
     await page.goto('/desk')
     const after = await patients(page, name)
-    await expect(after.getByRole('button', { name })).toHaveCount(0)
+    await expect(after.getByText('No patient found.')).toBeVisible() // the search answered: the patient is left out
     await shot(page, width, '05-desk-search-after')
     await after.getByRole('button', { name: 'Close' }).click()
 
     await page.goto(detail)
     await page.getByRole('button', { name: 'Lift the restriction' }).click()
-    await expect(page.getByRole('status')).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'The restriction is lifted.' })).toBeVisible()
     await shot(page, width, '06-lifted')
   })
 }

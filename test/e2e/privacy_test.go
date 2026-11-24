@@ -72,8 +72,9 @@ func runJob(t *testing.T, args river.JobArgs) {
 	})
 }
 
-// ageRequest moves the request's receipt and due date back so that it is due in left from now: the guard (00071)
-// keeps both fixed for every role, so the owner turns triggers off for this one transaction.
+// ageRequest makes time pass for the request until it is due in left from now: its receipt, due date and last
+// warning move back together. The guard (00071) keeps the first two fixed for every role, so the owner turns triggers
+// off for this one transaction.
 func ageRequest(t *testing.T, id string, left time.Duration) {
 	t.Helper()
 	conn := ownerConn(t)
@@ -81,8 +82,9 @@ func ageRequest(t *testing.T, id string, left time.Duration) {
 		if _, err := tx.Exec(t.Context(), `SET LOCAL session_replication_role = replica`); err != nil {
 			return err
 		}
-		_, err := tx.Exec(t.Context(), `UPDATE data_request SET received_at = received_at - (due_at - (now() + make_interval(secs => $2))),
-			due_at = now() + make_interval(secs => $2) WHERE id = $1`, id, left.Seconds())
+		_, err := tx.Exec(t.Context(), `WITH d AS (SELECT due_at - (now() + make_interval(secs => $2)) AS passed FROM data_request WHERE id = $1)
+			UPDATE data_request SET received_at = received_at - d.passed, due_at = due_at - d.passed,
+			deadline_warned_at = deadline_warned_at - d.passed FROM d WHERE id = $1`, id, left.Seconds())
 		return err
 	})
 	if err != nil {
@@ -303,6 +305,8 @@ func TestPrivacy_TheClinicIsWarnedBeforeTheDeadlineAndAnswersARectification(t *t
 	p := newPatientWithProfile(t)
 	p.bookFirstTime(clinic)
 	r := p.fileRequest("rectification", clinic.id)
+	// The warning comes in the admin's language (D5); English here, so the journey reads it.
+	clinic.admin.must(http.StatusOK, http.MethodPatch, "/auth/me", map[string]any{"language": "en"}, nil)
 
 	for _, left := range []time.Duration{6*24*time.Hour + 12*time.Hour, 12 * time.Hour} {
 		ageRequest(t, r.ID, left)
@@ -325,17 +329,20 @@ func TestPrivacy_TheClinicIsWarnedBeforeTheDeadlineAndAnswersARectification(t *t
 	}
 }
 
-// D4 in the web app (privacy.spec.ts): the clinic's second admin opens the patient's restriction request from the
-// queue, restricts the record, and the desk's patient search leaves the patient out until the restriction is lifted.
+// D4 in the web app (privacy.spec.ts): the clinic's second admin opens the restriction request the desk filed for a
+// patient the clinic registered from the queue, restricts the record, and the desk's patient search leaves the patient out until the restriction is lifted.
 func TestPrivacy_TheAdminHandlesARestrictionInTheWebApp(t *testing.T) {
 	clinic := newBookableClinic(t)
 	adminAddr := email(t, "admin2")
 	clinic.admin.must(http.StatusCreated, http.MethodPost, "/invites", map[string]string{"email": adminAddr, "role": "admin"}, nil)
 	_, adminTOTP := enrolFromInvite(t, adminAddr)
-	p := newPatientWithProfile(t)
-	p.bookFirstTime(clinic)
-	p.fileRequest("restriction", clinic.id)
-	runDeskJourney(t, adminAddr, adminTOTP, "privacy.spec.ts", "E2E_PRIVACY_PATIENT="+p.name)
+	// A patient the clinic registered (their card opens at the desk), whose restriction request the desk filed (S10).
+	var reg struct{ ID string }
+	clinic.admin.must(http.StatusCreated, http.MethodPost, "/clinic/patients", map[string]any{
+		"givenName": "Rada", "familyName": "Ogranicena", "birthDate": "1975-08-09", "consentGivenInPerson": true,
+	}, &reg)
+	clinic.admin.must(http.StatusCreated, http.MethodPost, "/clinic/patients/"+reg.ID+"/data-requests", map[string]string{"kind": "restriction"}, nil)
+	runDeskJourney(t, adminAddr, adminTOTP, "privacy.spec.ts", "E2E_PRIVACY_PATIENT=Rada Ogranicena")
 }
 
 // S4, D2, D7: the patient files an access request to their account; the worker builds the archive and the patient

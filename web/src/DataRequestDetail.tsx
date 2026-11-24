@@ -93,7 +93,7 @@ function Actions({ api, request: r, onChange }: { api: ApiClient; request: DataR
   }
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar actions">
         <label htmlFor={ids.code}>{t('privacy.answer')}</label>
         <select id={ids.code} value={code} onChange={(e) => setCode(e.target.value as AnswerCode)}>
           {codes.map((c) => (
@@ -102,14 +102,14 @@ function Actions({ api, request: r, onChange }: { api: ApiClient; request: DataR
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => void save(api.POST('/clinic/data-requests/{id}/answer', {
+        <button type="button" className="primary" onClick={() => void save(api.POST('/clinic/data-requests/{id}/answer', {
           params: { path: { id: r.id }, header: ifMatch }, body: { status: fulfilling.includes(code) ? 'fulfilled' : 'refused', code },
         }))}>
           {t('privacy.sendAnswer')}
         </button>
       </div>
       {!r.extendedUntil && (
-        <div className="toolbar">
+        <div className="toolbar actions">
           <label htmlFor={ids.reason}>{t('privacy.reason')}</label>
           <select id={ids.reason} value={reason} onChange={(e) => setReason(e.target.value as Reason)}>
             {reasons.map((x) => (
@@ -148,7 +148,7 @@ function Restriction({ api, request: r }: { api: ApiClient; request: DataRequest
   }
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar actions">
         <a href={handOverURL(r.patientId ?? '')} target="_blank" rel="noreferrer">
           {t('privacy.handOver')}
         </a>

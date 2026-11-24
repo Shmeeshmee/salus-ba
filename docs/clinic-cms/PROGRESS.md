@@ -2198,6 +2198,14 @@ changed); `make i18n-check` ran in the fast layer and in `make lint`.
 
 ## Waiting on a person
 
+- Wave 5, the owner: confirm S1 to S13 (S12 and S13 decided at the integration); the operator's address and language;
+  the support address in the app; whether closure also revokes chat consents; whether a guest doctor keeps chat
+  access when the treating clinic restricts the record (built: no); whether a clinic with no admin warns the operator;
+  the walk's findings 3 to 5; whether the export without receipt and quote PDFs is enough for now; and the wave's new
+  copy (web `privacy.*`, mobile privacy and closure strings, the `data_request_deadline` e-mail in ten languages;
+  sr-Cyrl transliterated, de, ar, tr, it, fr want a native reader).
+- Wave 5, the lawyer: D3's erased and kept list and assumptions (1) to (6) under "Before production"; the answer codes
+  and extension reasons; keeping `data_request` after erasure; the legal-tagged closure and explanation texts.
 - The lawyer: the five questions on V2 in "Before production" above.
 - The owner: confirm or change the Q1 to Q9 defaults; plan prices (Q2) and the invoicing company (Q3) before D ships.
 - The owner: the ESET technical specification and test access (Q6); an accountant on VAT (Q9); the legal retention
@@ -2935,3 +2943,77 @@ Bundles are not golden files).
 - **The worker test** seeds a visit, an encounter and a submitted answer, not a signed PDF or a clean upload.
 - **Clinic names in the manifest**: the clinics are named by id; the Bundles refer to `Organization/<id>`.
 
+
+## Wave 5 integration
+
+Done 2026-11-24 on `feat/cms` (which held 5.0 and FX): `wt/cms/D1`, `D2`, `D3`, `D4`, `D6` merged with `--no-ff` in that
+order; then D5 (rerun on the merged tree as `wt/cms/D5R`: its first run stopped, rightly, for want of D1 and D3) and D7
+(the export's clinical content and D2's deferred items, `wt/cms/D7`), each built by a package runner in its own worktree
+and compose project and merged the same way; then the integration's own commits, the last one
+`cms(wave 5): integrate D1 to D6, data subject rights`. The wave's migrations follow `00072` without gaps: D1 `00073`, D2
+`00074`, D3 `00075`, D4 `00076`, D7 `00077` (renumbered from `00078`), the integration's `00078_patient_record_restricted`
+(renumbered from `00079`); D5 needed none. WAVE5.md: D5 depends on D1 and D3, D7 added, S5 and S6 say 21 days, S12 and S13.
+
+- **Merges.** `internal/datarequest` was written by four packages at once and merged by hand: one `Ports` (D1's, with
+  D2's `Export` and the integration's `Objections`), one `Transactor`, `Auditor` and `Profiles`; D3's closure ports
+  became `ClosureConsents` (Mine and Revoke) and `RecordClinics`, D2's `Accounts` became `ExportAccounts`; D3's test fakes
+  are prefixed `closure…`, D1's and D2's share `fakeJobs`, `fakeAudit` and `fakeTx`; the refusing stubs and their test
+  are gone. One `overdue` (D5's). `patient/query.sql` keeps D3's and D4's restriction queries. Generated code was not
+  hand-merged: `make sqlc`, `make gen-clients` and `flutter gen-l10n` after each merge.
+- **D1 with D2.** One request service in the API, with the exports on: filing an access or portability request queues
+  its export in the filing's transaction; while the patient's export is still queued another is 409
+  `export_in_progress` and nothing is filed. The app says so (`exportInProgress`, ten languages).
+- **D3.** `Closure` and the close route in the API; `Erasure` built in the worker (`newErasure`) for the daily
+  `account_erasure` job; a staff restriction gives way to the job's, which the clinic cannot lift. Tested on Postgres
+  (`TestAccountErasureWorker_ErasesADueAccountOnce`, `TestRestrictForErasure_ReplacesAStaffRestriction`,
+  `TestNew_APatientClosesTheirAccount`).
+- **D4.** `patient_record_restricted` (SECURITY DEFINER, yes or no) answers the restriction from any scope: the worker's
+  jobs run with no clinic set and a guest practitioner of another clinic reads in their own clinic's scope, where
+  `patient_restriction` shows none of the treating clinic's rows. With it: the worker's consent services (chat notices,
+  suggestions, the consultation stream, the agent, the revocation and waitlist) carry the restriction; staff
+  conversation lists, notices and the clinic's webhook leave a restricted record out (the patient is still told); a
+  guest loses the conversation while the record is restricted and has it again when lifted; no new quote, receipts
+  still issued (fiscal law); the clinic export's manifest lists the restricted records by patient id.
+- **D6.** The closed-account screen names `SUPPORT_EMAIL` (a build-time setting, `[SUPPORT EMAIL]` until set;
+  `accountClosedReopen`, ten languages, legal). The admin's detail explains `request_overdue`.
+- **Decisions.** S12: no extension once the due date has passed (409 `request_overdue`, the clinic's and the
+  operator's). S13: the export's 7 days run from when the archive is ready (D2 built it so; D7 pins it).
+- **S4 in full.** D7 left the chat out; the integration added it: each clinic's part holds `chat.json` (the patient's
+  conversations, every message oldest first: the sender's role, the text, the files) and the chat files the app opens,
+  read through the chat's own patient reads, each audited; a clinic target reads that clinic's chat only.
+- **The review** (a fresh subagent, the whole diff against `origin/main`; Copilot is out of quota). Its three questions:
+  who can see or change a request: sound (RLS plus the service's admin check, the patient's ownership, the operator's
+  account-only reads, the job scopes). Erased data: the account row is clean, audit events and logs carry opaque ids.
+  Restriction bypasses: found and fixed below. **Fixed**, each with a test first: (1) nothing set
+  `analytics_objected_at`, so an objection never took effect: filing one now marks the profile at once, in the filing's
+  transaction and scope (`patient.ObjectToAnalytics`); (2) one account that could not be erased stopped every later one,
+  and the operator could answer a closure's erasure request (which made it unerasable): the run goes on past a failing
+  account and fails after, and the operator is refused that request; (3) waitlist offers, (4) staff booking and move,
+  and (6) transcription, stored transcripts and suggestions ignored the restriction: now refused; (7) a login challenge
+  issued before closure could open a session after: refused. **Declined**: correcting a restricted profile at the desk
+  (finding 4): rectification is itself a right and often what a restriction waits on (Art. 18(1)(a)); existing quotes
+  still listed to the clinic and the import's duplicate check (finding 4): existing records, no new use; the
+  notification erasers and the profile of a patient with no record (finding 5): already listed for the lawyer below;
+  refusals that RLS turns into a rollback are not audited, and the erasure's answer has no `data_request` audit event of
+  its own (finding 8): small, listed; the two SECURITY DEFINER yes/no functions (finding 9): they disclose one bit about
+  an opaque id to the server's own role, nothing reaches a client.
+- **e2e found a real bug**: D5's start-up check stopped the compose notifier (no operator address, no `SALUS_ENV`), so
+  no e-mail went out in any journey. The local notifier now runs with `SALUS_ENV=dev` and a synthetic operator address.
+- **New e2e journeys** (`test/e2e/privacy_test.go`, time made to pass by moving the stored instants back as the owner and
+  running the periodic jobs at once): the access export opened and checked file by file; a restriction that hides the
+  patient from the practitioner and the desk; the 7-day and 1-day warnings in Mailpit naming no patient, then the
+  answer; closure, the operator's reopening, closure again and the erasure at 21 days (e-mail and credentials gone for
+  every role, the record kept and restricted, a second run changes nothing); a request filed at the desk; the admin's
+  web journey (`privacy.spec.ts`, the walk).
+- **Walk**: `docs/clinic-cms/walk/wave5/WALK.md` (findings 1 and 2 fixed; 3 to 5 open for the owner).
+
+**Checks** (the main checkout's stack for the Go, web and mobile sets; e2e on the integration's own compose project
+`salus-cms-w5`, fresh volumes). `make lint`, `make test`, `make archcheck`, `make cover` (90.0% total, every package at
+80% or more), `make fhir-validate` (131 files, 0 errors), `make gen-clients` (no diff after regeneration), `make
+web-lint` (the one warning in `analytics/ClinicView.tsx` that was there), `web-typecheck`, `web-test` (1335),
+`web-build`, `make mobile-analyze`, `make mobile-test` (701), `make e2e`.
+
+**Deferred** (with "Before production" below): the patient's name on the clinic's request and the restriction's state
+on the detail (walk 3, 4); the notification erasers; receipt and quote PDFs in the export, and a file the export cannot
+open failing the build (D7); the clinic narrowing of `consent.Mine`, `invoice.Mine` and `MyQuotes` in the export; a rate
+limit on the closure's password; a warning when a clinic has no admin (D5: logged only).
