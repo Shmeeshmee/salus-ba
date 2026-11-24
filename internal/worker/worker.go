@@ -24,6 +24,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
@@ -91,6 +92,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		receipts:    receipts,
 		memberships: newMemberships(pool, inserter, clock.System{}),
 		exports:     newClinicExports(pool, files, appointments, receipts, clock.System{}),
+		requests:    newDataRequests(pool, inserter, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
 	cfg := workConfig(log, river.QueueDefault, workers)
@@ -121,6 +123,7 @@ type defaultServices struct {
 	receipts     *invoice.Service // the fiscal reports (clinic-cms C)
 	memberships  *subscription.Service
 	exports      *clinicexport.Service // the clinic's data export (clinic-cms M2)
+	requests     *datarequest.Service  // the data subject's requests' deadline warnings (clinic-cms D1)
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -147,6 +150,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &invoiceFiscalizeWorker{receipts: s.receipts})
 	river.AddWorker(workers, &subscriptionWorker{memberships: s.memberships, clock: clock.System{}, log: log})
 	river.AddWorker(workers, &clinicExportWorker{exports: s.exports, log: log})
+	river.AddWorker(workers, &dataRequestDeadlinesWorker{requests: s.requests, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -70,6 +71,10 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			// is issued once per clinic and month.
 			river.NewPeriodicJob(dailyAt{hour: subscriptionHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return subscription.MonthlyArgs{}, nil
+			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			// The data subject's requests' deadline warnings (clinic-cms D1); also when it starts leading, as the reminders.
+			river.NewPeriodicJob(river.PeriodicInterval(deadlinesInterval), func() (river.JobArgs, *river.InsertOpts) {
+				return datarequest.DeadlinesArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
 		}, trendsPeriodics(platform, clock.System{})...),
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing

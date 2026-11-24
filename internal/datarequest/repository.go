@@ -1,6 +1,9 @@
 package datarequest
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Repository stores requests (data_request) and their history (data_request_change). Package D1 implements it in
 // repository_postgres.go.
@@ -22,4 +25,16 @@ type Repository interface {
 	Update(ctx context.Context, r Request, changedBy string) (bool, error)
 	// History returns the request's status changes, oldest first.
 	History(ctx context.Context, id string) ([]Change, error)
+	// SetDeadlines sets the deadline job's scope on the transaction in ctx: the open requests of every target.
+	SetDeadlines(ctx context.Context) error
+	// OpenDeadlines returns the open requests whose deadline is before before, the earliest first.
+	OpenDeadlines(ctx context.Context, before time.Time) ([]Deadline, error)
+	// MarkWarned records that a warning of the open request id was queued at at, if its last mark is still seen (zero
+	// for none); false when it is no longer open or another run marked it since.
+	MarkWarned(ctx context.Context, id string, seen, at time.Time) (bool, error)
+}
+
+// Jobs queues the deadline warnings in the transaction in ctx (River's InsertTx).
+type Jobs interface {
+	EnqueueWarning(ctx context.Context, args WarningArgs) error
 }

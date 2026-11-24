@@ -2844,3 +2844,31 @@ account, so erasure blanks rather than deletes the rows they name (D3).
 | --- | --- |
 | The record's scope reaches an everyday screen | Set only inside `ClinicRecord`, which refuses anyone but the clinic's admin (audited); only `clinicexport` calls it; the policies need the setting, the clinic and no patient setting; repository and service tests |
 | A withdrawn patient's cancelled visits reach a practitioner | Practitioners never get the scope; `Search` and its tests are unchanged |
+
+### Package D1: requests and deadlines (migration 00073, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** The requests of package 5.0's `data_request` are filed, listed, withdrawn, answered and
+extended; no new personal-data field. One new column, `data_request.deadline_warned_at` (when the deadline job last
+queued a warning: an instant, no personal data).
+
+- **The patient** files to their account or to a clinic where they gave a consent (active or revoked: that clinic holds
+  a record of them), lists their own and withdraws an open one; the patient's reads leave out their profile's id. The
+  check reads their profile and consents through the patient and consent services, each read audited there.
+- **The clinic's admin** lists, reads (with the history of status changes) and answers with a code, or extends once with
+  a coded reason; the receptionist and the admin file on behalf of a patient the clinic registered (S10), which
+  row-level security holds. Practitioners and the desk are refused the queue, audited.
+- **The deadline job** (`data_request_deadlines`, hourly) reads the open requests of every target in its own scope
+  (`app.data_request_deadlines = 'all'`: open requests only, and a trigger lets it change nothing but the mark) and
+  queues a warning job per request 7 days and 1 day before its deadline, with the request's id and the number of days
+  only. The warning's e-mail (to the clinic's admin or the operator, naming the request's kind and due date and never
+  the patient) is D5's.
+- **Audit.** Every filing, list, read, withdrawal, answer and extension writes an `AuditEvent` in its transaction
+  (entity `data_request` with the patient's `Patient/<id>` when the request names one; purpose `PATRQT` for the
+  patient's own, `HOPERAT` for the clinic's); each warning queued writes one as the job's (agent
+  `data_request_deadlines`).
+
+| Risk | Measure |
+| --- | --- |
+| A patient files to a clinic that holds nothing of theirs, which would tell the clinic they exist | The service requires a consent of the patient at that clinic; 404 otherwise; service test |
+| The job's scope reaches a closed request or changes a request | Its policies show open requests only; the trigger refuses any change but the mark; migration test |
+| A warning job carries personal data | Its arguments are the request's id and the number of days; River test |

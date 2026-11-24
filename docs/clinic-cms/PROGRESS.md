@@ -37,7 +37,7 @@ writes under its own heading here.
 | M4 | done 2026-11-24, integrated 2026-11-24 | `cms(M4)`, merged into `feat/cms` with `cms(wave 4)` |
 | 5.0 | done 2026-11-24 (migration `00071`) | `cms(5.0)` |
 | FX | not started | |
-| D1 | not started | |
+| D1 | done 2026-11-24 (migration `00073`) | `cms(D1)` |
 | D2 | not started | |
 | D3 | not started | |
 | D4 | not started | |
@@ -2287,3 +2287,76 @@ order-dependent case in the closure test (map order) was fixed by resetting the 
 `make e2e` and `make fhir-validate` (no route is served and no golden file changed).
 
 **Copy waiting for the owner:** none. 5.0 adds no user-facing string; the API returns codes only.
+
+## D1: requests and deadlines
+
+Status: done, 2026-11-24, on `wt/cms/D1`, one commit `cms(D1)`. Migration `00073_datarequest_deadlines.sql`.
+
+**Built.**
+
+- **Service** (`internal/datarequest/service.go`): `File` (the patient's account, or a clinic where they gave a consent,
+  active or revoked: 404 otherwise), `Mine`, `Withdraw` (open only, at its version), `FileOnBehalf` (the clinic's admin
+  or receptionist, for a patient the clinic registered, S10; row-level security holds the registration), and the
+  admin's `ClinicRequests`, `ClinicRequest` (with the history), `Answer` (fulfilled with `done`/`done_partly_kept`,
+  refused with a refusal's code) and `Extend` (once, with a coded reason). Every filing, list, read and change is
+  audited in its transaction (entity `data_request`, `Patient/<id>` when the request names one; `PATRQT` for the
+  patient's own, `HOPERAT` for the clinic's); refusals to other staff are audited in their own transaction.
+- **Deadlines** (`service_deadline.go`): due at the end (23:59:59) of the same date one month after receipt in the
+  answerer's time zone (the clinic's `time_zone`; the operator's `Europe/Sarajevo` for the account), clamped to the
+  month's last day (31 January → end of February, as Regulation 1182/71 counts months). An extension ends on the same
+  date two months after the due date, capped at the database's `due_at + interval '2 months'` (UTC), an hour sooner
+  when the clocks went back in between. `QueueWarnings`: the 7-day and the 1-day warning, each once per deadline (an
+  extension's deadline is warned of again), none once the deadline has passed.
+- **Job**: `data_request_deadlines` (hourly, also when the scheduler starts leading) on the worker's default queue; it
+  queues one `data_request_deadline_warning` (`{request_id, days}`) on the notifier's `email` queue per warning, marked
+  on the request (`deadline_warned_at`) and audited as the job's (agent `data_request_deadlines`). Its sending is D5's:
+  until D5 registers that worker, the notifier fails those jobs as an unknown kind (they retry, then are discarded).
+- **Migration 00073**: `data_request.deadline_warned_at` (salus_app may update it); the job's scope
+  `app.data_request_deadlines = 'all'` (two policies: open requests only, select and update), and a trigger that lets
+  that scope change nothing but the mark.
+- **Repository** (`query.sql`, `datarequestdb` and its `sqlc.yaml` entry, `repository_postgres.go`), the River port
+  (`repository_river.go`), the handler (`handler_http.go`) for the eight cms-d1 routes, mounted in `internal/api/app.go`
+  (`internal/api/datarequest.go`), the worker and the scheduler's periodic job. The eight routes are off
+  `notServedYet`; the reception test holds them to their classes.
+- **Docs**: the DPIA's "Package D1" block.
+
+**Contract changes.**
+
+| Contract | As built | Why |
+| --- | --- | --- |
+| `ClinicRequest` returns the request | Returns the request and its history (`[]Change`) | The read of one carries its history (`DataRequest.history`); one transaction, one audit event |
+| `Staff` has `Admin` | Also `Reception` | The receptionist files on behalf (the contract's 403 says "not the clinic's admin or receptionist") |
+| `Repository` | Also `SetDeadlines`, `OpenDeadlines`, `MarkWarned`; a `Jobs` port; `Deadline`, `DeadlinesArgs`, `WarningArgs`, `WarnDays`, `LastWarnDays` in `model.go` | The deadline job |
+| `Ports` has `Repo`, `Clock` | Also `Tx`, `Audit`, `Profiles`, `Consents`, `Clinics`, `Jobs` | What the methods consume |
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| "A clinic where the patient has a record" | A clinic they gave a consent, active or revoked | Every booking needs one; a revoked one still left a record there |
+| The due date's time | 23:59:59 of the due date in the answerer's time zone | "Within one month": the whole last day counts |
+| The account target's time zone | `Europe/Sarajevo` (`OperatorTimeZone`) | Salus's own; no setting exists |
+| Warning after a missed run | The latest warning whose time has come, once; none after the deadline | The answerer is warned before, never told late that a day is left |
+| How the job reads across clinics | Its own scope with two policies and a guard trigger, not a role | As `app.subscription_run`: the app role, no new login |
+| A request filed on behalf by a profile the clinic did not register | 404 from row-level security (42501) or a missing row (23503) | The service has no read of another clinic's patients; the database holds S10 |
+| A staff session on `/me/data-requests` | 403 in the handler | As the contract's 403 |
+| Answer or extend by non-admins | Refused (and audited) before the If-Match and body are read | Every route answers a stranger the same (the reception test) |
+| Withdrawal's history time | The transaction's time (`now()`) | The port carries no time for it; the answer's is `answered_at` |
+| History order at the same instant | By the status's progression | Tied timestamps came back in id order |
+
+**Test first.** The migration test ran red (no column, no policy) before 00073, then green. The service tests
+(`service_requests_test.go`, `service_deadline_test.go`) ran red (no ports, no `QueueWarnings`) before the code. The
+repository, River and worker tests were written with their code and first run after it; the handler tests with the
+handler. The API journey (`app_datarequest_test.go`) failed once on its own wrong version (3, not 4).
+
+**Review** (a fresh subagent over the diff, Copilot being out of quota). Fixed: two overlapping runs of the job could
+queue one warning twice (`MarkWarned` now matches the mark it read); a practitioner's malformed filing on behalf got a
+400 before the role check (now refused and audited first). Left, for the owner or later packages: an overdue request
+can still be extended (Art. 12(3) wants the patient told within the first month: a SPEC question); warnings queued
+before D5 is deployed are lost (deploy D1 with D5); staff on `/me/data-requests` get an unaudited 403 (the contract's
+withdraw lists no 403).
+
+**Checks**: `make lint`, `make test`, `make archcheck` (the full set, twice: the first failed on lint, fixed: funlen of
+`api.New`, field alignment of test structs, `time.Now` in tests, a test's complexity); see the package's report.
+
+**Copy waiting for the owner:** none. D1 adds no user-facing string; the API returns codes only.
