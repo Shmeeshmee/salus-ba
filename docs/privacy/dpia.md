@@ -2651,3 +2651,26 @@ the API creates the clinic unlisted, invites its admin and starts the trial, thr
 | A quote sent to a patient who revoked their care consent | The service checks the active consent; `quote_clinic` refuses the row |
 | A quote mistaken for a bill | The PDF, the e-mail, the app and the dialog say it is a quote, not a receipt, and nothing was charged |
 | The e-mail discloses care | It names the clinic and the visit's time only, as the other appointment e-mails |
+
+### Package M3: patient import (`docs/clinic-cms/WAVE4.md`)
+
+**Processing added.** The clinic's admin uploads a CSV or XLSX file of the clinic's patients (given and family name,
+birth date, an optional phone: the fields of F2's registration, nothing more; other columns are ignored) when the clinic
+moves from other software. The file is read in memory and never stored. A preview shows every row's errors and the
+likely duplicates: rows whose name and birth date are those of a patient already at the clinic (registered by it or
+with its active care consent) or of an earlier row. Saving registers all rows as profiles of the clinic without a
+consent, or none (V5: the desk records the in-person consent at the first booking, as for a walk-in, so an imported
+patient's visits cannot be booked before that). Appointments are not imported.
+
+**Audit.** A refused import is audited. The clinic's patients a preview finds as likely duplicates are each audited as a
+search; each saved profile as a create (`Patient/<id>`); and the import once, with the count of profiles
+(`entity.name` `patient`, `entity.detail` rows), never a row's content. No log line, error or job carries a row.
+
+**Retention.** The profiles are `patient` rows registered by the clinic and follow the rules of F2's registered
+profiles; nothing new is kept.
+
+| Risk | Measure |
+| --- | --- |
+| A file of another clinic's patients reveals whether they are patients here | The duplicate check reads only the caller's clinic's scope (row-level security and the query's clinic); tested against Postgres |
+| A receptionist or practitioner bulk-registers patients | The admin only, refusals audited |
+| A huge or crafted file exhausts the server | 2 MiB upload, 5 000 rows, an XLSX sheet at most a million cells |

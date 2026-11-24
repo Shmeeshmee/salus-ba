@@ -70,6 +70,7 @@ var receptionRoutes = map[string]receptionClass{
 	"PUT /clinic/billing-details": refused, "GET /clinic/setup": refused, "PUT /clinic/setup": refused,
 	"POST /clinic/services/import": refused, "POST /clinic/export": refused, "GET /clinic/export/{id}": refused,
 	"GET /clinic/export/{id}/archive": refused, "PUT /clinic/profile": refused,
+	"POST /clinic/patients/import": refused,
 	// The clinic's profile for patients abroad: public data (GET /organizations/{id}/profile), read by any staff (X2).
 	"GET /clinic/profile": desk,
 

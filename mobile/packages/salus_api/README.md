@@ -215,6 +215,7 @@ Class | Method | HTTP request | Description
 *NotificationsApi* | [**getSmsUsage**](doc//NotificationsApi.md#getsmsusage) | **GET** /clinic/sms-usage | The admin's clinic's SMS usage per month
 *NotificationsApi* | [**setNotificationSettings**](doc//NotificationsApi.md#setnotificationsettings) | **PUT** /me/notification-settings | Replace the patient's reminder channels, quiet hours and time zone
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
+*PatientApi* | [**importClinicPatients**](doc//PatientApi.md#importclinicpatients) | **POST** /clinic/patients/import | Import the clinic's patients from a file
 *PatientApi* | [**registerClinicPatient**](doc//PatientApi.md#registerclinicpatient) | **POST** /clinic/patients | Register a patient who has no Salus account
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 *PatientApi* | [**searchClinicPatients**](doc//PatientApi.md#searchclinicpatients) | **GET** /clinic/patients | Search the clinic's patients
@@ -377,6 +378,7 @@ Class | Method | HTTP request | Description
  - [HistorySharing](doc//HistorySharing.md)
  - [HistorySharingList](doc//HistorySharingList.md)
  - [HistorySummary](doc//HistorySummary.md)
+ - [ImportedPatient](doc//ImportedPatient.md)
  - [Invite](doc//Invite.md)
  - [InviteList](doc//InviteList.md)
  - [InviteRequest](doc//InviteRequest.md)
@@ -401,6 +403,8 @@ Class | Method | HTTP request | Description
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
  - [Patient](doc//Patient.md)
+ - [PatientImport](doc//PatientImport.md)
+ - [PatientImportRow](doc//PatientImportRow.md)
  - [PaymentMethod](doc//PaymentMethod.md)
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)

@@ -1,0 +1,22 @@
+{
+  "open": "Uvezi pacijente",
+  "title": "Uvoz pacijenata",
+  "hint": "CSV ili XLSX datoteka sa redom zaglavlja. Kolone: ime, prezime i datum rođenja (npr. 31.01.1990), a po želji telefon. Najviše 5000 redova. Pacijenti se dodaju klinici bez saglasnosti: recepcija je bilježi pri njihovom prvom zakazivanju.",
+  "file": "Datoteka (CSV ili XLSX)",
+  "ready": "{count, plural, one {Pročitan je # pacijent} few {Pročitana su # pacijenta} other {Pročitano je # pacijenata}}. Ništa se ne čuva dok ne pokrenete uvoz.",
+  "wrong": "{count, plural, one {# od {total} redova ima greške} few {# od {total} redova imaju greške} other {# od {total} redova ima greške}}. Ispravite ih u datoteci i ponovo je izaberite.",
+  "duplicates": "{count, plural, one {# red ima ime i datum rođenja pacijenta koji je već u klinici ili u ranijem redu} few {# reda imaju ime i datum rođenja pacijenta koji je već u klinici ili u ranijem redu} other {# redova ima ime i datum rođenja pacijenta koji je već u klinici ili u ranijem redu}}. Uvoze se svejedno: uklonite ih iz datoteke ako su to iste osobe.",
+  "line": "Red {line}: {errors}",
+  "duplicateLine": "Red {line}: {name}, rođen(a) {birthDate}, možda je već u klinici",
+  "givenNameInvalid": "ime nedostaje ili je duže od 100 znakova",
+  "familyNameInvalid": "prezime nedostaje ili je duže od 100 znakova",
+  "birthDateInvalid": "datum rođenja nije ispravan datum u prošlosti",
+  "phoneInvalid": "telefon nije ispravan broj",
+  "save": "{count, plural, one {Uvezi # pacijenta} few {Uvezi # pacijenta} other {Uvezi # pacijenata}}",
+  "unreadable": "Datoteka ne može da se pročita. Koristite CSV ili XLSX datoteku sa redom zaglavlja koji imenuje bar kolone ime, prezime i datum rođenja, i najviše 5000 redova.",
+  "tooLarge": "Datoteka je prevelika.",
+  "failed": "Datoteka ne može da se uveze. Pokušajte ponovo.",
+  "forbidden": "Samo administrator klinike može da uveze pacijente.",
+  "imported": "{count, plural, one {Uvezen je # pacijent.} few {Uvezena su # pacijenta.} other {Uvezeno je # pacijenata.}}",
+  "cancel": "Odustani"
+}

@@ -2961,6 +2961,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/patients/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import the clinic's patients from a file
+         * @description A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of patients (given name, family name, birth date, an optional phone; headers in English, Bosnian, Croatian or Serbian), at most 5 000 rows. With `save` false (the default) nothing is stored: every row comes back with its errors and whether it is a likely duplicate (a patient of the same name and birth date is the clinic's already, or on an earlier row). With `save` true all rows are registered as the clinic's profiles without a consent (the desk records it at the first booking) or, when any row has an error, none (`saved` false). A likely duplicate is saved all the same. By the clinic's admin. Built in package M3. The clinic's patients a preview finds are audited as a search, each saved profile as a create, and the import with its count.
+         */
+        post: operations["importClinicPatients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clinic/appointments": {
         parameters: {
             query?: never;
@@ -3711,6 +3731,37 @@ export interface components {
             hours: components["schemas"]["SetupStepState"];
             practitioner: components["schemas"]["SetupStepState"];
             services: components["schemas"]["SetupStepState"];
+        };
+        PatientImport: {
+            /** @description Every row was stored; false for a preview or when any row has an error. */
+            saved: boolean;
+            rows: components["schemas"]["PatientImportRow"][];
+        };
+        PatientImportRow: {
+            /**
+             * Format: int32
+             * @description The row's line in the file
+             */
+            line: number;
+            /** @description The profile the row would store; absent for a row with errors. */
+            patient?: components["schemas"]["ImportedPatient"];
+            /** @description A patient of the same name and birth date is the clinic's already, or on an earlier row. */
+            duplicate: boolean;
+            /** @description Codes of what is wrong with the row; empty when it is valid. */
+            errors: ("given_name_invalid" | "family_name_invalid" | "birth_date_invalid" | "phone_invalid")[];
+        };
+        ImportedPatient: {
+            /**
+             * Format: uuid
+             * @description The profile's id; only once saved.
+             */
+            id?: string;
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description E.164. */
+            phone?: string;
         };
         ServiceImport: {
             /** @description Every row was stored; false for a preview or when any row has an error. */
@@ -13333,6 +13384,60 @@ export interface operations {
                 };
             };
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    importClinicPatients: {
+        parameters: {
+            query?: {
+                save?: boolean;
+            };
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The rows read, and whether they were saved. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientImport"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_import`: not a CSV or XLSX file, no header naming the given name, family name and birth date columns, no row under it, or more than 5 000 rows. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `too_large`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

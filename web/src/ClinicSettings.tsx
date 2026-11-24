@@ -9,6 +9,7 @@ import { useLanguage, useT } from './i18n/useT'
 import { languageNames } from './language'
 import { useLoad } from './load'
 import { ClinicSettingsReschedule } from './ClinicSettingsReschedule'
+import { PatientImport } from './PatientImport'
 import { Alert, Field, Link, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 import type { components } from './api/schema'
@@ -23,7 +24,7 @@ type Place = components['schemas']['Place']
 // platform is whether the All of Salus view is on (GET /auth/me features): off, the opt-out and the location hint,
 // which speak of that view, are not shown (docs/plans/analytics.md §2a). Below them, the clinic's rescheduling rules
 // (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33). A link leads to the price list
-// (PriceList, docs/plans/clinic-cms.md package B).
+// (PriceList, docs/plans/clinic-cms.md package B), and a button opens the patient import (PatientImport, M3).
 export function ClinicSettings({
   api,
   fhir,
@@ -43,6 +44,8 @@ export function ClinicSettings({
   }, [api])
   const [load, setLoad] = useState<Load>({ name: 'loading' })
   const [reads, setReads] = useState(0)
+  const [importing, setImporting] = useState(false)
+  const [imported, setImported] = useState<number>()
 
   useEffect(() => {
     let current = true
@@ -85,6 +88,29 @@ export function ClinicSettings({
         {load.name === 'loaded' && <ClinicSettingsNoShows api={api} />}
       </section>
       <ClinicSettingsReminders api={api} />
+      {importing ? (
+        <PatientImport
+          api={api}
+          onImported={(count) => {
+            setImporting(false)
+            setImported(count)
+          }}
+          onCancel={() => setImporting(false)}
+        />
+      ) : (
+        <p>
+          <button
+            type="button"
+            onClick={() => {
+              setImported(undefined)
+              setImporting(true)
+            }}
+          >
+            {t('patientImport.open')}
+          </button>
+        </p>
+      )}
+      {imported !== undefined && <Notice message={t('patientImport.imported', { count: imported })} />}
       <p>
         <Link to="/membership">{t('subscription.link')}</Link>
       </p>

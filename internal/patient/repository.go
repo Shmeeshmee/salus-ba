@@ -29,4 +29,7 @@ type Repository interface {
 	// matching q, by family and given name; for a practitioner's role roleID (empty for any) only those with an
 	// appointment with it.
 	SearchClinic(ctx context.Context, org, roleID string, q ClinicSearch, limit int32) ([]Patient, error)
+	// Matching returns the patients of the clinic org (registered by it or with its active care consent) whose given
+	// and family name (case does not matter) and birth date are those of a profile of in.
+	Matching(ctx context.Context, org string, in []Patient) ([]Patient, error)
 }

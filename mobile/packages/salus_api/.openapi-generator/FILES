@@ -146,6 +146,7 @@ lib/model/history_page.dart
 lib/model/history_sharing.dart
 lib/model/history_sharing_list.dart
 lib/model/history_summary.dart
+lib/model/imported_patient.dart
 lib/model/invite.dart
 lib/model/invite_list.dart
 lib/model/invite_request.dart
@@ -170,6 +171,8 @@ lib/model/offered_service.dart
 lib/model/open_conversation_request.dart
 lib/model/open_item.dart
 lib/model/patient.dart
+lib/model/patient_import.dart
+lib/model/patient_import_row.dart
 lib/model/payment_method.dart
 lib/model/period_unit.dart
 lib/model/place.dart
