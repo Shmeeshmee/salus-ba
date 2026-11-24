@@ -2682,3 +2682,29 @@ rights through the clinic that registered them (V2, pending the lawyer):
 | A clinic reinstates a withdrawn consent | The policy's `WITH CHECK` allows only the revoked state; a reinstated consent is a new in-person record |
 | A receptionist exports the record | The download is the admin's only (403 to everyone else, audited) |
 | The handed-over file is incomplete | It holds what the clinic's admin may read today (profile and consents); visits and clinical documents are not in it yet (`docs/clinic-cms/PROGRESS.md`, R2 deferred) |
+
+### Package R3: SMS reminders for patients without an account (docs/clinic-cms, migration 00068)
+
+- **What is processed.** A patient the clinic registered (F2, no account) is now reminded of a visit by SMS, to the
+  profile's phone, while the clinic's SMS option is on (decision V3). No new personal-data field: the phone is F2's,
+  given at the desk for the clinic to reach the patient. Basis as an app patient's reminder (Art. 6(1)(b), the care the
+  patient booked); the clinic's interest in billing the option (Art. 6(1)(f)) for the usage, which is not personal data.
+- **Where it lives.** `notification_delivery` gains `patient_id` (exactly one of account and patient; a patient's
+  delivery is an SMS only): ids only, no number or text, deleted 90 days after it was sent (or created) and with the
+  profile (`ON DELETE CASCADE`), as an account's are with the account.
+- **Reads.** The phone is read only for the send, through `patient.NoticePhone`, in the clinic's scope, audited with
+  the send's job (`reminder_sms`) as agent. Nothing of the patient is read at the dispatch.
+- **What the SMS says.** The clinic's name (and address for an in-person visit), the date and time in the clinic's
+  zone, in the clinic's default language. No one-time link: a link acts as the patient's account, which they do not
+  have. No practitioner, service or clinical content.
+- **When.** Not between 22:00 and 08:00 in the clinic's zone (the app patient's default quiet hours); a reminder whose
+  quiet hours end less than 30 minutes before the visit is dropped. Cancelled with the visit; cancelled at the send when
+  the clinic turned SMS off or the profile has no phone. The desk's day says whether a reminder reaches each patient.
+- **Processor.** `pkg/sms` is the fake until a provider with a DPA is chosen (`docs/privacy/processors.md`); the
+  clinic's SMS option cannot be turned on while it is.
+
+| Risk | Measure |
+| --- | --- |
+| An SMS to a patient whose clinic does not offer SMS, or without a phone | Checked at the dispatch and again at the send; tested against Postgres |
+| An SMS sent twice | One delivery per reminder and channel (`notification_delivery_once`); leaves pending once; tested with every job run twice |
+| The phone stored outside the profile | Read at the send only; no column holds it; nothing in a log, error or job argument |

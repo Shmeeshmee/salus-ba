@@ -171,3 +171,31 @@ func TestRiverDeliveryJobs_EnqueueEachSendOnItsChannelsQueue(t *testing.T) {
 		t.Errorf("outside a transaction: %v", err)
 	}
 }
+
+// docs/clinic-cms R3: an SMS to a patient without an account is stored once and read back with the patient, no account.
+func TestDeliveries_AnSMSToAPatientWithoutAnAccount(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner)
+	var profile string
+	if err := owner.QueryRow(t.Context(), `INSERT INTO patient (registered_by_organization_id, given_name, family_name, birth_date)
+		VALUES ($1, 'Bo', 'Example', '1980-02-03') RETURNING id::text`, clinicID).Scan(&profile); err != nil {
+		t.Fatal(err)
+	}
+	repo := notification.NewPostgresDeliveryRepository(app)
+	d := notification.Delivery{Kind: notification.KindReminder, SourceID: reminderID, OrganizationID: clinicID, PatientID: profile, Channel: notification.ChannelSMS}
+	inTx(t, app, func(ctx context.Context) error {
+		out, ok, err := repo.AddDelivery(ctx, d)
+		if err != nil || !ok {
+			t.Fatalf("AddDelivery() = %v, %v", ok, err)
+		}
+		if _, ok, err := repo.AddDelivery(ctx, d); ok || err != nil {
+			t.Errorf("again: %v, %v; want nothing stored", ok, err)
+		}
+		got, err := repo.LockDelivery(ctx, out.ID)
+		if err != nil || got.PatientID != profile || got.AccountID != "" || got.Channel != notification.ChannelSMS {
+			t.Errorf("LockDelivery() = %+v, %v", got, err)
+		}
+		return nil
+	})
+}

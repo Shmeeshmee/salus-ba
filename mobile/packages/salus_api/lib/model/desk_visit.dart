@@ -16,6 +16,7 @@ class DeskVisit {
     required this.appointment,
     required this.patient,
     this.serviceName,
+    this.reminder,
     this.receipts = const [],
   });
 
@@ -32,6 +33,15 @@ class DeskVisit {
   ///
   String? serviceName;
 
+  /// Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? reminder;
+
   /// The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so. Each is audited as a read.
   List<DeskReceipt> receipts;
 
@@ -42,6 +52,7 @@ class DeskVisit {
           other.appointment == appointment &&
           other.patient == patient &&
           other.serviceName == serviceName &&
+          other.reminder == reminder &&
           _deepEquality.equals(other.receipts, receipts);
 
   @override
@@ -50,11 +61,12 @@ class DeskVisit {
       (appointment.hashCode) +
       (patient.hashCode) +
       (serviceName == null ? 0 : serviceName!.hashCode) +
+      (reminder == null ? 0 : reminder!.hashCode) +
       (receipts.hashCode);
 
   @override
   String toString() =>
-      'DeskVisit[appointment=$appointment, patient=$patient, serviceName=$serviceName, receipts=$receipts]';
+      'DeskVisit[appointment=$appointment, patient=$patient, serviceName=$serviceName, reminder=$reminder, receipts=$receipts]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -64,6 +76,11 @@ class DeskVisit {
       json[r'serviceName'] = this.serviceName;
     } else {
       json[r'serviceName'] = null;
+    }
+    if (this.reminder != null) {
+      json[r'reminder'] = this.reminder;
+    } else {
+      json[r'reminder'] = null;
     }
     json[r'receipts'] = this.receipts;
     return json;
@@ -99,6 +116,7 @@ class DeskVisit {
         appointment: Appointment.fromJson(json[r'appointment'])!,
         patient: ClinicPatient.fromJson(json[r'patient'])!,
         serviceName: mapValueOfType<String>(json, r'serviceName'),
+        reminder: mapValueOfType<bool>(json, r'reminder'),
         receipts: DeskReceipt.listFromJson(json[r'receipts']),
       );
     }

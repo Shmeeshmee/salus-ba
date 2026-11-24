@@ -134,10 +134,11 @@ func TestDispatchReminder_DeliversAndMarksTheReminderDispatched(t *testing.T) {
 	}
 }
 
-// A patient the clinic registered has no account (docs/clinic-cms W1): their reminder is dispatched with no delivery
-// on any channel and no send job, and no account is read; the job completes.
+// A patient the clinic registered has no account (docs/clinic-cms W1): at a clinic without the SMS option their
+// reminder is dispatched with no delivery on any channel and no send job, and nothing is read; the job completes.
+// With the option, R3's SMS (service_patient_sms_test.go). A waitlist offer never goes to them.
 func TestDispatchReminder_DeliversNothingToAPatientWithoutAnAccount(t *testing.T) {
-	f := newReminderFixture(afterChange.Add(-time.Hour), afterChange, fakeRules{sms: true})
+	f := newReminderFixture(afterChange.Add(-time.Hour), afterChange, fakeRules{})
 	f.reminders.noAccount = true
 	if err := f.svc.DispatchReminder(t.Context(), appointment.ReminderArgs{ReminderID: reminderID, OrganizationID: remindClin}); err != nil {
 		t.Fatalf("DispatchReminder() = %v, want nil", err)

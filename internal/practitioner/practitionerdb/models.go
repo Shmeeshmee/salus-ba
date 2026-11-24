@@ -776,6 +776,7 @@ type NotificationDelivery struct {
 	Kind           string
 	Channel        string
 	State          string
+	PatientID      pgtype.UUID
 }
 
 type NotificationPreference struct {

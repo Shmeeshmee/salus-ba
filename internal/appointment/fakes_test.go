@@ -415,7 +415,9 @@ func (p *fakePatients) Lookup(ctx context.Context, id string) (patient.Patient, 
 	case patientB:
 		return patient.Patient{ID: patientB, AccountID: accountB, GivenName: "Bo", FamilyName: "Example"}, nil
 	case patientC: // registered by clinic A, without an account (docs/clinic-cms F2)
-		return patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example"}, nil
+		return patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example", Phone: "+38761000003"}, nil
+	case patientD: // registered by clinic A, without an account or a phone (docs/clinic-cms R3)
+		return patient.Patient{ID: patientD, RegisteredBy: clinicA, GivenName: "Di", FamilyName: "Example"}, nil
 	}
 	return patient.Patient{}, patient.ErrNotFound
 }

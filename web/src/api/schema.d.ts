@@ -3751,6 +3751,8 @@ export interface components {
             patient: components["schemas"]["ClinicPatient"];
             /** @description The booked service's name; absent for none. */
             serviceName?: string;
+            /** @description Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone. */
+            reminder?: boolean;
             /** @description The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so. Each is audited as a read. */
             receipts: components["schemas"]["DeskReceipt"][];
         };

@@ -58,13 +58,14 @@ DELETE FROM webhook_dead_letter WHERE created_at < @before;
 
 -- name: InsertDelivery :one
 -- A pending delivery; none when its source has one on that channel and device already.
-INSERT INTO notification_delivery (kind, source_id, organization_id, account_id, channel, device_id)
-VALUES (@kind, @source_id, @organization_id, @account_id, @channel, sqlc.narg(device_id))
+-- To an account, or (an SMS, docs/clinic-cms R3) to a patient without one.
+INSERT INTO notification_delivery (kind, source_id, organization_id, account_id, patient_id, channel, device_id)
+VALUES (@kind, @source_id, @organization_id, sqlc.narg(account_id), sqlc.narg(patient_id), @channel, sqlc.narg(device_id))
 ON CONFLICT ON CONSTRAINT notification_delivery_once DO NOTHING
 RETURNING id, created_at;
 
 -- name: LockDelivery :one
-SELECT id, created_at, sent_at, source_id, organization_id, account_id, device_id, segments, kind, channel, state
+SELECT id, created_at, sent_at, source_id, organization_id, account_id, patient_id, device_id, segments, kind, channel, state
 FROM notification_delivery
 WHERE id = @id
 FOR UPDATE;

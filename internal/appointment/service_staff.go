@@ -30,6 +30,7 @@ type DeskVisit struct {
 	Patient     patient.Patient
 	Receipts    []VisitReceipt // the visit's receipts, whoever issued them (reversals left out), by number
 	Appointment Appointment
+	Reminder    bool // a reminder reaches the patient (docs/clinic-cms R3): an account, or SMS offered and a phone
 }
 
 // VisitReceipt is a receipt of a visit as the desk shows it: its number and id (for its PDF), and whether it was
@@ -80,8 +81,8 @@ func (s *Service) actsFor(ctx context.Context, c Caller, roleID string) (bool, e
 // own. A clinic whose bookings are stopped (a suspended or cancelled membership) books nothing; the slot is resolved
 // in the clinic's own scope, listed or not, and must be of an active role; then, in one transaction in the
 // clinic's scope, the patient is read, their active care consent checked, the slot held, the appointment stored,
-// what follows a booking enqueued (for a patient without an account only the statistics: they get no e-mail and no
-// reminder) and the booking audited. ErrForbidden to a patient and to a practitioner for another role's slot,
+// what follows a booking enqueued (for a patient without an account the statistics and the reminders, which reach
+// them by SMS only: no e-mail or questionnaire request) and the booking audited. ErrForbidden to a patient and to a practitioner for another role's slot,
 // ErrNotFound for a patient the clinic does not have, ErrSlotUnavailable for a slot it does not have, one that is
 // not free and ahead or of an inactive role, and while its bookings are stopped, ErrInvalidService,
 // ErrConsentRequired; each refusal is audited.
@@ -167,8 +168,8 @@ func (s *Service) bookFor(ctx context.Context, c Caller, b StaffBooking, sl slot
 	if err != nil {
 		return Appointment{}, nil, err
 	}
-	if p.AccountID == "" { // registered by the clinic: no e-mail, no questionnaire in the app, no reminder
-		return out, nil, s.Stats.EnqueueStatsRefresh(ctx, out.OrganizationID, out.Start)
+	if p.AccountID == "" { // registered by the clinic: no e-mail, no questionnaire in the app; reminders by SMS (R3)
+		return out, nil, s.bookedAtDesk(ctx, out, now)
 	}
 	return out, nil, s.booked(ctx, out, now)
 }
@@ -264,7 +265,8 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 
 // DeskDay is the clinic's visits, but the cancelled ones, of the calendar day day (its date; zero for today in the
 // clinic's zone) in the clinic's zone, by practitioner role and start, each with its patient and its booked service's
-// name, for the desk (package F3's screen): to the clinic's admin and receptionists only (ErrForbidden, audited, to
+// name, and whether a reminder reaches the patient, for the desk (package F3's screen): to the clinic's admin and
+// receptionists only (ErrForbidden, audited, to
 // anyone else). One search of Appointment is audited, and each patient shown as a read of Patient.
 func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error) {
 	if !c.desk() {
@@ -296,6 +298,9 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, e
 			return err
 		}
 		if err := s.withReceipts(ctx, c, out.Visits); err != nil {
+			return err
+		}
+		if err := s.withReminders(ctx, c.OrganizationID, out.Visits); err != nil {
 			return err
 		}
 		return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)

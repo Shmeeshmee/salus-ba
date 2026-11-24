@@ -89,11 +89,11 @@ func TestStaffHandler_GivesTheDesksDay(t *testing.T) {
 	a := booked(newID, patientC, roleA1, clinicA, start)
 	p := patient.Patient{ID: patientC, RegisteredBy: clinicA, GivenName: "Cy", FamilyName: "Example", BirthDate: time.Date(1980, 3, 4, 0, 0, 0, 0, time.UTC), VersionID: 1, LastUpdated: now}
 	svc := &stubStaff{visits: []appointment.DeskVisit{{Appointment: a, Patient: p, ServiceName: "Synthetic exam",
-		Receipts: []appointment.VisitReceipt{{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}}}}}
+		Receipts: []appointment.VisitReceipt{{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}}, Reminder: true}}}
 	rec := serveStaff(t, svc, http.MethodGet, "/clinic/desk/today?date=2030-01-07", "", nil)
 	want := `"patient":{"lastUpdated":"2030-01-01T08:00:00Z","id":"` + patientC + `","givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","registeredByClinic":true,"versionId":1}`
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) || !strings.HasPrefix(rec.Body.String(), `{"date":"2030-01-07","visits":[`) ||
-		!strings.Contains(rec.Body.String(), `"serviceName":"Synthetic exam"`) ||
+		!strings.Contains(rec.Body.String(), `"serviceName":"Synthetic exam"`) || !strings.Contains(rec.Body.String(), `"reminder":true`) ||
 		!strings.Contains(rec.Body.String(), `"receipts":[{"id":"e1000000-0000-4000-8000-0000000000e1","number":7,"reversed":true}]`) ||
 		rec.Header().Get("Cache-Control") != "no-store" || !svc.day.Equal(time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC)) {
 		t.Errorf("desk = %d %s (day %v)", rec.Code, rec.Body, svc.day)

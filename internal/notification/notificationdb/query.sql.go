@@ -216,8 +216,8 @@ func (q *Queries) DevicesOfAccount(ctx context.Context, accountID pgtype.UUID) (
 
 const insertDelivery = `-- name: InsertDelivery :one
 
-INSERT INTO notification_delivery (kind, source_id, organization_id, account_id, channel, device_id)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO notification_delivery (kind, source_id, organization_id, account_id, patient_id, channel, device_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT ON CONSTRAINT notification_delivery_once DO NOTHING
 RETURNING id, created_at
 `
@@ -227,6 +227,7 @@ type InsertDeliveryParams struct {
 	SourceID       pgtype.UUID
 	OrganizationID pgtype.UUID
 	AccountID      pgtype.UUID
+	PatientID      pgtype.UUID
 	Channel        string
 	DeviceID       pgtype.UUID
 }
@@ -238,12 +239,14 @@ type InsertDeliveryRow struct {
 
 // SAL-33 (docs/plans/appointments.md): the deliveries of reminders and offers, the patients' settings, SMS usage.
 // A pending delivery; none when its source has one on that channel and device already.
+// To an account, or (an SMS, docs/clinic-cms R3) to a patient without one.
 func (q *Queries) InsertDelivery(ctx context.Context, arg InsertDeliveryParams) (InsertDeliveryRow, error) {
 	row := q.db.QueryRow(ctx, insertDelivery,
 		arg.Kind,
 		arg.SourceID,
 		arg.OrganizationID,
 		arg.AccountID,
+		arg.PatientID,
 		arg.Channel,
 		arg.DeviceID,
 	)
@@ -253,15 +256,30 @@ func (q *Queries) InsertDelivery(ctx context.Context, arg InsertDeliveryParams) 
 }
 
 const lockDelivery = `-- name: LockDelivery :one
-SELECT id, created_at, sent_at, source_id, organization_id, account_id, device_id, segments, kind, channel, state
+SELECT id, created_at, sent_at, source_id, organization_id, account_id, patient_id, device_id, segments, kind, channel, state
 FROM notification_delivery
 WHERE id = $1
 FOR UPDATE
 `
 
-func (q *Queries) LockDelivery(ctx context.Context, id pgtype.UUID) (NotificationDelivery, error) {
+type LockDeliveryRow struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	SentAt         pgtype.Timestamptz
+	SourceID       pgtype.UUID
+	OrganizationID pgtype.UUID
+	AccountID      pgtype.UUID
+	PatientID      pgtype.UUID
+	DeviceID       pgtype.UUID
+	Segments       pgtype.Int4
+	Kind           string
+	Channel        string
+	State          string
+}
+
+func (q *Queries) LockDelivery(ctx context.Context, id pgtype.UUID) (LockDeliveryRow, error) {
 	row := q.db.QueryRow(ctx, lockDelivery, id)
-	var i NotificationDelivery
+	var i LockDeliveryRow
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -269,6 +287,7 @@ func (q *Queries) LockDelivery(ctx context.Context, id pgtype.UUID) (Notificatio
 		&i.SourceID,
 		&i.OrganizationID,
 		&i.AccountID,
+		&i.PatientID,
 		&i.DeviceID,
 		&i.Segments,
 		&i.Kind,
