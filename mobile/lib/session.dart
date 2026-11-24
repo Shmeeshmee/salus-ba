@@ -164,6 +164,9 @@ class Session {
     await _forget();
   }
 
+  /// Drops the session on the device without asking the API: after the account was closed, whatever logout answers.
+  Future<void> forget() => _forget();
+
   /// Keeps [token] when it belongs to a patient; a staff session is ended at once and not stored.
   Future<SignIn> _open(String? token) async {
     if (token == null || token.isEmpty) throw const ApiFailure(status: HttpStatus.badGateway);

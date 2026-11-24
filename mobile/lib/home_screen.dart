@@ -15,6 +15,7 @@ import 'consents_screen.dart';
 import 'language_picker.dart';
 import 'messages.dart';
 import 'notification_settings_screen.dart';
+import 'privacy_screen.dart';
 import 'profile_screen.dart';
 import 'quotes_screen.dart';
 import 'receipts_screen.dart';
@@ -23,7 +24,7 @@ import 'ui.dart' as ui;
 import 'waitlist_screen.dart';
 
 /// The signed-in patient: the profile first when there is none, then booking, appointments, their history,
-/// consents, reminders and sign-out.
+/// consents, reminders, privacy and sign-out.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -104,6 +105,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void _sessionEnded() {
     Navigator.of(context).popUntil((route) => route.isFirst);
     unawaited(_signOut());
+  }
+
+  /// The account was closed (docs/clinic-cms/WAVE5.md, S5): its session is gone, so the device forgets it and goes
+  /// to sign-in whatever the sign-out call answers.
+  Future<void> _accountClosed() async {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    try {
+      await widget.session.signOut();
+    } on ApiFailure {
+      // The API already ended the session with the account.
+    } finally {
+      await widget.session.forget();
+    }
+    if (mounted) widget.onSignedOut();
   }
 
   /// Opens [screen]; a booking there may have completed the profile, so a missing one is read again after.
@@ -211,6 +226,16 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Text(t.reminders),
         ),
         if (_profile != null) OutlinedButton(onPressed: _editProfile, child: Text(t.myProfile)),
+        OutlinedButton(
+          onPressed: () => _open(
+            () => PrivacyScreen(
+              booking: booking,
+              files: widget.files,
+              onAccountClosed: () => unawaited(_accountClosed()),
+            ),
+          ),
+          child: Text(t.privacy),
+        ),
         TextButton(onPressed: _busy ? null : _signOut, child: Text(t.signOut)),
         if (_error != null) ui.Message(_error!, error: true),
       ],

@@ -2962,3 +2962,16 @@ reads `patient.analytics_objected_at`.
 | A reminder or message reaches a restricted patient from the clinic | The reminder dispatch skips it; staff cannot write in the chat (`WritesChat` refuses) |
 | The analytics count an objecting or restricted patient | Equality test: the figures with the patient's appointments and diagnoses equal those without them, and differ once lifted (`internal/worker/clinicstats_objection_test.go`) |
 | The stats role reads more of the patient than the flag | No grant on `patient` or `patient_restriction`; the function returns a boolean; migration test |
+
+### Package D6: the patient's privacy screens (docs/clinic-cms/WAVE5.md)
+
+**Processing added.** None: the app shows the patient their own requests through the routes of 5.0 (served by D1 to
+D3) and keeps nothing on the device. The export's archive goes through a temporary copy to the share sheet and is
+deleted after it, as the receipts' PDFs are (`files.dart`). The password that confirms a closure is sent once and
+cleared from the field; it is never stored or logged.
+
+| Risk | Measure |
+| --- | --- |
+| A patient closes the account without knowing what it does | The closure screen says what happens at once, what is erased after 21 days, what stays and how to keep a copy first, all tagged legal; the password confirms |
+| A patient misreads what a kind of request does | Each kind carries its plain explanation (S6, S8, S9), tagged legal |
+| The closed session lingers on the device | After closure the app signs out and forgets the token whatever the API answers; a token it could not drop is refused and dropped at the next start |
