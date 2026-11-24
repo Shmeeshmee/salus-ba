@@ -111,5 +111,10 @@
   "quote.state.sent": "Poslana",
   "quote.state.expired": "Istekla",
   "quote.item": "{issued}: {total}, vrijedi do {until}",
-  "quote.noServices": "Cjenovnik nema aktivnih usluga. Dodajte jednu prije pisanja ponude."
+  "quote.noServices": "Cjenovnik nema aktivnih usluga. Dodajte jednu prije pisanja ponude.",
+  "quotes.nav": "Ponude",
+  "quotes.state": "Stanje",
+  "quotes.all": "Sve",
+  "quotes.empty": "Još nema ponuda.",
+  "quotes.emptyState": "Nema ponuda u ovom stanju."
 }

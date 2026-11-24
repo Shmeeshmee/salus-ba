@@ -82,6 +82,7 @@ var receptionRoutes = map[string]receptionClass{
 
 	// Quotes: a practitioner's treatment plan.
 	"GET /clinic/quotes": refused, "POST /clinic/quotes": refused, "GET /clinic/quotes/{id}": refused,
+	"GET /clinic/quotes/{id}/pdf": refused,
 
 	// Questionnaires and their answers.
 	"POST /questionnaires": refused, "PUT /questionnaires/{id}": refused, "DELETE /questionnaires/{id}": refused,

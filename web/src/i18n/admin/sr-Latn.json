@@ -25,6 +25,7 @@
   "sending": "Slanje",
   "invalidEmail": "Unesite ispravnu adresu e-pošte.",
   "invalidName": "Unesite ime i prezime.",
+  "inviteLimit": "Klinika ima 50 otvorenih pozivnica. Sačekajte da neke budu prihvaćene ili isteknu prije slanja nove.",
   "inviteForbidden": "Samo administrator klinike može slati pozivnice.",
   "clinicSettings": "Podešavanja klinike",
   "clinicLoadFailed": "Klinika se nije mogla učitati. Osvježite stranicu i pokušajte ponovo.",

@@ -51,6 +51,12 @@ function renderReceipts(routes: Record<string, Route>, language: Language = 'en'
 }
 
 describe('Receipts', () => {
+  it("links to the clinic's quotes (clinic-cms M4)", async () => {
+    renderReceipts({})
+    await screen.findByRole('list', { name: 'Receipts' })
+    expect(screen.getByRole('link', { name: 'Quotes' }).getAttribute('href')).toBe('/quotes')
+  })
+
   it('lists the month in the clinic zone with number, buyer, total, payment, fiscal status and the PDF', async () => {
     const fake = renderReceipts({})
     const rows = within(await screen.findByRole('list', { name: 'Receipts' })).getAllByRole('listitem')

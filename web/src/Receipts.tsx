@@ -48,6 +48,7 @@ function List({ api, zone, start }: { api: ApiClient; zone: string; start: Perio
           {t('receipts.new')}
         </button>
         <Link to="/receipts/report">{t('receipts.openReport')}</Link>
+        <Link to="/quotes">{t('receipts.quotes.nav')}</Link>
       </div>
       <Notice message={notice} />
       {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}

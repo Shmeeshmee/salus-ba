@@ -145,6 +145,21 @@ describe('App', () => {
     expect(screen.queryByRole('link', { name: 'Front desk' })).toBeNull()
   })
 
+  it('gives the admin the quotes in the menu, and a practitioner and a receptionist neither the page nor the link (clinic-cms M4)', async () => {
+    renderAt('/', { ...staff(admin), 'GET /clinic/quotes': () => Response.json([]) })
+    fireEvent.click(await screen.findByRole('link', { name: 'Quotes' }))
+    expect(await screen.findByText('No quotes yet.')).toBeTruthy()
+    expect(location.pathname).toBe('/quotes')
+    cleanup()
+    for (const role of ['practitioner', 'reception'] as const) {
+      const { requests } = renderAt('/quotes', staff({ ...admin, role }))
+      expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Quotes' })).toBeNull()
+      expect(requests.some((r) => r.url.includes('/clinic/quotes'))).toBe(false)
+      cleanup()
+    }
+  })
+
   it('gives a practitioner no clinic settings', async () => {
     renderAt('/clinic', staff({ ...admin, role: 'practitioner' }))
 
@@ -168,7 +183,7 @@ describe('App', () => {
 
   it('gives a receptionist no clinical screen and no link to one (clinic-cms F1)', async () => {
     const reception: Account = { ...admin, role: 'reception' }
-    for (const path of ['/availability', '/practitioners', '/questionnaires', '/waitlist', '/analytics', '/receipts', '/clinic', '/price-list', '/appointments/x']) {
+    for (const path of ['/availability', '/practitioners', '/questionnaires', '/waitlist', '/analytics', '/receipts', '/quotes', '/clinic', '/price-list', '/appointments/x']) {
       const { requests } = renderAt(path, staff(reception))
       expect(await screen.findByText('This page does not exist.')).toBeTruthy()
       expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()

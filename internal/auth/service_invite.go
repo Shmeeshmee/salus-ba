@@ -21,7 +21,8 @@ const (
 
 // Invite makes an invite for in (e-mail, role and, for a practitioner, the given and family name) in the
 // clinic of the admin signed in with sess, and enqueues its e-mail in the same transaction. An open invite
-// for the same e-mail in the clinic is replaced. Anyone but an admin of the clinic gets ErrForbidden.
+// for the same e-mail in the clinic is replaced. Anyone but an admin of the clinic gets ErrForbidden; a clinic
+// with maxOpenInvites open invites gets ErrInviteLimit for a new e-mail.
 // Audited as a create of the invite, also when refused. Whether the e-mail already has an account is not
 // checked here: an admin must not learn that someone, perhaps a patient, has one.
 func (s *Service) Invite(ctx context.Context, sess Session, in Invite) (Invite, error) {
@@ -30,13 +31,20 @@ func (s *Service) Invite(ctx context.Context, sess Session, in Invite) (Invite, 
 		return Invite{}, err
 	}
 	var out Invite
-	var refused bool
+	var refused error
 	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
 		admin, ok, err := s.clinicAdmin(ctx, sess)
 		if err != nil {
 			return err
 		}
-		if refused = !ok; refused {
+		if !ok {
+			refused = ErrForbidden
+		} else if full, err := s.inviteLimitReached(ctx, admin.OrganizationID, in.Email); err != nil {
+			return err
+		} else if full {
+			refused = ErrInviteLimit
+		}
+		if refused != nil {
 			return s.audit.Record(ctx, inviteEvent(auditevent.CodeCreate, auditevent.ActionCreate, admin, "", auditevent.OutcomeMinorFailure))
 		}
 		in.OrganizationID, in.InvitedBy = admin.OrganizationID, admin.ID
@@ -48,8 +56,8 @@ func (s *Service) Invite(ctx context.Context, sess Session, in Invite) (Invite, 
 	switch {
 	case err != nil:
 		return Invite{}, fmt.Errorf("auth: invite: %w", err)
-	case refused:
-		return Invite{}, ErrForbidden
+	case refused != nil:
+		return Invite{}, refused
 	}
 	return out, nil
 }

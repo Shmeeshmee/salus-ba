@@ -369,6 +369,11 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`invite_limit`: the clinic has 50 open invites (V6 of docs/clinic-cms/WAVE4.md, package M4); replacing an open invite for the same e-mail is still allowed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
     get:
@@ -6868,6 +6873,37 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Quote"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such quote the caller may see."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/quotes/{id}/pdf:
+    get:
+      operationId: getClinicQuotePdf
+      x-salus-package: cms-m4
+      summary: A quote of the clinic as a PDF
+      description: >-
+        The PDF the patient gets (it says it is a quote, not a receipt), to the clinic's admin and the practitioner who
+        sent the quote; never to a receptionist. Built in package M4. Audited, also when refused.
+      tags: [billing]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The PDF.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/pdf:
+              schema: {type: string, contentMediaType: application/pdf}
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "404":

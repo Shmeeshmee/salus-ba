@@ -3249,6 +3249,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/quotes/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A quote of the clinic as a PDF
+         * @description The PDF the patient gets (it says it is a quote, not a receipt), to the clinic's admin and the practitioner who sent the quote; never to a receptionist. Built in package M4. Audited, also when refused.
+         */
+        get: operations["getClinicQuotePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/quotes": {
         parameters: {
             query?: never;
@@ -6809,6 +6829,15 @@ export interface operations {
             };
             /** @description `forbidden`: not an admin of the clinic; or `csrf`. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invite_limit`: the clinic has 50 open invites (V6 of docs/clinic-cms/WAVE4.md, package M4); replacing an open invite for the same e-mail is still allowed. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14028,6 +14057,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Quote"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such quote the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicQuotePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
                 };
             };
             401: components["responses"]["Unauthenticated"];

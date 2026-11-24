@@ -110,6 +110,7 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**createClinicService**](doc//BillingApi.md#createclinicservice) | **POST** /clinic/services | Add a service to the clinic's price list
 *BillingApi* | [**getBillingDetails**](doc//BillingApi.md#getbillingdetails) | **GET** /clinic/billing-details | The clinic's billing details
 *BillingApi* | [**getClinicQuote**](doc//BillingApi.md#getclinicquote) | **GET** /clinic/quotes/{id} | A quote of the clinic
+*BillingApi* | [**getClinicQuotePdf**](doc//BillingApi.md#getclinicquotepdf) | **GET** /clinic/quotes/{id}/pdf | A quote of the clinic as a PDF
 *BillingApi* | [**getClinicReceipt**](doc//BillingApi.md#getclinicreceipt) | **GET** /clinic/receipts/{id} | A receipt of the clinic
 *BillingApi* | [**getClinicReceiptPdf**](doc//BillingApi.md#getclinicreceiptpdf) | **GET** /clinic/receipts/{id}/pdf | A receipt as a PDF on the clinic's letterhead
 *BillingApi* | [**getClinicSubscription**](doc//BillingApi.md#getclinicsubscription) | **GET** /clinic/subscription | The clinic's membership
