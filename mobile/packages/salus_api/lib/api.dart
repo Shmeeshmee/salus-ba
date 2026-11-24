@@ -122,6 +122,7 @@ part 'model/consultation_status.dart';
 part 'model/conversation.dart';
 part 'model/conversation_list.dart';
 part 'model/conversation_participant.dart';
+part 'model/correct_patient_request.dart';
 part 'model/created_webhook.dart';
 part 'model/cursor.dart';
 part 'model/cursor_message.dart';

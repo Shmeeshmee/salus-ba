@@ -10,6 +10,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -183,6 +184,8 @@ type fakeConsents struct {
 	err      error
 	args     []string
 	inPerson []any // RecordInPerson's caller, patient and whether in a transaction
+	withdraw []any // WithdrawInPerson's caller, patient and whether in a transaction
+	of       []consent.Consent
 	state    access.Consent
 }
 

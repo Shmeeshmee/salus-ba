@@ -56,5 +56,39 @@
   "register.invalidPhone": "Unesite broj telefona sa pozivnim brojem države, npr. +387 61 123 456.",
   "register.invalidBirthDate": "Unesite datum rođenja u prošlosti.",
   "register.invalidName": "Unesite ime i prezime.",
-  "register.failed": "Pacijent nije mogao da se upiše. Pokušajte ponovo."
+  "register.failed": "Pacijent nije mogao da se upiše. Pokušajte ponovo.",
+  "patient.title": "Karton pacijenta",
+  "patient.profile": "Podaci",
+  "patient.save": "Sačuvaj",
+  "patient.saving": "Čuvanje",
+  "patient.saved": "Podaci su sačuvani.",
+  "patient.saveFailed": "Podaci nisu mogli da se sačuvaju. Pokušajte ponovo.",
+  "patient.conflict": "Neko je u međuvremenu promijenio ove podatke. Zatvorite karton i otvorite ga ponovo.",
+  "patient.consentTitle": "Saglasnost za liječenje",
+  "patient.withdraw": {
+    "defaultMessage": "Upiši povlačenje saglasnosti",
+    "description": "legal"
+  },
+  "patient.withdrawEffect": {
+    "defaultMessage": "Pacijent je povukao saglasnost za liječenje koju je klinici lično dao. Predstojeće posjete se otkazuju, upisi na listu čekanja povlače, a ljekari klinike više ne vide njegove podatke. Klinika zadržava karton koji već ima, kako zakon nalaže.",
+    "description": "legal"
+  },
+  "patient.confirmWithdraw": {
+    "defaultMessage": "Potvrdi povlačenje",
+    "description": "legal"
+  },
+  "patient.keep": "Zadrži saglasnost",
+  "patient.withdrawn": {
+    "defaultMessage": "Povlačenje je upisano.",
+    "description": "legal"
+  },
+  "patient.noConsent": "Nema aktivne saglasnosti date lično koja bi mogla da se povuče.",
+  "patient.withdrawFailed": "Povlačenje nije moglo da se upiše. Pokušajte ponovo.",
+  "patient.recordTitle": "Karton pacijenta za predaju",
+  "patient.recordHint": {
+    "defaultMessage": "Podaci i saglasnosti kao FHIR datoteka, za predaju pacijentu kad zatraži svoje podatke.",
+    "description": "legal"
+  },
+  "patient.download": "Preuzmi karton",
+  "patient.close": "Zatvori"
 }

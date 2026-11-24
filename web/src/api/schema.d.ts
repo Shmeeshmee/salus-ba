@@ -2961,6 +2961,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/patients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Correct a profile the clinic registered
+         * @description The names, birth date and phone of a patient without an account whom the caller's clinic registered (V2 of docs/clinic-cms WAVE4.md: the patient's rectification, through the clinic). For the clinic's admin and its receptionists. Versioned (`If-Match`). Built in package R2. Audited, also when refused. Another clinic's profile, or a patient's own, is not found.
+         */
+        put: operations["correctClinicPatient"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients/{id}/consent-withdrawal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record that a registered patient withdrew their consent
+         * @description The care consent the patient gave the clinic in person is revoked, with the caller as who recorded it, and the rest follows as for a patient's own revocation in the app: from the commit the clinic's practitioners lose access, and a job cancels the visits ahead (with their notices) and withdraws the waitlist entries. For the clinic's admin and its receptionists, on a patient the clinic registered. Built in package R2. Audited, also when refused.
+         */
+        post: operations["withdrawClinicPatientConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients/{id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a registered patient's record to hand over
+         * @description A FHIR R4 Bundle of type collection with the Patient and the Consents the patient gave the clinic, saved as a file the admin hands to the patient (their access and portability, through the clinic). For the clinic's admin, on a patient the clinic registered. Built in package R2. Audited with the patient's request as the purpose, also when refused.
+         */
+        get: operations["getClinicPatientRecord"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clinic/appointments": {
         parameters: {
             query?: never;
@@ -3654,6 +3714,15 @@ export interface components {
             phone?: string;
             /** @description The patient gave the clinic their care consent in person; the caller records it. Must be true (`invalid_request` otherwise). */
             consentGivenInPerson: boolean;
+        };
+        /** @description The corrected profile of a patient the clinic registered (package R2 of docs/clinic-cms); every field is replaced. */
+        CorrectPatientRequest: {
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description E.164; omitted for none. */
+            phone?: string;
         };
         StaffBookingRequest: {
             /** Format: uuid */
@@ -13333,6 +13402,175 @@ export interface operations {
                 };
             };
             404: components["responses"]["ClinicNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    correctClinicPatient: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectPatientRequest"];
+            };
+        };
+        responses: {
+            /** @description The profile corrected, at its next version. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description The version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicPatient"];
+                };
+            };
+            /** @description `if_match_required`, `invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin or receptionist. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no profile the clinic registered with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    withdrawClinicPatientConsent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The withdrawal recorded. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin or receptionist. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no profile the clinic registered with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consent_inactive`: no active consent the patient gave the clinic in person. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicPatientRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The record. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description attachment; filename="patient-<id>.json" */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/fhir+json": Record<string, never>;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no profile the clinic registered with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

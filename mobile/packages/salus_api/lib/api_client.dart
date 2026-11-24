@@ -348,6 +348,8 @@ class ApiClient {
           return ConversationList.fromJson(value);
         case 'ConversationParticipant':
           return ConversationParticipant.fromJson(value);
+        case 'CorrectPatientRequest':
+          return CorrectPatientRequest.fromJson(value);
         case 'CreatedWebhook':
           return CreatedWebhook.fromJson(value);
         case 'Cursor':

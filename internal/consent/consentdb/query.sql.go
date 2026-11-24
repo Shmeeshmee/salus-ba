@@ -806,6 +806,48 @@ func (q *Queries) RevokeHistoryConsent(ctx context.Context, arg RevokeHistoryCon
 	return i, err
 }
 
+const revokeInPersonConsent = `-- name: RevokeInPersonConsent :one
+UPDATE consent
+SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
+WHERE patient_id = $2 AND organization_id = $3 AND status = 'active' AND given_in_person
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, version_id, status
+`
+
+type RevokeInPersonConsentParams struct {
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+type RevokeInPersonConsentRow struct {
+	ID             pgtype.UUID
+	UpdatedAt      pgtype.Timestamptz
+	DateTime       pgtype.Timestamptz
+	RevokedAt      pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+	VersionID      int32
+	Status         string
+}
+
+// The clinic records that a patient it registered withdrew the care consent they gave in person (docs/clinic-cms R2),
+// in its own scope (00067's policy); a consent given in the app is the patient's to revoke.
+func (q *Queries) RevokeInPersonConsent(ctx context.Context, arg RevokeInPersonConsentParams) (RevokeInPersonConsentRow, error) {
+	row := q.db.QueryRow(ctx, revokeInPersonConsent, arg.RevokedAt, arg.PatientID, arg.OrganizationID)
+	var i RevokeInPersonConsentRow
+	err := row.Scan(
+		&i.ID,
+		&i.UpdatedAt,
+		&i.DateTime,
+		&i.RevokedAt,
+		&i.PatientID,
+		&i.OrganizationID,
+		&i.VersionID,
+		&i.Status,
+	)
+	return i, err
+}
+
 const revokeTranscriptionConsent = `-- name: RevokeTranscriptionConsent :one
 UPDATE transcription_consent
 SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1

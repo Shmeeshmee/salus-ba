@@ -6286,6 +6286,141 @@ paths:
           $ref: "#/components/responses/ClinicNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}:
+    put:
+      operationId: correctClinicPatient
+      x-salus-package: cms-r2
+      summary: Correct a profile the clinic registered
+      description: >-
+        The names, birth date and phone of a patient without an account whom the caller's clinic registered (V2 of
+        docs/clinic-cms WAVE4.md: the patient's rectification, through the clinic). For the clinic's admin and its
+        receptionists. Versioned (`If-Match`). Built in package R2. Audited, also when refused. Another clinic's
+        profile, or a patient's own, is not found.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CorrectPatientRequest"}
+      responses:
+        "200":
+          description: The profile corrected, at its next version.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            ETag: {schema: {type: string}, description: 'The version, W/"<versionId>".'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ClinicPatient"}
+        "400":
+          description: "`if_match_required`, `invalid_request`, `invalid_name`, `invalid_birth_date` or `invalid_phone`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`version_conflict`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/consent-withdrawal:
+    post:
+      operationId: withdrawClinicPatientConsent
+      x-salus-package: cms-r2
+      summary: Record that a registered patient withdrew their consent
+      description: >-
+        The care consent the patient gave the clinic in person is revoked, with the caller as who recorded it, and the
+        rest follows as for a patient's own revocation in the app: from the commit the clinic's practitioners lose
+        access, and a job cancels the visits ahead (with their notices) and withdraws the waitlist entries. For the
+        clinic's admin and its receptionists, on a patient the clinic registered. Built in package R2. Audited, also
+        when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The withdrawal recorded.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_inactive`: no active consent the patient gave the clinic in person."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/record:
+    get:
+      operationId: getClinicPatientRecord
+      x-salus-package: cms-r2
+      summary: Download a registered patient's record to hand over
+      description: >-
+        A FHIR R4 Bundle of type collection with the Patient and the Consents the patient gave the clinic, saved as a
+        file the admin hands to the patient (their access and portability, through the clinic). For the clinic's admin,
+        on a patient the clinic registered. Built in package R2. Audited with the patient's request as the purpose,
+        also when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The record.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            Content-Disposition: {schema: {type: string}, description: 'attachment; filename="patient-<id>.json"'}
+          content:
+            application/fhir+json:
+              schema: {type: object, description: A FHIR R4 Bundle of type collection.}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/appointments:
     post:
       operationId: bookForPatient
@@ -7783,6 +7918,16 @@ components:
         consentGivenInPerson:
           type: boolean
           description: The patient gave the clinic their care consent in person; the caller records it. Must be true (`invalid_request` otherwise).
+    CorrectPatientRequest:
+      type: object
+      required: [givenName, familyName, birthDate]
+      additionalProperties: false
+      description: The corrected profile of a patient the clinic registered (package R2 of docs/clinic-cms); every field is replaced.
+      properties:
+        givenName: {type: string, maxLength: 200}
+        familyName: {type: string, maxLength: 200}
+        birthDate: {type: string, format: date}
+        phone: {type: string, description: E.164; omitted for none.}
     StaffBookingRequest:
       type: object
       required: [patientId, slotId]
