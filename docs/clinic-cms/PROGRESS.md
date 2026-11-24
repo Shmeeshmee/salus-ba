@@ -1576,7 +1576,47 @@ profile's), not walked: there is no device run in this repository.
 - Patient import.
 - A limit on the invites a clinic sends (review).
 - Also open: the hourly slot generation covers listed clinics only, so an unlisted clinic's free times run 28 days ahead
-  of its last change of hours and are not rolled forward until it is listed.
+  of its last change of hours and are not rolled forward until it is listed. (Done in wave 4, R1.)
+
+## R1: free times for every clinic
+
+Done 2026-11-24, one commit `cms(R1)` on `wt/cms/R1` (wave 4, `docs/clinic-cms/WAVE4.md`). No migration.
+
+**Built.**
+
+- `schedule.Service.Generating` replaces `Listed`: every clinic's id from `organization.Stats.Locations` (new port
+  `schedule.Clinics`), then each clinic in its own scope and transaction: its schedules (`OfClinic`) whose role is
+  active (`Roles.Lookup`, added to the `schedule.Roles` port; `practitionerrole.Service` already has it). The directory
+  scope is no longer used by the generation.
+- `slot.Service.GenerateAll` asks `Generating`, so the hourly run covers unlisted and suspended clinics too. The
+  directory's reads (`Search`, the FHIR Slot and Schedule searches) are unchanged: row-level security still shows only
+  listed, not suspended clinics.
+- `internal/worker`: `newSlots(pool, statsPool, clk)` builds the role lookup and the clinic list; `New` passes the stats
+  pool (`newRevocations` passes none: it only holds and frees slots). `TestNew_HandsTheStatsPoolToTheAggregateBuildsOnly`
+  now lists `newSlots` on purpose.
+- Tests: `internal/worker/slots_unlisted_test.go` against the database with the worker's three logins and the service
+  `newSlots` builds (an unlisted clinic's slots roll forward a week later, a suspended clinic's are generated, an
+  inactive role's are not, the directory's `Search` gives only the listed clinic's); `TestGenerating_…` in `schedule`
+  with fakes; the existing `GenerateAll` and worker tests renamed or kept. WAVE4 named
+  `internal/slot/service_generate_unlisted_test.go`: a database test in a `service_*` file breaks depguard (no pgx in a
+  service file) and needs the worker's composition, so it lives beside the worker's other slot tests.
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Listing every clinic without a migration | `organization.Stats.Locations` on the `salus_stats` login (it reads only `organization.id` and `time_zone`, no personal data); everything else on `salus_app` in each clinic's scope | `salus_app` sees no clinic outside a scope, and a policy for a "generation" scope would need a migration number (WAVE4 gives R1 none; `00067` on are taken) |
+| "Active clinic" | Every clinic, with the schedules of its active roles (as before for listed clinics); `organization.active` is not consulted | The old run did not check it either (the directory policy never did), and the app never sets it |
+| A suspended clinic | Generated (V1); its bookings are stopped where they are made | WAVE4 R1 |
+| A clinic whose listing fails mid-run | The run stops with the error; a schedule's own failure still does not stop the others | As before for the list; the next hourly run retries |
+
+**Measured** (`BenchmarkGenerateAll1000Clinics` in `internal/worker`, `-benchtime 3x`, i7-14700HX, the compose
+Postgres): 1 000 clinics, half unlisted, one schedule each (weekdays 08:00 to 16:00, hour slots, 159 slots a schedule).
+First run (from no slots) 28.5 s a run; the hourly job's steady state (nothing changes) 20.8 s a run, about 21 ms a
+schedule, against 17 ms a schedule for 50 schedules of one clinic in `docs/booking/PROGRESS.md` (package 5): the extra
+is the per-clinic transaction and the role lookup. Well inside the hour; not optimised.
+
+**Checks** (this worktree's compose project, `salus-cms-r1`): the fast layer after each change; the full Go set (`make lint`, `make test`, `make archcheck`) twice: the first stopped on lint (depguard and forbidigo in the database test, then in a `service_*` file, moved to `internal/worker`), the second passed. Not run: `make e2e`, `make cover`, `make fhir-validate` (no FHIR response changed).
 
 ## Facts
 

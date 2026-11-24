@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -21,6 +22,7 @@ const (
 	roleB         = "b4000000-0000-4000-8000-0000000000b1"
 	practitioner1 = "a3000000-0000-4000-8000-0000000000a1"
 	practitioner2 = "a3000000-0000-4000-8000-0000000000a2"
+	scheduleA1    = "a5000000-0000-4000-8000-0000000000a1"
 	scheduleA2    = "a5000000-0000-4000-8000-0000000000a2"
 	scheduleB     = "b5000000-0000-4000-8000-0000000000b1"
 )
@@ -146,21 +148,53 @@ func (r *fakeRepository) Update(ctx context.Context, s schedule.Schedule, at tim
 	return schedule.Schedule{}, schedule.ErrConflict
 }
 
-// fakeRoles reads the roles of practitionerrole as its service does: only to staff of the role's clinic.
-type fakeRoles struct{ *log }
+// fakeRoles reads the roles of practitionerrole as its service does: only to staff of the role's clinic. Lookup
+// gives the role inactive when it is inactive, and err when set.
+type fakeRoles struct {
+	*log
+	err      error
+	inactive string
+}
 
-func (r fakeRoles) Read(ctx context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error) {
+var roles = []practitionerrole.PractitionerRole{
+	{ID: roleA1, OrganizationID: clinicA, PractitionerID: practitioner1, Active: true},
+	{ID: roleA2, OrganizationID: clinicA, PractitionerID: practitioner2, Active: true},
+	{ID: roleB, OrganizationID: clinicB, PractitionerID: "b3000000-0000-4000-8000-0000000000b1", Active: true},
+}
+
+func (r *fakeRoles) Read(ctx context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error) {
 	r.seen(ctx, "Roles.Read")
-	for _, p := range []practitionerrole.PractitionerRole{
-		{ID: roleA1, OrganizationID: clinicA, PractitionerID: practitioner1, Active: true},
-		{ID: roleA2, OrganizationID: clinicA, PractitionerID: practitioner2, Active: true},
-		{ID: roleB, OrganizationID: clinicB, PractitionerID: "b3000000-0000-4000-8000-0000000000b1", Active: true},
-	} {
+	for _, p := range roles {
 		if p.ID == id && c.OrganizationID == p.OrganizationID {
 			return p, nil
 		}
 	}
 	return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
+}
+
+func (r *fakeRoles) Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
+	r.seen(ctx, "Roles.Lookup:"+id)
+	if r.err != nil {
+		return practitionerrole.PractitionerRole{}, r.err
+	}
+	for _, p := range roles {
+		if p.ID == id && org == p.OrganizationID {
+			p.Active = p.ID != r.inactive
+			return p, nil
+		}
+	}
+	return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
+}
+
+// fakeClinics lists clinics A and B, as organization.Stats does.
+type fakeClinics struct {
+	*log
+	err error
+}
+
+func (c *fakeClinics) Locations(ctx context.Context) ([]organization.Location, error) {
+	c.seen(ctx, "Clinics.Locations")
+	return []organization.Location{{ID: clinicA, TimeZone: "Europe/Sarajevo"}, {ID: clinicB, TimeZone: "Europe/Sarajevo"}}, c.err
 }
 
 type job struct{ schedule, org string }
@@ -187,10 +221,12 @@ func (a *fakeAuditor) Record(_ context.Context, e auditevent.AuditEvent) error {
 
 type fixture struct {
 	*log
-	repo  *fakeRepository
-	jobs  *fakeJobs
-	audit *fakeAuditor
-	svc   *schedule.Service
+	repo    *fakeRepository
+	jobs    *fakeJobs
+	audit   *fakeAuditor
+	roles   *fakeRoles
+	clinics *fakeClinics
+	svc     *schedule.Service
 }
 
 func newFixture() fixture {
@@ -202,11 +238,13 @@ func newFixture() fixture {
 				Rules: []schedule.Rule{{Day: 2, Start: "08:00", End: "10:00"}}},
 			{ID: scheduleB, OrganizationID: clinicB, PractitionerRoleID: roleB, SlotMinutes: 15, VersionID: 1},
 		}},
-		jobs:  &fakeJobs{log: l},
-		audit: &fakeAuditor{},
+		jobs:    &fakeJobs{log: l},
+		audit:   &fakeAuditor{},
+		roles:   &fakeRoles{log: l},
+		clinics: &fakeClinics{log: l},
 	}
 	f.svc = schedule.NewService(schedule.Ports{
-		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}, Roles: fakeRoles{l}, Jobs: f.jobs,
+		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}, Roles: f.roles, Jobs: f.jobs, Clinics: f.clinics,
 	})
 	return f
 }
@@ -476,16 +514,37 @@ func TestForGeneration_LocksTheScheduleInItsClinic(t *testing.T) {
 	}
 }
 
-func TestListed_GivesTheDirectorysSchedules(t *testing.T) {
+// The hourly slot generation reads every clinic's schedules, listed or not, suspended or not, each clinic in its own
+// scope, and keeps those of active roles (docs/clinic-cms WAVE4 R1).
+func TestGenerating_GivesTheActiveRolesSchedulesOfEveryClinicEachInItsScope(t *testing.T) {
 	t.Parallel()
 	f := newFixture()
-	got, err := f.svc.Listed(t.Context())
-	if err != nil || len(got) != 2 || !slices.Equal(f.calls, []string{"SetDirectory", "Listed"}) {
-		t.Errorf("Listed() = %d, %v after %v; want both in the directory scope", len(got), err, f.calls)
+	f.roles.inactive = roleA2
+	f.repo.schedules = append(f.repo.schedules, schedule.Schedule{ID: scheduleA1, OrganizationID: clinicA, PractitionerRoleID: roleA1, SlotMinutes: 30})
+	got, err := f.svc.Generating(t.Context())
+	if err != nil || len(got) != 2 || got[0].ID != scheduleA1 || got[1].ID != scheduleB {
+		t.Errorf("Generating() = %+v, %v; want A1 and B (A2's role is inactive)", got, err)
 	}
-	f.repo.err = errors.New("synthetic failure")
-	if _, err := f.svc.Listed(t.Context()); err == nil {
-		t.Error("Listed() error = nil, want the repository's")
+	want := []string{"outside:Clinics.Locations", "SetOrganization", "Listed", "Roles.Lookup:" + roleA2, "Roles.Lookup:" + roleA1,
+		"SetOrganization", "Listed", "Roles.Lookup:" + roleB}
+	if !slices.Equal(f.calls, want) || f.repo.directory {
+		t.Errorf("calls = %v, want %v and never the directory scope", f.calls, want)
+	}
+
+	g := newFixture()
+	g.clinics.err = errors.New("synthetic failure")
+	if _, err := g.svc.Generating(t.Context()); err == nil {
+		t.Error("Generating() error = nil when the clinics cannot be listed")
+	}
+	h := newFixture()
+	h.repo.err = errors.New("synthetic failure")
+	if _, err := h.svc.Generating(t.Context()); err == nil {
+		t.Error("Generating() error = nil, want the repository's")
+	}
+	i := newFixture()
+	i.roles.err = errors.New("synthetic failure")
+	if _, err := i.svc.Generating(t.Context()); err == nil {
+		t.Error("Generating() error = nil, want the role lookup's")
 	}
 }
 

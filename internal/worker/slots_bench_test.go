@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
@@ -34,15 +35,27 @@ func seedBench(b *testing.B, owner *pgxpool.Pool) {
 	}
 }
 
+// open connects to dbURL for the test, closed when it ends.
+func open(tb testing.TB, dbURL string) *pgxpool.Pool {
+	tb.Helper()
+	pool, err := postgres.Open(tb.Context(), dbURL)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(pool.Close)
+	return pool
+}
+
 // BenchmarkGenerate is the hourly slots_generate run over 50 schedules, 28 days ahead, through the services
 // the worker builds (salus_app, row-level security on): "first" from no slots (each iteration starts from an
 // empty slot table), "rerun" on the slots already there, which changes nothing. make bench-slots; the
 // numbers are in docs/booking/PROGRESS.md, package 5.
 func BenchmarkGenerate(b *testing.B) {
-	owner, app := pgtest.NewAppDatabase(b)
+	dbURL := pgtest.NewDatabaseURL(b)
+	owner, app, stats := open(b, dbURL), open(b, pgtest.AppURL(b, dbURL)), open(b, pgtest.StatsURL(b, dbURL))
 	seedBench(b, owner)
 	monday := time.Date(2030, 1, 7, 8, 0, 0, 0, time.UTC) // 09:00 in Sarajevo
-	slots := newSlots(app, clock.Fixed{T: monday})
+	slots := newSlots(app, stats, clock.Fixed{T: monday})
 	const want = 639 * benchSchedules
 
 	b.Run("first", func(b *testing.B) {
