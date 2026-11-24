@@ -16,8 +16,8 @@ WHERE id = @id
 FOR NO KEY UPDATE;
 
 -- name: ListedSchedules :many
--- The hourly slot generation, in the directory scope: row-level security shows the schedules of active roles
--- of listed clinics.
+-- Every schedule the scope shows: a clinic's own in its scope (the hourly slot generation, the online practice
+-- report).
 SELECT id, updated_at, organization_id, practitioner_role_id, version_id, slot_minutes, availability
 FROM schedule
 ORDER BY created_at, id;

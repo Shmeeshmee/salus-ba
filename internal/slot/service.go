@@ -21,8 +21,8 @@ type Transactor interface {
 type Schedules interface {
 	// ForGeneration returns the schedule of the clinic, locked until the transaction in ctx ends.
 	ForGeneration(ctx context.Context, org, id string) (schedule.Schedule, error)
-	// Listed returns the schedules of the active roles of listed clinics.
-	Listed(ctx context.Context) ([]schedule.Schedule, error)
+	// Generating returns the schedules of the active roles of every clinic, listed or not.
+	Generating(ctx context.Context) ([]schedule.Schedule, error)
 	// Read returns the schedule id as the directory shows it (of an active role of a listed clinic), or
 	// schedule.ErrNotFound.
 	Read(ctx context.Context, id string) (schedule.Schedule, error)
@@ -89,11 +89,12 @@ func (s *Service) Generate(ctx context.Context, org, id string) (Generated, erro
 	return out, nil
 }
 
-// GenerateAll generates the slots of every schedule of an active role of a listed clinic, each in its own
-// transaction (the scheduler's hourly run). A schedule that fails does not stop the others; the errors are
+// GenerateAll generates the slots of every schedule of an active role of every clinic, listed or not, each in its
+// own transaction (the scheduler's hourly run; docs/clinic-cms WAVE4 R1). The directory still shows only the free
+// slots of listed clinics (row-level security on Search). A schedule that fails does not stop the others; the errors are
 // returned together.
 func (s *Service) GenerateAll(ctx context.Context) (Generated, error) {
-	all, err := s.schedules.Listed(ctx)
+	all, err := s.schedules.Generating(ctx)
 	if err != nil {
 		return Generated{}, fmt.Errorf("slot: generate all: %w", err)
 	}

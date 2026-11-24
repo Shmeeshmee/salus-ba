@@ -57,7 +57,8 @@ type Caller struct {
 }
 
 // SlotsGenerateArgs is the slots_generate job on the default queue: generate the slots of one schedule, or
-// of every schedule of a listed clinic when both ids are empty (the scheduler's hourly run). Opaque ids only.
+// of every schedule of an active role of any clinic, listed or not, when both ids are empty (the scheduler's hourly
+// run). Opaque ids only.
 type SlotsGenerateArgs struct {
 	ScheduleID     string `json:"schedule_id,omitempty"`
 	OrganizationID string `json:"organization_id,omitempty"`

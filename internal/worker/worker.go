@@ -51,8 +51,8 @@ func (noopWorker) Work(context.Context, *river.Job[NoopArgs]) error { return nil
 // New returns the River client cmd/worker runs: it works the default queue and the scan queue on pool, the
 // salus_app login. retentionPool, the salus_retention login (RETENTION_DATABASE_URL), goes to the
 // retention_apply job's purgers and nowhere else; statsPool, the salus_stats login (STATS_DATABASE_URL), to the
-// clinic statistics' builds and, while platform is on, the trends builds; provider, the video server, to the
-// consultation's jobs; files to the binary jobs and binary's purger; webhookKey (WEBHOOK_KEY) opens the secrets of the
+// clinic statistics' builds, the hourly slot generation's list of clinics and, while platform is on, the trends
+// builds; provider, the video server, to the consultation's jobs; files to the binary jobs and binary's purger; webhookKey (WEBHOOK_KEY) opens the secrets of the
 // clinics' webhooks, which the webhook queue delivers; policy is the retention job's (config.LoadRetentionPolicy).
 func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Provider, files Files, webhookKey []byte, policy retention.Policy, platform Trends, log *slog.Logger) (*river.Client[pgx.Tx], error) {
 	if retentionPool == nil {
@@ -82,7 +82,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 	responses := newQuestionnaireResponses(pool, clock.System{})
 	workers := river.NewWorkers()
 	addDefaultWorkers(workers, defaultServices{
-		rules: rules, slots: newSlots(pool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
+		rules: rules, slots: newSlots(pool, statsPool, clock.System{}), appointments: newRevocations(pool, inserter, clock.System{}),
 		sessions: newSessions(pool, provider, inserter, clock.System{}), responses: responses,
 		files: newFiles(pool, files, responses, clock.System{}), chat: newChatPartitions(pool, clock.System{}),
 		clinicStats: newClinicStats(statsPool, clock.System{}), trends: newTrends(pool, statsPool, platform),

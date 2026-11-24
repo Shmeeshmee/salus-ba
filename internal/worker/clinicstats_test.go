@@ -77,13 +77,14 @@ func TestNew_RefusesToStartWithoutTheStatsPool(t *testing.T) {
 	}
 }
 
-// The stats pool reaches two places: New hands it to newClinicStats, which builds the clinic statistics' Builder,
-// the sources' stats readers and its transactions on it, and to newTrends, which hands it to NewTrendsBuilder for the
-// platform builds (SAL-21). Every other job, and River itself, runs on salus_app.
+// The stats pool reaches three places: New hands it to newClinicStats, which builds the clinic statistics' Builder,
+// the sources' stats readers and its transactions on it; to newTrends, which hands it to NewTrendsBuilder for the
+// platform builds (SAL-21); and to newSlots, whose hourly run lists every clinic's id on it (organization.Stats,
+// docs/clinic-cms WAVE4 R1). Every other job, and River itself, runs on salus_app.
 func TestNew_HandsTheStatsPoolToTheAggregateBuildsOnly(t *testing.T) {
 	want := []string{"NewTrendsBuilder", "appointment.NewPostgresStatsRepository", "clinicstats.NewPostgresBuildRepository", "condition.NewPostgresRepository",
-		"newClinicStats", "newTrends", "organization.NewPostgresStatsRepository", "postgres.NewTransactor",
-		"practitionerrole.NewPostgresStatsRepository", "terminology.NewPostgresCatalogRepository"}
+		"newClinicStats", "newSlots", "newTrends", "organization.NewPostgresStatsRepository", "organization.NewPostgresStatsRepository",
+		"postgres.NewTransactor", "practitionerrole.NewPostgresStatsRepository", "terminology.NewPostgresCatalogRepository"}
 	if uses := poolUses(t, "statsPool"); !slices.Equal(uses, want) {
 		t.Errorf("statsPool is passed to %v, want only %v", uses, want)
 	}
