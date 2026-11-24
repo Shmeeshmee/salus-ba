@@ -259,14 +259,6 @@ func TestDeskDay_GivesTheClinicsDayInItsZoneWithEachPatientAndAuditsTheReads(t *
 	}
 }
 
-// A staff move is not built yet (docs/clinic-cms/PROGRESS.md, F2 "Deferred").
-func TestMoveForPatient_RefusesUntilItIsBuilt(t *testing.T) {
-	t.Parallel()
-	if _, err := staffFixture().svc.MoveForPatient(t.Context(), desk, newID, slotFree); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("MoveForPatient = %v, want errors.ErrUnsupported", err)
-	}
-}
-
 // Without a date the desk's day is today in the clinic's zone (00:30 in Sarajevo is still 23:30 UTC the day before),
 // and each visit names its booked service from the clinic's own price list.
 func TestDeskDay_IsTodayInTheClinicsZoneAndNamesEachService(t *testing.T) {

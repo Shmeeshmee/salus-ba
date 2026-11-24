@@ -90,5 +90,15 @@
     "description": "legal"
   },
   "patient.download": "Download the record",
-  "patient.close": "Close"
+  "patient.close": "Close",
+  "move.open": "Move",
+  "move.title": "Move visit",
+  "move.submit": "Move visit",
+  "move.moving": "Moving",
+  "move.time": "New time",
+  "move.noSlots": "This practitioner has no free time of this visit type in the next two weeks.",
+  "move.changed": "The visit was changed in the meantime. Close this and reload the page.",
+  "move.joinOpen": "A video visit cannot be moved once its call can be joined.",
+  "move.failed": "The visit could not be moved. Try again.",
+  "move.moved": "The visit was moved."
 }

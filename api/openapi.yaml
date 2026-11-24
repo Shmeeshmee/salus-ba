@@ -6481,8 +6481,11 @@ paths:
       x-salus-package: cms-f2
       summary: Move a patient's visit to another slot
       description: >-
-        To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in
-        package F2. Audited, also when refused.
+        By the clinic's admin or receptionist: a booked visit to any free slot of the clinic of the same visit mode,
+        another practitioner's too (docs/clinic-cms WAVE4 V4). Not counted toward the patient's own reschedules and
+        not a confirmation; recorded as staff's with the account; the reminders follow and the patient with an account
+        is e-mailed the new time. A video visit stops moving when its join window opens. Built in package M1.
+        Audited, also when refused.
       tags: [appointments]
       security:
         - sessionCookie: []
@@ -6512,17 +6515,17 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
-          description: "`forbidden`."
+          description: "`forbidden`, or `consent_required`."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such appointment or slot the caller may see."
+          description: "`not_found`: no such appointment the caller may see."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "409":
-          description: "`slot_unavailable`, `appointment_closed` or `version_conflict`."
+          description: "`slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened) or `version_conflict`."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -9328,6 +9331,7 @@ components:
             - consent_required
             - transcription_consent_required
             - slot_unavailable
+            - not_reschedulable # the staff move (docs/clinic-cms M1) and the patient's reschedule
             - cancellation_window_closed
             - appointment_closed
             - appointment_not_started

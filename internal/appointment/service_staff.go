@@ -205,13 +205,6 @@ func (s *Service) CancelForPatient(ctx context.Context, c Caller, id string, ver
 	return out, nil
 }
 
-// MoveForPatient moves the appointment id to the slot slotID as the staff caller c. Not built yet (package F2's
-// DEFERRED in docs/clinic-cms/PROGRESS.md): a staff move must not count against the patient's own reschedules nor
-// confirm the visit in the app, which the patient's Reschedule does.
-func (s *Service) MoveForPatient(ctx context.Context, c Caller, id, slotID string) (Appointment, error) {
-	return Appointment{}, errors.ErrUnsupported
-}
-
 // Arrive marks the booked in-person appointment id arrived at the desk (StatusArrived, W6) as the clinic's admin or
 // receptionist c, in the clinic's scope, and returns it; audited, and the clinic's statistics refreshed. ErrForbidden
 // to anyone else, ErrNotFound for an appointment the clinic does not see, ErrNotInPerson for a video visit, ErrClosed

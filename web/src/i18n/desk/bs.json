@@ -90,5 +90,15 @@
     "description": "legal"
   },
   "patient.download": "Preuzmi karton",
-  "patient.close": "Zatvori"
+  "patient.close": "Zatvori",
+  "move.open": "Premjesti",
+  "move.title": "Premjesti termin",
+  "move.submit": "Premjesti termin",
+  "move.moving": "Premještanje",
+  "move.time": "Novi termin",
+  "move.noSlots": "Ovaj ljekar nema slobodnih termina ove vrste u naredne dvije sedmice.",
+  "move.changed": "Termin je u međuvremenu promijenjen. Zatvorite ovo i ponovo učitajte stranicu.",
+  "move.joinOpen": "Video termin se ne može premjestiti kada se poziv već može otvoriti.",
+  "move.failed": "Termin se nije mogao premjestiti. Pokušajte ponovo.",
+  "move.moved": "Termin je premješten."
 }

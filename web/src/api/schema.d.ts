@@ -3052,7 +3052,7 @@ export interface paths {
         put?: never;
         /**
          * Move a patient's visit to another slot
-         * @description To a free slot of the same role and visit mode, as the patient's own reschedule; recorded as staff's. Built in package F2. Audited, also when refused.
+         * @description By the clinic's admin or receptionist: a booked visit to any free slot of the clinic of the same visit mode, another practitioner's too (docs/clinic-cms WAVE4 V4). Not counted toward the patient's own reschedules and not a confirmation; recorded as staff's with the account; the reminders follow and the patient with an account is e-mailed the new time. A video visit stops moving when its join window opens. Built in package M1. Audited, also when refused.
          */
         post: operations["rescheduleForPatient"];
         delete?: never;
@@ -4643,7 +4643,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person";
             /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -13684,7 +13684,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `forbidden`. */
+            /** @description `forbidden`, or `consent_required`. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13693,7 +13693,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such appointment or slot the caller may see. */
+            /** @description `not_found`: no such appointment the caller may see. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13702,7 +13702,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `slot_unavailable`, `appointment_closed` or `version_conflict`. */
+            /** @description `slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened) or `version_conflict`. */
             409: {
                 headers: {
                     [name: string]: unknown;

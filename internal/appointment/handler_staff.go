@@ -19,6 +19,7 @@ const dateLayout = "2006-01-02"
 type StaffAppointments interface {
 	BookForPatient(ctx context.Context, c Caller, b StaffBooking) (Appointment, error)
 	CancelForPatient(ctx context.Context, c Caller, id string, version int32) (Appointment, error)
+	MoveForPatient(ctx context.Context, c Caller, id, slotID string, version int32) (Appointment, error)
 	Arrive(ctx context.Context, c Caller, id string) (Appointment, error)
 	DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error)
 }
@@ -36,11 +37,11 @@ func NewStaffHandler(svc StaffAppointments, caller func(ctx context.Context) (Ca
 	return &StaffHandler{svc: svc, HTTPHandler: HTTPHandler{caller: caller, log: log}}
 }
 
-// Routes declares the staff's appointment routes on mux. The staff's move (/clinic/appointments/{id}/reschedule) is
-// not served yet (MoveForPatient).
+// Routes declares the staff's appointment routes on mux.
 func (h *StaffHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /clinic/appointments", h.book)
 	mux.HandleFunc("POST /clinic/appointments/{id}/cancel", h.cancel)
+	mux.HandleFunc("POST /clinic/appointments/{id}/reschedule", h.move)
 	mux.HandleFunc("POST /clinic/appointments/{id}/arrive", h.arrive)
 	mux.HandleFunc("GET /clinic/desk/today", h.desk)
 }
@@ -76,6 +77,30 @@ func (h *StaffHandler) cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := h.svc.CancelForPatient(r.Context(), c, r.PathValue("id"), version)
+	h.reply(w, r, http.StatusOK, out, err)
+}
+
+// move is the desk's move of a visit (docs/clinic-cms WAVE4 M1): the slot from the body, the version from If-Match.
+func (h *StaffHandler) move(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	version, ok := ifMatch(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		SlotID string `json:"slotId"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.SlotID == "" {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	out, err := h.svc.MoveForPatient(r.Context(), c, r.PathValue("id"), req.SlotID, version)
 	h.reply(w, r, http.StatusOK, out, err)
 }
 

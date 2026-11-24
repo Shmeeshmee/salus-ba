@@ -408,6 +408,16 @@ type Move struct {
 	From   int32
 }
 
+// StaffMove is a move by the clinic's desk (docs/clinic-cms WAVE4 M1): the new slot, its practitioner role and period,
+// and the version the move was decided on (a change that committed first leaves another, and this one changes nothing).
+type StaffMove struct {
+	Start              time.Time
+	End                time.Time
+	SlotID             string
+	PractitionerRoleID string
+	Version            int32
+}
+
 // Actions is what the patient may do with their appointment now (GET /appointments/{id}/actions): confirm while
 // unconfirmed, cancel until 24 hours before the start, reschedule within the clinic's notice and limit. The times are
 // the last moments each is possible; zero when it is not.
