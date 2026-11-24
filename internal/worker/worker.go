@@ -93,6 +93,7 @@ func New(pool, retentionPool, statsPool *pgxpool.Pool, provider videosession.Pro
 		memberships: newMemberships(pool, inserter, clock.System{}),
 		exports:     newClinicExports(pool, files, appointments, receipts, clock.System{}),
 		requests:    newDataRequests(pool, inserter, clock.System{}),
+		dataExports: newDataRequestExports(pool, files, appointments, receipts, clock.System{}),
 	}, log)
 	addWebhookWorkers(workers, webhooks)
 	cfg := workConfig(log, river.QueueDefault, workers)
@@ -124,6 +125,7 @@ type defaultServices struct {
 	memberships  *subscription.Service
 	exports      *clinicexport.Service // the clinic's data export (clinic-cms M2)
 	requests     *datarequest.Service  // the data subject's requests' deadline warnings (clinic-cms D1)
+	dataExports  *datarequest.Service  // the patient's own export (clinic-cms D2)
 }
 
 // addDefaultWorkers registers the default queue's jobs. The scheduler registers them too, with no services:
@@ -151,6 +153,7 @@ func addDefaultWorkers(workers *river.Workers, s defaultServices, log *slog.Logg
 	river.AddWorker(workers, &subscriptionWorker{memberships: s.memberships, clock: clock.System{}, log: log})
 	river.AddWorker(workers, &clinicExportWorker{exports: s.exports, log: log})
 	river.AddWorker(workers, &dataRequestDeadlinesWorker{requests: s.requests, log: log})
+	river.AddWorker(workers, &dataRequestExportWorker{exports: s.dataExports, log: log})
 }
 
 // newTrends is the platform build on the salus_stats pool, or nil while it is off.

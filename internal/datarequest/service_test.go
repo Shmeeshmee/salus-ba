@@ -17,8 +17,6 @@ func TestService_RefusesUntilItsPackageBuildsIt(t *testing.T) {
 	patient := datarequest.Patient{AccountID: "00000000-0000-4000-8000-000000000001"}
 	const id = "00000000-0000-4000-8000-000000000004"
 	calls := map[string]func() error{
-		"Export":        func() error { _, err := s.Export(ctx, patient, id); return err },
-		"ExportArchive": func() error { _, _, err := s.ExportArchive(ctx, patient, id); return err },
 		"CloseAccount":  func() error { return s.CloseAccount(ctx, patient, "a password") },
 		"ReopenAccount": func() error { return s.ReopenAccount(ctx, patient.AccountID) },
 	}

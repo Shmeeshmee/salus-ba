@@ -2872,3 +2872,29 @@ queued a warning: an instant, no personal data).
 | A patient files to a clinic that holds nothing of theirs, which would tell the clinic they exist | The service requires a consent of the patient at that clinic; 404 otherwise; service test |
 | The job's scope reaches a closed request or changes a request | Its policies show open requests only; the trigger refuses any change but the mark; migration test |
 | A warning job carries personal data | Its arguments are the request's id and the number of days; River test |
+### Package D2: the patient's own export (migration 00074, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** The export that answers an access or portability request a patient filed in the app (S2, S4).
+
+- **What is read.** As the patient themselves, through the services they read in the app, each read audited by its
+  owning service with the patient's account as the agent: their profile, their consents, their appointments (the
+  visits a withdrawal cancelled included, S11) and the receipts issued to them, from every clinic for the account
+  target and from the one clinic for a clinic target; for the account target also their account (e-mail, language
+  choice, when two-step sign-in was set up; never the password hash, the MFA secret or sessions). Nothing is read in a
+  staff or clinic scope. Not yet in the archive (deferred, see `docs/clinic-cms/PROGRESS.md`): encounters, signed
+  documents, questionnaire answers and their files, which the patient reads in the app's history.
+- **Where it is kept** (`data_request_export`): the request it answers, the account, when it was asked for, ready and
+  expires, the archive's size and its data key wrapped by the key-encryption key. The archive (a zip of a FHIR R4
+  Bundle, `account.json` and a manifest) is encrypted with its own data key (`pkg/envelope`, bound to the request's id)
+  and stored in the object store under `datarequest/<request id>`; the object store never sees a plaintext byte.
+  Row-level security: the patient's own scope only, for an access or portability request of theirs; one export queued
+  per patient. Lawful basis: the legal obligation to answer (Art. 6(1)(c), Art. 15, Art. 20).
+- **Answering.** Once the archive is stored, the job answers the request `done` (fulfilled) through
+  `data_request_export_fulfil`, a SECURITY DEFINER function that answers only the scope's own open request whose
+  export is ready, with a history entry by the job. A failed build leaves the request open for its answerer.
+- **Download and retention.** The patient downloads it for 7 days after it is ready (status and download both
+  audited as the patient's reads, `Cache-Control: no-store`); the retention rule `data_request_export` then deletes
+  the archive and the row, and a failed export 7 days after it was asked for.
+- **Logs.** The job logs only the request's id on a failure; no byte of the archive, no name or e-mail.
+- **A patient the clinic registered** (no account) gets no export from Salus: the clinic's hand-over (wave 4) is
+  their copy, downloaded by the admin.

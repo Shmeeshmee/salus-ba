@@ -209,7 +209,16 @@ func (fakeClinics) Clinic(_ context.Context, id string) (organization.Organizati
 	return organization.Organization{}, organization.ErrNotFound
 }
 
-type fakeJobs struct{ warnings []datarequest.WarningArgs }
+// fakeJobs keeps the jobs queued: D1's warnings and D2's exports.
+type fakeJobs struct {
+	warnings []datarequest.WarningArgs
+	queued   []datarequest.ExportArgs
+}
+
+func (j *fakeJobs) EnqueueExport(_ context.Context, args datarequest.ExportArgs) error {
+	j.queued = append(j.queued, args)
+	return nil
+}
 
 func (j *fakeJobs) EnqueueWarning(_ context.Context, a datarequest.WarningArgs) error {
 	j.warnings = append(j.warnings, a)

@@ -608,6 +608,18 @@ type DataRequestChange struct {
 	Status             string
 }
 
+type DataRequestExport struct {
+	DataRequestID pgtype.UUID
+	RequestedAt   pgtype.Timestamptz
+	ReadyAt       pgtype.Timestamptz
+	ExpiresAt     pgtype.Timestamptz
+	AccountID     pgtype.UUID
+	Status        string
+	Size          pgtype.Int8
+	KekID         pgtype.Text
+	WrappedKey    []byte
+}
+
 type DiagnosisGroup struct {
 	Position   int32
 	Code       string

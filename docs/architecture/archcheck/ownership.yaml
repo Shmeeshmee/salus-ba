@@ -35,6 +35,7 @@ tables:
   conversation_participant: {owner: communication, personal_data: true}
   data_request: {owner: datarequest, personal_data: true} # a data subject's request, its target and answer (00071, 5.0)
   data_request_change: {owner: datarequest, personal_data: true} # a request's append-only status history (00071, 5.0)
+  data_request_export: {owner: datarequest, personal_data: true} # a patient's own export: the key of its archive of their data (00074, D2)
   diagnosis_group: {owner: terminology, personal_data: false}
   diagnosis_group_name: {owner: terminology, personal_data: false}
   diagnosis_group_range: {owner: terminology, personal_data: false}

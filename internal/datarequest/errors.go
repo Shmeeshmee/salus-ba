@@ -19,4 +19,7 @@ var (
 	ErrVersionConflict = errors.New("datarequest: version conflict")
 	// ErrWrongPassword is returned when the password that confirms an account's closure is wrong.
 	ErrWrongPassword = errors.New("datarequest: wrong password")
+	// ErrExportInProgress is returned when an access or portability request is filed while the patient's export of an
+	// earlier one is still being built (D2: one export in progress per patient).
+	ErrExportInProgress = errors.New("datarequest: export in progress")
 )

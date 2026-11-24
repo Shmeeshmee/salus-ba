@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -48,7 +47,8 @@ type Ports struct {
 	Profiles Profiles
 	Consents Consents
 	Clinics  Clinics
-	Jobs     Jobs // the deadline warnings (the worker's)
+	Jobs     Jobs        // the deadline warnings (the worker's)
+	Export   ExportPorts // the patient's export (D2, service_export.go)
 }
 
 // Service is the requests' business rules.
@@ -468,16 +468,6 @@ func (r Request) closed() bool {
 }
 
 func (st Staff) admin() bool { return st.Admin && st.OrganizationID != "" && st.AccountID != "" }
-
-// Export returns where the export of the patient's access or portability request id stands (D2).
-func (s *Service) Export(_ context.Context, _ Patient, _ string) (Export, error) {
-	return Export{}, errors.ErrUnsupported
-}
-
-// ExportArchive opens the ready export of the patient's request id and returns it with its size (D2).
-func (s *Service) ExportArchive(_ context.Context, _ Patient, _ string) (io.ReadCloser, int64, error) {
-	return nil, 0, errors.ErrUnsupported
-}
 
 // CloseAccount closes the patient's account once the password confirms it (S5, D3).
 func (s *Service) CloseAccount(_ context.Context, _ Patient, _ string) error {
