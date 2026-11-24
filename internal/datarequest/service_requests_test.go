@@ -2,6 +2,7 @@ package datarequest_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -76,6 +77,26 @@ func TestFile_AnAccessRequestQueuesItsExport(t *testing.T) {
 	_, err = f.svc.File(ctx, patientA, datarequest.Filing{Kind: datarequest.KindPortability, Target: datarequest.TargetAccount})
 	if !errors.Is(err, datarequest.ErrExportInProgress) {
 		t.Errorf("a portability request while the export is queued: %v, want ErrExportInProgress", err)
+	}
+}
+
+// An objection to the analytics marks the profile from the request on (S9), whether the patient files it or the desk
+// files it for a patient the clinic registered; other kinds mark nothing.
+func TestFile_AnObjectionMarksTheProfile(t *testing.T) {
+	t.Parallel()
+	f := newFixture(filedAt)
+	ctx := t.Context()
+	if _, err := f.svc.File(ctx, patientA, datarequest.Filing{Kind: datarequest.KindRectification, Target: datarequest.TargetAccount}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.File(ctx, patientA, datarequest.Filing{Kind: datarequest.KindObjection, Target: datarequest.TargetClinic, OrganizationID: clinicA}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.FileOnBehalf(ctx, desk, registered, datarequest.KindObjection); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{profileA, registered}; !slices.Equal(f.objections.marked, want) {
+		t.Errorf("marked %v, want %v", f.objections.marked, want)
 	}
 }
 

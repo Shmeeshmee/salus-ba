@@ -125,7 +125,7 @@ func (o *Operator) change(ctx context.Context, op, id string, version int, fn fu
 		switch {
 		case err != nil:
 			return err
-		case r.closed():
+		case r.closed(), r.erasing(): // a closure's erasure request is the erasure job's to answer (S6)
 			return ErrClosed
 		case r.Version != version:
 			return ErrVersionConflict

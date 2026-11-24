@@ -162,6 +162,16 @@ func (r *postgresRepository) Matching(ctx context.Context, org string, in []Pati
 	return out, nil
 }
 
+func (r *postgresRepository) ObjectToAnalytics(ctx context.Context, id string, at time.Time) error {
+	var p pgtype.UUID
+	if p.Scan(id) != nil {
+		return ErrNotFound
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).ObjectToAnalytics(ctx, patientdb.ObjectToAnalyticsParams{
+		At: pgtype.Timestamptz{Time: at, Valid: true}, ID: p,
+	})
+}
+
 func (r *postgresRepository) RestrictedAt(ctx context.Context, org string) ([]string, error) {
 	var o pgtype.UUID
 	if o.Scan(org) != nil {

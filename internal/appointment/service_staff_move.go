@@ -87,8 +87,11 @@ func (s *Service) moveFor(ctx context.Context, c Caller, id string, b slot.Booka
 		return Appointment{}, nil, err
 	}
 	consent, err := s.Consents.State(ctx, a.PatientID, a.OrganizationID)
-	if err != nil || !consent.Active {
+	switch {
+	case err != nil || !consent.Active:
 		return Appointment{}, ErrConsentRequired, err
+	case consent.Restricted: // S7: no new use of a restricted record
+		return Appointment{}, ErrNotFound, nil
 	}
 	if _, err := s.Slots.Hold(ctx, c.OrganizationID, b.ID); errors.Is(err, slot.ErrUnavailable) {
 		return Appointment{}, ErrSlotUnavailable, nil

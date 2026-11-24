@@ -41,6 +41,8 @@ type Repository interface {
 	Matching(ctx context.Context, org string, in []Patient) ([]Patient, error)
 	// RegisteredBy returns the ids of the profiles the clinic org registered, in the transaction and scope in ctx.
 	RegisteredBy(ctx context.Context, org string) ([]string, error)
+	// ObjectToAnalytics marks the patient id as objecting to the analytics from at, in the scope of ctx; a mark stays.
+	ObjectToAnalytics(ctx context.Context, id string, at time.Time) error
 	// RestrictedAt returns the ids of the patients whose record the clinic restricts, in its scope (D4).
 	RestrictedAt(ctx context.Context, org string) ([]string, error)
 	// Restrict restricts the patient's record at the clinic org (the scope set by SetClinic), by the staff account by,

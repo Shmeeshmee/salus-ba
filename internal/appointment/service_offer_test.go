@@ -79,6 +79,13 @@ func TestHandOn_PassesOverWhoMayNotBeOfferedNow(t *testing.T) {
 	if err := w.svc.HandOn(t.Context(), clinicA, slotFree); err != nil || len(w.wl.offers) != 0 || w.offered.status(slotFree) != slot.StatusFree {
 		t.Errorf("HandOn() = %v, offers %+v, slot %s; want none and the slot free: the consent is not active", err, w.wl.offers, w.offered.status(slotFree))
 	}
+	w = newWaitlistFixture(now)
+	a = w.entry(patientA, roleA1, 0)
+	w.wl.cands = []string{a}
+	w.consents.state[patientA+clinicA] = access.Consent{Active: true, Restricted: true} // S7: never used for messages
+	if err := w.svc.HandOn(t.Context(), clinicA, slotFree); err != nil || len(w.wl.offers) != 0 {
+		t.Errorf("HandOn() = %v, offers %+v; want none: the record is restricted", err, w.wl.offers)
+	}
 }
 
 // A slot stays as it is while the clinic's waitlist is off, when it starts within the hold and an hour, is booked, is

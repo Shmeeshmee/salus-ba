@@ -125,6 +125,9 @@ func (r Request) Deadline() time.Time {
 }
 
 // overdue reports whether the request's due date has passed at now: it can no longer be extended (S12).
+// erasing: r is a closed account's erasure request, in progress until the erasure job answers it (D3).
+func (r Request) erasing() bool { return r.Kind == KindErasure && r.Status == StatusInProgress }
+
 func (r Request) overdue(now time.Time) bool { return now.After(r.DueAt) }
 
 // The warnings before a deadline (S3): the answerer is warned this many days before it.

@@ -53,20 +53,25 @@ type Erased struct {
 // Run erases every account due, one transaction each, and returns what it did. Per account: the record each clinic
 // keeps is restricted there, the push devices are removed, the account's login, password, MFA and languages are
 // erased, and its erasure request is fulfilled: done when nothing was kept, done_partly_kept otherwise. An erased
-// account is no longer due, so a second run erases nothing more. An account due without its erasure request stops the
-// run with ErrNotFound: what to keep would be unknown.
+// account is no longer due, so a second run erases nothing more. An account due without its erasure request is left
+// as it is (what to keep would be unknown) and the run, after erasing the others, fails with ErrNotFound.
 func (e *Erasure) Run(ctx context.Context) ([]Erased, error) {
 	ids, err := e.p.Accounts.DueForErasure(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("datarequest: erasure: %w", err)
 	}
 	var out []Erased
-	for _, id := range ids {
+	var failed []error
+	for _, id := range ids { // one account that fails stops none of the others; the run then fails, for River's retry
 		done, err := e.erase(ctx, id)
 		if err != nil {
-			return out, fmt.Errorf("datarequest: erasure: %w", err)
+			failed = append(failed, err)
+			continue
 		}
 		out = append(out, done)
+	}
+	if err := errors.Join(failed...); err != nil {
+		return out, fmt.Errorf("datarequest: erasure: %w", err)
 	}
 	return out, nil
 }

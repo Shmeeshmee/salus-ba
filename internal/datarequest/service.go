@@ -38,6 +38,11 @@ type Clinics interface {
 	Clinic(ctx context.Context, organizationID string) (organization.Organization, error)
 }
 
+// Objections marks a profile as objecting to the analytics, in the caller's transaction and scope (patient.Service).
+type Objections interface {
+	ObjectToAnalytics(ctx context.Context, patientID string) error
+}
+
 // Ports are what the Service consumes.
 type Ports struct {
 	Repo     Repository
@@ -49,6 +54,8 @@ type Ports struct {
 	Clinics  Clinics
 	Jobs     Jobs        // the deadline warnings (the worker's)
 	Export   ExportPorts // the patient's export (D2, service_export.go)
+	// Objections: an objection marks the profile as it is filed (S9).
+	Objections Objections
 }
 
 // Service is the requests' business rules.
@@ -88,12 +95,24 @@ func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error
 		if err := s.p.Audit.Record(ctx, event(p.AccountID, r, auditevent.CodeCreate, auditevent.CodePATRQT, 1)); err != nil {
 			return err
 		}
+		if err := s.objected(ctx, r); err != nil {
+			return err
+		}
 		return s.QueueExport(ctx, r) // an access or portability request's export, in this transaction (D2)
 	})
 	if err != nil {
 		return Request{}, wrap("file", err)
 	}
 	return r, nil
+}
+
+// objected marks r's profile as objecting to the analytics when r is an objection (S9: from the request on), in the
+// filing's transaction and scope.
+func (s *Service) objected(ctx context.Context, r Request) error {
+	if r.Kind != KindObjection || r.PatientID == "" {
+		return nil
+	}
+	return s.p.Objections.ObjectToAnalytics(ctx, r.PatientID)
 }
 
 // filing is the request p files with f, received now and due in the answerer's time zone, after checking that a clinic
@@ -221,7 +240,10 @@ func (s *Service) FileOnBehalf(ctx context.Context, st Staff, patientID string, 
 		if r, err = s.p.Repo.Insert(ctx, r); err != nil {
 			return err
 		}
-		return s.p.Audit.Record(ctx, event(st.AccountID, r, auditevent.CodeCreate, auditevent.CodeHOPERAT, 1))
+		if err := s.p.Audit.Record(ctx, event(st.AccountID, r, auditevent.CodeCreate, auditevent.CodeHOPERAT, 1)); err != nil {
+			return err
+		}
+		return s.objected(ctx, r)
 	})
 	if err != nil {
 		return Request{}, wrap("file on behalf", err)

@@ -374,6 +374,7 @@ func TestTranscribed_OnlyWhileTheCareAndTheTranscriptionConsentAreActive(t *test
 		{"care only", access.Consent{Active: true}, false},
 		{"transcription only", access.Consent{Transcription: true, RevokedAt: revoked}, false},
 		{"neither", access.Consent{}, false},
+		{"a restricted record (S7)", access.Consent{Active: true, Transcription: true, Restricted: true}, false},
 	} {
 		if got := access.Transcribed(tc.c); got != tc.want {
 			t.Errorf("%s: Transcribed = %v, want %v", tc.name, got, tc.want)

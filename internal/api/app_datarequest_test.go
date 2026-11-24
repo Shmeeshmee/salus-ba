@@ -132,3 +132,27 @@ func TestNew_APatientClosesTheirAccount(t *testing.T) {
 		t.Errorf("sign-in after closure = %d, want refused", rec.Code)
 	}
 }
+
+// An objection filed in the app marks the profile at once, under row-level security as the app role (S9).
+func TestNew_AnObjectionLeavesThePatientOutOfTheAnalytics(t *testing.T) {
+	cfg := testConfig(t)
+	owner := ownerPool(t, cfg)
+	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(app.Close)
+	d := newDirectory(t, app.Handler, owner)
+	if rec := d.patient.do(http.MethodPut, "/me/patient", `{"givenName":"Zorana","familyName":"Syntheticova","birthDate":"1977-07-07"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("PUT /me/patient = %d %s", rec.Code, rec.Body)
+	}
+	if rec := d.patient.do(http.MethodPost, "/me/data-requests", `{"kind":"objection","target":"account"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("file objection = %d %s", rec.Code, rec.Body)
+	}
+	var marked bool
+	if err := owner.QueryRow(t.Context(), `SELECT analytics_objected_at IS NOT NULL FROM patient p JOIN account a ON a.id = p.account_id
+		WHERE a.email = 'ana@example.test'`).Scan(&marked); err != nil || !marked {
+		t.Errorf("objected %v, %v; want the profile marked", marked, err)
+	}
+}

@@ -29,6 +29,21 @@ func closed(t *testing.T, profile string, consents ...consent.Consent) *closureF
 	return f
 }
 
+// One account that cannot be erased (here: no erasure request) does not stop the others: the run erases every other
+// account due and then fails, so River retries and the failure is seen.
+func TestErasure_AFailingAccountDoesNotBlockTheOthers(t *testing.T) {
+	t.Parallel()
+	f := closed(t, profileID)
+	f.accounts.due = []string{"00000000-0000-4000-8000-0000000000a9", accountID} // the first is due earlier
+	got, err := f.erasure().Run(t.Context())
+	if !errors.Is(err, datarequest.ErrNotFound) {
+		t.Errorf("Run() error = %v, want the first account's ErrNotFound", err)
+	}
+	if len(got) != 1 || got[0].AccountID != accountID || !slices.Equal(f.accounts.erased, []string{accountID}) {
+		t.Errorf("Run() = %+v, erased %v; want the second account erased", got, f.accounts.erased)
+	}
+}
+
 func TestErasure_ErasesTheAccountRestrictsEachClinicsRecordAndFulfilsTheRequest(t *testing.T) {
 	t.Parallel()
 	f := closed(t, profileID,

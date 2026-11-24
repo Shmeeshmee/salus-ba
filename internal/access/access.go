@@ -212,9 +212,10 @@ func ConsultationRecord(v Viewer, f Facts, a Visit) bool {
 // Transcribed reports whether the patient's consultations with the clinic may be transcribed and translated, with
 // AI assistance for the practitioner (the transcription agent in the call, the stored transcript, suggestions,
 // document drafts): only while both the care consent and the transcription consent are active (SAL-12,
-// docs/plans/v1-finish.md "Decisions"). Declined or withdrawn, the consultation goes on without them.
+// docs/plans/v1-finish.md "Decisions"), and never while the clinic restricts the record (docs/clinic-cms/WAVE5.md S7).
+// Declined or withdrawn, the consultation goes on without them.
 func Transcribed(c Consent) bool {
-	return c.Active && c.Transcription
+	return c.Active && c.Transcription && !c.Restricted
 }
 
 // SignedDocument reports whether viewer may read a signed document of the consultation of appointment a (the

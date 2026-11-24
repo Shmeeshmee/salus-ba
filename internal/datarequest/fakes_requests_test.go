@@ -244,23 +244,32 @@ func (j *fakeJobs) EnqueueWarning(_ context.Context, a datarequest.WarningArgs) 
 }
 
 // fixture is a Service on the fakes at now.
+// fakeObjections keeps the profiles marked as objecting to the analytics.
+type fakeObjections struct{ marked []string }
+
+func (o *fakeObjections) ObjectToAnalytics(_ context.Context, id string) error {
+	o.marked = append(o.marked, id)
+	return nil
+}
+
 type fixture struct {
-	svc     *datarequest.Service
-	repo    *fakeRepo
-	audit   *fakeAudit
-	jobs    *fakeJobs
-	exports *fakeExports
+	objections *fakeObjections
+	svc        *datarequest.Service
+	repo       *fakeRepo
+	audit      *fakeAudit
+	jobs       *fakeJobs
+	exports    *fakeExports
 }
 
 func newFixture(now time.Time) fixture { return newFixtureOn(newFakeRepo(), now) }
 
 // newFixtureOn is a Service on the fakes at now, with repo's requests.
 func newFixtureOn(repo *fakeRepo, now time.Time) fixture {
-	f := fixture{repo: repo, audit: &fakeAudit{}, jobs: &fakeJobs{}, exports: newFakeExports()}
+	f := fixture{repo: repo, audit: &fakeAudit{}, jobs: &fakeJobs{}, exports: newFakeExports(), objections: &fakeObjections{}}
 	f.svc = datarequest.NewService(datarequest.Ports{
 		Repo: f.repo, Clock: clock.Fixed{T: now}, Tx: fakeTx{}, Audit: f.audit,
 		Profiles: fakeProfiles{}, Consents: fakeConsents{}, Clinics: fakeClinics{}, Jobs: f.jobs,
-		Export: datarequest.ExportPorts{Repo: f.exports, Audit: f.audit, Tx: fakeTx{}, Jobs: f.jobs},
+		Export: datarequest.ExportPorts{Repo: f.exports, Audit: f.audit, Tx: fakeTx{}, Jobs: f.jobs}, Objections: f.objections,
 	})
 	return f
 }

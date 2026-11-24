@@ -334,3 +334,18 @@ func TestMFA_WrongCodeCountingFailureIsPassedOn(t *testing.T) {
 		t.Errorf("Verify() error = %v, want the challenge store's failure", err)
 	}
 }
+
+// A login challenge issued before the account was closed opens no session after (docs/clinic-cms/WAVE5.md S5): the
+// closure revoked the sessions, and a code still in its challenge's time must not open a new one.
+func TestVerify_AClosedAccountOpensNoSession(t *testing.T) {
+	f := newFixture(enrolled(staff()))
+	challenge := f.challenged(t, enrolled(staff()))
+	f.withSecret(totpSecret)
+	a := f.repo.accounts[accountID]
+	a.ClosedAt = now.Add(-time.Minute)
+	f.repo.accounts[accountID] = a
+
+	if got, err := f.svc.Verify(t.Context(), challenge, auth.TOTPCode(totpSecret, now)); err == nil || got.Token != "" {
+		t.Fatalf("Verify() = %+v, %v; want refused", got, err)
+	}
+}

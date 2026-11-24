@@ -182,6 +182,21 @@ func (q *Queries) MatchingClinicPatients(ctx context.Context, arg MatchingClinic
 	return items, nil
 }
 
+const objectToAnalytics = `-- name: ObjectToAnalytics :exec
+UPDATE patient SET analytics_objected_at = coalesce(analytics_objected_at, $1) WHERE id = $2
+`
+
+type ObjectToAnalyticsParams struct {
+	At pgtype.Timestamptz
+	ID pgtype.UUID
+}
+
+// An objection to the analytics (docs/clinic-cms/WAVE5.md S9): the first one's time stays. In the filing's scope.
+func (q *Queries) ObjectToAnalytics(ctx context.Context, arg ObjectToAnalyticsParams) error {
+	_, err := q.db.Exec(ctx, objectToAnalytics, arg.At, arg.ID)
+	return err
+}
+
 const patientByAccount = `-- name: PatientByAccount :one
 SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient

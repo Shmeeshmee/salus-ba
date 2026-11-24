@@ -97,6 +97,10 @@ ON CONFLICT (patient_id, organization_id) DO NOTHING;
 DELETE FROM patient_restriction
 WHERE patient_id = @patient_id AND organization_id = @organization_id AND restricted_by_account_id IS NOT NULL;
 
+-- An objection to the analytics (docs/clinic-cms/WAVE5.md S9): the first one's time stays. In the filing's scope.
+-- name: ObjectToAnalytics :exec
+UPDATE patient SET analytics_objected_at = coalesce(analytics_objected_at, @at) WHERE id = @id;
+
 -- The patients whose record the clinic restricts, for its data export's manifest (D4); in the clinic's scope.
 -- name: RestrictedAtClinic :many
 SELECT patient_id FROM patient_restriction WHERE organization_id = @organization_id ORDER BY patient_id;

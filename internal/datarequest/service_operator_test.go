@@ -3,6 +3,7 @@ package datarequest_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -10,10 +11,11 @@ import (
 	"github.com/Shmeeshmee/salus/internal/datarequest"
 )
 
-// The requests of the operator's tests: two to the account (one open, one answered) and one to clinic A.
+// The requests of the operator's tests: three to the account (open, answered, a closure's erasure) and one to clinic A.
 const (
 	toAccountOpen   = "00000000-0000-4000-8000-0000000000f1"
 	toAccountClosed = "00000000-0000-4000-8000-0000000000f2"
+	toAccountErased = "00000000-0000-4000-8000-0000000000f4" // a closure's erasure request, which the erasure job answers
 	toClinic        = "00000000-0000-4000-8000-0000000000f3"
 )
 
@@ -48,6 +50,8 @@ func newOperatorFixture(now time.Time) operatorFixture {
 		Status: datarequest.StatusFulfilled, AnswerCode: datarequest.AnswerDone, ReceivedAt: filedAt, DueAt: due, AnsweredAt: filedAt, Version: 2})
 	repo.put(datarequest.Request{ID: toClinic, AccountID: accountA, PatientID: profileA, OrganizationID: clinicA, FiledBy: accountA,
 		Kind: datarequest.KindErasure, Status: datarequest.StatusReceived, ReceivedAt: filedAt, DueAt: due, Version: 1})
+	repo.put(datarequest.Request{ID: toAccountErased, AccountID: accountA, FiledBy: accountA, Kind: datarequest.KindErasure,
+		Status: datarequest.StatusInProgress, ReceivedAt: filedAt, DueAt: due, Version: 2})
 	f := operatorFixture{fixture: newFixtureOn(repo, now), reopen: &fakeReopener{}}
 	f.op = datarequest.NewOperator(f.svc, f.reopen)
 	return f
@@ -70,13 +74,13 @@ func TestOperatorRequests_TheAccountsOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].OrganizationID != "" || got[1].OrganizationID != "" {
-		t.Errorf("requests %+v, want the two to the account", got)
+	if len(got) != 3 || slices.ContainsFunc(got, func(r datarequest.Request) bool { return r.OrganizationID != "" }) {
+		t.Errorf("requests %+v, want the three to the account", got)
 	}
 	if len(f.audit.events) != 1 {
 		t.Fatalf("%d audit events, want 1", len(f.audit.events))
 	}
-	wantOperatorEvent(t, f.audit.events[0], auditevent.ActionRead, "", 2)
+	wantOperatorEvent(t, f.audit.events[0], auditevent.ActionRead, "", 3)
 }
 
 // The operator reads one request to the account with its history, audited; a clinic's is not theirs.
@@ -126,6 +130,8 @@ func TestOperatorAnswer(t *testing.T) {
 		"a clinic's stale": {datarequest.ErrNotFound, toClinic, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerDone, Version: 9}},
 		"code misfits":     {datarequest.ErrInvalid, toAccountOpen, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerNoData, Version: 2}},
 		"answered already": {datarequest.ErrClosed, toAccountOpen, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 1}},
+		// Answered by hand, the erasure job would no longer find it and the account would never be erased.
+		"a closure's erasure": {datarequest.ErrClosed, toAccountErased, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerDone, Version: 2}},
 	} {
 		if _, err := f.op.Answer(ctx, tc.id, tc.a); !errors.Is(err, tc.want) {
 			t.Errorf("%s: error = %v, want %v", name, err, tc.want)

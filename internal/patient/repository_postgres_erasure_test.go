@@ -3,6 +3,7 @@ package patient_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -153,5 +154,31 @@ func TestRestrictedAt_ListsTheClinicsOwnRestrictions(t *testing.T) {
 		}); err != nil || len(ids) != want || (want == 1 && ids[0] != patientA) {
 			t.Errorf("clinic %s: %v, %v; want %d", clinic, ids, err, want)
 		}
+	}
+}
+
+// The objection's mark is written in the patient's own scope and in the registering clinic's, once: the first
+// objection's time stays (S9).
+func TestObjectToAnalytics_MarksOnceInTheFilingsScope(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner)
+	ctx := t.Context()
+	repo := patient.NewPostgresRepository(app)
+	err := postgres.NewTransactor(app).WithTx(ctx, func(ctx context.Context) error {
+		if err := repo.SetAccount(ctx, accountA); err != nil {
+			return err
+		}
+		if err := repo.ObjectToAnalytics(ctx, patientA, now); err != nil {
+			return err
+		}
+		return repo.ObjectToAnalytics(ctx, patientA, now.Add(time.Hour))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var at time.Time
+	if err := owner.QueryRow(ctx, `SELECT analytics_objected_at FROM patient WHERE id = $1`, patientA).Scan(&at); err != nil || !at.Equal(now) {
+		t.Errorf("objected at %v, %v; want the first objection's %v", at, err, now)
 	}
 }

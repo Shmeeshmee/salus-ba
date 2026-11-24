@@ -102,6 +102,23 @@ func TestBookForPatient_RefusesAndAuditsEachCase(t *testing.T) {
 	}
 }
 
+// While the clinic restricts the patient's record, its staff book them nothing (docs/clinic-cms/WAVE5.md S7): not
+// found, audited, and nothing held or booked.
+func TestBookForPatient_RefusesARestrictedRecord(t *testing.T) {
+	t.Parallel()
+	f := staffFixture()
+	f.consents.state[patientA+clinicA] = access.Consent{Active: true, Restricted: true}
+	if _, err := f.svc.BookForPatient(t.Context(), admin, appointment.StaffBooking{PatientID: patientA, SlotID: slotFree}); !errors.Is(err, appointment.ErrNotFound) {
+		t.Fatalf("BookForPatient = %v, want ErrNotFound", err)
+	}
+	if len(f.repo.appts) != 0 || len(f.slots.held) != 0 {
+		t.Errorf("booked %v, held %v; want nothing", f.repo.appts, f.slots.held)
+	}
+	if want := []auditevent.AuditEvent{event(admin, auditevent.CodeCreate, "", "", auditevent.OutcomeMinorFailure)}; !slices.Equal(f.audit.events, want) {
+		t.Errorf("audit %+v, want %+v", f.audit.events, want)
+	}
+}
+
 // The clinic's own staff book in its own scope, whether or not it is listed (a clinic waiting for the operator's
 // approval uses its desk): the slot is resolved in the clinic, not in the public directory.
 func TestBookForPatient_BooksInTheClinicsOwnScopeListedOrNot(t *testing.T) {

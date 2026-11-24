@@ -35,15 +35,15 @@ writes under its own heading here.
 | M2 | done 2026-11-24, integrated 2026-11-24 (migration `00070`); the patients' records and quotes.csv joined at the integration | `cms(M2)`, merged into `feat/cms` with `cms(wave 4)` |
 | M3 | done 2026-11-24, integrated 2026-11-24; the consent for an imported patient joined at the integration | `cms(M3)`, merged into `feat/cms` with `cms(wave 4)` |
 | M4 | done 2026-11-24, integrated 2026-11-24 | `cms(M4)`, merged into `feat/cms` with `cms(wave 4)` |
-| 5.0 | done 2026-11-24 (migration `00071`) | `cms(5.0)` |
-| FX | not started | |
-| D1 | done 2026-11-24 (migration `00073`) | `cms(D1)` |
-| D2 | done 2026-11-24 (migration `00074`) | `cms(D2)` |
-| D3 | done 2026-11-24 (migration `00075`); wiring waits on D1's repository | `cms(D3)` |
-| D4 | done 2026-11-24 (migration `00076`) | `cms(D4)` |
-| D5 | done 2026-11-24 (no migration) | `cms(D5)` |
-| D6 | done 2026-11-24 | `cms(D6)` |
-| D7 | done 2026-11-24 (migration `00077`) | `cms(D7)` |
+| 5.0 | done 2026-11-24, integrated 2026-11-24 (migration `00071`) | `cms(5.0)`, merged into `feat/cms` with `cms(wave 5)` |
+| FX | done 2026-11-24, integrated 2026-11-24 (migration `00072`) | `cms(FX)`, merged into `feat/cms` with `cms(wave 5)` |
+| D1 | done 2026-11-24, integrated 2026-11-24 (migration `00073`); filing queues the export, S12 | `cms(D1)`, merged into `feat/cms` with `cms(wave 5)` |
+| D2 | done 2026-11-24, integrated 2026-11-24 (migration `00074`); deferred items 2 to 5 done in D7 | `cms(D2)`, merged into `feat/cms` with `cms(wave 5)` |
+| D3 | done 2026-11-24, integrated 2026-11-24 (migration `00075`); wired in the API and the worker | `cms(D3)`, merged into `feat/cms` with `cms(wave 5)` |
+| D4 | done 2026-11-24, integrated 2026-11-24 (migration `00076`; `00078` at the integration) | `cms(D4)`, merged into `feat/cms` with `cms(wave 5)` |
+| D5 | done 2026-11-24 on its rerun after D1 to D4 (no migration), integrated 2026-11-24 | `cms(D5)`, merged into `feat/cms` with `cms(wave 5)` |
+| D6 | done 2026-11-24, integrated 2026-11-24; the support address joined at the integration | `cms(D6)`, merged into `feat/cms` with `cms(wave 5)` |
+| D7 | done 2026-11-24, integrated 2026-11-24 (migration `00077`, renumbered from `00078`); the chat joined at the integration | `cms(D7)`, merged into `feat/cms` with `cms(wave 5)` |
 
 ## A: visit modes
 
@@ -2169,9 +2169,27 @@ changed); `make i18n-check` ran in the fast layer and in `make lint`.
   history) meets Art. 15 and Art. 20, in what form the clinic must hand it over, and who may hand over the clinical
   content; (5) erasure: how long the registered profile and its consent must be kept under the medical-record retention
   law.
-- **Erasure and subject rights for every patient.** There is no erasure path for any patient (`patient`, `consent` and
-  `account` are `keep` in `internal/retention/rules.go`); restriction and objection are not built either. A
-  subject-rights feature, for app patients and registered profiles alike.
+- **Erasure: what is erased and what is kept, for the lawyer** (D3's record, verbatim; wave 5 built the subject rights):
+  * Erased at erasure (Art. 17(1)): the account e-mail (replaced by a placeholder made from the opaque id), password hash, TOTP secret, last step and MFA enrolment, chosen and detected language, and push device tokens (already removed at closure).
+  * Revoked at closure, rows kept: sessions (deleted by the 30-day session rule) and consents (kept as proof of the decision under Art. 7(1), with the clinical record, under the consent rule).
+  * Cancelled at closure: future visits (kept as the clinic's record under the appointment rule) and waitlist entries (deleted under their 30-day rule).
+  * Kept and restricted at every clinic, under the medical-record retention (each table's rule in rules.go, placeholders pending L1 to L3; receipts under the fiscal law): the profile (name, birth date, phone), visits and their history, encounters, conditions, allergies, medications, documents, transcripts, submitted questionnaire answers, chat, receipts and quotes.
+  * Kept for accountability (Art. 5(2)): the erasure request and its history, and the audit events (ten years).
+  * The account row itself is kept, blanked, because data requests, audit events and records reference it.
+- **Assumptions about retention, for the lawyer** (D3's, verbatim):
+  (1) Clinics that keep a record = clinics with any consent.
+  (2) The single shared profile is kept while any clinic keeps a record.
+  (3) Consents, cancelled visits and change history go with the record.
+  (4) The blank account row is kept indefinitely; its id is opaque.
+  (5) The 21 days run from closure.
+  (6) Partial erasure is answered done_partly_kept, not retention_law.
+  And: whether a profile kept for a clinic's record must still have its phone erased.
+- **Not erased yet** (D3 deferred): the account's `notification_delivery` and `notification_preference` rows have no eraser;
+  a patient with no record anywhere keeps a profile no clinic sees (blanking it needs its NOT NULL names and birth date
+  relaxed). No rate limit on wrong passwords at `/me/account/close`.
+- **Placeholders to fill**: `SALUS_OPERATOR_EMAIL` (`[OPERATOR EMAIL]` in `configs/.env.example`; the notifier refuses to
+  start outside `SALUS_ENV=dev` without it) and `SALUS_OPERATOR_LANGUAGE` (default `bs`); the app's `SUPPORT_EMAIL`
+  (`[SUPPORT EMAIL]` on the closed-account screen until set).
 - **An SMS provider** with a DPA and an entry in `docs/privacy/processors.md`; until then `pkg/sms` is the fake and the
   clinic's SMS option cannot be on, so a patient without an account gets no reminder.
 - **The ESET adapter** (package G, Q6): the fiscal reporting of receipts.

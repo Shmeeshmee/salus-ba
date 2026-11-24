@@ -179,6 +179,9 @@ func (s *Service) accountSecret(ctx context.Context, id string) (Account, []byte
 	if err != nil {
 		return Account{}, nil, err
 	}
+	if !a.ClosedAt.IsZero() { // a closed account opens no session, also from a challenge issued before (S5)
+		return Account{}, nil, ErrInvalidChallenge
+	}
 	sealed, err := s.repo.TOTPSecret(ctx, id)
 	if err != nil || sealed == nil {
 		return a, nil, err

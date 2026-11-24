@@ -171,6 +171,8 @@ func TestMoveForPatient_RefusesAndAuditsEachCase(t *testing.T) {
 		"a no-show":             {caller: desk, slot: slotLater, status: appointment.StatusNoShow, want: appointment.ErrClosed},
 		// Without the patient's active consent the clinic's scope does not show a future visit.
 		"consent revoked": {caller: desk, slot: slotLater, consent: &access.Consent{RevokedAt: revokedAt}, want: appointment.ErrNotFound},
+		// While the clinic restricts the record it makes no new use of it (docs/clinic-cms/WAVE5.md S7).
+		"a restricted record": {caller: desk, slot: slotLater, consent: &access.Consent{Active: true, Restricted: true}, want: appointment.ErrNotFound},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
