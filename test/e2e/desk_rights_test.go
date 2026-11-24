@@ -58,10 +58,7 @@ func TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered(t *testing.T) {
 	if code := desk.do(http.MethodPost, "/clinic/patients/"+reg.ID+"/consent-withdrawal", nil, nil); code != http.StatusConflict {
 		t.Errorf("a second withdrawal = %d, want 409", code)
 	}
-	sarajevo, err := time.LoadLocation("Europe/Sarajevo")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sarajevo := sarajevoZone(t)
 	eventually(t, "the visit ahead is cancelled after the withdrawal", func() bool {
 		var day struct {
 			Visits []struct{ Appointment struct{ ID string } }
@@ -91,6 +88,8 @@ func TestDesk_TheClinicActsOnTheRightsOfAPatientItRegistered(t *testing.T) {
 	if code != http.StatusOK || json.Unmarshal(raw, &record) != nil || record.Type != "collection" || len(record.Entry) != 2 {
 		t.Fatalf("the admin's record = %d %s, want a collection of the patient and the consent", code, raw)
 	}
+	// The visit the withdrawal cancelled is not in it: after a withdrawal the clinic's scope shows only the visits
+	// before it (the export's manifest says so; docs/clinic-cms/PROGRESS.md, wave 4 integration).
 	if p, c := record.Entry[0].Resource, record.Entry[1].Resource; p.ResourceType != "Patient" || p.ID != reg.ID || p.Name[0].Given[0] != "Radmila" ||
 		c.ResourceType != "Consent" || c.Status != "inactive" {
 		t.Errorf("the record's entries = %+v, want the corrected patient and the withdrawn consent", record.Entry)

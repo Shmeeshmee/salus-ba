@@ -86,7 +86,7 @@
   "patient.withdrawFailed": "The withdrawal could not be recorded. Try again.",
   "patient.recordTitle": "Patient's record",
   "patient.recordHint": {
-    "defaultMessage": "The profile and the consents as a FHIR file, to hand to the patient when they ask for their data.",
+    "defaultMessage": "The profile, the consents, the visits and the receipts at the clinic as a FHIR file, to hand to the patient when they ask for their data. Clinical documents are not in it.",
     "description": "legal"
   },
   "patient.download": "Download the record",
@@ -100,5 +100,20 @@
   "move.changed": "The visit was changed in the meantime. Close this and reload the page.",
   "move.joinOpen": "A video visit cannot be moved once its call can be joined.",
   "move.failed": "The visit could not be moved. Try again.",
-  "move.moved": "The visit was moved."
+  "move.moved": "The visit was moved.",
+  "consent.needed": {
+    "defaultMessage": "There is no active consent to care from this patient. Record the consent they give in person before booking.",
+    "description": "legal"
+  },
+  "consent.record": "Record consent",
+  "consent.recording": "Recording",
+  "consent.recorded": {
+    "defaultMessage": "The consent is recorded.",
+    "description": "legal"
+  },
+  "consent.active": "The patient has an active consent to care already.",
+  "consent.failed": "The consent could not be recorded. Try again.",
+  "reminder.on": "Reminder will be sent",
+  "reminder.noPhone": "No reminder: no phone number",
+  "reminder.smsOff": "No reminder: SMS is off for the clinic"
 }

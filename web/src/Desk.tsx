@@ -117,7 +117,7 @@ type RowProps = {
   visit: DeskVisit
   zone: string
   move: { fhir: FhirClient; staff: Member[]; now: () => Date } // what moving the visit needs (M1)
-  onMoved: () => void
+  onMoved: () => void // the day is read again: after a move, or a change on the patient's card
   onArrived: (a: DeskVisit['appointment']) => void
   onIssued: (number: number) => void
 }
@@ -140,10 +140,11 @@ function Row({ api, visit, zone, move, onMoved, onArrived, onIssued }: RowProps)
           <span className="strong">
             {f.time(new Date(a.start), zone)}–{f.time(new Date(a.end), zone)}
           </span>{' '}
-          <DeskPatient api={api} patient={p} />{' '}
+          <DeskPatient api={api} patient={p} onChanged={onMoved} />{' '}
           <span className={`tag desk-${a.status}`}>{status}</span>
         </span>
         <span className="muted small">{details.join(' · ')}</span>
+        {a.status === 'booked' && visit.reminder !== undefined && <span className="muted small">{reminderText(t, visit)}</span>}
         <VisitReceipts receipts={receipts} />
       </span>
       <span className="actions">
@@ -188,6 +189,13 @@ function Row({ api, visit, zone, move, onMoved, onArrived, onIssued }: RowProps)
       )}
     </li>
   )
+}
+
+// reminderText says whether a reminder will go for the visit, and why not (clinic-cms R3: a patient without an account
+// is reminded by SMS only, while the clinic sends SMS and the profile has a phone).
+function reminderText(t: ReturnType<typeof useT>, visit: DeskVisit): string {
+  if (visit.reminder) return t('desk.reminder.on')
+  return t(visit.reminderOff === 'no_phone' ? 'desk.reminder.noPhone' : 'desk.reminder.smsOff')
 }
 
 // byPractitioner groups the day's visits by practitioner role in the order the server gives them (by practitioner,

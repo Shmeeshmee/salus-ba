@@ -265,6 +265,19 @@ func TestReadListAndMine_ShowOnlyWhatTheCallerMaySee(t *testing.T) {
 	if _, err := f.svc.List(t.Context(), adminC, invoice.Period{From: at, To: at}); !errors.Is(err, invoice.ErrInvalid) {
 		t.Errorf("List() of an empty period = %v, want ErrInvalid", err)
 	}
+	theirs, err := f.svc.OfClinicPatient(t.Context(), adminC, patientC.PatientID)
+	if err != nil || len(theirs) != 1 || theirs[0].ID != byDoctor.ID {
+		t.Errorf("OfClinicPatient() = %d receipts, %v; want the patient's one at the clinic", len(theirs), err)
+	}
+	if e := f.audit.last(); e.Subtype.Code != auditevent.CodeSearchType || e.AgentAccountID != admin {
+		t.Errorf("OfClinicPatient() audit = %+v", e)
+	}
+	if got, err := f.svc.OfClinicPatient(t.Context(), other, patientC.PatientID); err != nil || len(got) != 0 {
+		t.Errorf("another clinic's OfClinicPatient() = %d receipts, %v; want none", len(got), err)
+	}
+	if _, err := f.svc.OfClinicPatient(t.Context(), doctorC, patientC.PatientID); !errors.Is(err, invoice.ErrForbidden) {
+		t.Errorf("a practitioner's OfClinicPatient() = %v, want ErrForbidden", err)
+	}
 	mine, err := f.svc.Mine(t.Context(), patientC)
 	if err != nil || len(mine) != 1 || mine[0].ID != byDoctor.ID {
 		t.Errorf("Mine() = %d receipts, %v; want the patient's one", len(mine), err)

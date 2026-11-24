@@ -4,6 +4,7 @@ import type { Bundle, Extension, FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { Dialog } from './chat/Dialog'
+import { DeskConsent } from './DeskConsent'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
 import { PatientPicker, type ClinicPatient } from './PatientPicker'
@@ -28,18 +29,27 @@ type Props = {
   onClose: () => void
 }
 
-// DeskWalkIn books a patient who walked in (clinic-cms F3): pick or register the patient, then one of today's free
-// times at the clinic with a practitioner, and the service, as staff (POST /clinic/appointments, F2).
+// DeskWalkIn books a patient who walked in (clinic-cms F3): pick or register the patient, record the consent they give
+// in person when the clinic has none active from them (an imported patient, or one who withdrew it: wave 4), then one
+// of today's free times at the clinic with a practitioner, and the service, as staff (POST /clinic/appointments, F2).
 export function DeskWalkIn({ api, fhir, staff, zone, now, onBooked, onClose }: Props) {
   const t = useT()
   const [patient, setPatient] = useState<ClinicPatient>()
   return (
     <Dialog label={t('desk.walkIn.title')} className="receipt-dialog desk-dialog" onClose={onClose}>
       <h2>{t('desk.walkIn.title')}</h2>
-      {patient ? (
+      {!patient && <PatientPicker api={api} onPick={setPatient} />}
+      {patient && !patient.consentActive && (
+        <section>
+          <p>{t('desk.consent.needed')}</p>
+          <DeskConsent api={api} patientId={patient.id} onRecorded={() => setPatient({ ...patient, consentActive: true })} />
+          <button type="button" className="quiet" onClick={() => setPatient(undefined)}>
+            {t('desk.walkIn.changePatient')}
+          </button>
+        </section>
+      )}
+      {patient?.consentActive && (
         <Booking api={api} fhir={fhir} staff={staff} zone={zone} now={now} patient={patient} onChangePatient={() => setPatient(undefined)} onBooked={onBooked} />
-      ) : (
-        <PatientPicker api={api} onPick={setPatient} />
       )}
       <div className="actions">
         <button type="button" onClick={onClose}>

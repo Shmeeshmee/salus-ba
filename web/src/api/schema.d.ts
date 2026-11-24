@@ -2961,6 +2961,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/patients/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import the clinic's patients from a file
+         * @description A CSV (UTF-8, or Windows-1250 as Excel saves it) or XLSX file of patients (given name, family name, birth date, an optional phone; headers in English, Bosnian, Croatian or Serbian), at most 5 000 rows. With `save` false (the default) nothing is stored: every row comes back with its errors and whether it is a likely duplicate (a patient of the same name and birth date is the clinic's already, or on an earlier row). With `save` true all rows are registered as the clinic's profiles without a consent (the desk records it at the first booking) or, when any row has an error, none (`saved` false). A likely duplicate is saved all the same. By the clinic's admin. Built in package M3. The clinic's patients a preview finds are audited as a search, each saved profile as a create, and the import with its count.
+         */
+        post: operations["importClinicPatients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clinic/patients/{id}": {
         parameters: {
             query?: never;
@@ -2975,6 +2995,26 @@ export interface paths {
          */
         put: operations["correctClinicPatient"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients/{id}/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record the care consent a registered patient gave in person
+         * @description The care consent the patient gave the clinic in person, recorded with the caller as who recorded it, for a patient the clinic registered who has no active care consent with it: one imported (V5 of docs/clinic-cms WAVE4.md) or one who withdrew theirs. The desk asks for it before such a patient's booking. For the clinic's admin and its receptionists. Built in the wave 4 integration. Audited, also when refused.
+         */
+        post: operations["recordClinicPatientConsent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3216,7 +3256,7 @@ export interface paths {
         put?: never;
         /**
          * Ask for the clinic's data export
-         * @description The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one archive built by a job. By the clinic's admin. Built in package O2. Audited.
+         * @description One zip archive built by a job (package M2, joined in the wave 4 integration): the price list, staff, appointments, receipts and quotes as CSV, and the record of each patient the clinic registered as a FHIR Bundle (`patients/<id>.json`: the profile, the clinic's consents, the patient's appointments and receipts at the clinic), with a `manifest.txt` that says what the archive holds and what it leaves out (clinical documents, questionnaire answers and history). Encrypted at rest, downloadable for 7 days after the request, then deleted. One export at a time per clinic: asking again while one is queued returns that one. By the clinic's admin. Audited, every read made for it too.
          */
         post: operations["requestClinicExport"];
         delete?: never;
@@ -3234,7 +3274,7 @@ export interface paths {
         };
         /**
          * Where an export stands
-         * @description By the clinic's admin. Built in package O2.
+         * @description By the clinic's admin (package M2). Not audited; it holds no personal data.
          */
         get: operations["getClinicExport"];
         put?: never;
@@ -3254,7 +3294,7 @@ export interface paths {
         };
         /**
          * Download a ready export
-         * @description By the clinic's admin, until it expires. Built in package O2. Audited.
+         * @description By the clinic's admin, until it expires (package M2). Audited.
          */
         get: operations["downloadClinicExport"];
         put?: never;
@@ -3720,6 +3760,8 @@ export interface components {
             phone?: string;
             /** @description The clinic registered the profile; the patient has no Salus account. */
             registeredByClinic: boolean;
+            /** @description The patient has an active care consent with the caller's clinic. When false, the desk records the consent the patient gives in person (POST /clinic/patients/{id}/consent) before it books them. */
+            consentActive: boolean;
             /** Format: int32 */
             versionId: number;
             /** Format: date-time */
@@ -3773,6 +3815,11 @@ export interface components {
             serviceName?: string;
             /** @description Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone. */
             reminder?: boolean;
+            /**
+             * @description Why no reminder will go, absent when one will: the clinic does not offer SMS, or the profile has no phone (a patient without an account is reminded by SMS only).
+             * @enum {string}
+             */
+            reminderOff?: "sms_off" | "no_phone";
             /** @description The visit's receipts, whoever issued them, by number; reversals are not listed, a reversed receipt says so. Each is audited as a read. */
             receipts: components["schemas"]["DeskReceipt"][];
         };
@@ -3802,6 +3849,37 @@ export interface components {
             hours: components["schemas"]["SetupStepState"];
             practitioner: components["schemas"]["SetupStepState"];
             services: components["schemas"]["SetupStepState"];
+        };
+        PatientImport: {
+            /** @description Every row was stored; false for a preview or when any row has an error. */
+            saved: boolean;
+            rows: components["schemas"]["PatientImportRow"][];
+        };
+        PatientImportRow: {
+            /**
+             * Format: int32
+             * @description The row's line in the file
+             */
+            line: number;
+            /** @description The profile the row would store; absent for a row with errors. */
+            patient?: components["schemas"]["ImportedPatient"];
+            /** @description A patient of the same name and birth date is the clinic's already, or on an earlier row. */
+            duplicate: boolean;
+            /** @description Codes of what is wrong with the row; empty when it is valid. */
+            errors: ("given_name_invalid" | "family_name_invalid" | "birth_date_invalid" | "phone_invalid")[];
+        };
+        ImportedPatient: {
+            /**
+             * Format: uuid
+             * @description The profile's id; only once saved.
+             */
+            id?: string;
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description E.164. */
+            phone?: string;
         };
         ServiceImport: {
             /** @description Every row was stored; false for a preview or when any row has an error. */
@@ -4663,7 +4741,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person";
             /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -13436,6 +13514,60 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    importClinicPatients: {
+        parameters: {
+            query?: {
+                save?: boolean;
+            };
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The rows read, and whether they were saved. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientImport"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_import`: not a CSV or XLSX file, no header naming the given name, family name and birth date columns, no row under it, or more than 5 000 rows. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `too_large`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     correctClinicPatient: {
         parameters: {
             query?: never;
@@ -13497,6 +13629,58 @@ export interface operations {
                 };
             };
             /** @description `version_conflict`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    recordClinicPatientConsent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The consent recorded. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin or receptionist. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no profile the clinic registered with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `consent_active`: the patient has an active care consent with the clinic already. */
             409: {
                 headers: {
                     [name: string]: unknown;

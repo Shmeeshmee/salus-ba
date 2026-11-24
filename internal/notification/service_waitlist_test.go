@@ -49,7 +49,7 @@ func offerFixture(now time.Time, language string) (*reminderFixture, *fakeOffers
 	f.svc = notification.NewService(notification.Ports{
 		Accounts: accounts, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, PatientAppURL: "https://app.salus.invalid",
 		Deliveries: f.deliveries, DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Offers: offers, Rules: fakeRules{sms: true, repo: f.repo},
-		Languages: accounts, Phones: fakePhones{phone: remindPhone}, Profiles: fakeProfiles{phone: remindPhone},
+		Languages: accounts, Phones: &fakePhones{phone: remindPhone}, Profiles: fakeProfiles{phone: remindPhone},
 		Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{}, Clock: clock.Fixed{T: now},
 	})
 	return f, offers

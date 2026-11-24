@@ -1,6 +1,7 @@
 package notification_test
 
 import (
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -113,5 +114,18 @@ func TestSendDelivery_CancelsThePatientsSMSThatNoLongerApplies(t *testing.T) {
 				t.Errorf("state %s, sent %v, usage %v; want it cancelled with nothing sent", got, f.sms.Sent(), f.deliveries.usage)
 			}
 		})
+	}
+}
+
+// A passing failure at the send (the phone's read) is retried: the SMS is not cancelled for it.
+func TestSendDelivery_RetriesThePatientsSMSOnAPassingFailure(t *testing.T) {
+	off := false
+	f := profileDispatchedOff(t, afterChange.Add(-time.Hour), &off)
+	f.phones.err = errors.New("synthetic timeout")
+	if err := f.svc.SendDelivery(t.Context(), f.deliveries.deliveries[0].ID, false); err == nil {
+		t.Fatal("SendDelivery = nil, want the failure so the job retries")
+	}
+	if got := f.deliveries.deliveries[0].State; got == notification.DeliveryCancelled || len(f.sms.Sent()) != 0 {
+		t.Errorf("state %s, sent %v; want it still pending with nothing sent", got, f.sms.Sent())
 	}
 }

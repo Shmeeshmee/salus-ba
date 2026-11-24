@@ -62,7 +62,7 @@
   "postalCode": "Poštanski broj",
   "addressHint": "Pacijenti sa terminom u klinici dobijaju ovu adresu u e-porukama i podsjetnicima.",
   "exportTitle": "Izvoz podataka klinike",
-  "exportHint": "Jedna arhiva sa cjenovnikom, osobljem, terminima i računima kao CSV datotekama. Može se preuzeti 7 dana pošto je zatražite, a zatim se briše.",
+  "exportHint": "Jedna arhiva sa cjenovnikom, osobljem, terminima, računima i ponudama kao CSV datotekama, i podacima svakog pacijenta kog je klinika upisala kao FHIR datotekom. Klinička dokumentacija nije u njoj. Može se preuzeti 7 dana pošto je zatražite, a zatim se briše.",
   "exportAsk": "Izvezi podatke klinike",
   "exportAsking": "Pokretanje izvoza",
   "exportBuilding": "Arhiva se pravi. To može potrajati nekoliko minuta.",

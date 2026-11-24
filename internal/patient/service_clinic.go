@@ -58,7 +58,10 @@ func (s *Service) SearchClinic(ctx context.Context, c Caller, q ClinicSearch) ([
 		if len(out) == 0 {
 			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
 		}
-		for _, p := range out {
+		for i, p := range out {
+			if out[i].ConsentActive, err = s.consentActive(ctx, p.ID, c.OrganizationID); err != nil {
+				return err
+			}
 			if err := s.record(ctx, c, auditevent.CodeSearchType, p.ID, auditevent.OutcomeSuccess); err != nil {
 				return err
 			}
@@ -82,6 +85,7 @@ func (s *Service) Register(ctx context.Context, c Caller, in Patient) (Patient, 
 		}
 		return Patient{}, ErrForbidden
 	}
+	in.Phone = phoneOf(in.Phone) // the desk is in Bosnia and Herzegovina: 061 … is +387 61 …, as an import reads it
 	in, err := s.valid(in)
 	if err != nil {
 		return Patient{}, err
@@ -98,6 +102,7 @@ func (s *Service) Register(ctx context.Context, c Caller, in Patient) (Patient, 
 		if _, err := s.consents.RecordInPerson(ctx, consent.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID}, p.ID); err != nil {
 			return err
 		}
+		p.ConsentActive = true
 		return s.record(ctx, c, auditevent.CodeCreate, p.ID, auditevent.OutcomeSuccess)
 	})
 	if err != nil {

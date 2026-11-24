@@ -15,6 +15,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 )
@@ -163,6 +164,10 @@ type fakeSources struct {
 	people       map[string]practitioner.Practitioner
 	appointments []appointment.Seen
 	receipts     []invoice.Invoice
+	quotes       []invoice.Quote
+	registered   []string
+	records      map[string]patient.ClinicRecord // by patient id; any other is not found
+	recordErr    error                           // ClinicRecord's refusal, when set
 	err          error
 
 	roleCallers    []practitionerrole.Caller
@@ -170,6 +175,10 @@ type fakeSources struct {
 	visitCallers   []appointment.Caller
 	receiptCallers []invoice.Caller
 	periods        []invoice.Period
+	purposes       []string // ClinicRecord's, in order
+	patientCalls   []patient.Caller
+	filters        []appointment.Filter
+	patientReceipt []string // OfClinicPatient's patient ids
 }
 
 func (f *fakeSources) OfClinic(_ context.Context, org string) ([]chargeitemdefinition.Definition, error) {
@@ -194,9 +203,50 @@ func (f practitioners) Read(_ context.Context, c practitioner.Caller, id string)
 
 type visits struct{ *fakeSources }
 
-func (f visits) Search(_ context.Context, c appointment.Caller, _ appointment.Filter) ([]appointment.Seen, error) {
+func (f visits) Search(_ context.Context, c appointment.Caller, filter appointment.Filter) ([]appointment.Seen, error) {
 	f.visitCallers = append(f.visitCallers, c)
+	f.filters = append(f.filters, filter)
 	return f.appointments, nil
+}
+
+func (f *fakeSources) OfClinicPatient(_ context.Context, c invoice.Caller, patientID string) ([]invoice.Invoice, error) {
+	f.receiptCallers = append(f.receiptCallers, c)
+	f.patientReceipt = append(f.patientReceipt, patientID)
+	var out []invoice.Invoice
+	for _, i := range f.receipts {
+		if i.PatientID == patientID {
+			out = append(out, i)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeSources) Quotes(_ context.Context, c invoice.Caller, appointmentID string) ([]invoice.Quote, error) {
+	f.receiptCallers = append(f.receiptCallers, c)
+	if appointmentID != "" {
+		return nil, errors.New("asked for one visit's quotes")
+	}
+	return f.quotes, nil
+}
+
+type patients struct{ *fakeSources }
+
+func (f patients) Registered(_ context.Context, c patient.Caller) ([]string, error) {
+	f.patientCalls = append(f.patientCalls, c)
+	return f.registered, nil
+}
+
+func (f patients) ClinicRecord(_ context.Context, c patient.Caller, id, purpose string) (patient.ClinicRecord, error) {
+	f.patientCalls = append(f.patientCalls, c)
+	f.purposes = append(f.purposes, purpose)
+	if f.recordErr != nil {
+		return patient.ClinicRecord{}, f.recordErr
+	}
+	rec, ok := f.records[id]
+	if !ok {
+		return patient.ClinicRecord{}, patient.ErrNotFound
+	}
+	return rec, nil
 }
 
 func (f *fakeSources) List(_ context.Context, c invoice.Caller, p invoice.Period) ([]invoice.Invoice, error) {

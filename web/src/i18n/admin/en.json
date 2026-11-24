@@ -62,7 +62,7 @@
   "postalCode": "Postal code",
   "addressHint": "Patients with an appointment at the clinic get this address in their e-mails and reminders.",
   "exportTitle": "Clinic data export",
-  "exportHint": "One archive with the price list, the staff, the appointments and the receipts as CSV files. It can be downloaded for 7 days after you ask for it, then it is deleted.",
+  "exportHint": "One archive with the price list, the staff, the appointments, the receipts and the quotes as CSV files, and the record of each patient the clinic registered as a FHIR file. Clinical documents are not in it. It can be downloaded for 7 days after you ask for it, then it is deleted.",
   "exportAsk": "Export the clinic’s data",
   "exportAsking": "Starting the export",
   "exportBuilding": "The archive is being built. This can take a few minutes.",

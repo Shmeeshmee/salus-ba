@@ -3,12 +3,14 @@ package appointment_test
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
@@ -85,15 +87,31 @@ func checkMovedReminders(t *testing.T, f *fixture, newStart time.Time) {
 	}
 }
 
-// A patient the clinic registered has no account: no e-mail and no reminder is scheduled for them (as BookForPatient).
-func TestMoveForPatient_SendsAPatientWithoutAnAccountNothing(t *testing.T) {
+// A patient the clinic registered has no account: no e-mail, but the reminders are scheduled again for the new time,
+// as a desk booking does (docs/clinic-cms R3; the notifier sends them by SMS where the clinic offers it).
+func TestMoveForPatient_SchedulesAPatientWithoutAnAccountsRemindersButSendsNoEmail(t *testing.T) {
 	t.Parallel()
 	f := moveFixture(booked(apptA, patientC, roleA1, clinicA, start))
 	if _, err := f.svc.MoveForPatient(t.Context(), desk, apptA, slotLater, 1); err != nil {
 		t.Fatalf("MoveForPatient = %v", err)
 	}
-	if len(f.reminders.reminders) != 0 || !slices.Equal(f.jobs.enqueued, []string{"slot_freed 51" + apptA[2:] + " " + clinicA}) || len(f.stats.refreshes) != 2 {
-		t.Errorf("reminders %v, enqueued %v, refreshes %v; want only the freed slot and the statistics", f.reminders.reminders, f.jobs.enqueued, f.stats.refreshes)
+	later := f.slots.bookable[slotLater].Start
+	offsets := organization.DefaultAppointmentSettings().ReminderOffsetsMinutes
+	if len(offsets) == 0 || len(f.reminders.reminders) != len(offsets) {
+		t.Fatalf("reminders %v, want one per offset %v", f.reminders.reminders, offsets)
+	}
+	for _, r := range f.reminders.reminders {
+		if r.PatientID != patientC || !r.StartAt.Equal(later) {
+			t.Errorf("reminder %+v, want patient C's at the new start %v", r, later)
+		}
+	}
+	for _, j := range f.jobs.enqueued {
+		if strings.HasPrefix(j, "rescheduled") {
+			t.Errorf("enqueued %q: a patient without an account gets no e-mail", j)
+		}
+	}
+	if len(f.stats.refreshes) != 2 {
+		t.Errorf("refreshes %v, want both days", f.stats.refreshes)
 	}
 }
 

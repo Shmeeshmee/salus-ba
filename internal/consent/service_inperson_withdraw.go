@@ -10,8 +10,9 @@ import (
 
 // WithdrawInPerson records, as the staff caller c, that the patient patientID the clinic registered withdrew the care
 // consent they gave it in person (docs/clinic-cms R2, V2), in the clinic's scope and in one transaction: the consent
-// is revoked and the rest follows as for a patient's own revocation of a care consent (Revoke): the clinic's access
-// ends at the commit and consent_revoked cancels the visits ahead and withdraws the waitlist entries. Audited with c's
+// is revoked and the rest follows as for a patient's own revocation of a care consent (Revoke): the clinic's
+// practitioners' access to the care record ends at the commit (the desk keeps the profile the clinic registered, to
+// hand over its record or record a new consent; docs/clinic-cms PROGRESS, wave 4 integration) and consent_revoked cancels the visits ahead and withdraws the waitlist entries. Audited with c's
 // account. ErrForbidden to a patient, ErrInactive when the patient has no active consent with c's clinic given in
 // person (one given in the app is the patient's to revoke); each refusal is audited.
 func (s *Service) WithdrawInPerson(ctx context.Context, c Caller, patientID string) (Consent, error) {

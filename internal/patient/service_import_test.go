@@ -50,6 +50,7 @@ func TestImport_PreviewsEveryRowWithItsErrorsAndLikelyDuplicates(t *testing.T) {
 		"",
 		"Bo;Sample;03/02/1991;",
 		"Di;Sample;33970;+387 (61) 000/222",
+		"Ed;Sample;1985;", // a year alone is no date
 	), false)
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +62,7 @@ func TestImport_PreviewsEveryRowWithItsErrorsAndLikelyDuplicates(t *testing.T) {
 		{Line: 5, Errors: []string{"birth_date_invalid"}, Patient: patient.Patient{GivenName: "Cy", FamilyName: "Sample", Phone: "+38761000111"}},
 		{Line: 7, Duplicate: true, Patient: patient.Patient{GivenName: "Bo", FamilyName: "Sample", BirthDate: date(1991, 2, 3)}},
 		{Line: 8, Patient: patient.Patient{GivenName: "Di", FamilyName: "Sample", BirthDate: date(1993, 1, 1), Phone: "+38761000222"}},
+		{Line: 9, Errors: []string{"birth_date_invalid"}, Patient: patient.Patient{GivenName: "Ed", FamilyName: "Sample"}},
 	}
 	if !slices.EqualFunc(rows, want, sameImportRow) {
 		t.Errorf("Import() =\n%+v,\nwant\n%+v", rows, want)

@@ -28,6 +28,7 @@ func (s *Service) Correct(ctx context.Context, c Caller, in Patient) (Patient, e
 	if !c.desk() {
 		return Patient{}, s.refuseRights(ctx, c, auditevent.CodeUpdate, c.purpose(), ErrForbidden)
 	}
+	in.Phone = phoneOf(in.Phone) // as the import and the desk's registration read it
 	in, err := s.valid(in)
 	if err != nil {
 		return Patient{}, err
@@ -38,6 +39,9 @@ func (s *Service) Correct(ctx context.Context, c Caller, in Patient) (Patient, e
 		_, err := s.registered(ctx, c, in.ID)
 		if err == nil {
 			out, err = s.repo.Correct(ctx, in, c.OrganizationID, s.clock.Now())
+		}
+		if err == nil {
+			out.ConsentActive, err = s.consentActive(ctx, out.ID, c.OrganizationID)
 		}
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrConflict) {
 			refused = err
@@ -80,6 +84,9 @@ func (s *Service) WithdrawConsent(ctx context.Context, c Caller, id string) (con
 			return err
 		}
 		out, err = s.consents.WithdrawInPerson(ctx, consent.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID}, id)
+		if errors.Is(err, consent.ErrInactive) { // refused and audited by the consent domain: keep its event and the read's
+			refused, err = err, nil
+		}
 		return err
 	})
 	switch {
@@ -91,13 +98,23 @@ func (s *Service) WithdrawConsent(ctx context.Context, c Caller, id string) (con
 	return out, nil
 }
 
-// ClinicRecord returns, to the clinic's admin c, the record of the patient id the clinic registered, to hand over to
-// the patient: the profile and the clinic's consents of the patient, in one transaction; the profile's read is audited
-// with the patient's request as its purpose, each consent's by the consent domain. ErrForbidden to anyone else,
-// ErrNotFound for a profile the clinic did not register (each audited).
-func (s *Service) ClinicRecord(ctx context.Context, c Caller, id string) (ClinicRecord, error) {
+// The purposes a record of a registered patient is read for (ClinicRecord): the hand-over at the patient's request,
+// and the clinic's data export (healthcare operations).
+const (
+	PurposeHandOver = auditevent.CodePATRQT
+	PurposeExport   = auditevent.CodeHOPERAT
+)
+
+// ClinicRecord returns, to the clinic's admin c, the record of the patient id the clinic registered: the profile and
+// the clinic's consents of the patient, in one transaction, for the purpose (PurposeHandOver or PurposeExport; any
+// other is read as the hand-over). The profile's read is audited with the purpose, each consent's by the consent
+// domain. ErrForbidden to anyone else, ErrNotFound for a profile the clinic did not register (each audited).
+func (s *Service) ClinicRecord(ctx context.Context, c Caller, id, purpose string) (ClinicRecord, error) {
+	if purpose != PurposeExport {
+		purpose = PurposeHandOver
+	}
 	if c.patient() || !c.Admin {
-		return ClinicRecord{}, s.refuseRights(ctx, c, auditevent.CodeRead, auditevent.CodePATRQT, ErrForbidden)
+		return ClinicRecord{}, s.refuseRights(ctx, c, auditevent.CodeRead, purpose, ErrForbidden)
 	}
 	var out ClinicRecord
 	var refused error
@@ -106,7 +123,7 @@ func (s *Service) ClinicRecord(ctx context.Context, c Caller, id string) (Clinic
 		out.Patient, err = s.registered(ctx, c, id)
 		if errors.Is(err, ErrNotFound) {
 			refused = err
-			return s.audit.Record(ctx, s.event(c, auditevent.CodeRead, auditevent.CodePATRQT, "", auditevent.OutcomeMinorFailure))
+			return s.audit.Record(ctx, s.event(c, auditevent.CodeRead, purpose, "", auditevent.OutcomeMinorFailure))
 		}
 		if err != nil {
 			return err
@@ -114,13 +131,36 @@ func (s *Service) ClinicRecord(ctx context.Context, c Caller, id string) (Clinic
 		if out.Consents, err = s.consents.OfClinicPatient(ctx, consent.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID}, id); err != nil {
 			return err
 		}
-		return s.audit.Record(ctx, s.event(c, auditevent.CodeRead, auditevent.CodePATRQT, id, auditevent.OutcomeSuccess))
+		return s.audit.Record(ctx, s.event(c, auditevent.CodeRead, purpose, id, auditevent.OutcomeSuccess))
 	})
 	switch {
 	case err != nil:
 		return ClinicRecord{}, fmt.Errorf("patient: clinic record: %w", err)
 	case refused != nil:
 		return ClinicRecord{}, refused
+	}
+	return out, nil
+}
+
+// Registered returns, to the clinic's admin c, the ids of the patients the clinic registered, for its data export,
+// audited as one search with the export's purpose. ErrForbidden, audited, to anyone else.
+func (s *Service) Registered(ctx context.Context, c Caller) ([]string, error) {
+	if c.patient() || !c.Admin {
+		return nil, s.refuseRights(ctx, c, auditevent.CodeSearchType, PurposeExport, ErrForbidden)
+	}
+	var out []string
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetClinic(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		var err error
+		if out, err = s.repo.RegisteredBy(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		return s.audit.Record(ctx, s.event(c, auditevent.CodeSearchType, PurposeExport, "", auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("patient: registered: %w", err)
 	}
 	return out, nil
 }

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { DeskPatient } from './DeskPatient'
 import { newApiClient, type Account } from './api/client'
 import { renderInLanguage } from './i18n/renderInLanguage'
-import { ana, bo } from './test/desk'
+import { ana, bo, ida } from './test/desk'
 import { apiError, expectCsrfOnWrites, fakeFetch, type Route } from './test/fakeFetch'
 import { admin } from './test/fixtures'
 
@@ -83,5 +83,44 @@ describe('DeskPatient', () => {
     card = await openCard()
     await waitFor(() => expect(card.getByRole('button', { name: 'Record withdrawal of consent' })).toBeTruthy())
     expect(card.queryByRole('link', { name: 'Download the record' })).toBeNull()
+  })
+
+  it('records the consent an imported patient gives in person, from their card (wave 4)', async () => {
+    const fake = renderCard({ [`POST /clinic/patients/${ida.id}/consent`]: () => new Response(null, { status: 204 }) }, reception, ida)
+    fireEvent.click(screen.getByRole('button', { name: 'Ida Import' }))
+    const card = within(await screen.findByRole('dialog', { name: 'Patient card' }))
+    expect(card.queryByRole('button', { name: 'Record withdrawal of consent' })).toBeNull()
+    fireEvent.click(card.getByLabelText('The patient gave the clinic their consent to care, in person.'))
+    fireEvent.click(card.getByRole('button', { name: 'Record consent' }))
+    expect(await card.findByText('The consent is recorded.')).toBeTruthy()
+    expect(card.getByRole('button', { name: 'Record withdrawal of consent' })).toBeTruthy()
+    expect(fake.requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).pathname)).toEqual([`/clinic/patients/${ida.id}/consent`])
+    expectCsrfOnWrites(fake.requests)
+  })
+
+  it('offers to record a new consent once the patient withdrew theirs', async () => {
+    renderCard({ [`POST /clinic/patients/${bo.id}/consent-withdrawal`]: () => new Response(null, { status: 204 }) }, reception)
+    const card = await openCard()
+    fireEvent.click(card.getByRole('button', { name: 'Record withdrawal of consent' }))
+    fireEvent.click(card.getByRole('button', { name: /Confirm/ }))
+    expect(await card.findByRole('button', { name: 'Record consent' })).toBeTruthy()
+  })
+
+  it('tells the desk to read the day again when the card closes after a change, and not otherwise', async () => {
+    const fake = fakeFetch({
+      'GET /auth/me': () => Response.json(reception),
+      [`PUT /clinic/patients/${bo.id}`]: () => Response.json({ ...bo, phone: '+38761000009', versionId: 2 }),
+    })
+    let changed = 0
+    renderInLanguage(<DeskPatient api={newApiClient(fake.fetch)} patient={bo} onChanged={() => changed++} />, 'en')
+    let card = await openCard()
+    fireEvent.click(card.getByRole('button', { name: 'Close' }))
+    expect(changed).toBe(0)
+    card = await openCard()
+    fireEvent.change(card.getByLabelText('Phone (optional)'), { target: { value: '061 000 009' } })
+    fireEvent.click(card.getByRole('button', { name: 'Save' }))
+    await card.findByText('The profile is saved.')
+    fireEvent.click(card.getByRole('button', { name: 'Close' }))
+    expect(changed).toBe(1)
   })
 })

@@ -176,3 +176,42 @@ func TestMatching_FindsTheClinicsPatientsOfTheSameNamesAndBirthDateOnly(t *testi
 		t.Errorf("clinic A after A's consent: %v, want Čedo and Ada", got)
 	}
 }
+
+func TestRegisteredBy_ListsTheProfilesTheClinicRegisteredOnly(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedAccounts(t, owner) // A: an app patient, the clinic's by no registration
+	if _, err := owner.Exec(t.Context(), "INSERT INTO organization (id, name) VALUES ($1, 'Clinic A'), ($2, 'Clinic B')", clinicA, clinicB); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.Exec(t.Context(), "INSERT INTO consent (patient_id, organization_id, status, date_time) VALUES ($1, $2, 'active', now())", patientA, clinicA); err != nil {
+		t.Fatal(err)
+	}
+	repo := patient.NewPostgresRepository(app)
+	var cy patient.Patient
+	if err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
+		var err error
+		cy, err = repo.Register(ctx, patient.Patient{GivenName: "Cy", FamilyName: "Example", BirthDate: date(1980, 3, 4)}, clinicA, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	list := func(clinic string) []string {
+		t.Helper()
+		var ids []string
+		if err := inClinic(t, app, repo, clinic, func(ctx context.Context) error {
+			var err error
+			ids, err = repo.RegisteredBy(ctx, clinic)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return ids
+	}
+	if got := list(clinicA); len(got) != 1 || got[0] != cy.ID {
+		t.Errorf("clinic A: %v, want Cy only (not the app patient with its consent)", got)
+	}
+	if got := list(clinicB); len(got) != 0 {
+		t.Errorf("clinic B: %v, want nobody", got)
+	}
+}

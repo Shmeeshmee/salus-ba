@@ -19,7 +19,7 @@ type ClinicPatients interface {
 	Register(ctx context.Context, c Caller, in Patient) (Patient, error)
 	Correct(ctx context.Context, c Caller, in Patient) (Patient, error)
 	WithdrawConsent(ctx context.Context, c Caller, id string) (consent.Consent, error)
-	ClinicRecord(ctx context.Context, c Caller, id string) (ClinicRecord, error)
+	RecordConsent(ctx context.Context, c Caller, id string) (consent.Consent, error)
 	Import(ctx context.Context, c Caller, data []byte, save bool) ([]ImportRow, error)
 }
 
@@ -42,7 +42,6 @@ func (h *ClinicHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/patients", h.search)
 	mux.HandleFunc("POST /clinic/patients", h.register)
 	h.rightsRoutes(mux) // docs/clinic-cms R2
-
 	mux.HandleFunc("POST /clinic/patients/import", h.importFile)
 }
 
@@ -55,13 +54,14 @@ type clinicPatientJSON struct {
 	BirthDate          string    `json:"birthDate"`
 	Phone              string    `json:"phone,omitempty"`
 	RegisteredByClinic bool      `json:"registeredByClinic"`
+	ConsentActive      bool      `json:"consentActive"`
 	VersionID          int32     `json:"versionId"`
 }
 
 func toClinicJSON(p Patient) clinicPatientJSON {
 	return clinicPatientJSON{
 		ID: p.ID, GivenName: p.GivenName, FamilyName: p.FamilyName, BirthDate: p.BirthDate.Format(dateLayout), Phone: p.Phone,
-		RegisteredByClinic: p.RegisteredBy != "", VersionID: p.VersionID, LastUpdated: p.LastUpdated.UTC(),
+		RegisteredByClinic: p.RegisteredBy != "", ConsentActive: p.ConsentActive, VersionID: p.VersionID, LastUpdated: p.LastUpdated.UTC(),
 	}
 }
 

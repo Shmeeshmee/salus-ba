@@ -301,7 +301,9 @@ func (s *Service) Generating(ctx context.Context) ([]Schedule, error) {
 		return nil, fmt.Errorf("schedule: generating: %w", err)
 	}
 	var out []Schedule
+	var errs []error
 	for _, c := range clinics {
+		var theirs []Schedule
 		err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 			all, err := s.OfClinic(ctx, c.ID)
 			if err != nil {
@@ -313,16 +315,18 @@ func (s *Service) Generating(ctx context.Context) ([]Schedule, error) {
 					return err
 				}
 				if role.Active {
-					out = append(out, sc)
+					theirs = append(theirs, sc)
 				}
 			}
 			return nil
 		})
-		if err != nil {
-			return nil, fmt.Errorf("schedule: generating: %w", err)
+		if err != nil { // that clinic waits for the next run; the others are generated
+			errs = append(errs, fmt.Errorf("schedule: generating clinic %s: %w", c.ID, err))
+			continue
 		}
+		out = append(out, theirs...)
 	}
-	return out, nil
+	return out, errors.Join(errs...)
 }
 
 // record audits a read, create or update by c of the schedule id ("" for none).

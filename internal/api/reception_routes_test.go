@@ -55,7 +55,7 @@ var receptionRoutes = map[string]receptionClass{
 	"GET /clinic/patients": desk, "POST /clinic/patients": desk, "POST /clinic/appointments": desk,
 	// R2: the desk corrects a profile the clinic registered and records the withdrawal of its consent; the record is the
 	// admin's to hand over.
-	"PUT /clinic/patients/{id}": desk, "POST /clinic/patients/{id}/consent-withdrawal": desk, "GET /clinic/patients/{id}/record": refused,
+	"PUT /clinic/patients/{id}": desk, "POST /clinic/patients/{id}/consent": desk, "POST /clinic/patients/{id}/consent-withdrawal": desk, "GET /clinic/patients/{id}/record": refused,
 	"POST /clinic/appointments/{id}/reschedule": desk, "POST /clinic/appointments/{id}/cancel": desk,
 	"POST /clinic/appointments/{id}/arrive": desk, "GET /clinic/desk/today": desk,
 

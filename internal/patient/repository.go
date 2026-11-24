@@ -36,4 +36,6 @@ type Repository interface {
 	// Matching returns the patients of the clinic org (registered by it or with its active care consent) whose given
 	// and family name (case does not matter) and birth date are those of a profile of in.
 	Matching(ctx context.Context, org string, in []Patient) ([]Patient, error)
+	// RegisteredBy returns the ids of the profiles the clinic org registered, in the transaction and scope in ctx.
+	RegisteredBy(ctx context.Context, org string) ([]string, error)
 }

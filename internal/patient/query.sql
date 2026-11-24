@@ -66,3 +66,8 @@ WHERE (p.registered_by_organization_id = @organization_id
                   WHERE c.patient_id = p.id AND c.organization_id = @organization_id AND c.status = 'active'))
   AND lower(p.given_name) || chr(31) || lower(p.family_name) || chr(31) || to_char(p.birth_date, 'YYYY-MM-DD') = ANY(@keys::text[])
 ORDER BY p.id;
+
+-- The ids of the patients the clinic registered (its data export, docs/clinic-cms M2 joined in wave 4). Row-level
+-- security limits the rows to the scope too.
+-- name: RegisteredByClinic :many
+SELECT id FROM patient WHERE registered_by_organization_id = @organization_id ORDER BY id;

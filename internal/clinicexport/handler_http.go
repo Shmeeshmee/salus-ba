@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
 
@@ -17,6 +18,7 @@ type Exports interface {
 	Request(ctx context.Context, c Caller) (Export, error)
 	Get(ctx context.Context, c Caller, id string) (Export, error)
 	Download(ctx context.Context, c Caller, id string) (io.ReadCloser, int64, error)
+	PatientRecord(ctx context.Context, c Caller, id string) (Record, error)
 }
 
 // Handler serves the clinic's data export (api/openapi.yaml, /clinic/export). Errors are {"error": "<code>"}.
@@ -36,6 +38,8 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /clinic/export", h.request)
 	mux.HandleFunc("GET /clinic/export/{id}", h.get)
 	mux.HandleFunc("GET /clinic/export/{id}/archive", h.download)
+	// The hand-over of a registered patient's record (docs/clinic-cms R2), built as the export builds each patient's.
+	mux.HandleFunc("GET /clinic/patients/{id}/record", h.patientRecord)
 }
 
 // exportJSON is the ClinicExport schema.
@@ -104,6 +108,28 @@ func (h *Handler) download(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *Handler) patientRecord(w http.ResponseWriter, r *http.Request) {
+	c, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	rec, err := h.svc.PatientRecord(r.Context(), c, r.PathValue("id"))
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	body, err := bundleJSON(rec)
+	if err != nil {
+		httpx.InternalError(w, r, h.log, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/fhir+json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Disposition", `attachment; filename="patient-`+rec.Patient.Patient.ID+`.json"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body) // the status is sent; a failed write means the client went away
+}
+
 func (h *Handler) signedIn(w http.ResponseWriter, r *http.Request) (Caller, bool) {
 	c, ok, err := h.caller(r.Context())
 	switch {
@@ -119,9 +145,9 @@ func (h *Handler) signedIn(w http.ResponseWriter, r *http.Request) (Caller, bool
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, ErrForbidden):
+	case errors.Is(err, ErrForbidden), errors.Is(err, patient.ErrForbidden):
 		writeCode(w, http.StatusForbidden, "forbidden")
-	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, ErrNotFound), errors.Is(err, patient.ErrNotFound):
 		writeCode(w, http.StatusNotFound, "not_found")
 	default:
 		httpx.InternalError(w, r, h.log, err)

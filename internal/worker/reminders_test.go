@@ -20,6 +20,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/worker"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
@@ -59,19 +60,46 @@ func (s *capturingSender) Send(_ context.Context, m notification.Message) error 
 	return nil
 }
 
-// noSlots is the slots port of a cancellation in these tests: the appointments have no slot rows to free.
-type noSlots struct{}
+// testSlots is the slots port of these tests: the appointments have no slot rows to free, and the one slot next, when
+// set, is the free slot a staff move takes (docs/clinic-cms wave 4: the move's reminders).
+type testSlots struct {
+	next slot.Bookable
+}
 
-func (noSlots) Bookable(context.Context, string) (slot.Bookable, error) {
+func (*testSlots) Bookable(context.Context, string) (slot.Bookable, error) {
 	return slot.Bookable{}, slot.ErrUnavailable
 }
-func (noSlots) BookableInClinic(context.Context, string, string) (slot.Bookable, error) {
-	return slot.Bookable{}, slot.ErrUnavailable
+
+func (s *testSlots) BookableInClinic(_ context.Context, org, id string) (slot.Bookable, error) {
+	if s.next.ID == "" || s.next.ID != id || s.next.OrganizationID != org {
+		return slot.Bookable{}, slot.ErrUnavailable
+	}
+	return s.next, nil
 }
-func (noSlots) Hold(context.Context, string, string) (slot.Slot, error) {
-	return slot.Slot{}, slot.ErrUnavailable
+
+func (s *testSlots) Hold(_ context.Context, _, id string) (slot.Slot, error) {
+	if s.next.ID == "" || s.next.ID != id {
+		return slot.Slot{}, slot.ErrUnavailable
+	}
+	return s.next.Slot, nil
 }
-func (noSlots) Release(context.Context, string, string) (bool, error) { return false, nil }
+
+func (*testSlots) Release(context.Context, string, string) (bool, error) { return false, nil }
+
+// activeRoles is the roles port of these tests: every role is an active one of the clinic asked about.
+type activeRoles struct{}
+
+func (activeRoles) Read(_ context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error) {
+	return practitionerrole.PractitionerRole{ID: id, OrganizationID: c.OrganizationID, Active: true}, nil
+}
+
+func (activeRoles) Lookup(_ context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
+	return practitionerrole.PractitionerRole{ID: id, OrganizationID: org, Active: true}, nil
+}
+
+func (activeRoles) OfPractitioner(context.Context, string, string) (practitionerrole.PractitionerRole, error) {
+	return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
+}
 
 // noQuestionnaires is the questionnaire check of these tests: none outstanding (questionnaireresponse's own tests
 // cover it).
@@ -101,6 +129,7 @@ type reminderStack struct {
 	owner, app   *pgxpool.Pool
 	clock        *movingClock
 	appointments *appointment.Service
+	slots        *testSlots
 	mail         *notification.Service
 	jobs         *failOnce
 	sender       *capturingSender
@@ -115,14 +144,14 @@ func newReminderStack(t testing.TB) *reminderStack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &reminderStack{owner: owner, app: app, clock: &movingClock{}, sender: &capturingSender{}, pusher: &pushtest.Sender{}, sms: &smstest.Sender{}}
+	s := &reminderStack{owner: owner, app: app, clock: &movingClock{}, sender: &capturingSender{}, pusher: &pushtest.Sender{}, sms: &smstest.Sender{}, slots: &testSlots{}}
 	tx := postgres.NewTransactor(app)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(app), tx, s.clock)
 	patients := patient.NewService(patient.NewPostgresRepository(app), audit, tx, s.clock, nil, nil)
 	consents := consent.NewService(consent.NewPostgresRepository(app), audit, tx, s.clock, nil)
 	rules := organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(app), Audit: audit, Tx: tx, Clock: s.clock})
 	s.appointments = appointment.NewService(appointment.Ports{
-		Repo: appointment.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: s.clock, Consents: consents, Slots: noSlots{},
+		Repo: appointment.NewPostgresRepository(app), Audit: audit, Tx: tx, Clock: s.clock, Consents: consents, Slots: s.slots, Roles: activeRoles{},
 		Patients: patients, Jobs: appointment.NewRiverJobs(inserter), Stats: clinicstats.NewRiverQueue(inserter),
 		Reminders: appointment.NewPostgresReminderRepository(app), Rules: rules,
 		Tokens: appointment.NewPostgresTokenRepository(app), LinkURL: "https://api.example.test",

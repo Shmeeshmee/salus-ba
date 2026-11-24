@@ -342,6 +342,76 @@ class PatientApi {
     return null;
   }
 
+  /// Record the care consent a registered patient gave in person
+  ///
+  /// The care consent the patient gave the clinic in person, recorded with the caller as who recorded it, for a patient the clinic registered who has no active care consent with it: one imported (V5 of docs/clinic-cms WAVE4.md) or one who withdrew theirs. The desk asks for it before such a patient's booking. For the clinic's admin and its receptionists. Built in the wave 4 integration. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> recordClinicPatientConsentWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/patients/{id}/consent'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Record the care consent a registered patient gave in person
+  ///
+  /// The care consent the patient gave the clinic in person, recorded with the caller as who recorded it, for a patient the clinic registered who has no active care consent with it: one imported (V5 of docs/clinic-cms WAVE4.md) or one who withdrew theirs. The desk asks for it before such a patient's booking. For the clinic's admin and its receptionists. Built in the wave 4 integration. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> recordClinicPatientConsent(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await recordClinicPatientConsentWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Register a patient who has no Salus account
   ///
   /// The profile is the clinic's and seen by it only; the care consent is recorded as given in person, by the caller (W1 of docs/clinic-cms). For the clinic's admin and its receptionists. Built in package F2. Audited, also when refused.

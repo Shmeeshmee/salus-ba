@@ -219,6 +219,7 @@ Class | Method | HTTP request | Description
 *PatientApi* | [**getClinicPatientRecord**](doc//PatientApi.md#getclinicpatientrecord) | **GET** /clinic/patients/{id}/record | Download a registered patient's record to hand over
 *PatientApi* | [**getMyPatient**](doc//PatientApi.md#getmypatient) | **GET** /me/patient | The signed-in patient's profile
 *PatientApi* | [**importClinicPatients**](doc//PatientApi.md#importclinicpatients) | **POST** /clinic/patients/import | Import the clinic's patients from a file
+*PatientApi* | [**recordClinicPatientConsent**](doc//PatientApi.md#recordclinicpatientconsent) | **POST** /clinic/patients/{id}/consent | Record the care consent a registered patient gave in person
 *PatientApi* | [**registerClinicPatient**](doc//PatientApi.md#registerclinicpatient) | **POST** /clinic/patients | Register a patient who has no Salus account
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 *PatientApi* | [**searchClinicPatients**](doc//PatientApi.md#searchclinicpatients) | **GET** /clinic/patients | Search the clinic's patients

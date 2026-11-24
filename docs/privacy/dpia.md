@@ -2760,3 +2760,34 @@ profiles; nothing new is kept.
 | A file of another clinic's patients reveals whether they are patients here | The duplicate check reads only the caller's clinic's scope (row-level security and the query's clinic); tested against Postgres |
 | A receptionist or practitioner bulk-registers patients | The admin only, refusals audited |
 | A huge or crafted file exhausts the server | 2 MiB upload, 5 000 rows, an XLSX sheet at most a million cells |
+
+### Wave 4 integration: consent for an existing profile, the record's visits and receipts, the export's patients (docs/clinic-cms/PROGRESS.md)
+
+**Processing added.** No new personal-data field and no new table.
+
+- **An in-person consent for a profile the clinic registered** (`POST /clinic/patients/{id}/consent`): the desk records
+  the care consent a patient without an account gives in person when they have none active with the clinic, after an
+  import (V5) or a withdrawal. The same legal line and the same record as a walk-in's (given in person, the staff
+  account as who recorded it); admin and receptionist; another clinic's profile, or a patient's own, is not found; the
+  profile's read and the consent's creation are audited with the staff account, refusals too. The desk's patient search,
+  a registration, a correction and the desk's day say whether a care consent with the clinic is active
+  (`consentActive`, read from the consent domain, never stored on the profile), so the desk asks for it before a booking.
+- **The handed-over record and the export's patients** now hold, besides the profile and the clinic's consents, the
+  patient's appointments at the clinic (FHIR Appointment) and the receipts the clinic issued to them (FHIR Invoice: number,
+  status, date, total; no lines or fiscal data). One builder (`clinicexport.Service.PatientRecord`) for the hand-over's
+  download and the export's `patients/<id>.json`, one file per patient the clinic registered. Every read goes through the
+  owning service as the clinic's admin and is audited there: the profile with the patient's request (`PATRQT`) for a
+  hand-over and healthcare operations (`HOPERAT`) for the export, the list of registered patients as one search, each
+  appointment and the receipts as searches. Clinical documents, questionnaire answers and the history are not in either
+  until the owner and the lawyer decide who may hand them over; the export's `manifest.txt` says so.
+- **The export's `quotes.csv`**: id, dates, state, patient and visit ids, total. No note (free text a practitioner wrote)
+  and no lines.
+- **The desk row's reminder reason** (`reminderOff`: `sms_off` or `no_phone`): derived from the clinic's SMS option and
+  whether the profile has a phone; nothing new is read.
+
+| Risk | Measure |
+| --- | --- |
+| A clinic records a consent for another clinic's patient, or for an app patient | The service's registered check (the profile's `registered_by_organization_id`), the clinic's scope, and the database guard on an in-person consent; tested at the service and end to end |
+| A booking happens without the patient's consent | The booking still refuses without an active consent (`consent_required`); the screen asks for the consent first |
+| The handed-over file or the export shows another clinic's visits or receipts | The builder keeps only the clinic's own (checked against the clinic, not on row-level security alone); tested |
+| The export's file reveals more than the clinic may hand over | Clinical content is left out and the manifest says so; the lawyer's questions are in PROGRESS.md "Before production" |

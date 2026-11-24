@@ -27,6 +27,7 @@ type StaffBooking struct {
 // and phone; nothing clinical).
 type DeskVisit struct {
 	ServiceName string // the booked service's, in the clinic's language; empty for none
+	ReminderOff string // why no reminder will go: ReminderOffSMS or ReminderOffNoPhone; empty when one will
 	Patient     patient.Patient
 	Receipts    []VisitReceipt // the visit's receipts, whoever issued them (reversals left out), by number
 	Appointment Appointment
@@ -323,6 +324,11 @@ func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) (
 			} else if err != nil {
 				return nil, err
 			}
+			state, err := s.Consents.State(ctx, a.PatientID, c.OrganizationID)
+			if err != nil {
+				return nil, err
+			}
+			p.ConsentActive = state.Active
 			patients[a.PatientID] = p
 			if err := s.record(ctx, c, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess); err != nil {
 				return nil, err

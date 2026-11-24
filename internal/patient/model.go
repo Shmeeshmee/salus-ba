@@ -19,6 +19,9 @@ type Patient struct {
 	FamilyName   string
 	Phone        string // E.164; empty for none
 	VersionID    int32  // meta.versionId
+	// ConsentActive is read for the clinic's staff, never stored: the patient has an active care consent with the
+	// clinic whose scope read the profile (the desk's search, a registration and a correction, docs/clinic-cms wave 4).
+	ConsentActive bool
 }
 
 // Caller is who asks: the signed-in account and, for staff, its clinic, whether they are its admin and a

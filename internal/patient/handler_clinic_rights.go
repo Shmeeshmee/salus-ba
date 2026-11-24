@@ -12,10 +12,12 @@ import (
 )
 
 // rightsRoutes declares the routes of a registered patient's rights exercised through the clinic (docs/clinic-cms R2).
+// The record's hand-over (GET /clinic/patients/{id}/record) is served by clinicexport, which builds it with the
+// patient's visits and receipts.
 func (h *ClinicHandler) rightsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /clinic/patients/{id}", h.correct)
+	mux.HandleFunc("POST /clinic/patients/{id}/consent", h.recordConsent)
 	mux.HandleFunc("POST /clinic/patients/{id}/consent-withdrawal", h.withdraw)
-	mux.HandleFunc("GET /clinic/patients/{id}/record", h.record)
 }
 
 // correctRequest is the CorrectPatientRequest schema.
@@ -70,46 +72,26 @@ func (h *ClinicHandler) withdraw(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// collection is a FHIR R4 Bundle of type collection: the resources of a record handed over, each at its urn:uuid.
-type collection struct {
-	ResourceType string            `json:"resourceType"`
-	Type         string            `json:"type"`
-	Timestamp    string            `json:"timestamp"`
-	Entry        []collectionEntry `json:"entry"`
-}
-
-type collectionEntry struct {
-	Resource any    `json:"resource"`
-	FullURL  string `json:"fullUrl"`
-}
-
-func (h *ClinicHandler) record(w http.ResponseWriter, r *http.Request) {
+func (h *ClinicHandler) recordConsent(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.staff(w, r)
 	if !ok {
 		return
 	}
-	rec, err := h.svc.ClinicRecord(r.Context(), c, r.PathValue("id"))
-	if err != nil {
+	if _, err := h.svc.RecordConsent(r.Context(), c, r.PathValue("id")); err != nil {
 		h.writeError(w, r, err)
 		return
 	}
-	b := collection{ResourceType: "Bundle", Type: "collection", Timestamp: rec.Patient.LastUpdated.UTC().Format(time.RFC3339),
-		Entry: []collectionEntry{{FullURL: "urn:uuid:" + rec.Patient.ID, Resource: toFHIR(rec.Patient)}}}
-	for _, x := range rec.Consents {
-		b.Entry = append(b.Entry, collectionEntry{FullURL: "urn:uuid:" + x.ID, Resource: consent.FHIR(x)})
-		if x.LastUpdated.After(rec.Patient.LastUpdated) {
-			b.Timestamp = x.LastUpdated.UTC().Format(time.RFC3339)
-		}
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Disposition", `attachment; filename="patient-`+rec.Patient.ID+`.json"`)
-	fhir.Write(w, http.StatusOK, b)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // rightsError writes the rights routes' own refusals, and reports whether err was one.
 func rightsError(w http.ResponseWriter, err error) bool {
 	if errors.Is(err, consent.ErrInactive) {
 		writeCode(w, http.StatusConflict, "consent_inactive")
+		return true
+	}
+	if errors.Is(err, consent.ErrActive) {
+		writeCode(w, http.StatusConflict, "consent_active")
 		return true
 	}
 	return false

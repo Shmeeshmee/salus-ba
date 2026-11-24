@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -50,9 +51,22 @@ type Appointments interface {
 	Search(ctx context.Context, c appointment.Caller, f appointment.Filter) ([]appointment.Seen, error)
 }
 
-// Receipts lists the clinic's receipts, audited (invoice.Service).
+// Receipts lists the clinic's receipts, and those it issued to one patient, audited (invoice.Service).
 type Receipts interface {
 	List(ctx context.Context, c invoice.Caller, p invoice.Period) ([]invoice.Invoice, error)
+	OfClinicPatient(ctx context.Context, c invoice.Caller, patientID string) ([]invoice.Invoice, error)
+}
+
+// Quotes lists the clinic's quotes, audited (invoice.Service): with no appointment id, every quote to its admin.
+type Quotes interface {
+	Quotes(ctx context.Context, c invoice.Caller, appointmentID string) ([]invoice.Quote, error)
+}
+
+// Patients lists the patients the clinic registered and reads one's record (profile and consents) as its admin,
+// each read audited with its purpose (patient.Service).
+type Patients interface {
+	Registered(ctx context.Context, c patient.Caller) ([]string, error)
+	ClinicRecord(ctx context.Context, c patient.Caller, id, purpose string) (patient.ClinicRecord, error)
 }
 
 // Ports are what the Service works with.
@@ -69,6 +83,8 @@ type Ports struct {
 	Practitioners Practitioners
 	Appointments  Appointments
 	Receipts      Receipts
+	Quotes        Quotes
+	Patients      Patients
 }
 
 // Service holds the export's rules: only the clinic's admin asks for, reads and downloads its exports; one is queued
@@ -78,7 +94,8 @@ type Service struct {
 	p Ports
 }
 
-// NewService returns a Service on its ports. The API needs no sources; the worker's build needs them all.
+// NewService returns a Service on its ports. The API's routes need the sources of a patient's record (Patients,
+// Appointments, Receipts) for its hand-over; the worker's build needs them all.
 func NewService(p Ports) *Service {
 	return &Service{p: p}
 }

@@ -44,12 +44,18 @@ func (s *Service) composePatientSMS(ctx context.Context, d Delivery) (outgoing, 
 		return outgoing{}, err
 	}
 	rules, err := s.p.Rules.For(ctx, d.OrganizationID) // the send's scope is the clinic's already
-	if err != nil || !rules.SMSReminders {
-		return outgoing{}, errors.Join(err, errGone)
+	switch {
+	case err != nil: // retried: a passing failure does not cancel the reminder
+		return outgoing{}, err
+	case !rules.SMSReminders:
+		return outgoing{}, errGone
 	}
 	phone, err := s.p.Phones.NoticePhone(ctx, agent, d.OrganizationID, d.PatientID)
-	if err != nil || phone == "" {
-		return outgoing{}, errors.Join(err, errGone)
+	switch {
+	case err != nil:
+		return outgoing{}, err
+	case phone == "":
+		return outgoing{}, errGone
 	}
 	st, err := s.startTimes(ctx, d, n, Preferences{})
 	if err != nil {

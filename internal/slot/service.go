@@ -94,12 +94,12 @@ func (s *Service) Generate(ctx context.Context, org, id string) (Generated, erro
 // slots of listed clinics (row-level security on Search). A schedule that fails does not stop the others; the errors are
 // returned together.
 func (s *Service) GenerateAll(ctx context.Context) (Generated, error) {
-	all, err := s.schedules.Generating(ctx)
-	if err != nil {
-		return Generated{}, fmt.Errorf("slot: generate all: %w", err)
-	}
+	all, err := s.schedules.Generating(ctx) // with what it could read when a clinic failed
 	var total Generated
 	var errs []error
+	if err != nil {
+		errs = append(errs, fmt.Errorf("slot: generate all: %w", err))
+	}
 	for _, sc := range all {
 		g, err := s.Generate(ctx, sc.OrganizationID, sc.ID)
 		if err != nil {

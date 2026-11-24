@@ -272,7 +272,7 @@ func TestDeskDay_IsTodayInTheClinicsZoneAndNamesEachService(t *testing.T) {
 	f.repo.appts = []appointment.Appointment{visit, plain}
 	svc := appointment.NewService(appointment.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: today.Add(30 * time.Minute)},
-		Patients: f.patients, Clinics: f.clinics, Services: services, Rules: f.rules,
+		Patients: f.patients, Clinics: f.clinics, Services: services, Rules: f.rules, Consents: f.consents,
 	})
 	out, err := svc.DeskDay(t.Context(), desk, time.Time{})
 	if err != nil || !out.Day.Equal(today) || len(out.Visits) != 2 {
@@ -351,7 +351,7 @@ func TestDeskDay_GivesEachVisitItsReceiptsAndAuditsThem(t *testing.T) {
 	f := staffFixture(receipted, plain)
 	receipts := fakeReceipts{receipted.ID: {{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}, {ID: "e2000000-0000-4000-8000-0000000000e2", Number: 8}}}
 	svc := appointment.NewService(appointment.Ports{Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
-		Patients: f.patients, Clinics: f.clinics, Receipts: receipts, Rules: f.rules})
+		Patients: f.patients, Clinics: f.clinics, Receipts: receipts, Rules: f.rules, Consents: f.consents})
 	out, err := svc.DeskDay(t.Context(), desk, day)
 	if err != nil || len(out.Visits) != 2 {
 		t.Fatalf("DeskDay = %+v, %v", out, err)

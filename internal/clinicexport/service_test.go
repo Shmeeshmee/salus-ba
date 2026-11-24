@@ -4,8 +4,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
@@ -48,12 +51,12 @@ func newEnv(t *testing.T) *env {
 	}
 	e := &env{
 		repo: newFakeRepo(), audit: &fakeAudit{}, jobs: &fakeJobs{}, store: &fakeStore{objects: map[string][]byte{}},
-		sources: &fakeSources{people: map[string]practitioner.Practitioner{}}, clk: &clock.Fixed{T: asked},
+		sources: &fakeSources{people: map[string]practitioner.Practitioner{}, records: map[string]patient.ClinicRecord{}}, clk: &clock.Fixed{T: asked},
 	}
 	e.svc = clinicexport.NewService(clinicexport.Ports{
 		Repo: e.repo, Audit: e.audit, Tx: fakeTx{}, Clock: e.clk, Jobs: e.jobs, Store: e.store, KEK: kek,
 		PriceList: e.sources, Roles: e.sources, Practitioners: practitioners{e.sources}, Appointments: visits{e.sources},
-		Receipts: e.sources,
+		Receipts: e.sources, Quotes: e.sources, Patients: patients{e.sources},
 	})
 	return e
 }
@@ -137,10 +140,15 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 	e.sources.people["p1"] = practitioner.Practitioner{ID: "p1", GivenName: "Ana", FamilyName: "Test"}
 	start := time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)
 	e.sources.appointments = []appointment.Seen{{Patient: appointment.Name{Given: "=SUM(A1)", Family: "Primjer"},
-		Appointment: appointment.Appointment{ID: "a1", PatientID: "pt1", PractitionerRoleID: "r1", Start: start, End: start.Add(30 * time.Minute),
+		Appointment: appointment.Appointment{ID: "a1", PatientID: "pt1", OrganizationID: clinicA, PractitionerRoleID: "r1", Start: start, End: start.Add(30 * time.Minute),
 			Status: appointment.StatusFulfilled, Mode: schedule.ModeInPerson, ServiceID: "d1"}}}
 	e.sources.receipts = []invoice.Invoice{{ID: "i1", Number: 7, Kind: invoice.KindReceipt, IssuedAt: start, PatientID: "pt1", AppointmentID: "a1",
 		PaymentMethod: invoice.PaymentCash, TotalMinor: 5000, Currency: "BAM", FiscalStatus: invoice.FiscalFiscalized}}
+	e.sources.quotes = []invoice.Quote{{ID: "q1", IssuedAt: start, ValidUntil: start.Add(30 * 24 * time.Hour), State: invoice.QuoteSent,
+		PatientID: "pt1", AppointmentID: "a1", Note: "Placeholder note", TotalMinor: 12000, Currency: "BAM"}}
+	e.sources.registered = []string{"pt1", "gone"} // the second deleted since the list was read
+	e.sources.records["pt1"] = patient.ClinicRecord{Patient: patient.Patient{ID: "pt1", GivenName: "Cy", FamilyName: "Primjer",
+		BirthDate: time.Date(1980, 3, 4, 0, 0, 0, 0, time.UTC), RegisteredBy: clinicA, VersionID: 1, LastUpdated: start}}
 
 	x, err := e.svc.Request(context.Background(), admin)
 	if err != nil {
@@ -154,12 +162,9 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 	if len(sealed) == 0 || bytes.Contains(sealed, []byte("Primjer")) || bytes.Contains(sealed, []byte("prices.csv")) {
 		t.Fatalf("stored %d bytes; want the archive encrypted", len(sealed))
 	}
-	wantAdmin := func(account, org string, isAdmin bool) bool { return account == adminA && org == clinicA && isAdmin }
-	if len(e.sources.visitCallers) != 1 || !wantAdmin(e.sources.visitCallers[0].AccountID, e.sources.visitCallers[0].OrganizationID, e.sources.visitCallers[0].Admin) ||
-		len(e.sources.receiptCallers) != 1 || !wantAdmin(e.sources.receiptCallers[0].AccountID, e.sources.receiptCallers[0].OrganizationID, e.sources.receiptCallers[0].Admin) ||
-		len(e.sources.roleCallers) != 1 || !wantAdmin(e.sources.roleCallers[0].AccountID, e.sources.roleCallers[0].OrganizationID, e.sources.roleCallers[0].Admin) {
-		t.Errorf("read as %+v, %+v, %+v; want the asking admin's reads, each audited by its service",
-			e.sources.visitCallers, e.sources.receiptCallers, e.sources.roleCallers)
+	checkReadAsTheAdmin(t, e.sources)
+	if want := []string{patient.PurposeExport, patient.PurposeExport}; len(e.sources.purposes) != 2 || e.sources.purposes[0] != want[0] || e.sources.purposes[1] != want[1] {
+		t.Errorf("records read for %v, want the export's purpose", e.sources.purposes)
 	}
 	if p := e.sources.periods[0]; !p.To.After(e.clk.T) || !p.From.Before(start) {
 		t.Errorf("receipts' period = %+v; want every receipt", p)
@@ -190,14 +195,50 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 			"total_minor,currency,fiscal_status,fiscal_id\n" +
 			"i1,7," + string(invoice.KindReceipt) + ",2026-11-20T08:00:00Z,pt1,,,a1,," + string(invoice.PaymentCash) + ",5000,BAM," +
 			string(invoice.FiscalFiscalized) + ",\n",
+		"quotes.csv": "id,issued_at,valid_until,state,patient_id,appointment_id,total_minor,currency\n" +
+			"q1,2026-11-20T08:00:00Z,2026-12-20T08:00:00Z,sent,pt1,a1,12000,BAM\n",
 	}
 	for name, body := range want {
 		if files[name] != body {
 			t.Errorf("%s =\n%s\nwant\n%s", name, files[name], body)
 		}
 	}
-	if len(files) != len(want) {
-		t.Errorf("archive holds %d files, want %d", len(files), len(want))
+	checkPatientFile(t, files["patients/pt1.json"])
+	if m := files["manifest.txt"]; !strings.Contains(m, "Patients' records in this archive: 1\n") ||
+		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") {
+		t.Errorf("manifest.txt =\n%s", m)
+	}
+	if len(files) != len(want)+2 {
+		t.Errorf("archive holds %d files, want %d (the CSVs, one patient's record and the manifest)", len(files), len(want)+2)
+	}
+}
+
+// checkPatientFile checks a patient's record in the archive: a FHIR collection with the profile, the visit and the
+// receipt, and no note of a quote.
+func checkPatientFile(t *testing.T, body string) {
+	t.Helper()
+	var b struct {
+		ResourceType string `json:"resourceType"`
+		Type         string `json:"type"`
+		Entry        []struct {
+			Resource struct {
+				ResourceType string `json:"resourceType"`
+				ID           string `json:"id"`
+			} `json:"resource"`
+		} `json:"entry"`
+	}
+	if err := json.Unmarshal([]byte(body), &b); err != nil || b.ResourceType != "Bundle" || b.Type != "collection" {
+		t.Fatalf("patients/pt1.json = %s, %v", body, err)
+	}
+	var got []string
+	for _, e := range b.Entry {
+		got = append(got, e.Resource.ResourceType+"/"+e.Resource.ID)
+	}
+	if want := []string{"Patient/pt1", "Appointment/a1", "Invoice/i1"}; strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("patients/pt1.json holds %v, want %v", got, want)
+	}
+	if strings.Contains(body, "Placeholder note") {
+		t.Error("a patient's file holds a quote's note")
 	}
 }
 
@@ -272,4 +313,30 @@ func unzip(t *testing.T, b []byte) map[string]string {
 		out[f.Name] = sb.String()
 	}
 	return out
+}
+
+// checkReadAsTheAdmin checks every read of the build was made as the admin who asked (each audited by its service).
+func checkReadAsTheAdmin(t *testing.T, f *fakeSources) {
+	t.Helper()
+	var who []string
+	for _, c := range f.visitCallers {
+		who = append(who, c.AccountID+" "+c.OrganizationID+" "+strconv.FormatBool(c.Admin))
+	}
+	for _, c := range f.receiptCallers {
+		who = append(who, c.AccountID+" "+c.OrganizationID+" "+strconv.FormatBool(c.Admin))
+	}
+	for _, c := range f.patientCalls {
+		who = append(who, c.AccountID+" "+c.OrganizationID+" "+strconv.FormatBool(c.Admin))
+	}
+	for _, c := range f.roleCallers {
+		who = append(who, c.AccountID+" "+c.OrganizationID+" "+strconv.FormatBool(c.Admin))
+	}
+	if len(f.roleCallers) != 1 || len(f.visitCallers) == 0 || len(f.receiptCallers) == 0 || len(f.patientCalls) == 0 {
+		t.Errorf("reads: roles %d, visits %d, receipts and quotes %d, patients %d", len(f.roleCallers), len(f.visitCallers), len(f.receiptCallers), len(f.patientCalls))
+	}
+	for _, w := range who {
+		if w != adminA+" "+clinicA+" true" {
+			t.Errorf("read as %q; want the asking admin", w)
+		}
+	}
 }

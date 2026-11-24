@@ -6403,6 +6403,45 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/consent:
+    post:
+      operationId: recordClinicPatientConsent
+      x-salus-package: cms-w4
+      summary: Record the care consent a registered patient gave in person
+      description: >-
+        The care consent the patient gave the clinic in person, recorded with the caller as who recorded it, for a
+        patient the clinic registered who has no active care consent with it: one imported (V5 of docs/clinic-cms
+        WAVE4.md) or one who withdrew theirs. The desk asks for it before such a patient's booking. For the clinic's
+        admin and its receptionists. Built in the wave 4 integration. Audited, also when refused.
+      tags: [patient]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The consent recorded.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`consent_active`: the patient has an active care consent with the clinic already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /clinic/patients/{id}/consent-withdrawal:
     post:
       operationId: withdrawClinicPatientConsent
@@ -6893,8 +6932,13 @@ paths:
       x-salus-package: cms-o2
       summary: Ask for the clinic's data export
       description: >-
-        The price list, staff list, appointments and receipts as CSV, and the patients' records as FHIR Bundles, in one
-        archive built by a job. By the clinic's admin. Built in package O2. Audited.
+        One zip archive built by a job (package M2, joined in the wave 4 integration): the price list, staff,
+        appointments, receipts and quotes as CSV, and the record of each patient the clinic registered as a FHIR
+        Bundle (`patients/<id>.json`: the profile, the clinic's consents, the patient's appointments and receipts at the
+        clinic), with a `manifest.txt` that says what the archive holds and what it leaves out (clinical documents,
+        questionnaire answers and history). Encrypted at rest, downloadable for 7 days after the request, then deleted.
+        One export at a time per clinic: asking again while one is queued returns that one. By the clinic's admin.
+        Audited, every read made for it too.
       tags: [directory]
       security:
         - sessionCookie: []
@@ -6918,7 +6962,7 @@ paths:
       operationId: getClinicExport
       x-salus-package: cms-o2
       summary: Where an export stands
-      description: By the clinic's admin. Built in package O2.
+      description: By the clinic's admin (package M2). Not audited; it holds no personal data.
       tags: [directory]
       security:
         - sessionCookie: []
@@ -6949,7 +6993,7 @@ paths:
       operationId: downloadClinicExport
       x-salus-package: cms-o2
       summary: Download a ready export
-      description: By the clinic's admin, until it expires. Built in package O2. Audited.
+      description: By the clinic's admin, until it expires (package M2). Audited.
       tags: [directory]
       security:
         - sessionCookie: []
@@ -7988,7 +8032,7 @@ components:
         billingEmail: {type: string, format: email}
     ClinicPatient:
       type: object
-      required: [id, givenName, familyName, birthDate, registeredByClinic, versionId, lastUpdated]
+      required: [id, givenName, familyName, birthDate, registeredByClinic, consentActive, versionId, lastUpdated]
       description: >-
         A patient as the clinic's staff find them (package F2 of docs/clinic-cms): what the desk needs (W2), nothing
         clinical. Health data: it shows the person is the clinic's patient.
@@ -7999,6 +8043,11 @@ components:
         birthDate: {type: string, format: date}
         phone: {type: string, description: E.164; absent when none was given.}
         registeredByClinic: {type: boolean, description: The clinic registered the profile; the patient has no Salus account.}
+        consentActive:
+          type: boolean
+          description: >-
+            The patient has an active care consent with the caller's clinic. When false, the desk records the consent
+            the patient gives in person (POST /clinic/patients/{id}/consent) before it books them.
         versionId: {type: integer, format: int32}
         lastUpdated: {type: string, format: date-time}
     RegisterPatientRequest:
@@ -8059,6 +8108,12 @@ components:
           description: >-
             Whether a reminder reaches the patient (docs/clinic-cms R3): always for a patient with an account (by the
             channels they chose); for a patient without one only while the clinic offers SMS and the profile has a phone.
+        reminderOff:
+          type: string
+          enum: [sms_off, no_phone]
+          description: >-
+            Why no reminder will go, absent when one will: the clinic does not offer SMS, or the profile has no phone
+            (a patient without an account is reminded by SMS only).
         receipts:
           type: array
           description: >-
@@ -9446,6 +9501,7 @@ components:
             - version_conflict
             - consent_active
             - consent_inactive
+            - consent_active
             - profile_required
             - invalid_specialty
             - invalid_slot_minutes

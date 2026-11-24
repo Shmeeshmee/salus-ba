@@ -141,7 +141,8 @@ var birthDateLayouts = []string{"2006-01-02", "2.1.2006", "2/1/2006"}
 // Excel date number (days since 1899-12-30, as an XLSX cell formatted as a date holds it).
 func birthDateOf(v string) (time.Time, bool) {
 	if n, err := strconv.Atoi(v); err == nil {
-		return time.Date(1899, 12, 30+n, 0, 0, 0, 0, time.UTC), n > 0
+		// Above 2100 only: a cell with a year alone (1985) is no date, not 7 June 1905.
+		return time.Date(1899, 12, 30+n, 0, 0, 0, 0, time.UTC), n > 2100
 	}
 	v = strings.TrimSuffix(v, ".")
 	for _, layout := range birthDateLayouts {

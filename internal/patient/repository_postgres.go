@@ -162,6 +162,22 @@ func (r *postgresRepository) Matching(ctx context.Context, org string, in []Pati
 	return out, nil
 }
 
+func (r *postgresRepository) RegisteredBy(ctx context.Context, org string) ([]string, error) {
+	var o pgtype.UUID
+	if err := o.Scan(org); err != nil {
+		return nil, errors.New("patient: the clinic id is not a UUID")
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).RegisteredByClinic(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, id := range rows {
+		out = append(out, id.String())
+	}
+	return out, nil
+}
+
 // likePattern is %name%, with LIKE's wildcards and escape in name taken literally.
 func likePattern(name string) string {
 	return "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(name) + "%"

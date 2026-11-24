@@ -27,9 +27,9 @@ func (s *stubClinic) WithdrawConsent(_ context.Context, c patient.Caller, id str
 	return consent.Consent{}, s.err
 }
 
-func (s *stubClinic) ClinicRecord(_ context.Context, c patient.Caller, id string) (patient.ClinicRecord, error) {
+func (s *stubClinic) RecordConsent(_ context.Context, c patient.Caller, id string) (consent.Consent, error) {
 	s.caller, s.asked = c, id
-	return s.record, s.err
+	return consent.Consent{}, s.err
 }
 
 const correctBody = `{"givenName":"Cy","familyName":"Example","birthDate":"1980-03-04","phone":"+38761000002"}`
@@ -72,21 +72,13 @@ func TestClinicHandler_RecordsTheWithdrawal(t *testing.T) {
 	}
 }
 
-func TestClinicHandler_SendsTheRecordAsAFHIRCollectionToSave(t *testing.T) {
+func TestClinicHandler_RecordsTheConsentGivenInPerson(t *testing.T) {
 	t.Parallel()
-	svc := &stubClinic{record: patient.ClinicRecord{Patient: registeredC, Consents: []consent.Consent{{
-		ID: "f4000000-0000-4000-8000-0000000000f4", PatientID: registeredID, OrganizationID: clinicA, Kind: consent.KindCare,
-		Status: consent.StatusInactive, DateTime: date(2026, 11, 1), RevokedAt: now, LastUpdated: now, VersionID: 2, GivenInPerson: true,
-	}}}}
-	rec := serveClinicMatch(t, svc, http.MethodGet, "/clinic/patients/"+registeredID+"/record", "", "")
-	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/fhir+json" || rec.Header().Get("Cache-Control") != "no-store" ||
-		rec.Header().Get("Content-Disposition") != `attachment; filename="patient-`+registeredID+`.json"` {
-		t.Fatalf("GET = %d %v, want 200 a FHIR attachment named by the id", rec.Code, rec.Header())
+	svc := &stubClinic{}
+	rec := serveClinicMatch(t, svc, http.MethodPost, "/clinic/patients/"+registeredID+"/consent", "", "")
+	if rec.Code != http.StatusNoContent || svc.asked != registeredID || svc.caller != admin {
+		t.Errorf("POST = %d %s for %q, want 204 for the patient", rec.Code, rec.Body, svc.asked)
 	}
-	if svc.asked != registeredID {
-		t.Errorf("asked for %q", svc.asked)
-	}
-	assertGolden(t, "clinic_record.json", rec.Body.Bytes())
 }
 
 func TestClinicHandler_AnswersEachRightsRefusalWithItsCode(t *testing.T) {
@@ -107,10 +99,11 @@ func TestClinicHandler_AnswersEachRightsRefusalWithItsCode(t *testing.T) {
 		"a bad birth date":  {method: http.MethodPut, target: base, body: strings.Replace(correctBody, "1980-03-04", "x", 1), ifMatch: `W/"1"`, status: 400, code: "invalid_birth_date"},
 		"an unknown field":  {method: http.MethodPut, target: base, body: strings.Replace(correctBody, "}", `,"email":"x"}`, 1), ifMatch: `W/"1"`, status: 400, code: "invalid_request"},
 		"no active consent": {err: consent.ErrInactive, method: http.MethodPost, target: base + "/consent-withdrawal", status: 409, code: "consent_inactive"},
+		"consent active":    {err: consent.ErrActive, method: http.MethodPost, target: base + "/consent", status: 409, code: "consent_active"},
+		"consent refused":   {err: patient.ErrForbidden, method: http.MethodPost, target: base + "/consent", status: 403, code: "forbidden"},
+		"consent not found": {err: patient.ErrNotFound, method: http.MethodPost, target: base + "/consent", status: 404, code: "not_found"},
 		"withdraw refused":  {err: patient.ErrForbidden, method: http.MethodPost, target: base + "/consent-withdrawal", status: 403, code: "forbidden"},
-		"record refused":    {err: patient.ErrForbidden, method: http.MethodGet, target: base + "/record", status: 403, code: "forbidden"},
-		"record not found":  {err: patient.ErrNotFound, method: http.MethodGet, target: base + "/record", status: 404, code: "not_found"},
-		"an internal error": {err: errors.New("boom Cy Example"), method: http.MethodGet, target: base + "/record", status: 500},
+		"an internal error": {err: errors.New("boom Cy Example"), method: http.MethodPost, target: base + "/consent", status: 500},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

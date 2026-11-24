@@ -26,11 +26,15 @@ writes under its own heading here.
 | O2 | import done 2026-11-23, integrated 2026-11-23; the clinic data export deferred to wave 4 | `cms(O2)`, merged into `feat/cms` with `cms(wave 3)` |
 | X1 | done 2026-11-23, integrated 2026-11-23 | `cms(X1)`, merged into `feat/cms` with `cms(wave 3)` |
 | X2 | done 2026-11-23, integrated 2026-11-23 | `cms(X2)`, merged into `feat/cms` with `cms(wave 3)` |
-| M2 | done 2026-11-24 (wave 4); the patients' FHIR Bundles and the quotes left for after R2 and M4 | `cms(M2)` on `wt/cms/M2` |
 | O3 | hold (after F2) | |
 | X3 | hold (a payment provider) | |
-| R3 | done 2026-11-24 (wave 4, migration `00068`) | `cms(R3)` |
-| M4 | done 2026-11-24 | `cms(M4)` |
+| R1 | done 2026-11-24, integrated 2026-11-24 | `cms(R1)`, merged into `feat/cms` with `cms(wave 4)` |
+| R2 | done 2026-11-24, integrated 2026-11-24 (migration `00067`) | `cms(R2)`, merged into `feat/cms` with `cms(wave 4)` |
+| R3 | done 2026-11-24, integrated 2026-11-24 (migration `00068`) | `cms(R3)`, merged into `feat/cms` with `cms(wave 4)` |
+| M1 | done 2026-11-24, integrated 2026-11-24 (migration `00069`) | `cms(M1)`, merged into `feat/cms` with `cms(wave 4)` |
+| M2 | done 2026-11-24, integrated 2026-11-24 (migration `00070`); the patients' records and quotes.csv joined at the integration | `cms(M2)`, merged into `feat/cms` with `cms(wave 4)` |
+| M3 | done 2026-11-24, integrated 2026-11-24; the consent for an imported patient joined at the integration | `cms(M3)`, merged into `feat/cms` with `cms(wave 4)` |
+| M4 | done 2026-11-24, integrated 2026-11-24 | `cms(M4)`, merged into `feat/cms` with `cms(wave 4)` |
 
 ## A: visit modes
 
@@ -1978,22 +1982,141 @@ Done 2026-11-24 (wave 4, `docs/clinic-cms/WAVE4.md`). No migration.
 
 **Deferred.** The patient's name on `/quotes` (see above). No way for an admin to withdraw an open invite.
 
+## Wave 4 integration
+
+Done 2026-11-24 on `feat/cms`: `wt/cms/R1`, `R2`, `R3`, `M1`, `M2`, `M3`, `M4` merged with `--no-ff` in that order,
+then one commit `cms(wave 4): integrate R1, R2, R3, M1, M2, M3, M4`. The wave's migrations follow main's `00066` without
+gaps as the packages numbered them: R2 `00067_clinic_consent_withdraw.sql`, R3 `00068_patient_sms_delivery.sql`, M1
+`00069_staff_move.sql`, M2 `00070_clinic_export.sql` (R1, M3 and M4 needed none), so nothing was renumbered.
+
+- **Merges.** Conflicts only in shared files: this file and the DPIA (every package's block kept; R3's heading level
+  aligned), `api/openapi.yaml` (M3's import path block and R2's rights blocks, rebuilt path by path), the patient
+  queries, port and repository test (R2's correction and M3's matching, both kept), the desk catalogs (merged as JSON),
+  `internal/worker/worker.go` (R1's stats pool and M2's services), F1's route test (`notServedYet` is now empty: the staff
+  move and the export are both served), and `web/src/ClinicSettings.tsx` (M2's export and M3's import, both). `Desk.tsx`
+  by hand: R2's patient card on the name, M1's "Move" in the actions. Generated code was not hand-merged: `make sqlc`,
+  `make gen-clients` and `flutter gen-l10n` ran after the merges (no ARB changed this wave).
+- **Consent for an existing profile.** `POST /clinic/patients/{id}/consent` (`patient.Service.RecordConsent`, through
+  `consent.RecordInPerson`): admin and reception, for a profile the clinic registered that has no active care consent
+  with it; the read and the consent audited with the staff account; another clinic's profile or an app patient's is not
+  found; one already active is 409 `consent_active`. `ClinicPatient.consentActive` (required) is read from the consent
+  domain in the desk's search, a registration, a correction and the desk's day. The walk-in's booking step asks for the
+  consent first with the walk-in's legal line (`DeskConsent.tsx`), and the patient card offers it while none is active
+  (after an import or a withdrawal). e2e `TestDesk_AnImportedPatientGivesTheConsentAtTheDeskAndIsBooked`: import, find at
+  the desk without a consent, booking refused, another clinic refused, the consent recorded, booked.
+- **Staff move and SMS.** `movedByStaff` schedules the reminders again for every patient (R3's notifier sends a
+  profile's by SMS where the clinic offers it); the e-mail with the new time stays for account holders. Tested in the
+  service and against Postgres with R3's sent-once cases (`checkProfileMovedByStaff`: the old time's reminders cancelled
+  and silent, the new day-before one's first dispatch rolled back, every job twice, one SMS with the new time, counted
+  once). Both tests failed against M1's code first.
+- **The desk row's reminder.** `DeskVisit.reminderOff` (`sms_off` or `no_phone`, absent when a reminder goes); the row of
+  a booked visit says "Reminder will be sent", "No reminder: no phone number" or "No reminder: SMS is off for the clinic".
+- **One record builder.** `clinicexport.Service.PatientRecord` builds a registered patient's record: R2's profile and
+  consents (`patient.ClinicRecord`, which keeps the admin and registered checks and their audit), the patient's
+  appointments at the clinic (`appointment.Search` with the patient) and the receipts the clinic issued to them (new
+  `invoice.OfClinicPatient`), each kept only when it is the clinic's. `GET /clinic/patients/{id}/record` moved from
+  patient's handler to clinicexport's (same route, same answers; its golden file moved and now holds a visit and a
+  receipt, validated against R4); the export writes the same file as `patients/<id>.json` for each patient the clinic
+  registered (`patient.Service.Registered`). The receipts are a minimal FHIR R4 Invoice (`invoice.FHIR`). The export also
+  writes `quotes.csv` (M4's clinic-wide list; no note, no lines) and a `manifest.txt`. Clinical documents, questionnaire
+  answers and history are in neither until the owner and the lawyer decide who may hand them over: the manifest, the
+  record's and the export's hints, the DPIA and "Before production" below say so. The routes' "Built in package O2" texts
+  are rewritten.
+- **5 000 patients.** An import of 5 000 clean rows (222 KB CSV) through the API on the walk's stack, wall clock from the
+  client: save 1.50 s, 1.69 s, 1.27 s; the preview 15 ms. Under 30 s, so the inserts are not batched.
+- **Tests changed on purpose.** M1's `TestMoveForPatient_SendsAPatientWithoutAnAccountNothing` is now
+  `…SchedulesAPatientWithoutAnAccountsRemindersButSendsNoEmail`; M1's `TestMoveByStaff_ConcurrentMovesGiveOne` ran its
+  cases from a map although the second depends on the first (it failed one run in a few): an ordered slice now; R2's
+  handler tests for the record moved to clinicexport; the golden
+  `clinic_record.json`; the bad phone of `TestRegister_RefusesAPractitionerAPatientAndABadField` (`061 000` is now read
+  as `+38761000`; `061 ABC` is still refused); two desk tests that built their own ports got the consents port.
+
+**Review** (a fresh subagent over `origin/main` and the working tree; Copilot is out of quota). The two questions —
+can one clinic reach another's patients through the import, the export, the record download or a staff move, and does
+anything personal reach a log, a job argument or an audit detail — found no path (each checked in the services, the
+queries and the row-level security policies). Fixed:
+
+- The record's refusals (403, 404) were audited inside an outer transaction that the refusal rolled back: no audit row
+  for another clinic's probe. The builder no longer wraps the owning services' own transactions.
+- A withdrawal without an active in-person consent lost its two audit events the same way: now kept (as `RecordConsent`
+  keeps `consent_active`'s).
+- A passing failure reading the phone or the clinic's rules cancelled a profile's SMS for good: it is retried now.
+- One clinic that could not be read stopped the hourly slot generation for all: the others are generated, the failure
+  is returned.
+- `appointment_guard_role` (00069, not yet on main) let a NULL scope through `IF NOT clinic`: `IF clinic IS NOT TRUE`.
+- An import cell with a year alone (`1985`) was read as an Excel date (1905): a date number counts above 2100 only.
+- `MoveForPatient`'s and `WithdrawInPerson`'s comments said what the code no longer does.
+
+Declined, with reasons in the PR: the export job not re-checking that the asking admin is still the admin (a job runs
+minutes after the request, its reads are audited under that account, and removing an admin while an export is queued is
+rare; listed below); the urn:uuid `fullUrl`s with `Patient/<id>` references in the collection Bundle (R2's form, valid R4,
+the validator passes; a collection need not resolve its references); a refused consent in an aborted transaction giving
+a 500 (only when the profile disappears in the same instant); `Get` and `Download` of another clinic's export not audited
+(nothing of a patient is read); the invite limit's unlocked check (M4's accepted bound). Reading 3 (a withdrawn patient's
+profile stays reachable at the desk) is the decision below.
+
+**Browser walk** (`docs/clinic-cms/walk/wave4/WALK.md`, its own worktree and compose project, synthetic data, headless
+Chromium at 1280 and 390 px, each width its own patients): all ten steps pass at both widths. Fixed after it: the desk's
+phone read as the import reads it, the row read again after the card changes something, the withdrawal's buttons, and
+the record's and export's hints. Stated, not fixed: visits a withdrawal cancelled are not in the export or the record
+(the clinic's scope shows only the visits before the withdrawal; the manifest says so). Left open: the card is reached
+only from a desk row (after a withdrawal the admin downloads the record by URL), the phone shown unspaced, the move's one
+long select, the long clinic settings page.
+
+**Checks** (this integration's own compose project, `salus-cms-w4`; e2e on fresh volumes): on the final tree `make gen-clients` (no diff),
+`make lint` (gofmt, vet, golangci-lint, i18n-check, migrations), `make archcheck`, `make test`, `make cover` (90.4% total,
+every package at 80% or more), `make fhir-validate` (131 files, 0 errors; the new `clinic_record.json` included),
+`make web-lint` (the one warning in `analytics/ClinicView.tsx` that was there), `web-typecheck`, `web-test` (1308),
+`web-build`, `make mobile-analyze`, `mobile-test` (680): all pass. `make e2e` on fresh volumes: one failure, R2's journey,
+which this integration had changed to expect the withdrawn patient's cancelled visit in the record (the walk's finding 9:
+it is not there); the expectation put back with the reason, the desk journeys rerun, then the whole `make e2e` again on
+that stack: pass (403 s). After the review's and the walk's fixes the Go, web and mobile sets were run again (above).
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Which patients the export writes a record for | Those the clinic registered; an app patient's visits, receipts and quotes are in the CSV files | R2's builder is the clinic acting for a patient without an account (V2); an app patient exports their own record |
+| Where the record builder lives | `clinicexport`, which serves the hand-over's route too | `appointment` and `invoice` import `patient`, so `patient` cannot read visits or receipts |
+| The audit purpose of a record read | `PATRQT` for the hand-over, `HOPERAT` for the export | The hand-over is the patient's request; the export is the clinic's operations |
+| A receipt in the record | FHIR Invoice with number, status, date, clinic, patient and the gross total | Enough to hand over; the PDF stays the receipt |
+| `quotes.csv` | No note and no lines | A note is a practitioner's free text |
+| A withdrawn patient the clinic registered | The desk still finds the profile, corrects it, hands over its record and records a new consent; practitioners lose access and the visits ahead are cancelled | The record is kept under retention law and the patient may come back; reading the review's point 3 this way, owner and lawyer to confirm |
+| The desk's phone | `061 …` and `00387 …` read as `+387 …` at registration and correction, as the import reads them; the app patient's own profile unchanged | Desks in Bosnia and Herzegovina type local numbers; a diaspora patient's local number is not Bosnian |
+| `consent_active` at the screen | Taken as recorded | Another desk recorded it meanwhile |
+| The 5 000-row import | Not batched | 1.3 to 1.7 s measured |
+
 ## Facts
 
 - Main's next free migration number on 2026-11-21: `00060`. After wave 1: A `00060`, D `00061`; wave 2 takes E `00062`,
   H `00063`, I `00064`, Q1 `00065`.
 - Copilot is out of quota until 2026-12-01: the integration session has a fresh subagent review the wave's diff too.
 
+## Before production
+
+- **The lawyer's five questions** (R2): (1) whether a clinic may act as the channel for the GDPR rights (rectification,
+  withdrawal, access) of a patient it registered without an account, and what identity check the desk must make first;
+  (2) whether an in-person withdrawal needs a signed or written record beyond the staff account and time Salus stores;
+  (3) whether a withdrawal may cancel the visits ahead at once, as an app patient's revocation does; (4) whether the
+  handed-over file (profile, consents, visits and receipts as FHIR JSON; no clinical documents, questionnaire answers or
+  history) meets Art. 15 and Art. 20, in what form the clinic must hand it over, and who may hand over the clinical
+  content; (5) erasure: how long the registered profile and its consent must be kept under the medical-record retention
+  law.
+- **Erasure and subject rights for every patient.** There is no erasure path for any patient (`patient`, `consent` and
+  `account` are `keep` in `internal/retention/rules.go`); restriction and objection are not built either. A
+  subject-rights feature, for app patients and registered profiles alike.
+- **An SMS provider** with a DPA and an entry in `docs/privacy/processors.md`; until then `pkg/sms` is the fake and the
+  clinic's SMS option cannot be on, so a patient without an account gets no reminder.
+- **The ESET adapter** (package G, Q6): the fiscal reporting of receipts.
+- Also open from wave 4: what the clinic may read of a withdrawn patient's cancelled visits (export, record); the export
+  job re-checking the admin; the patient card reachable from a desk search.
+
 ## Waiting on a person
 
-- The lawyer, on V2 (R2, built and not yet confirmed): (1) whether a clinic may act as the channel for the GDPR rights
-  of a patient it registered without an account (rectification, withdrawal, access) and what identity check the desk
-  must make first; (2) whether the in-person withdrawal needs a signed or written record beyond the staff account and
-  time Salus keeps; (3) whether a withdrawal may cancel the visits ahead at once, as an app patient's does; (4) whether
-  the handed-over record (profile and consents as a FHIR file, no visits or clinical documents yet) meets Art. 15 and
-  Art. 20, and in what form the clinic must hand it over; (5) erasure: how long the registered profile and its consent
-  must be kept under the medical-record retention law, since no erasure path exists for any patient yet.
-
+- The lawyer: the five questions on V2 in "Before production" above.
 - The owner: confirm or change the Q1 to Q9 defaults; plan prices (Q2) and the invoicing company (Q3) before D ships.
 - The owner: the ESET technical specification and test access (Q6); an accountant on VAT (Q9); the legal retention
   period for receipts.
+- The owner: confirm WAVE4's V1 to V6 and the readings the packages and this integration recorded (above), and read the
+  wave's new copy (desk `patient.*`, `move.*`, `consent.*`, `reminder.*`; `patientImport`; the quotes page; the export
+  and record hints); sr-Cyrl was transliterated from sr-Latn and wants a native reader.

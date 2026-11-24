@@ -78,7 +78,7 @@ BEGIN
     IF session_user = (SELECT r.rolname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner WHERE c.oid = TG_RELID) THEN
         RETURN NEW;
     END IF;
-    IF NOT clinic THEN
+    IF clinic IS NOT TRUE THEN -- NULL outside any scope is refused too
         RAISE EXCEPTION 'appointment: only its clinic gives a visit to another practitioner' USING ERRCODE = 'insufficient_privilege';
     END IF;
     IF NEW.practitioner_role_id IS DISTINCT FROM OLD.practitioner_role_id THEN

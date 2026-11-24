@@ -3,6 +3,7 @@ import type { ApiClient, ErrorCode } from './api/client'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { Dialog } from './chat/Dialog'
+import { DeskConsent } from './DeskConsent'
 import { useT } from './i18n/useT'
 import { useLoad } from './load'
 import { Alert, Field, Notice, Submit } from './ui'
@@ -11,11 +12,14 @@ type ClinicPatient = components['schemas']['ClinicPatient']
 
 // DeskPatient is the patient's name on a desk row (clinic-cms R2). For a patient the clinic registered (no Salus
 // account) it opens the patient's card, where the desk exercises the patient's rights for them (V2): correct the name,
-// birth date and phone, record that the patient withdrew the consent they gave in person, and, for the admin, download
-// the record to hand over. A patient with their own account manages their profile in the app: their name is text.
-export function DeskPatient({ api, patient }: { api: ApiClient; patient: ClinicPatient }) {
+// birth date and phone, record that the patient withdrew the consent they gave in person or record a new one, and, for
+// the admin, download the record to hand over. A patient with their own account manages their profile in the app: their name is text.
+// onChanged is called when the card closes after a change, so the desk's row reads the day again (its phone, the
+// visits a withdrawal cancelled).
+export function DeskPatient({ api, patient, onChanged }: { api: ApiClient; patient: ClinicPatient; onChanged?: () => void }) {
   const [shown, setShown] = useState(patient)
   const [open, setOpen] = useState(false)
+  const [changed, setChanged] = useState(false)
   const name = `${shown.givenName} ${shown.familyName}`
   if (!shown.registeredByClinic) return <span>{name}</span>
   return (
@@ -23,7 +27,21 @@ export function DeskPatient({ api, patient }: { api: ApiClient; patient: ClinicP
       <button type="button" className="desk-name" onClick={() => setOpen(true)}>
         {name}
       </button>
-      {open && <Card api={api} patient={shown} onSaved={setShown} onClose={() => setOpen(false)} />}
+      {open && (
+        <Card
+          api={api}
+          patient={shown}
+          onSaved={(p) => {
+            setShown(p)
+            setChanged(true)
+          }}
+          onClose={() => {
+            setOpen(false)
+            if (changed) onChanged?.()
+            setChanged(false)
+          }}
+        />
+      )}
     </>
   )
 }
@@ -41,7 +59,7 @@ function Card({ api, patient, onSaved, onClose }: CardProps) {
     <Dialog label={t('desk.patient.title')} className="receipt-dialog desk-dialog" onClose={onClose}>
       <h2>{t('desk.patient.title')}</h2>
       <Profile api={api} patient={patient} onSaved={onSaved} />
-      <Withdrawal api={api} patientId={patient.id} />
+      <Consent api={api} patient={patient} onChanged={(consentActive) => onSaved({ ...patient, consentActive })} />
       {me.state.name === 'loaded' && me.state.value && (
         <section>
           <h3>{t('desk.patient.recordTitle')}</h3>
@@ -83,7 +101,7 @@ function Profile({ api, patient, onSaved }: { api: ApiClient; patient: ClinicPat
     )
     setBusy(false)
     if (res.ok) {
-      onSaved(res.data)
+      onSaved({ ...patient, ...res.data })
       setSaved(t('desk.patient.saved'))
     } else setError(profileMessage(t, res.code))
   }
@@ -104,40 +122,46 @@ function Profile({ api, patient, onSaved }: { api: ApiClient; patient: ClinicPat
   )
 }
 
-function Withdrawal({ api, patientId }: { api: ApiClient; patientId: string }) {
+// Consent is the card's consent to care: while one is active, the desk records its withdrawal (after a confirmation);
+// while none is, it records the consent the patient gives in person (after an import, or a withdrawal: wave 4).
+function Consent({ api, patient, onChanged }: { api: ApiClient; patient: ClinicPatient; onChanged: (active: boolean) => void }) {
   const t = useT()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState<string>()
 
   async function withdraw() {
     if (busy) return
     setBusy(true)
     setError(undefined)
-    const res = await attempt(api.POST('/clinic/patients/{id}/consent-withdrawal', { params: { path: { id: patientId } } }))
+    const res = await attempt(api.POST('/clinic/patients/{id}/consent-withdrawal', { params: { path: { id: patient.id } } }))
     setBusy(false)
-    if (res.ok) {
-      setDone(true)
-      setConfirming(false)
-    } else setError(res.code === 'consent_inactive' ? t('desk.patient.noConsent') : t('desk.patient.withdrawFailed'))
+    setConfirming(false)
+    if (res.ok || res.code === 'consent_inactive') {
+      setDone(res.ok ? t('desk.patient.withdrawn') : undefined)
+      if (!res.ok) setError(t('desk.patient.noConsent'))
+      onChanged(false)
+    } else setError(t('desk.patient.withdrawFailed'))
   }
 
   return (
     <section>
       <h3>{t('desk.patient.consentTitle')}</h3>
-      <Notice message={done ? t('desk.patient.withdrawn') : undefined} />
+      <Notice message={done} />
       <Alert message={error} />
-      {!done && !confirming && (
-        <button type="button" onClick={() => setConfirming(true)}>
-          {t('desk.patient.withdraw')}
-        </button>
+      {patient.consentActive && !confirming && (
+        <div className="actions">
+          <button type="button" onClick={() => setConfirming(true)}>
+            {t('desk.patient.withdraw')}
+          </button>
+        </div>
       )}
-      {confirming && (
+      {patient.consentActive && confirming && (
         <>
           <p>{t('desk.patient.withdrawEffect')}</p>
           <div className="actions">
-            <button type="button" className="primary" disabled={busy} onClick={withdraw}>
+            <button type="button" className="danger" disabled={busy} onClick={withdraw}>
               {t('desk.patient.confirmWithdraw')}
             </button>
             <button type="button" onClick={() => setConfirming(false)}>
@@ -145,6 +169,17 @@ function Withdrawal({ api, patientId }: { api: ApiClient; patientId: string }) {
             </button>
           </div>
         </>
+      )}
+      {!patient.consentActive && (
+        <DeskConsent
+          api={api}
+          patientId={patient.id}
+          onRecorded={() => {
+            setError(undefined)
+            setDone(t('desk.consent.recorded'))
+            onChanged(true)
+          }}
+        />
       )}
     </section>
   )

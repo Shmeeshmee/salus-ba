@@ -154,6 +154,7 @@ type fakeRoles struct {
 	*log
 	err      error
 	inactive string
+	failing  string // a role whose lookup fails
 }
 
 var roles = []practitionerrole.PractitionerRole{
@@ -174,7 +175,10 @@ func (r *fakeRoles) Read(ctx context.Context, c practitionerrole.Caller, id stri
 
 func (r *fakeRoles) Lookup(ctx context.Context, org, id string) (practitionerrole.PractitionerRole, error) {
 	r.seen(ctx, "Roles.Lookup:"+id)
-	if r.err != nil {
+	if r.err != nil || (r.failing != "" && id == r.failing) {
+		if r.err == nil {
+			return practitionerrole.PractitionerRole{}, errors.New("synthetic failure")
+		}
 		return practitionerrole.PractitionerRole{}, r.err
 	}
 	for _, p := range roles {
@@ -545,6 +549,12 @@ func TestGenerating_GivesTheActiveRolesSchedulesOfEveryClinicEachInItsScope(t *t
 	i.roles.err = errors.New("synthetic failure")
 	if _, err := i.svc.Generating(t.Context()); err == nil {
 		t.Error("Generating() error = nil, want the role lookup's")
+	}
+	// One clinic that cannot be read does not stop the others: clinic B's schedule still comes, with A's error.
+	j := newFixture()
+	j.roles.failing = roleA2
+	if got, err := j.svc.Generating(t.Context()); err == nil || len(got) != 1 || got[0].ID != scheduleB {
+		t.Errorf("Generating() with clinic A failing = %+v, %v; want B's schedule and an error", got, err)
 	}
 }
 

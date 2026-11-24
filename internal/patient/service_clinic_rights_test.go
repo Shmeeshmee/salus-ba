@@ -153,7 +153,7 @@ func TestClinicRecord_GivesTheAdminTheProfileAndTheClinicsConsentsAuditedAsThePa
 	t.Parallel()
 	repo, audit := withRegistered(), &fakeAuditor{}
 	consents := &fakeConsents{of: []consent.Consent{{ID: consentR, PatientID: patientR, OrganizationID: clinicA}}}
-	got, err := newClinicService(repo, audit, consents).ClinicRecord(t.Context(), admin, patientR)
+	got, err := newClinicService(repo, audit, consents).ClinicRecord(t.Context(), admin, patientR, patient.PurposeHandOver)
 	if err != nil || got.Patient.ID != patientR || len(got.Consents) != 1 || got.Consents[0].ID != consentR {
 		t.Fatalf("ClinicRecord = %+v, %v; want patient R with their consent", got, err)
 	}
@@ -177,7 +177,7 @@ func TestClinicRecord_IsTheAdminsOnlyAndOnlyForTheClinicsRegisteredPatient(t *te
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			audit := &fakeAuditor{}
-			if _, err := newService(withRegistered(), audit).ClinicRecord(t.Context(), tc.caller, tc.patient); !errors.Is(err, tc.want) {
+			if _, err := newService(withRegistered(), audit).ClinicRecord(t.Context(), tc.caller, tc.patient, patient.PurposeHandOver); !errors.Is(err, tc.want) {
 				t.Fatalf("ClinicRecord = %v, want %v", err, tc.want)
 			}
 			e := event(tc.caller, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure)
@@ -198,7 +198,35 @@ func TestClinicRights_FailOnARepositoryError(t *testing.T) {
 	if _, err := svc.WithdrawConsent(t.Context(), admin, patientR); err == nil {
 		t.Error("WithdrawConsent = nil, want the error")
 	}
-	if _, err := svc.ClinicRecord(t.Context(), admin, patientR); err == nil {
+	if _, err := svc.ClinicRecord(t.Context(), admin, patientR, patient.PurposeHandOver); err == nil {
 		t.Error("ClinicRecord = nil, want the error")
+	}
+}
+
+func TestClinicRecord_ForTheExportIsAuditedAsHealthcareOperations(t *testing.T) {
+	t.Parallel()
+	repo, audit := withRegistered(), &fakeAuditor{}
+	if _, err := newClinicService(repo, audit, &fakeConsents{}).ClinicRecord(t.Context(), admin, patientR, patient.PurposeExport); err != nil {
+		t.Fatal(err)
+	}
+	e := event(admin, auditevent.CodeRead, patientR, auditevent.OutcomeSuccess)
+	e.Purpose.Code = auditevent.CodeHOPERAT
+	checkEvents(t, audit, e)
+}
+
+func TestRegistered_GivesTheAdminTheClinicsRegisteredPatientsInItsScopeAudited(t *testing.T) {
+	t.Parallel()
+	repo, audit := withRegistered(), &fakeAuditor{}
+	got, err := newService(repo, audit).Registered(t.Context(), admin)
+	if err != nil || !slices.Equal(got, []string{patientR}) || repo.clinic != clinicA {
+		t.Fatalf("Registered = %v, %v in scope %q; want patient R in clinic A's", got, err, repo.clinic)
+	}
+	e := searchEvent(admin, "", auditevent.OutcomeSuccess)
+	e.Purpose.Code = auditevent.CodeHOPERAT
+	checkEvents(t, audit, e)
+	for name, c := range map[string]patient.Caller{"receptionist": reception, "practitioner": practitioner} {
+		if _, err := newService(withRegistered(), &fakeAuditor{}).Registered(t.Context(), c); !errors.Is(err, patient.ErrForbidden) {
+			t.Errorf("%s: %v, want ErrForbidden", name, err)
+		}
 	}
 }

@@ -304,6 +304,32 @@ func (q *Queries) RegisterPatient(ctx context.Context, arg RegisterPatientParams
 	return i, err
 }
 
+const registeredByClinic = `-- name: RegisteredByClinic :many
+SELECT id FROM patient WHERE registered_by_organization_id = $1 ORDER BY id
+`
+
+// The ids of the patients the clinic registered (its data export, docs/clinic-cms M2 joined in wave 4). Row-level
+// security limits the rows to the scope too.
+func (q *Queries) RegisteredByClinic(ctx context.Context, organizationID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, registeredByClinic, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchClinicPatients = `-- name: SearchClinicPatients :many
 SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient p

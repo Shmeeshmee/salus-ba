@@ -92,6 +92,10 @@ func patientStatus(a Appointment) string {
 
 func instant(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 
+// FHIR is the appointment s as a FHIR R4 Appointment resource, for a record that holds it (the clinic's hand-over and
+// export of a registered patient's record, docs/clinic-cms wave 4).
+func FHIR(s Seen) any { return toFHIR(s) }
+
 func toFHIR(s Seen) resource {
 	a := s.Appointment
 	patient := fhir.Reference{Reference: "Patient/" + a.PatientID}

@@ -11,7 +11,9 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
+	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -36,8 +38,9 @@ func (w *clinicExportWorker) Work(ctx context.Context, job *river.Job[clinicexpo
 }
 
 // newClinicExports builds the export's service on pool (salus_app) for its build job: the clinic's price list, staff,
-// appointments (the appointment service of the default queue) and receipts, each read audited by its own service, and
-// the object store and key-encryption key of the binary jobs.
+// appointments (the appointment service of the default queue), receipts and quotes, and the records of the patients it
+// registered (profile and consents), each read audited by its own service, and the object store and key-encryption
+// key of the binary jobs.
 func newClinicExports(pool *pgxpool.Pool, files Files, appointments *appointment.Service, receipts *invoice.Service, clk clock.Clock) *clinicexport.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
@@ -46,6 +49,8 @@ func newClinicExports(pool *pgxpool.Pool, files Files, appointments *appointment
 		PriceList:     chargeitemdefinition.NewService(chargeitemdefinition.Ports{Repo: chargeitemdefinition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Roles:         practitionerrole.NewService(practitionerrole.Ports{Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Practitioners: practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx),
-		Appointments:  appointments, Receipts: receipts,
+		Appointments:  appointments, Receipts: receipts, Quotes: receipts,
+		Patients: patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk,
+			consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil), nil),
 	})
 }

@@ -289,7 +289,7 @@ func sendReminderEmail(t *testing.T, language string, sender *fakeSender, outsta
 	f.svc = notification.NewService(notification.Ports{
 		Accounts: &fakeChatAccounts{language: map[string]string{patientAccount: language}}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: sender,
 		PatientAppURL: "https://patient.example.test", Deliveries: f.deliveries, DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders,
-		Rules: fakeRules{}, Languages: &fakeChatAccounts{}, Phones: fakePhones{}, Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{},
+		Rules: fakeRules{}, Languages: &fakeChatAccounts{}, Phones: &fakePhones{}, Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{},
 		Clock: clockAt(start.Add(-24 * time.Hour)),
 	})
 	if err := f.svc.DispatchReminder(t.Context(), appointment.ReminderArgs{ReminderID: reminderID, OrganizationID: remindClin}); err != nil {
@@ -313,7 +313,7 @@ func TestReminderSMS_IsWrittenInEveryLanguage(t *testing.T) {
 			f.svc = notification.NewService(notification.Ports{
 				Accounts: &fakeChatAccounts{}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, Deliveries: f.deliveries,
 				DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Rules: fakeRules{sms: true},
-				Languages: &fakeChatAccounts{language: map[string]string{patientAccount: lang}}, Phones: fakePhones{phone: remindPhone},
+				Languages: &fakeChatAccounts{language: map[string]string{patientAccount: lang}}, Phones: &fakePhones{phone: remindPhone},
 				SMS: f.sms, Pusher: f.pusher, Audit: f.audit, Tx: fakeChatTx{}, Clock: clockAt(afterChange.Add(-time.Hour)),
 			})
 			if err := f.svc.SendDelivery(t.Context(), deliveryOf(t, f, notification.ChannelSMS).ID, false); err != nil {

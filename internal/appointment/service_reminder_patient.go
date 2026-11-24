@@ -37,12 +37,28 @@ func (s *Service) withReminders(ctx context.Context, org string, visits []DeskVi
 		return err
 	}
 	for i := range visits {
-		visits[i].Reminder = reminded(visits[i].Patient, rules.SMSReminders)
+		visits[i].ReminderOff = reminderOff(visits[i].Patient, rules.SMSReminders)
+		visits[i].Reminder = visits[i].ReminderOff == ""
 	}
 	return nil
 }
 
-// reminded tells whether a reminder reaches p at a clinic that does (sms) or does not offer SMS.
-func reminded(p patient.Patient, sms bool) bool {
-	return p.AccountID != "" || sms && p.Phone != ""
+// Why no reminder will go to a patient without an account (DeskVisit.ReminderOff, the desk row's reason).
+const (
+	ReminderOffSMS     = "sms_off"  // the clinic does not offer SMS
+	ReminderOffNoPhone = "no_phone" // the profile has no phone
+)
+
+// reminderOff is why no reminder reaches p at a clinic that does (sms) or does not offer SMS, or empty when one does:
+// a patient with an account always gets one by the channels they chose.
+func reminderOff(p patient.Patient, sms bool) string {
+	switch {
+	case p.AccountID != "":
+		return ""
+	case !sms:
+		return ReminderOffSMS
+	case p.Phone == "":
+		return ReminderOffNoPhone
+	}
+	return ""
 }

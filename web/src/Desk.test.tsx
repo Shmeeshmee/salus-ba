@@ -186,6 +186,21 @@ describe('Desk', () => {
     expect(await screen.findByText("Today's visits could not be loaded. Reload the page to try again.")).toBeTruthy()
   })
 
+  it("says on a booked visit's row whether a reminder will go, and why not (R3)", async () => {
+    const day = {
+      ...deskDay,
+      visits: deskDay.visits.map((v) =>
+        v.patient.id === anaVisit.patient.id ? { ...v, reminder: true } : v.patient.id === boVisit.patient.id ? { ...v, reminder: false, reminderOff: 'no_phone' as const } : { ...v, reminder: false, reminderOff: 'sms_off' as const },
+      ),
+    }
+    renderDesk({ 'GET /clinic/desk/today': () => Response.json(day) }, reception)
+    await screen.findByRole('list', { name: 'Cy Example' })
+    expect(rowOf('Ana Example').textContent).toContain('Reminder will be sent')
+    expect(within(rowOf('Bo Sample')).getByText('No reminder: no phone number')).toBeTruthy()
+    // Cleo has arrived: a reminder no longer matters on her row.
+    expect(screen.queryByText('No reminder: SMS is off for the clinic')).toBeNull()
+  })
+
   it('opens the walk-in from the toolbar', async () => {
     renderDesk({ 'GET /clinic/patients': () => Response.json([]) })
     fireEvent.click(await screen.findByRole('button', { name: 'Walk-in' }))

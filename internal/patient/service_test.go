@@ -101,6 +101,21 @@ func (r *fakeRepository) SearchClinic(ctx context.Context, org, roleID string, q
 	return r.found, r.err
 }
 
+func (r *fakeRepository) RegisteredBy(ctx context.Context, org string) ([]string, error) {
+	r.seen(ctx, "RegisteredBy")
+	if org != r.clinic {
+		return nil, errors.New("listed outside the clinic's scope")
+	}
+	var out []string
+	for _, p := range r.profiles {
+		if p.RegisteredBy == org {
+			out = append(out, p.ID)
+		}
+	}
+	slices.Sort(out)
+	return out, r.err
+}
+
 func newFakeRepository() *fakeRepository {
 	return &fakeRepository{profiles: map[string]patient.Patient{
 		accountA: {ID: patientA, AccountID: accountA, GivenName: "Ada", FamilyName: "Example", BirthDate: date(1990, 1, 1), VersionID: 2, LastUpdated: now.Add(-time.Hour)},

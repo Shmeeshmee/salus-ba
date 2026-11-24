@@ -82,15 +82,17 @@ func TestMoveByStaff_ConcurrentMovesGiveOne(t *testing.T) {
 			return err
 		})
 	}
-	for name, tc := range map[string]struct {
+	// In this order: the second case moves a at the version the first one's move gave it.
+	for _, tc := range []struct {
 		want error
 		run  [2]func() error
+		name string
 	}{
-		"one visit, one version": {want: appointment.ErrVersionConflict, run: [2]func() error{
+		{name: "one visit, one version", want: appointment.ErrVersionConflict, run: [2]func() error{
 			func() error { return move(a.ID, a.VersionID, start.Add(4*time.Hour), slotSoon) },
 			func() error { return move(a.ID, a.VersionID, start.Add(5*time.Hour), slotPast) },
 		}},
-		"two visits, one time": {want: appointment.ErrSlotUnavailable, run: [2]func() error{
+		{name: "two visits, one time", want: appointment.ErrSlotUnavailable, run: [2]func() error{
 			func() error { return move(b.ID, b.VersionID, start.Add(8*time.Hour), slotU) },
 			func() error { return move(a.ID, a.VersionID+1, start.Add(8*time.Hour), slotFree) },
 		}},
@@ -109,11 +111,11 @@ func TestMoveByStaff_ConcurrentMovesGiveOne(t *testing.T) {
 			case errors.Is(err, tc.want):
 				refused++
 			default:
-				t.Errorf("%s: %v, want nil or %v", name, err, tc.want)
+				t.Errorf("%s: %v, want nil or %v", tc.name, err, tc.want)
 			}
 		}
 		if ok != 1 || refused != 1 {
-			t.Errorf("%s: %v; want one move and one %v", name, errs, tc.want)
+			t.Errorf("%s: %v; want one move and one %v", tc.name, errs, tc.want)
 		}
 	}
 }

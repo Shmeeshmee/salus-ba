@@ -198,10 +198,13 @@ func (sarajevo) Read(_ context.Context, _ organization.Caller, id string) (organ
 		AddressLine: "Synthetic street 1", PostalCode: "71000", CityName: "Centar"}, nil
 }
 
-type fakePhones struct{ phone string }
+type fakePhones struct {
+	err   error
+	phone string
+}
 
-func (p fakePhones) NoticePhone(context.Context, string, string, string) (string, error) {
-	return p.phone, nil
+func (p *fakePhones) NoticePhone(context.Context, string, string, string) (string, error) {
+	return p.phone, p.err
 }
 
 type fakeProfiles struct {
@@ -223,6 +226,7 @@ type reminderFixture struct {
 	sender     *fakeSender
 	pusher     *pushtest.Sender
 	sms        *smstest.Sender
+	phones     *fakePhones
 	q          *fakeQuestionnaires
 	svc        *notification.Service
 }
@@ -231,6 +235,7 @@ func newReminderFixture(now, start time.Time, rules fakeRules) *reminderFixture 
 	f := &reminderFixture{
 		repo: newFakeChatRepo(), jobs: &fakeDeliveryJobs{}, reminders: &fakeReminders{start: start}, audit: &fakeChatAudit{},
 		sender: &fakeSender{}, pusher: &pushtest.Sender{}, sms: &smstest.Sender{}, q: &fakeQuestionnaires{},
+		phones: &fakePhones{phone: remindPhone},
 	}
 	f.deliveries = newFakeDeliveries(f.repo)
 	rules.repo = f.repo
@@ -238,7 +243,7 @@ func newReminderFixture(now, start time.Time, rules fakeRules) *reminderFixture 
 	f.svc = notification.NewService(notification.Ports{
 		Accounts: &fakeChatAccounts{language: map[string]string{patientAccount: "en"}}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, PatientAppURL: "https://app.salus.invalid",
 		Deliveries: f.deliveries, DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Rules: rules,
-		Languages: &fakeChatAccounts{}, Phones: fakePhones{phone: remindPhone}, Profiles: fakeProfiles{phone: remindPhone},
+		Languages: &fakeChatAccounts{}, Phones: f.phones, Profiles: fakeProfiles{phone: remindPhone},
 		Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{}, Clock: clock.Fixed{T: now},
 	})
 	return f

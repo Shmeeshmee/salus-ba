@@ -57,6 +57,10 @@ type contactPoint struct {
 	Use    string `json:"use"`
 }
 
+// FHIR is the profile p as a FHIR R4 Patient resource, for a record that holds it (the clinic's hand-over and export,
+// docs/clinic-cms R2 and M2).
+func FHIR(p Patient) any { return toFHIR(p) }
+
 func toFHIR(p Patient) resource {
 	res := resource{
 		ResourceType: "Patient", ID: p.ID, Meta: fhir.NewMeta(p.VersionID, p.LastUpdated),

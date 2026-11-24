@@ -13,15 +13,21 @@ export const retired = 'c1000000-0000-4000-8000-000000000003'
 
 export const ana: ClinicPatient = {
   id: 'b0000000-0000-4000-8000-0000000000b1', givenName: 'Ana', familyName: 'Example', birthDate: '1980-03-02', phone: '+38761000001',
-  registeredByClinic: false, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
+  registeredByClinic: false, consentActive: true, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
 }
 export const bo: ClinicPatient = {
   id: 'b0000000-0000-4000-8000-0000000000b2', givenName: 'Bo', familyName: 'Sample', birthDate: '1992-07-14',
-  registeredByClinic: true, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
+  registeredByClinic: true, consentActive: true, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
 }
 export const cleo: ClinicPatient = {
   id: 'b0000000-0000-4000-8000-0000000000b3', givenName: 'Cleo', familyName: 'Test', birthDate: '2001-11-30',
-  registeredByClinic: true, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
+  registeredByClinic: true, consentActive: true, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
+}
+
+// ida was imported from the clinic's old software (clinic-cms M3, V5): registered, without a consent yet.
+export const ida: ClinicPatient = {
+  id: 'b0000000-0000-4000-8000-0000000000b4', givenName: 'Ida', familyName: 'Import', birthDate: '1975-05-05', phone: '+38761000004',
+  registeredByClinic: true, consentActive: false, versionId: 1, lastUpdated: '2026-11-01T09:00:00Z',
 }
 
 export const services = [

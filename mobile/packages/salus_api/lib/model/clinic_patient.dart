@@ -19,6 +19,7 @@ class ClinicPatient {
     required this.birthDate,
     this.phone,
     required this.registeredByClinic,
+    required this.consentActive,
     required this.versionId,
     required this.lastUpdated,
   });
@@ -43,6 +44,9 @@ class ClinicPatient {
   /// The clinic registered the profile; the patient has no Salus account.
   bool registeredByClinic;
 
+  /// The patient has an active care consent with the caller's clinic. When false, the desk records the consent the patient gives in person (POST /clinic/patients/{id}/consent) before it books them.
+  bool consentActive;
+
   int versionId;
 
   DateTime lastUpdated;
@@ -57,6 +61,7 @@ class ClinicPatient {
           other.birthDate == birthDate &&
           other.phone == phone &&
           other.registeredByClinic == registeredByClinic &&
+          other.consentActive == consentActive &&
           other.versionId == versionId &&
           other.lastUpdated == lastUpdated;
 
@@ -69,12 +74,13 @@ class ClinicPatient {
       (birthDate.hashCode) +
       (phone == null ? 0 : phone!.hashCode) +
       (registeredByClinic.hashCode) +
+      (consentActive.hashCode) +
       (versionId.hashCode) +
       (lastUpdated.hashCode);
 
   @override
   String toString() =>
-      'ClinicPatient[id=$id, givenName=$givenName, familyName=$familyName, birthDate=$birthDate, phone=$phone, registeredByClinic=$registeredByClinic, versionId=$versionId, lastUpdated=$lastUpdated]';
+      'ClinicPatient[id=$id, givenName=$givenName, familyName=$familyName, birthDate=$birthDate, phone=$phone, registeredByClinic=$registeredByClinic, consentActive=$consentActive, versionId=$versionId, lastUpdated=$lastUpdated]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -88,6 +94,7 @@ class ClinicPatient {
       json[r'phone'] = null;
     }
     json[r'registeredByClinic'] = this.registeredByClinic;
+    json[r'consentActive'] = this.consentActive;
     json[r'versionId'] = this.versionId;
     json[r'lastUpdated'] = this.lastUpdated.toUtc().toIso8601String();
     return json;
@@ -124,6 +131,10 @@ class ClinicPatient {
             'Required key "ClinicPatient[registeredByClinic]" is missing from JSON.');
         assert(json[r'registeredByClinic'] != null,
             'Required key "ClinicPatient[registeredByClinic]" has a null value in JSON.');
+        assert(json.containsKey(r'consentActive'),
+            'Required key "ClinicPatient[consentActive]" is missing from JSON.');
+        assert(json[r'consentActive'] != null,
+            'Required key "ClinicPatient[consentActive]" has a null value in JSON.');
         assert(json.containsKey(r'versionId'),
             'Required key "ClinicPatient[versionId]" is missing from JSON.');
         assert(json[r'versionId'] != null,
@@ -142,6 +153,7 @@ class ClinicPatient {
         birthDate: mapDateTime(json, r'birthDate', r'')!,
         phone: mapValueOfType<String>(json, r'phone'),
         registeredByClinic: mapValueOfType<bool>(json, r'registeredByClinic')!,
+        consentActive: mapValueOfType<bool>(json, r'consentActive')!,
         versionId: mapValueOfType<int>(json, r'versionId')!,
         lastUpdated: mapDateTime(json, r'lastUpdated', r'')!,
       );
@@ -205,6 +217,7 @@ class ClinicPatient {
     'familyName',
     'birthDate',
     'registeredByClinic',
+    'consentActive',
     'versionId',
     'lastUpdated',
   };

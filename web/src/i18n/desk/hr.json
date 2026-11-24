@@ -86,7 +86,7 @@
   "patient.withdrawFailed": "Povlačenje se nije moglo upisati. Pokušajte ponovno.",
   "patient.recordTitle": "Karton pacijenta za predaju",
   "patient.recordHint": {
-    "defaultMessage": "Podaci i privole kao FHIR datoteka, za predaju pacijentu kad zatraži svoje podatke.",
+    "defaultMessage": "Podaci, privole, termini i računi u klinici kao FHIR datoteka, za predaju pacijentu kad zatraži svoje podatke. Klinička dokumentacija nije u njoj.",
     "description": "legal"
   },
   "patient.download": "Preuzmi karton",
@@ -100,5 +100,20 @@
   "move.changed": "Termin je u međuvremenu promijenjen. Zatvorite ovo i ponovno učitajte stranicu.",
   "move.joinOpen": "Video termin ne može se premjestiti kada se poziv već može otvoriti.",
   "move.failed": "Termin se nije mogao premjestiti. Pokušajte ponovno.",
-  "move.moved": "Termin je premješten."
+  "move.moved": "Termin je premješten.",
+  "consent.needed": {
+    "defaultMessage": "Ovaj pacijent nema aktivnu privolu za liječenje. Prije rezervacije upišite privolu koju daje osobno.",
+    "description": "legal"
+  },
+  "consent.record": "Upiši privolu",
+  "consent.recording": "Upisivanje",
+  "consent.recorded": {
+    "defaultMessage": "Privola je upisana.",
+    "description": "legal"
+  },
+  "consent.active": "Pacijent već ima aktivnu privolu za liječenje.",
+  "consent.failed": "Privola se nije mogla upisati. Pokušajte ponovno.",
+  "reminder.on": "Podsjetnik će biti poslan",
+  "reminder.noPhone": "Bez podsjetnika: nema broja telefona",
+  "reminder.smsOff": "Bez podsjetnika: SMS je isključen za kliniku"
 }

@@ -19,8 +19,8 @@ import (
 // not confirm the visit and follows none of the clinic's self-service rules. The slot is resolved in the clinic's own
 // scope first; then, in one transaction in the clinic's scope, the appointment is read and checked, the patient's
 // active care consent checked, the slot held, the appointment moved, the old slot freed and handed to the waitlist
-// while ahead, the reminders scheduled again and the e-mail with the new time enqueued (neither for a patient without
-// an account), the statistics of both days refreshed, the history kept (via staff, with the account) and the move
+// while ahead, the reminders scheduled again (by SMS for a patient without an account, where the clinic offers it), the
+// e-mail with the new time enqueued for a patient with an account, the statistics of both days refreshed, the history kept (via staff, with the account) and the move
 // audited. ErrForbidden to anyone but the desk, ErrNotFound for an appointment the clinic does not see, ErrClosed for
 // one not booked (arrived, fulfilled, cancelled, a no-show), ErrVersionConflict for another version (also a change
 // that committed first), ErrNotReschedulable for a slot of the other visit type and for a video visit whose join window
@@ -120,8 +120,9 @@ func mayMove(a Appointment, b slot.Bookable, version int32, now time.Time) error
 }
 
 // movedByStaff does, in the transaction in ctx, what follows the desk's move of from to out: the old slot freed and
-// handed to the waitlist while ahead, the reminders cancelled and, for a patient with an account, scheduled again with
-// the e-mail with the new time, the history, and the refresh of both days' statistics.
+// handed to the waitlist while ahead, the reminders cancelled and scheduled again for the new time (for a patient
+// without an account too: the notifier sends theirs by SMS where the clinic offers it, docs/clinic-cms R3), the e-mail
+// with the new time for a patient with an account, the history, and the refresh of both days' statistics.
 func (s *Service) movedByStaff(ctx context.Context, c Caller, from, out Appointment, account bool, now time.Time) error {
 	freed, err := s.Slots.Release(ctx, from.OrganizationID, from.SlotID)
 	if err != nil {
@@ -133,10 +134,10 @@ func (s *Service) movedByStaff(ctx context.Context, c Caller, from, out Appointm
 	if err := s.cancelReminders(ctx, out.ID); err != nil {
 		return err
 	}
+	if err := s.scheduleReminders(ctx, out, now); err != nil {
+		return err
+	}
 	if account {
-		if err := s.scheduleReminders(ctx, out, now); err != nil {
-			return err
-		}
 		if err := s.Jobs.EnqueueRescheduled(ctx, out.ID, out.OrganizationID); err != nil {
 			return err
 		}

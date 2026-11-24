@@ -29,16 +29,18 @@ func TestBookForPatient_SchedulesTheRemindersOfAPatientWithoutAnAccount(t *testi
 	}
 }
 
-// The desk's visit says whether a reminder will go: always to a patient with an account (by their own channels); to
-// one without, only while the clinic offers SMS and the profile has a phone.
-func TestDeskDay_SaysWhetherAReminderWillGo(t *testing.T) {
+// The desk's visit says whether a reminder will go, and why not: always to a patient with an account (by their own
+// channels); to one without, only while the clinic offers SMS (else "sms_off") and the profile has a phone (else
+// "no_phone"). It says too whether the patient has an active care consent with the clinic.
+func TestDeskDay_SaysWhetherAReminderWillGoAndWhyNot(t *testing.T) {
 	t.Parallel()
 	for _, sms := range []bool{false, true} {
 		app := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, start)
 		phone := booked("ac000000-0000-4000-8000-0000000000ac", patientC, roleA1, clinicA, start.Add(30*time.Minute))
 		none := booked("ad000000-0000-4000-8000-0000000000ad", patientD, roleA1, clinicA, start.Add(time.Hour))
 		f := staffFixture(app, phone, none)
-		f.consents.state[patientD+clinicA] = access.Consent{Active: true} // given in person
+		f.consents.state[patientD+clinicA] = access.Consent{Active: true}                        // given in person
+		f.consents.state[patientC+clinicA] = access.Consent{RevokedAt: start.Add(2 * time.Hour)} // withdrawn after the visit
 		settings := organization.DefaultAppointmentSettings()
 		settings.SMSReminders = sms
 		f.rules.settings = map[string]organization.AppointmentSettings{clinicA: settings}
@@ -46,12 +48,24 @@ func TestDeskDay_SaysWhetherAReminderWillGo(t *testing.T) {
 		if err != nil || len(out.Visits) != 3 {
 			t.Fatalf("DeskDay = %+v, %v; want the three visits", out, err)
 		}
-		got := map[string]bool{}
-		for _, v := range out.Visits {
-			got[v.Patient.ID] = v.Reminder
+		type seen struct {
+			off      string
+			reminder bool
+			consent  bool
 		}
-		if want := map[string]bool{patientA: true, patientC: sms, patientD: false}; got[patientA] != want[patientA] || got[patientC] != want[patientC] || got[patientD] != want[patientD] {
-			t.Errorf("SMS option %v: reminders %v, want %v", sms, got, want)
+		got := map[string]seen{}
+		for _, v := range out.Visits {
+			got[v.Patient.ID] = seen{reminder: v.Reminder, off: v.ReminderOff, consent: v.Patient.ConsentActive}
+		}
+		want := map[string]seen{
+			patientA: {reminder: true, consent: true},
+			patientC: {reminder: sms, off: map[bool]string{false: appointment.ReminderOffSMS}[sms]},
+			patientD: {off: map[bool]string{false: appointment.ReminderOffSMS, true: appointment.ReminderOffNoPhone}[sms], consent: true},
+		}
+		for id, w := range want {
+			if got[id] != w {
+				t.Errorf("SMS option %v: patient %s = %+v, want %+v", sms, id, got[id], w)
+			}
 		}
 	}
 }

@@ -122,12 +122,14 @@ type deskPatientJSON struct {
 	BirthDate          string    `json:"birthDate"`
 	Phone              string    `json:"phone,omitempty"`
 	RegisteredByClinic bool      `json:"registeredByClinic"`
+	ConsentActive      bool      `json:"consentActive"`
 	VersionID          int32     `json:"versionId"`
 }
 
 // deskVisitJSON is the DeskVisit schema.
 type deskVisitJSON struct {
 	ServiceName string            `json:"serviceName,omitempty"`
+	ReminderOff string            `json:"reminderOff,omitempty"`
 	Patient     deskPatientJSON   `json:"patient"`
 	Receipts    []deskReceiptJSON `json:"receipts"`
 	Appointment appointmentJSON   `json:"appointment"`
@@ -169,9 +171,9 @@ func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
 		for _, rc := range v.Receipts {
 			receipts = append(receipts, deskReceiptJSON(rc))
 		}
-		out.Visits = append(out.Visits, deskVisitJSON{ServiceName: v.ServiceName, Receipts: receipts, Appointment: toJSON(v.Appointment), Reminder: v.Reminder, Patient: deskPatientJSON{
+		out.Visits = append(out.Visits, deskVisitJSON{ServiceName: v.ServiceName, Receipts: receipts, Appointment: toJSON(v.Appointment), Reminder: v.Reminder, ReminderOff: v.ReminderOff, Patient: deskPatientJSON{
 			ID: p.ID, GivenName: p.GivenName, FamilyName: p.FamilyName, BirthDate: p.BirthDate.Format(dateLayout), Phone: p.Phone,
-			RegisteredByClinic: p.RegisteredBy != "", VersionID: p.VersionID, LastUpdated: p.LastUpdated.UTC(),
+			RegisteredByClinic: p.RegisteredBy != "", ConsentActive: p.ConsentActive, VersionID: p.VersionID, LastUpdated: p.LastUpdated.UTC(),
 		}})
 	}
 	w.Header().Set("Cache-Control", "no-store")

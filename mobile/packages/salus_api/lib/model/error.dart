@@ -172,6 +172,7 @@ enum ErrorErrorEnum {
   versionConflict._(r'version_conflict'),
   consentActive._(r'consent_active'),
   consentInactive._(r'consent_inactive'),
+  consentActive2._(r'consent_active'),
   profileRequired._(r'profile_required'),
   invalidSpecialty._(r'invalid_specialty'),
   invalidSlotMinutes._(r'invalid_slot_minutes'),
@@ -338,6 +339,8 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.consentActive;
         case r'consent_inactive':
           return ErrorErrorEnum.consentInactive;
+        case r'consent_active':
+          return ErrorErrorEnum.consentActive2;
         case r'profile_required':
           return ErrorErrorEnum.profileRequired;
         case r'invalid_specialty':

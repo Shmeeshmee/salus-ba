@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/internal/slot"
 )
 
 // docs/clinic-cms/WAVE4.md R3: TestReminder_SentOnceAtTheRightInstant's cases for a patient the clinic registered
@@ -14,7 +16,8 @@ import (
 // SMS goes at its absolute due time, held by the default quiet hours (22:00 to 08:00) in the clinic's zone until they
 // end, or dropped when that is too close to the start; the first dispatch is rolled back and every job runs twice, so
 // one SMS goes, counted once in the clinic's usage, with the phone read for the send only (audited with the send's job
-// as agent). A visit cancelled or moved sends nothing more; without the SMS option or a phone, nothing goes.
+// as agent). A visit cancelled or moved sends nothing more; without the SMS option or a phone, nothing goes. A visit
+// the desk moves (M1) gets its reminders again for the new time, and the same cases hold for them.
 func TestReminder_APatientWithoutAnAccountGetsOneSMSAtTheRightInstant(t *testing.T) {
 	t.Parallel()
 	s := newReminderStack(t)
@@ -39,6 +42,7 @@ func TestReminder_APatientWithoutAnAccountGetsOneSMSAtTheRightInstant(t *testing
 	checkProfileTooEarly(t, s, b, role)
 	checkProfileCancelledAndMoved(t, s, b, role)
 	checkProfileNoOptionNoPhone(t, s, b, role)
+	checkProfileMovedByStaff(t, s, b, role)
 }
 
 // checkProfileAtHome dispatches the reminders of a visit at 22:00 CET on 25 October, the first dispatch rolled back.
@@ -196,4 +200,94 @@ func checkProfileNoOptionNoPhone(t *testing.T, s *reminderStack, b booking, role
 	if len(s.sms.Sent()) != 1 {
 		t.Errorf("sent %d SMS in all, want one", len(s.sms.Sent()))
 	}
+}
+
+// checkProfileMovedByStaff: the desk moves a visit a day later (docs/clinic-cms wave 4, M1 with R3). The reminders of
+// the old time are cancelled and send nothing; the new time's are scheduled, and the day-before one, its first
+// dispatch rolled back and every job run twice, sends one SMS with the new time, counted once.
+func checkProfileMovedByStaff(t *testing.T, s *reminderStack, b booking, role string) {
+	t.Helper()
+	ctx := t.Context()
+	if _, err := s.owner.Exec(ctx, `UPDATE patient SET phone = '+38761000009' WHERE id = $1`, b.patient); err != nil {
+		t.Fatal(err)
+	}
+	var admin string
+	if err := s.owner.QueryRow(ctx, `INSERT INTO account (email, password_hash, role, organization_id) VALUES ('admin-m@example.test', 'h', 'admin', $1) RETURNING id::text`,
+		clinicID).Scan(&admin); err != nil {
+		t.Fatal(err)
+	}
+	from := s.seedVisit(t, role, b.patient, time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC))
+	if _, err := s.owner.Exec(ctx, `UPDATE appointment SET visit_mode = 'in-person' WHERE id = $1`, from.id); err != nil { // a desk visit
+		t.Fatal(err)
+	}
+	to := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC) // 11:00 CET
+	s.slots.next = slot.Bookable{PractitionerRoleID: role, Slot: slot.Slot{
+		ID: "5e000000-0000-4000-8000-00000000005e", OrganizationID: clinicID,
+		Period: slot.Period{Start: to, End: to.Add(30 * time.Minute), Mode: schedule.ModeInPerson},
+	}}
+	s.clock.set(time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC))
+	desk := appointment.Caller{AccountID: admin, OrganizationID: clinicID, Admin: true}
+	if _, err := s.appointments.MoveForPatient(ctx, desk, from.id, s.slots.next.ID, 1); err != nil {
+		t.Fatalf("MoveForPatient = %v", err)
+	}
+	for _, old := range from.reminders {
+		if st := s.state(t, old); st != "cancelled" {
+			t.Errorf("the old time's reminder is %s, want cancelled", st)
+		}
+	}
+	moved := visit{id: from.id, reminders: map[int]string{}}
+	rows, err := s.owner.Query(ctx, `SELECT offset_minutes, id::text FROM appointment_reminder WHERE appointment_id = $1 AND state = 'scheduled' AND start_at = $2`, from.id, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var offset int
+		var id string
+		if err := rows.Scan(&offset, &id); err != nil {
+			t.Fatal(err)
+		}
+		moved.reminders[offset] = id
+	}
+	rows.Close()
+	if moved.reminders[1440] == "" || moved.reminders[60] == "" {
+		t.Fatalf("reminders at the new time %v, want the day before and the hour before", moved.reminders)
+	}
+	if err := s.dispatch(t, from, 1440, time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if jobs, _ := s.sends(t, from.reminders[1440]); len(jobs) != 0 {
+		t.Errorf("the old time's reminder sends %v", jobs)
+	}
+	before, sent := s.smsMessages(t), len(s.sms.Sent())
+	s.jobs.failed = false
+	dayBefore := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	if err := s.dispatch(t, moved, 1440, dayBefore); err == nil {
+		t.Fatal("the first dispatch did not fail")
+	}
+	for range 2 {
+		if err := s.dispatch(t, moved, 1440, dayBefore); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if jobs, _ := s.sends(t, moved.reminders[1440]); !slices.Equal(jobs, []string{"reminder_sms at 2026-11-03T10:00Z"}) {
+		t.Errorf("the new day before: %v, want the SMS at 10:00 UTC", jobs)
+	}
+	s.sendAll(t, moved.reminders[1440], dayBefore)
+	all := s.sms.Sent()
+	if len(all) != sent+1 || all[len(all)-1].To != "+38761000009" || !strings.Contains(all[len(all)-1].Body, "04.11.2026. u 11:00 (Europe/Sarajevo)") {
+		t.Fatalf("sent %+v after the move, want one more SMS with the new time", all[sent:])
+	}
+	if after := s.smsMessages(t); after != before+1 {
+		t.Errorf("%d messages in the clinic's usage after the move's SMS, want %d", after, before+1)
+	}
+}
+
+// smsMessages is the clinic's SMS usage: the messages counted so far.
+func (s *reminderStack) smsMessages(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := s.owner.QueryRow(t.Context(), `SELECT coalesce(sum(messages), 0) FROM sms_usage WHERE organization_id = $1`, clinicID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
