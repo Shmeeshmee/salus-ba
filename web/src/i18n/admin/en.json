@@ -59,5 +59,16 @@
   "invalidLocation": "Choose a city of the region.",
   "addressLine": "Street and number",
   "postalCode": "Postal code",
-  "addressHint": "Patients with an appointment at the clinic get this address in their e-mails and reminders."
+  "addressHint": "Patients with an appointment at the clinic get this address in their e-mails and reminders.",
+  "exportTitle": "Clinic data export",
+  "exportHint": "One archive with the price list, the staff, the appointments and the receipts as CSV files. It can be downloaded for 7 days after you ask for it, then it is deleted.",
+  "exportAsk": "Export the clinic’s data",
+  "exportAsking": "Starting the export",
+  "exportBuilding": "The archive is being built. This can take a few minutes.",
+  "exportBuildFailed": "The archive could not be built. Ask for a new export.",
+  "exportExpired": "This export has expired. Ask for a new one.",
+  "exportDownload": "Download the archive",
+  "exportUntil": "Available until {at}.",
+  "exportForbidden": "Only a clinic admin can export the clinic’s data.",
+  "exportFailed": "The export could not be started. Try again."
 }

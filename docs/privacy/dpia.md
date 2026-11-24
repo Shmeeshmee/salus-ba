@@ -2708,3 +2708,32 @@ rights through the clinic that registered them (V2, pending the lawyer):
 | An SMS to a patient whose clinic does not offer SMS, or without a phone | Checked at the dispatch and again at the send; tested against Postgres |
 | An SMS sent twice | One delivery per reminder and channel (`notification_delivery_once`); leaves pending once; tested with every job run twice |
 | The phone stored outside the profile | Read at the send only; no column holds it; nothing in a log, error or job argument |
+
+### Package M2: the clinic data export (migration 00070, docs/clinic-cms/WAVE4.md)
+
+**Processing added.** The clinic's admin asks for an export of the clinic's data (`POST /clinic/export`); the
+`clinic_export_build` job reads the price list, the staff (practitioner roles with the practitioners' names), the
+appointments (with the patient's id and name) and the receipts, writes them as CSV files into one zip, encrypts it
+as attachments are (`pkg/envelope`: a data key of its own, wrapped by the key-encryption key and bound to the export's
+id) and stores it in the object store under `clinicexport/<id>`. `clinic_export` keeps who asked, when, the status, the
+archive's size and its wrapped key: no patient field. The admin downloads the archive until 7 days after asking.
+
+- **Lawful basis**: the clinic, as controller, takes its own records with it (Art. 6(1)(c) and (f), Art. 9(2)(h)); the
+  export moves the data between the clinic's own systems and is not a new purpose.
+- **Minimisation**: the archive holds what the clinic's screens already show its admin; the appointments carry the
+  patient's id and name only (no birth date, contact, note or clinical content). The patients' FHIR records are not in
+  it yet (`docs/clinic-cms/PROGRESS.md`, M2 "Deferred").
+- **Access and audit**: only the clinic's admin asks, reads the status and downloads (refusals audited). Asking and every
+  download are `AuditEvent`s (entity `clinic_export`); every read the job makes goes through the owning service as the
+  admin who asked, which audits it (each appointment, the receipts' list, each practitioner); the job's own status
+  writes are audited with the agent `clinic_export_build`. The job's arguments are the export's and the clinic's ids.
+- **Retention**: the `clinic_export` rule deletes the archive and then the row 7 days after the request, as
+  `salus_retention`.
+- **Encryption**: the archive is never stored in plaintext; the store sees the key `clinicexport/<id>` and ciphertext only.
+
+| Risk | Measure |
+| --- | --- |
+| Another clinic's admin downloads the archive | Row-level security on `clinic_export` (`clinic_export_clinic`), the service's admin check and the archive bound to its id; tested |
+| A leaked download link | The route needs the admin's session; 7 days at most; every download audited |
+| A spreadsheet runs a formula from a patient's name | Every cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is prefixed with an apostrophe (tested) |
+| Exports pile up | One queued export per clinic (partial unique index); each deleted after 7 days |

@@ -59,5 +59,16 @@
   "invalidLocation": "Izaberite grad u toj regiji.",
   "addressLine": "Ulica i broj",
   "postalCode": "Poštanski broj",
-  "addressHint": "Pacijenti sa terminom u klinici dobijaju ovu adresu u e-porukama i podsjetnicima."
+  "addressHint": "Pacijenti sa terminom u klinici dobijaju ovu adresu u e-porukama i podsjetnicima.",
+  "exportTitle": "Izvoz podataka klinike",
+  "exportHint": "Jedna arhiva sa cjenovnikom, osobljem, terminima i računima kao CSV datotekama. Može se preuzeti 7 dana pošto je zatražite, a zatim se briše.",
+  "exportAsk": "Izvezi podatke klinike",
+  "exportAsking": "Pokretanje izvoza",
+  "exportBuilding": "Arhiva se pravi. To može potrajati nekoliko minuta.",
+  "exportBuildFailed": "Arhiva nije mogla biti napravljena. Zatražite novi izvoz.",
+  "exportExpired": "Ovaj izvoz je istekao. Zatražite novi.",
+  "exportDownload": "Preuzmi arhivu",
+  "exportUntil": "Dostupno do {at}.",
+  "exportForbidden": "Samo administrator klinike može izvesti podatke klinike.",
+  "exportFailed": "Izvoz nije mogao biti pokrenut. Pokušajte ponovo."
 }
