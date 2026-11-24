@@ -18,6 +18,7 @@ lib/api/history_api.dart
 lib/api/invites_api.dart
 lib/api/notifications_api.dart
 lib/api/patient_api.dart
+lib/api/privacy_api.dart
 lib/api/questionnaires_api.dart
 lib/api/scheduling_api.dart
 lib/api/signup_api.dart
@@ -34,6 +35,7 @@ lib/auth/oauth.dart
 lib/model/accept_invite_request.dart
 lib/model/acceptance.dart
 lib/model/account.dart
+lib/model/account_closure.dart
 lib/model/add_participant_request.dart
 lib/model/allergy_category.dart
 lib/model/allergy_clinical_status.dart
@@ -107,6 +109,18 @@ lib/model/correct_patient_request.dart
 lib/model/created_webhook.dart
 lib/model/cursor.dart
 lib/model/cursor_message.dart
+lib/model/data_request.dart
+lib/model/data_request_answer.dart
+lib/model/data_request_answer_code.dart
+lib/model/data_request_change.dart
+lib/model/data_request_export.dart
+lib/model/data_request_export_status.dart
+lib/model/data_request_extension.dart
+lib/model/data_request_extension_reason.dart
+lib/model/data_request_filing.dart
+lib/model/data_request_kind.dart
+lib/model/data_request_status.dart
+lib/model/data_request_target.dart
 lib/model/desk_day.dart
 lib/model/desk_receipt.dart
 lib/model/desk_visit.dart
@@ -136,6 +150,7 @@ lib/model/entry_written.dart
 lib/model/error.dart
 lib/model/explained_term.dart
 lib/model/explained_term_list.dart
+lib/model/file_clinic_patient_data_request_request.dart
 lib/model/fiscal_status.dart
 lib/model/generate_draft_request.dart
 lib/model/grant_consent_request.dart
@@ -211,6 +226,7 @@ lib/model/register_patient_request.dart
 lib/model/register_request.dart
 lib/model/request_questionnaire_request.dart
 lib/model/reschedule_appointment_request.dart
+lib/model/restrict_clinic_patient_request.dart
 lib/model/reverse_receipt_request.dart
 lib/model/review.dart
 lib/model/review_decision.dart

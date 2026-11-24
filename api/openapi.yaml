@@ -7293,6 +7293,514 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /me/data-requests:
+    get:
+      operationId: listMyDataRequests
+      x-salus-package: cms-d1
+      summary: The patient's own data subject requests
+      description: >-
+        Every request the patient filed, to their account or to one of their clinics, newest first, with its state and
+        due date (docs/clinic-cms WAVE5.md, S1 to S3). For a patient. Built in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The requests.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/DataRequest"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: fileMyDataRequest
+      x-salus-package: cms-d1
+      summary: File a data subject request
+      description: >-
+        A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic
+        they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). For a patient.
+        Built in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DataRequestFiling"}
+      responses:
+        "201":
+          description: The request, received.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequest"}
+        "400":
+          description: "`invalid_data_request`: an unknown kind or target, or a clinic target without a clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no record of the patient at that clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/data-requests/{id}/withdraw:
+    post:
+      operationId: withdrawMyDataRequest
+      x-salus-package: cms-d1
+      summary: Withdraw an open request
+      description: >-
+        The request is withdrawn and keeps its history; it is never deleted. For the patient who filed it, while it is
+        received or in progress. Built in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "200":
+          description: The request, withdrawn.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequest"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such request of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`data_request_closed`: fulfilled, refused or withdrawn already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the request changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "428":
+          description: "`if_match_required`: no If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/data-requests/{id}/export:
+    get:
+      operationId: getMyDataRequestExport
+      x-salus-package: cms-d2
+      summary: Where the export of an access or portability request stands
+      description: >-
+        Everything the patient can read in the app, from every clinic of the target, plus their account data for the
+        account target, as FHIR Bundles in one encrypted archive built by a job (S4). Downloadable for 7 days once
+        ready. For the patient who filed the request. Built in package D2. Audited, as a read of the patient's request.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The export.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequestExport"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such access or portability request of the patient's."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/data-requests/{id}/export/archive:
+    get:
+      operationId: downloadMyDataRequestExport
+      x-salus-package: cms-d2
+      summary: Download a ready export
+      description: A zip archive of FHIR Bundles. For the patient who filed the request, until it expires. Built in package D2. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The archive.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            Content-Disposition: {schema: {type: string}, description: 'attachment; filename="salus-export-<id>.zip"'}
+          content:
+            application/zip:
+              schema: {type: string, contentMediaType: application/zip}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          description: "`not_found`: no such request of the patient's, not ready, or expired."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /me/account/close:
+    post:
+      operationId: closeMyAccount
+      x-salus-package: cms-d3
+      summary: Close the patient's account
+      description: >-
+        At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices,
+        waitlist entries withdrawn and consents revoked (S5). Not reversible by the patient; the operator may reopen it
+        within 30 days, after which what has no legal basis to stay is erased and the clinical record stays with each
+        clinic, restricted (S6). Confirmed with the password. For a patient. Built in package D3. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AccountClosure"}
+      responses:
+        "204":
+          description: The account, closed; the session ends with it.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a staff account; `wrong_credentials`: the password is wrong."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/data-requests:
+    get:
+      operationId: listClinicDataRequests
+      x-salus-package: cms-d1
+      summary: The requests targeting the clinic
+      description: >-
+        The open ones by due date first, then the answered and withdrawn ones (S1, S3). For the clinic's admin. Built
+        in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The requests.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/DataRequest"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/data-requests/{id}:
+    get:
+      operationId: getClinicDataRequest
+      x-salus-package: cms-d1
+      summary: One request targeting the clinic
+      description: With its history of status changes. For the clinic's admin. Built in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The request.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+            ETag: {schema: {type: string}, description: 'The request''s version, `W/"<version>"`.'}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequest"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such request targeting the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/data-requests/{id}/answer:
+    post:
+      operationId: answerClinicDataRequest
+      x-salus-package: cms-d1
+      summary: Answer a request targeting the clinic
+      description: >-
+        Fulfilled or refused, with a code told to the patient (never free text about health). For the clinic's admin,
+        while the request is open. Built in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DataRequestAnswer"}
+      responses:
+        "200":
+          description: The request, answered.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequest"}
+        "400":
+          description: "`invalid_data_request`: a status other than fulfilled or refused, or a code that does not fit it."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such request targeting the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`data_request_closed`: fulfilled, refused or withdrawn already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the request changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "428":
+          description: "`if_match_required`: no If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/data-requests/{id}/extend:
+    post:
+      operationId: extendClinicDataRequest
+      x-salus-package: cms-d1
+      summary: Extend a request's deadline once
+      description: >-
+        By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the
+        request is open. Built in package D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/IfMatch"
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DataRequestExtension"}
+      responses:
+        "200":
+          description: The request, extended.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequest"}
+        "400":
+          description: "`invalid_data_request`: an unknown reason."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no such request targeting the clinic."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "409":
+          description: "`data_request_closed`: answered or withdrawn already; `already_extended`: extended once already."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "412":
+          description: "`version_conflict`: the request changed since it was read."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "428":
+          description: "`if_match_required`: no If-Match."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/data-requests:
+    post:
+      operationId: fileClinicPatientDataRequest
+      x-salus-package: cms-d1
+      summary: File a request on behalf of a registered patient
+      description: >-
+        At the desk, after checking the patient's identity, for a patient the clinic registered (S10); the request
+        targets the clinic and is handled as any other. For the clinic's admin and its receptionists. Built in package
+        D1. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind: {$ref: "#/components/schemas/DataRequestKind"}
+      responses:
+        "201":
+          description: The request, received.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DataRequest"}
+        "400":
+          description: "`invalid_data_request`: an unknown kind."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: not the clinic's admin or receptionist."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`not_found`: no profile the clinic registered with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /clinic/patients/{id}/restriction:
+    put:
+      operationId: restrictClinicPatient
+      x-salus-package: cms-d4
+      summary: Restrict a patient's record at the clinic
+      description: >-
+        Hidden from the clinic's everyday screens and searches, and never used for analytics, reminders or messages;
+        the admin opens it only with a stated reason (S7). Restricting a restricted record changes nothing. For the
+        clinic's admin. Built in package D4. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataRequestId: {type: string, format: uuid, description: The request it answers; absent for none.}
+      responses:
+        "204":
+          description: The record, restricted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no patient with a record at the clinic with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: liftClinicPatientRestriction
+      x-salus-package: cms-d4
+      summary: Lift a restriction
+      description: Lifting a record that is not restricted changes nothing. For the clinic's admin. Built in package D4. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - $ref: "#/components/parameters/CSRF"
+      responses:
+        "204":
+          description: The restriction, lifted.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no patient with a record at the clinic with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   parameters:
     StatsFrom:
@@ -8217,6 +8725,89 @@ components:
         status: {$ref: "#/components/schemas/ClinicExportStatus"}
         requestedAt: {type: string, format: date-time}
         expiresAt: {type: string, format: date-time, description: When a ready archive stops being downloadable.}
+    DataRequestKind:
+      type: string
+      description: What the patient asks for (GDPR Art. 15 to 21). Access and portability are served by the same export.
+      enum: [access, portability, rectification, restriction, objection, erasure]
+    DataRequestTarget:
+      type: string
+      description: "`account`: the patient's Salus account, answered by Salus; `clinic`: their record at one clinic, answered by its admin."
+      enum: [account, clinic]
+    DataRequestStatus:
+      type: string
+      enum: [received, in_progress, fulfilled, refused, withdrawn]
+    DataRequestAnswerCode:
+      type: string
+      description: >-
+        `done` and `done_partly_kept` (done; what the medical-record retention keeps is kept) fulfil a request; the
+        others refuse it.
+      enum: [done, done_partly_kept, identity_unverified, manifestly_unfounded, excessive, retention_law, no_data]
+    DataRequestExtensionReason:
+      type: string
+      enum: [complex, many_requests]
+    DataRequest:
+      type: object
+      required: [id, kind, target, status, receivedAt, dueAt, filedByPatient, version]
+      description: >-
+        A data subject's request (docs/clinic-cms WAVE5.md). Personal data: it says what the patient asked of whom.
+        `history` comes with the clinic's read of one request only.
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: "#/components/schemas/DataRequestKind"}
+        target: {$ref: "#/components/schemas/DataRequestTarget"}
+        organizationId: {type: string, format: uuid, description: The clinic of a clinic target.}
+        patientId: {type: string, format: uuid, description: The patient's profile; on the clinic's reads.}
+        status: {$ref: "#/components/schemas/DataRequestStatus"}
+        receivedAt: {type: string, format: date-time}
+        dueAt: {type: string, format: date-time}
+        extendedUntil: {type: string, format: date-time, description: The deadline once extended.}
+        extensionReason: {$ref: "#/components/schemas/DataRequestExtensionReason"}
+        answeredAt: {type: string, format: date-time}
+        answerCode: {$ref: "#/components/schemas/DataRequestAnswerCode"}
+        filedByPatient: {type: boolean, description: False for a request the clinic filed at the desk for the patient.}
+        version: {type: integer, minimum: 1}
+        history:
+          type: array
+          items: {$ref: "#/components/schemas/DataRequestChange"}
+    DataRequestChange:
+      type: object
+      required: [status, changedAt]
+      properties:
+        status: {$ref: "#/components/schemas/DataRequestStatus"}
+        changedAt: {type: string, format: date-time}
+    DataRequestFiling:
+      type: object
+      required: [kind, target]
+      properties:
+        kind: {$ref: "#/components/schemas/DataRequestKind"}
+        target: {$ref: "#/components/schemas/DataRequestTarget"}
+        organizationId: {type: string, format: uuid, description: The clinic; required with the clinic target.}
+    DataRequestAnswer:
+      type: object
+      required: [status, code]
+      properties:
+        status: {type: string, enum: [fulfilled, refused]}
+        code: {$ref: "#/components/schemas/DataRequestAnswerCode"}
+    DataRequestExtension:
+      type: object
+      required: [reason]
+      properties:
+        reason: {$ref: "#/components/schemas/DataRequestExtensionReason"}
+    DataRequestExportStatus:
+      type: string
+      enum: [queued, ready, failed, expired]
+    DataRequestExport:
+      type: object
+      required: [status]
+      properties:
+        status: {$ref: "#/components/schemas/DataRequestExportStatus"}
+        expiresAt: {type: string, format: date-time, description: When a ready archive stops being downloadable.}
+    AccountClosure:
+      type: object
+      required: [password]
+      description: The password confirms the closure. It is never logged or stored.
+      properties:
+        password: {type: string, format: password}
     QuoteState:
       type: string
       enum: [sent, expired]
@@ -9561,6 +10152,9 @@ components:
             - invalid_quote
             - invalid_profile
             - not_in_person
+            - invalid_data_request
+            - data_request_closed
+            - already_extended
         linkIds:
           type: array
           items: {type: string}

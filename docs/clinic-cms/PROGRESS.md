@@ -35,6 +35,14 @@ writes under its own heading here.
 | M2 | done 2026-11-24, integrated 2026-11-24 (migration `00070`); the patients' records and quotes.csv joined at the integration | `cms(M2)`, merged into `feat/cms` with `cms(wave 4)` |
 | M3 | done 2026-11-24, integrated 2026-11-24; the consent for an imported patient joined at the integration | `cms(M3)`, merged into `feat/cms` with `cms(wave 4)` |
 | M4 | done 2026-11-24, integrated 2026-11-24 | `cms(M4)`, merged into `feat/cms` with `cms(wave 4)` |
+| 5.0 | done 2026-11-24 (migration `00071`) | `cms(5.0)` |
+| FX | not started | |
+| D1 | not started | |
+| D2 | not started | |
+| D3 | not started | |
+| D4 | not started | |
+| D5 | not started | |
+| D6 | not started | |
 
 ## A: visit modes
 
@@ -2120,3 +2128,104 @@ that stack: pass (403 s). After the review's and the walk's fixes the Go, web an
 - The owner: confirm WAVE4's V1 to V6 and the readings the packages and this integration recorded (above), and read the
   wave's new copy (desk `patient.*`, `move.*`, `consent.*`, `reminder.*`; `patientImport`; the quotes page; the export
   and record hints); sr-Cyrl was transliterated from sr-Latn and wants a native reader.
+
+## 5.0: the wave 5 contract
+
+Status: done, 2026-11-24, on `wt/cms/5.0`, one commit `cms(5.0)`. Migration `00071_wave5_contract.sql`. Contract only,
+as 3.0: no behaviour; every new service method refuses with `errors.ErrUnsupported`, with a test that says so.
+
+**Built.**
+
+- **Migration 00071.** `data_request` (S1 to S3): `account_id` (the patient's own account, when they filed it in the
+  app), `patient_id` (their profile), `organization_id` (the clinic target; null is the account target), `kind`,
+  `status`, `received_at`, `due_at`, `extended_until` with `extension_reason` (a code), `filed_by_account_id`,
+  `answered_at` with `answer_code` (a code; fulfilled takes `done` or `done_partly_kept`, refused the others), `version`.
+  Row-level security: `data_request_own` (the patient's account scope: their own, filed by themselves, naming only
+  their own profile) and the clinic's `data_request_clinic`, `_update`, `_insert` (those targeting it; it files only
+  for a patient it registered, by its own staff, never in a patient's name, S10); the operator reads and writes as the
+  table's owner (salusctl, D5). The trigger `data_request_guard` (every role, the owner too): filed received,
+  unanswered, not extended (and, but for the owner, received now); never deleted, moves forward only, final once
+  answered or withdrawn, extended once, who/target/kind/filing/due never change; the patient's scope only withdraws, and
+  a request the patient filed is withdrawn by the patient only. `data_request_change`: the append-only history of
+  status changes (a trigger refuses update, delete, truncate), seen and written where its request is seen and with its
+  current status; `changed_by_account_id` is the patient's own account in their scope, staff of the clinic or null (a
+  job) in the clinic's. `account.closed_at`, `erase_after` (both or neither, erasure after closure).
+  `patient.analytics_objected_at` (salus_app may update it). `patient_restriction` (patient and clinic, when, by which
+  staff of that clinic or null for the erasure job, optionally for a request of that clinic and patient): the clinic's
+  scope only; salus_app selects, inserts and deletes (lifting), and the clinic never lifts the erasure's restriction (a
+  restrictive policy). Ownership: `data_request`, `data_request_change` by `datarequest`;
+  `patient_restriction` by `patient`. Retention: all three kept (`dataRequestRules`), pending the lawyer.
+- **Go.** The new domain `datarequest` (context `privacy` in `archcheck/config.yaml`): `model.go` (kinds, targets,
+  statuses, answer codes, extension reasons, the deadlines `DueMonths`, `ExtensionMonths`, `EraseAfter`, `ExportWindow`,
+  `Request`, `Change`, `Filing`, `Answer`, `Export`, the callers `Patient` and `Staff`), `errors.go`, `repository.go`
+  (the port D1 implements) and `service.go`: `File`, `Mine`, `Withdraw`, `FileOnBehalf`, `ClinicRequests`,
+  `ClinicRequest`, `Answer`, `Extend` (D1), `Export`, `ExportArchive` (D2), `CloseAccount`, `ReopenAccount` (D3).
+  `patient/service_restriction.go`: `Restrict`, `LiftRestriction` (D4).
+- **OpenAPI.** Every wave 5 route with `x-salus-package`: `/me/data-requests` (list, file), `/me/data-requests/{id}/withdraw`
+  (cms-d1), `/me/data-requests/{id}/export` and `/export/archive` (cms-d2), `/me/account/close` (cms-d3),
+  `/clinic/data-requests` (list), `/{id}` (read), `/{id}/answer`, `/{id}/extend`, `/clinic/patients/{id}/data-requests`
+  (cms-d1), `PUT` and `DELETE /clinic/patients/{id}/restriction` (cms-d4); the schemas `DataRequest*`,
+  `AccountClosure`; three error codes (`invalid_data_request`, `data_request_closed`, `already_extended`); the tag
+  `privacy`. A contract test (`api/clinic_wave5_contract_test.go`): the enums are the Go constants, every route names its
+  package, no operator route. `make gen-clients` (the Dart `PrivacyApi` and models, web `schema.d.ts`).
+- **Docs.** The DPIA's "Package 5.0" block; this record and the table rows for 5.0, FX and D1 to D6.
+
+**Contract changes** (where the code fit better than the plan's text):
+
+| Plan's text | As built | Why |
+| --- | --- | --- |
+| "the patient (account or clinic-registered profile)" | `account_id` and `patient_id`, checked: the account target needs the account, a clinic target the profile | A clinic must see which of its patients asked; an account target may come from an account with no profile yet |
+| `patient` at a clinic: `restricted_at`, per clinic | Its own table `patient_restriction` (patient, clinic), owned by `patient` | A patient with an account has one profile for every clinic; a column could not be per clinic |
+| analytics objection per patient | `patient.analytics_objected_at` | One timestamp, read by `clinicstats` (D4) |
+| `/me/data-requests/{id}/export` (status and download) | `/export` (status) and `/export/archive` (download) | As `/clinic/export/{id}` and `/archive`: the archive is built by a job, ask, poll, download |
+| `/clinic/patients/{id}/restriction` | `PUT` restricts (optionally naming the request), `DELETE` lifts, both idempotent | Restricting and lifting are the two actions of D4's detail |
+| "extended_until and its reason" | `extension_reason` a code: `complex`, `many_requests` | Art. 12(3)'s two grounds; no free text about health |
+
+**Decisions** (agent's, for the owner to review):
+
+| Topic | Decision |
+| --- | --- |
+| Answer codes | `done`, `done_partly_kept` (erasure with the record kept, S6), `identity_unverified` (Art. 12(6)), `manifestly_unfounded`, `excessive` (Art. 12(5)), `retention_law` (Art. 17(3)), `no_data` |
+| The patient's scope | Matches on `app.account_id` only: a clinic-registered patient has no app session, so their requests are the clinic's |
+| Wrong password at closure | `403 wrong_credentials`, as the login's |
+| Restriction by the erasure job | `restricted_by_account_id` null; staff restrictions name staff of the same clinic |
+| Go fields for the new `account` and `patient` columns | Columns only (as 3.0): the fields come with the reads in D3 and D4 |
+
+**Left to the packages** (their migrations are reserved: D1 `00073`, D2 `00074`, D3 `00075`, D4 `00076`, D5 `00077`):
+
+- **D1.** `query.sql`, `datarequestdb` (its entry in `sqlc.yaml`) and `repository_postgres.go` implementing the port;
+  how the deadline job reads open requests across clinics (a role or policy, in its own migration if needed); the
+  handlers and their wiring in `internal/api/app.go`.
+- **D2.** Where the export is stored (a table or columns: status, object key, wrapped key, expiry), its job and its
+  retention rule.
+- **D3.** The erasure record on the erasure request (what was erased, what was kept, under which rule): the guard
+  freezes an answered request, so either closure files an account `erasure` request kept `in_progress` until the job
+  answers it (its `due_at` at least `erase_after`: one month can be 28 days, `EraseAfter` is 30) or the record is its own
+  table; `/me/account/close` files no request in the contract. How the job restricts the kept record and erases
+  (`salus_retention` has no INSERT or UPDATE by 00014's rule: a grant, or a scope); erasure blanks the profile and account a request names
+  (both are referenced by `data_request`, which is never deleted).
+- **D4.** The restrictive reads (every staff read of a restricted patient at that clinic), the admin's audited opening
+  with a reason, and `clinicstats` leaving objected patients out.
+
+**Test first.** The migration tests (`migrations/wave5_contract_test.go`) were written first and run red without the
+migration (every table and column missing), then green with it. The `datarequest` skeleton test was run red (no
+package) before the code; the retention rule test red before the rules; the patient restriction test was written with
+its two refusing methods.
+
+**Review** (a fresh subagent over the diff and the plan docs, Copilot being out of quota). Fixed, each with its failing
+case: a clinic could insert a request in a patient's name (the clinic's policy split, its insert needs no account); a
+request could be inserted answered, extended or backdated (the guard on insert); history rows could carry any status or
+claim a job (the request's current status, a job only in the clinic's scope); a clinic could withdraw a request the
+patient filed; a clinic could lift the erasure's restriction or name another clinic's request; the export's status read
+was marked unaudited. Dropped: the INSERT grant on `patient_restriction` to `salus_retention` (00014: that role has no
+INSERT; D3 decides). Left, recorded under D3: the erasure record and the one month against 30 days.
+
+**Checks** (this worktree's compose project, `salus-cms-5-0`): `make gen-clients`, `make lint` (gofmt, vet,
+golangci-lint, i18n-check, migrations), `make test`, `make archcheck`, `make web-lint`, `web-typecheck`, `web-test`,
+`web-build`, `make mobile-analyze`, `mobile-test` (680): all pass. The first full run failed twice, both fixed: funlen
+on a migration test (split) and `TestReceptionRoutes_EveryRouteOfTheContractIsClassified` (the 13 new routes classified
+for the receptionist, the desk files on behalf, and listed in `notServedYet` until D1 to D4 mount them). An
+order-dependent case in the closure test (map order) was fixed by resetting the row per case. Not run: `make cover`,
+`make e2e` and `make fhir-validate` (no route is served and no golden file changed).
+
+**Copy waiting for the owner:** none. 5.0 adds no user-facing string; the API returns codes only.

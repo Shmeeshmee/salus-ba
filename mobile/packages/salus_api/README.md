@@ -224,6 +224,19 @@ Class | Method | HTTP request | Description
 *PatientApi* | [**saveMyPatient**](doc//PatientApi.md#savemypatient) | **PUT** /me/patient | Save the signed-in patient's profile
 *PatientApi* | [**searchClinicPatients**](doc//PatientApi.md#searchclinicpatients) | **GET** /clinic/patients | Search the clinic's patients
 *PatientApi* | [**withdrawClinicPatientConsent**](doc//PatientApi.md#withdrawclinicpatientconsent) | **POST** /clinic/patients/{id}/consent-withdrawal | Record that a registered patient withdrew their consent
+*PrivacyApi* | [**answerClinicDataRequest**](doc//PrivacyApi.md#answerclinicdatarequest) | **POST** /clinic/data-requests/{id}/answer | Answer a request targeting the clinic
+*PrivacyApi* | [**closeMyAccount**](doc//PrivacyApi.md#closemyaccount) | **POST** /me/account/close | Close the patient's account
+*PrivacyApi* | [**downloadMyDataRequestExport**](doc//PrivacyApi.md#downloadmydatarequestexport) | **GET** /me/data-requests/{id}/export/archive | Download a ready export
+*PrivacyApi* | [**extendClinicDataRequest**](doc//PrivacyApi.md#extendclinicdatarequest) | **POST** /clinic/data-requests/{id}/extend | Extend a request's deadline once
+*PrivacyApi* | [**fileClinicPatientDataRequest**](doc//PrivacyApi.md#fileclinicpatientdatarequest) | **POST** /clinic/patients/{id}/data-requests | File a request on behalf of a registered patient
+*PrivacyApi* | [**fileMyDataRequest**](doc//PrivacyApi.md#filemydatarequest) | **POST** /me/data-requests | File a data subject request
+*PrivacyApi* | [**getClinicDataRequest**](doc//PrivacyApi.md#getclinicdatarequest) | **GET** /clinic/data-requests/{id} | One request targeting the clinic
+*PrivacyApi* | [**getMyDataRequestExport**](doc//PrivacyApi.md#getmydatarequestexport) | **GET** /me/data-requests/{id}/export | Where the export of an access or portability request stands
+*PrivacyApi* | [**liftClinicPatientRestriction**](doc//PrivacyApi.md#liftclinicpatientrestriction) | **DELETE** /clinic/patients/{id}/restriction | Lift a restriction
+*PrivacyApi* | [**listClinicDataRequests**](doc//PrivacyApi.md#listclinicdatarequests) | **GET** /clinic/data-requests | The requests targeting the clinic
+*PrivacyApi* | [**listMyDataRequests**](doc//PrivacyApi.md#listmydatarequests) | **GET** /me/data-requests | The patient's own data subject requests
+*PrivacyApi* | [**restrictClinicPatient**](doc//PrivacyApi.md#restrictclinicpatient) | **PUT** /clinic/patients/{id}/restriction | Restrict a patient's record at the clinic
+*PrivacyApi* | [**withdrawMyDataRequest**](doc//PrivacyApi.md#withdrawmydatarequest) | **POST** /me/data-requests/{id}/withdraw | Withdraw an open request
 *QuestionnairesApi* | [**clearRoleQuestionnaire**](doc//QuestionnairesApi.md#clearrolequestionnaire) | **DELETE** /practitioner-roles/{id}/questionnaire | Clear a practitioner role's default questionnaire
 *QuestionnairesApi* | [**createQuestionnaire**](doc//QuestionnairesApi.md#createquestionnaire) | **POST** /questionnaires | Create a questionnaire
 *QuestionnairesApi* | [**deleteQuestionnaire**](doc//QuestionnairesApi.md#deletequestionnaire) | **DELETE** /questionnaires/{id} | Discard a draft
@@ -271,6 +284,7 @@ Class | Method | HTTP request | Description
  - [AcceptInviteRequest](doc//AcceptInviteRequest.md)
  - [Acceptance](doc//Acceptance.md)
  - [Account](doc//Account.md)
+ - [AccountClosure](doc//AccountClosure.md)
  - [AddParticipantRequest](doc//AddParticipantRequest.md)
  - [AllergyCategory](doc//AllergyCategory.md)
  - [AllergyClinicalStatus](doc//AllergyClinicalStatus.md)
@@ -344,6 +358,18 @@ Class | Method | HTTP request | Description
  - [CreatedWebhook](doc//CreatedWebhook.md)
  - [Cursor](doc//Cursor.md)
  - [CursorMessage](doc//CursorMessage.md)
+ - [DataRequest](doc//DataRequest.md)
+ - [DataRequestAnswer](doc//DataRequestAnswer.md)
+ - [DataRequestAnswerCode](doc//DataRequestAnswerCode.md)
+ - [DataRequestChange](doc//DataRequestChange.md)
+ - [DataRequestExport](doc//DataRequestExport.md)
+ - [DataRequestExportStatus](doc//DataRequestExportStatus.md)
+ - [DataRequestExtension](doc//DataRequestExtension.md)
+ - [DataRequestExtensionReason](doc//DataRequestExtensionReason.md)
+ - [DataRequestFiling](doc//DataRequestFiling.md)
+ - [DataRequestKind](doc//DataRequestKind.md)
+ - [DataRequestStatus](doc//DataRequestStatus.md)
+ - [DataRequestTarget](doc//DataRequestTarget.md)
  - [DeskDay](doc//DeskDay.md)
  - [DeskReceipt](doc//DeskReceipt.md)
  - [DeskVisit](doc//DeskVisit.md)
@@ -373,6 +399,7 @@ Class | Method | HTTP request | Description
  - [Error](doc//Error.md)
  - [ExplainedTerm](doc//ExplainedTerm.md)
  - [ExplainedTermList](doc//ExplainedTermList.md)
+ - [FileClinicPatientDataRequestRequest](doc//FileClinicPatientDataRequestRequest.md)
  - [FiscalStatus](doc//FiscalStatus.md)
  - [GenerateDraftRequest](doc//GenerateDraftRequest.md)
  - [GrantConsentRequest](doc//GrantConsentRequest.md)
@@ -448,6 +475,7 @@ Class | Method | HTTP request | Description
  - [RegisterRequest](doc//RegisterRequest.md)
  - [RequestQuestionnaireRequest](doc//RequestQuestionnaireRequest.md)
  - [RescheduleAppointmentRequest](doc//RescheduleAppointmentRequest.md)
+ - [RestrictClinicPatientRequest](doc//RestrictClinicPatientRequest.md)
  - [ReverseReceiptRequest](doc//ReverseReceiptRequest.md)
  - [Review](doc//Review.md)
  - [ReviewDecision](doc//ReviewDecision.md)

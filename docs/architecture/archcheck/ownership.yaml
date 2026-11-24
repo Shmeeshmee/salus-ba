@@ -33,6 +33,8 @@ tables:
   consent: {owner: consent, personal_data: true}
   conversation: {owner: communication, personal_data: true}
   conversation_participant: {owner: communication, personal_data: true}
+  data_request: {owner: datarequest, personal_data: true} # a data subject's request, its target and answer (00071, 5.0)
+  data_request_change: {owner: datarequest, personal_data: true} # a request's append-only status history (00071, 5.0)
   diagnosis_group: {owner: terminology, personal_data: false}
   diagnosis_group_name: {owner: terminology, personal_data: false}
   diagnosis_group_range: {owner: terminology, personal_data: false}
@@ -55,6 +57,7 @@ tables:
   organization_chat_settings: {owner: organization, personal_data: false} # chat hours and delays (00047)
   organization_profile_translation: {owner: organization, personal_data: false} # the profile for patients abroad (00065, X2)
   patient: {owner: patient, personal_data: true}
+  patient_restriction: {owner: patient, personal_data: true} # a patient's record restricted at one clinic (00071, 5.0)
   place: {owner: terminology, personal_data: false}
   practitioner: {owner: practitioner, personal_data: true}
   push_device: {owner: notification, personal_data: true} # an account's device token (00047)

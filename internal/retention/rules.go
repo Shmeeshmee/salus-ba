@@ -121,7 +121,7 @@ func tableRules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules(), dataRequestRules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -399,6 +399,26 @@ func clinicWave4Rules() []Rule {
 				"(docs/clinic-cms, M2)",
 			Keep: 7 * day, // after requested_at
 			Then: ThenDelete,
+		},
+	}
+}
+
+// dataRequestRules are the rules of the data subject's requests (docs/clinic-cms/WAVE5.md, 5.0). The periods need the
+// lawyer's decision before production.
+func dataRequestRules() []Rule {
+	request := "The data subject's request and how it was answered (GDPR Art. 12 to 21, the proof of compliance under " +
+		"Art. 5(2); Art. 6(1)(c)): who it is for, its target, kind, deadlines and answer code, and the history of its " +
+		"status. Never deleted, kept after the account's erasure as the record of what was erased and kept; needs a " +
+		"legal decision before production (docs/clinic-cms/WAVE5.md)"
+	return []Rule{
+		{Table: "data_request", Basis: request, Then: ThenKeep},
+		{Table: "data_request_change", Basis: request, Then: ThenKeep},
+		{
+			Table: "patient_restriction",
+			Basis: "The restriction of a patient's record at one clinic (GDPR Art. 18; Art. 17(3) for the record the " +
+				"medical-record retention keeps after erasure): kept as long as the record it restricts, deleted when " +
+				"the clinic lifts it (docs/clinic-cms/WAVE5.md, S6, S7)",
+			Then: ThenKeep,
 		},
 	}
 }

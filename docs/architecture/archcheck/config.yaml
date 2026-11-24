@@ -10,7 +10,7 @@ contexts:
   identity: [auth, signup]
   notification: [notification]
   patient: [patient]
-  privacy: [access, auditevent, consent, retention]
+  privacy: [access, auditevent, consent, datarequest, retention]
   reference: [terminology]
   scheduling: [appointment, schedule, slot]
 

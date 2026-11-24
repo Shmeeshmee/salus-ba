@@ -408,3 +408,20 @@ func TestRules_KeepReceiptsAndTheirLinesUntilTheLegalPeriodIsDecided(t *testing.
 		t.Errorf("no rule for %s", table)
 	}
 }
+
+// A data subject's request, its history and a restriction are kept: the request is the proof of how it was answered
+// (Art. 5(2)), the restriction lasts as long as the record it restricts (docs/clinic-cms/WAVE5.md, 5.0).
+func TestRules_KeepDataRequestsAndRestrictions(t *testing.T) {
+	want := map[string]bool{"data_request": true, "data_request_change": true, "patient_restriction": true}
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
+		if want[r.Table] {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+			}
+			delete(want, r.Table)
+		}
+	}
+	if len(want) != 0 {
+		t.Errorf("no rule for %v", want)
+	}
+}

@@ -2791,3 +2791,36 @@ profiles; nothing new is kept.
 | A booking happens without the patient's consent | The booking still refuses without an active consent (`consent_required`); the screen asks for the consent first |
 | The handed-over file or the export shows another clinic's visits or receipts | The builder keeps only the clinic's own (checked against the clinic, not on row-level security alone); tested |
 | The export's file reveals more than the clinic may hand over | Clinical content is left out and the manifest says so; the lawyer's questions are in PROGRESS.md "Before production" |
+
+### Package 5.0: the wave 5 contract, data subject requests (migration 00071, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** None yet: 5.0 adds the tables, columns, policies and routes; the services refuse until packages
+D1 to D6 fill them, and each of those adds its own block here. What the contract prepares:
+
+- **Data subject requests** (`data_request`): who the request is for (the patient's account, their profile, or both),
+  its target (the patient's Salus account, answered by Salus as processor through the operator, or their record at
+  one clinic, answered by that clinic as controller; S1), the kind (access, portability, rectification, restriction,
+  objection, erasure), the dates (received, due one month later, extended once by at most two months with a coded
+  reason, answered) and the answer as a code, never free text about health. Lawful basis: the legal obligation to
+  answer (Art. 6(1)(c), Art. 12 to 21) and the proof of having answered (Art. 5(2)). Row-level security: the patient's
+  scope sees and files their own (filed by themselves, naming only their own profile) and may only withdraw; the
+  clinic's scope sees those targeting it and files only for a patient it registered, by its own staff (S10); the
+  operator reads those targeting the account as the table's owner from salusctl (D5). No role deletes a request; a
+  trigger lets it move forward only and be extended once. Kept (retention `data_request`), pending the lawyer.
+- **Their history** (`data_request_change`): each status change with who made it (an account, or none for a job or
+  the operator), with the request's current status. Append-only for every role, the owner included; seen where its
+  request is seen.
+- **Account closure** (`account.closed_at`, `account.erase_after`, both or neither, erasure after closure): set at
+  closure (S5), cleared when the operator reopens within 30 days; D3's erasure job erases what has no legal basis to
+  stay (S6) and records it on the erasure request.
+- **The analytics objection** (`patient.analytics_objected_at`, S9): from then on the patient's events are left out of
+  new aggregates (D4); existing k-anonymous aggregates are not recomputed.
+- **The restricted record** (`patient_restriction`, per patient and clinic, S6, S7): when and by whom (staff of that
+  clinic, or none for the erasure job), optionally for a request of that clinic. The clinic's scope only; lifting a
+  staff restriction deletes the row, audited; the erasure's is never lifted by the clinic. Kept as long as the record it restricts. D4 makes every everyday read of the clinic leave a restricted
+  patient out.
+
+**Risks the packages must close** (recorded so they are not lost): the deadline job reads open requests across clinics
+(D1 decides how, in its own migration if it needs a role or policy); the erasure job needs to blank the account's
+fields and delete what S6 lists as `salus_retention` (D3's migration); a request references the patient's profile and
+account, so erasure blanks rather than deletes the rows they name (D3).
