@@ -287,6 +287,50 @@ func (q *Queries) RequestsForClinic(ctx context.Context, organizationID pgtype.U
 	return items, nil
 }
 
+const requestsForOperator = `-- name: RequestsForOperator :many
+SELECT id, received_at, due_at, extended_until, answered_at, account_id, patient_id, organization_id, filed_by_account_id, version, kind, status, extension_reason, answer_code, deadline_warned_at FROM data_request WHERE organization_id IS NULL
+ORDER BY status IN ('received', 'in_progress') DESC,
+         CASE WHEN status IN ('received', 'in_progress') THEN COALESCE(extended_until, due_at) END,
+         received_at DESC, id
+`
+
+// The requests to the account (salusctl, the owner): the open ones by their deadline first, then the others, newest first.
+func (q *Queries) RequestsForOperator(ctx context.Context) ([]DataRequest, error) {
+	rows, err := q.db.Query(ctx, requestsForOperator)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DataRequest
+	for rows.Next() {
+		var i DataRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReceivedAt,
+			&i.DueAt,
+			&i.ExtendedUntil,
+			&i.AnsweredAt,
+			&i.AccountID,
+			&i.PatientID,
+			&i.OrganizationID,
+			&i.FiledByAccountID,
+			&i.Version,
+			&i.Kind,
+			&i.Status,
+			&i.ExtensionReason,
+			&i.AnswerCode,
+			&i.DeadlineWarnedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateRequest = `-- name: UpdateRequest :execrows
 UPDATE data_request
 SET status = $1, extended_until = $2, extension_reason = $3,

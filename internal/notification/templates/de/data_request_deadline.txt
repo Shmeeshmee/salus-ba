@@ -1,0 +1,9 @@
+Eine Betroffenenanfrage ist in {{if eq .Days 1}}1 Tag{{else}}{{.Days}} Tagen{{end}} fällig
+
+Die Frist für die Antwort auf eine Betroffenenanfrage endet am {{.When}}, in {{if eq .Days 1}}1 Tag{{else}}{{.Days}} Tagen{{end}}.
+
+Art: {{if eq .Kind "access"}}Auskunft{{else if eq .Kind "portability"}}Datenübertragbarkeit{{else if eq .Kind "rectification"}}Berichtigung{{else if eq .Kind "restriction"}}Einschränkung{{else if eq .Kind "objection"}}Widerspruch{{else if eq .Kind "erasure"}}Löschung{{end}}
+Anfrage: {{.Request}}
+
+{{if .Link}}Zur Bearbeitung melden Sie sich bei Salus an:
+{{.Link}}{{else}}Zur Bearbeitung: salusctl datarequest show {{.Request}}{{end}}

@@ -2975,3 +2975,34 @@ cleared from the field; it is never stored or logged.
 | A patient closes the account without knowing what it does | The closure screen says what happens at once, what is erased after 21 days, what stays and how to keep a copy first, all tagged legal; the password confirms |
 | A patient misreads what a kind of request does | Each kind carries its plain explanation (S6, S8, S9), tagged legal |
 | The closed session lingers on the device | After closure the app signs out and forgets the token whatever the API answers; a token it could not drop is refused and dropped at the next start |
+
+### Package D5: the operator and the deadline warnings (no migration, docs/clinic-cms/WAVE5.md D5, S1, S3, S12)
+
+**Processing added.** No new table or column. Two uses of what D1 stores:
+
+- **The deadline warnings.** The notifier sends each warning the deadline job queued (`data_request_deadline_warning`,
+  the request's opaque id and the days left) by e-mail to the request's answerer: each admin of the clinic for a clinic
+  target, in the admin's language, with the link to the request in the web app; the operator for the account target, at
+  `SALUS_OPERATOR_EMAIL` in `SALUS_OPERATOR_LANGUAGE`, pointing at salusctl. The e-mail names the request's kind, its
+  deadline in the answerer's time zone, the days left and the request's opaque id; never the patient (no name, account,
+  profile or contact). The request is read in the deadline job's scope (open requests only: one answered or withdrawn
+  since completes the job without a send), audited as the warning's read (agent `data_request_deadline_warning`, the
+  request's `Patient/<id>`); the clinic's admins' addresses are read through `auth` and audited as one read with the
+  same agent. The e-mail goes the way of the notifier's other e-mails (`SMTP_*`, `docs/privacy/processors.md`); no new processor.
+  Without an operator address the notifier refuses to start, except in dev, where it logs the warning's request id and
+  days only.
+- **The operator's handling** of the requests to the account (S1: Salus answers them): `salusctl datarequest list |
+  show | answer | extend | reopen-account` on the owner's connection, which row-level security does not hold; the
+  service refuses any request with a clinic as `not found`. List, read (with the history), answer, extension (once,
+  refused once overdue, S12) and reopening (the closure's withdrawal of the erasure request while the account is before
+  its erasure date) each write an `AuditEvent` in their transaction, agent `salusctl`, entity `data_request` and the
+  patient's `Patient/<id>` when the request names one; the account's reopening is audited by `auth` as well. salusctl
+  prints opaque ids, codes and dates only, never an e-mail or a name.
+
+| Risk | Measure |
+| --- | --- |
+| A warning tells its reader who the patient is | The template has the kind, the deadline, the days and the request's opaque id only; worker test checks the patient's name and e-mail are in no e-mail |
+| A warning about a clinic's request reaches another clinic or the operator | The recipients follow the request's target: the clinic's own admins, or the operator for the account only; service and worker tests |
+| The operator's connection reaches a clinic's request | Every operator method refuses a request with a clinic (`not found`); service and salusctl tests |
+| The operator extends an overdue request (Art. 12(3)) | Refused with `request_overdue` (S12); service and salusctl tests |
+| The operator's address is missing in production, so account requests go unwarned | The notifier refuses to start outside dev without one; the `.env.example` placeholder counts as none; config and notifier tests |

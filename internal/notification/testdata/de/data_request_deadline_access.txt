@@ -1,0 +1,8 @@
+Subject: Eine Betroffenenanfrage ist in 7 Tagen fällig
+
+Die Frist für die Antwort auf eine Betroffenenanfrage endet am Donnerstag, 24. Dezember 2026, 23:59 Uhr (Europe/Sarajevo), in 7 Tagen.
+
+Art: Auskunft
+Anfrage: 00000000-0000-4000-8000-0000000000f1
+
+Zur Bearbeitung: salusctl datarequest show 00000000-0000-4000-8000-0000000000f1

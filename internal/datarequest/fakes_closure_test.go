@@ -211,6 +211,10 @@ func (r *closureRepo) ForClinic(context.Context, string) ([]datarequest.Request,
 	panic("not in the closure")
 }
 
+func (r *closureRepo) ForOperator(context.Context) ([]datarequest.Request, error) {
+	panic("not in the closure")
+}
+
 func (r *closureRepo) Update(_ context.Context, x datarequest.Request, by string) (bool, error) {
 	r.must()
 	for i, old := range r.requests {

@@ -404,7 +404,7 @@ func (s *Service) refuse(ctx context.Context, account, org, interaction, purpose
 
 // wrap returns the domain's errors as they are and wraps the others with the operation.
 func wrap(op string, err error) error {
-	for _, e := range []error{ErrInvalid, ErrNotFound, ErrForbidden, ErrClosed, ErrAlreadyExtended, ErrVersionConflict} {
+	for _, e := range []error{ErrInvalid, ErrNotFound, ErrForbidden, ErrClosed, ErrAlreadyExtended, ErrOverdue, ErrVersionConflict} {
 		if errors.Is(err, e) {
 			return e
 		}

@@ -106,13 +106,13 @@ func TestReopenAccount_WithdrawsTheErasureRequestAndReopens(t *testing.T) {
 	if _, err := f.closure().CloseAccount(t.Context(), datarequest.Patient{AccountID: accountID}, password); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.closure().ReopenAccount(t.Context(), accountID); err != nil {
+	if _, err := f.closure().ReopenAccount(t.Context(), accountID); err != nil {
 		t.Fatalf("ReopenAccount() error = %v", err)
 	}
 	if !f.accounts.reopened || f.repo.requests[0].Status != datarequest.StatusWithdrawn || f.repo.requests[0].Version != 3 {
 		t.Errorf("reopened %v, request %+v; want reopened and the request withdrawn", f.accounts.reopened, f.repo.requests[0])
 	}
-	if err := f.closure().ReopenAccount(t.Context(), accountID); !errors.Is(err, datarequest.ErrNotFound) {
+	if _, err := f.closure().ReopenAccount(t.Context(), accountID); !errors.Is(err, datarequest.ErrNotFound) {
 		t.Errorf("a second ReopenAccount() error = %v, want ErrNotFound", err)
 	}
 }

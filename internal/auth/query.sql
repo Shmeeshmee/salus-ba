@@ -145,3 +145,9 @@ UPDATE account
 SET email = id::text || '@erased.invalid', password_hash = '', totp_secret = NULL, totp_last_step = NULL,
     mfa_enrolled_at = NULL, language = NULL, detected_language = NULL, erased_at = @now
 WHERE id = @id AND erase_after <= @now AND erased_at IS NULL;
+
+-- name: ClinicAdmins :many
+-- The clinic's admins, for a job's message to them (a data request's deadline warning).
+SELECT email, language, detected_language FROM account
+WHERE organization_id = @organization_id AND role = 'admin' AND closed_at IS NULL AND erased_at IS NULL
+ORDER BY email;

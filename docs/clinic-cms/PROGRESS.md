@@ -41,7 +41,7 @@ writes under its own heading here.
 | D2 | done 2026-11-24 (migration `00074`) | `cms(D2)` |
 | D3 | done 2026-11-24 (migration `00075`); wiring waits on D1's repository | `cms(D3)` |
 | D4 | done 2026-11-24 (migration `00076`) | `cms(D4)` |
-| D5 | not started | |
+| D5 | done 2026-11-24 (no migration) | `cms(D5)` |
 | D6 | done 2026-11-24 | `cms(D6)` |
 
 ## A: visit modes
@@ -2738,3 +2738,78 @@ D2 (export) and D3 (closure) serve their routes.
 **Copy waiting for the owner:** the 62 strings above, in particular the `[legal]` ones for the lawyer: the closure's
 list of what is erased follows S6 word for word, and "the medical-record law" stands in for the retention period
 (L1 to L3) the lawyer has not named yet.
+
+## D5: the operator and the warnings
+
+Status: done 2026-11-24 on `wt/cms/D5R` (on `feat/cms` with D1 to D4 and D6 merged), one commit `cms(D5)`. No
+migration. Specification: `WAVE5.md` "D5" with its paragraph of 2026-11-24, S1, S3, S12, and the first attempt's stop
+report (its DEFERRED).
+
+**Built.**
+
+- **The deadline warning e-mail** `data_request_deadline` in all ten languages (`internal/notification/templates/<language>/`),
+  sent by `notification.Service.SendDataRequestDeadline` (`service_datarequest.go`): the request's kind (the staff
+  languages use the web privacy catalog's names; de, ar, tr, it, fr the GDPR's terms), its deadline in the answerer's
+  time zone written by the language's `date.txt`, the days left and the request's opaque id; never the patient. A
+  clinic target goes to each of the clinic's admins in their own language (`auth.Service.ClinicAdmins`, a new query,
+  audited as one read with the job as agent), with the link `<WEB_BASE_URL>/data-requests/<id>`; the account target to
+  the operator in the operator's language, pointing at `salusctl datarequest show <id>`; no operator address is
+  `ErrNoOperator`.
+- **The worker** for `datarequest.WarningArgs` on the notifier's email queue (`internal/worker/datarequest_warning.go`,
+  registered in `NewNotifier`, and with nil services in the scheduler): it reads the request through
+  `datarequest.Service.Warning` (`service_warning.go`: D1's repository in the deadline scope, audited as agent
+  `data_request_deadline_warning`, with the answerer's time zone); a request answered or withdrawn since is not seen and
+  the job completes without a send; `ErrNoOperator` is logged with the request's id and the days only, and completes;
+  an address SMTP cannot carry cancels the job.
+- **Configuration**: `config.LoadOperator` (`SALUS_OPERATOR_EMAIL`, `SALUS_OPERATOR_LANGUAGE`, one of the ten, default
+  `bs`); `cmd/notifier` refuses to start without an address outside `SALUS_ENV=dev` (the `[OPERATOR EMAIL]` placeholder
+  of `configs/.env.example` counts as none).
+- **The operator's service** (`internal/datarequest/service_operator.go`, `Operator`): `Requests`, `Request` (with the
+  history), `Answer`, `Extend` (once; `ErrOverdue` once the due date has passed, S12, through the shared
+  `Request.overdue(now)` in `model.go` and `ErrOverdue` in `errors.go`, which `wrap` passes through) and `ReopenAccount`
+  (D3's `Closure.ReopenAccount`, which now returns the withdrawn request). Every method refuses a request with a clinic
+  (`ErrNotFound`) and is audited in its transaction as agent `salusctl`. One query added to D1's `query.sql`
+  (`RequestsForOperator`, `Repository.ForOperator`), on the owner's connection.
+- **salusctl** `datarequest list | show | answer <id> <version> <code> | extend <id> <version> <reason> |
+  reopen-account <account-id>` (`cmd/salusctl/datarequest.go`): the answer's status follows its code; it prints opaque
+  ids, codes and dates in `Europe/Sarajevo` only.
+- **Docs**: the DPIA's "Package D5" block; `configs/.env.example`.
+
+**For the integrator.**
+
+- S12 for the clinic's `Extend`: use `r.overdue(s.p.Clock.Now())` and `ErrOverdue` (both in this commit) and map
+  `ErrOverdue` to `request_overdue` in `handler_http.go`; this package changed nothing in the clinic's `Extend` or the
+  handler.
+- D1's note holds: warnings queued before this worker is deployed fail as an unknown kind. Deploy D1 with D5.
+
+**Readings.**
+
+- The recipients are decided in `notification` (who answers a target follows S1; the request is read in `datarequest`),
+  so `datarequest` gains no port to `auth` or the mail.
+- A retry after a failed send to the second admin warns the first again: rare, and a duplicate warning is harmless. An
+  admin's address SMTP cannot carry is skipped (logged with the request's and clinic's ids) and the others are warned;
+  the job is cancelled only when no one could be.
+- A stale warning sends nothing (`Warning` answers `ErrNotFound`): its deadline passed while the send was retried, or the
+  request was extended since (the new deadline gets its own warnings from D1's job).
+- A clinic with no admin: nobody is warned; the worker logs the request's and clinic's ids at warn level. Owner: should
+  it fall back to the operator?
+- The review (a fresh subagent, one round) also found: S12 is not yet on the clinic's `Extend` and handler (the
+  integrator's, see above); the operator's change looked at the target after the state (a clinic's request could answer
+  `closed` instead of `not found`), fixed; the Italian register and the French colons, fixed; `ClinicAdmins` now skips
+  closed or erased accounts. Left: `notification` names the warning's audit agent with its own constant, the same text
+  as `datarequest.AgentWarning`.
+- The kind is translated inside the template (an `if` chain on its code), not a names file: one file per language.
+- The days are 7 or 1 only; each template's plural is `1` against the rest, right for those two in all ten languages.
+
+**Test first.** The datarequest, auth, notification, config and worker tests were written before their code; the
+datarequest ones ran red as a compile failure. The salusctl and notifier tests were written after their code (first
+run green once their seeds were right: an empty clinic id, a history row).
+
+**Checks** (this worktree's compose project `salus-cms-d5r`): `runner.sh full` (`make lint`, `make test`, `make
+archcheck`; i18n-check inside lint): pass. The first full run failed on lint (fieldalignment of a test table), fixed;
+the second, after the review's fixes, passed. Coverage of the touched packages (`go test -cover`): datarequest 83.6%,
+auth 94.4%, notification 85.2%, config 98.4%, worker 89.8%, cmd/salusctl 88.1%; the whole `make cover` was not run. Not
+run: `make e2e`, `make fhir-validate` (no FHIR response changed).
+
+**New user-facing strings**: the `data_request_deadline` e-mail (subject, body, the six kind names), in ten languages;
+the English text is in `internal/notification/testdata/en/data_request_deadline_*.txt`. For the owner's copy review.

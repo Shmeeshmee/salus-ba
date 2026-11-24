@@ -20,6 +20,9 @@ type Repository interface {
 	ForAccount(ctx context.Context, accountID string) ([]Request, error)
 	// ForClinic returns the requests targeting the clinic, the open ones by due date first.
 	ForClinic(ctx context.Context, organizationID string) ([]Request, error)
+	// ForOperator returns the requests to the account (no clinic), the open ones by deadline first: on the owner's
+	// connection (salusctl), which row-level security does not hold.
+	ForOperator(ctx context.Context) ([]Request, error)
 	// Update stores r's status, extension and answer if its version is still r.Version-1, with a history entry by
 	// changedBy when the status changed; false when the version moved on.
 	Update(ctx context.Context, r Request, changedBy string) (bool, error)

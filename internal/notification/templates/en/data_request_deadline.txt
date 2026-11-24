@@ -1,0 +1,9 @@
+A data subject request is due in {{if eq .Days 1}}1 day{{else}}{{.Days}} days{{end}}
+
+A data subject request is due on {{.When}}, in {{if eq .Days 1}}1 day{{else}}{{.Days}} days{{end}}.
+
+Kind: {{if eq .Kind "access"}}Access{{else if eq .Kind "portability"}}Portability{{else if eq .Kind "rectification"}}Rectification{{else if eq .Kind "restriction"}}Restriction{{else if eq .Kind "objection"}}Objection{{else if eq .Kind "erasure"}}Erasure{{end}}
+Request: {{.Request}}
+
+{{if .Link}}To handle it, sign in to Salus:
+{{.Link}}{{else}}To handle it: salusctl datarequest show {{.Request}}{{end}}

@@ -150,8 +150,10 @@ func (c *Closure) revokeConsents(ctx context.Context, caller consent.Caller) err
 
 // ReopenAccount reopens a closed account before its erasure date (the operator's, from salusctl as the tables' owner):
 // the account's erasure request is withdrawn and the closure cleared. The consents revoked and the visits cancelled at
-// closure stay so; the patient signs in again. ErrNotFound for an account with no erasure in progress or past its date.
-func (c *Closure) ReopenAccount(ctx context.Context, accountID string) error {
+// closure stay so; the patient signs in again. It returns the withdrawn request. ErrNotFound for an account with no
+// erasure in progress or past its date.
+func (c *Closure) ReopenAccount(ctx context.Context, accountID string) (Request, error) {
+	var out Request
 	err := c.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		r, err := openErasure(ctx, c.p.Scope, c.p.Repo, accountID)
 		if err != nil {
@@ -161,15 +163,16 @@ func (c *Closure) ReopenAccount(ctx context.Context, accountID string) error {
 		if ok, err := c.p.Repo.Update(ctx, r, ""); err != nil || !ok {
 			return errors.Join(err, ErrVersionConflict)
 		}
+		out = r
 		return c.p.Accounts.Reopen(ctx, accountID)
 	})
 	switch {
 	case errors.Is(err, ErrNotFound), errors.Is(err, auth.ErrNotFound):
-		return ErrNotFound
+		return Request{}, ErrNotFound
 	case err != nil:
-		return fmt.Errorf("datarequest: reopen account: %w", err)
+		return Request{}, fmt.Errorf("datarequest: reopen account: %w", err)
 	}
-	return nil
+	return out, nil
 }
 
 // openErasure returns the account's erasure request that is still open, in the erasure scope, or ErrNotFound.

@@ -1,0 +1,8 @@
+Subject: Bir ilgili kişi başvurusunun süresi 7 gün içinde doluyor
+
+Bir ilgili kişi başvurusunu yanıtlama süresi 7 gün sonra, 24 Aralık 2026 Perşembe, saat 23:59 (Europe/Sarajevo) tarihinde doluyor.
+
+Tür: Erişim
+Başvuru: 00000000-0000-4000-8000-0000000000f1
+
+İşleme almak için: salusctl datarequest show 00000000-0000-4000-8000-0000000000f1

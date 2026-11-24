@@ -27,6 +27,7 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	t.Setenv("WEB_BASE_URL", "https://app.example.test")
 	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
 	t.Setenv("APPOINTMENT_LINK_URL", "https://api.example.test")
+	t.Setenv("SALUS_OPERATOR_EMAIL", "operator@example.test")
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
@@ -70,6 +71,20 @@ func TestRun_FailsWithoutConfig(t *testing.T) {
 	t.Setenv("SMTP_PASSWORD", "synthetic")
 	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "SMTP_TLS") {
 		t.Errorf("run() with credentials and SMTP_TLS=none: error = %v, want one naming SMTP_TLS", err)
+	}
+}
+
+// Outside dev the notifier needs the operator's address for the data requests' deadline warnings (D5).
+func TestRun_NeedsTheOperatorsAddressOutsideDev(t *testing.T) {
+	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
+	setMailpit(t)
+	t.Setenv("WEB_BASE_URL", "https://app.example.test")
+	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
+	t.Setenv("APPOINTMENT_LINK_URL", "https://api.example.test")
+	t.Setenv("SALUS_ENV", "production")
+	t.Setenv("SALUS_OPERATOR_EMAIL", "[OPERATOR EMAIL]")
+	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "SALUS_OPERATOR_EMAIL") {
+		t.Errorf("run() without the operator's address: error = %v, want one naming SALUS_OPERATOR_EMAIL", err)
 	}
 }
 

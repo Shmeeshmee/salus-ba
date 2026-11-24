@@ -185,6 +185,39 @@ func (q *Queries) AccountsDueForErasure(ctx context.Context, now pgtype.Timestam
 	return items, nil
 }
 
+const clinicAdmins = `-- name: ClinicAdmins :many
+SELECT email, language, detected_language FROM account
+WHERE organization_id = $1 AND role = 'admin' AND closed_at IS NULL AND erased_at IS NULL
+ORDER BY email
+`
+
+type ClinicAdminsRow struct {
+	Email            string
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
+}
+
+// The clinic's admins, for a job's message to them (a data request's deadline warning).
+func (q *Queries) ClinicAdmins(ctx context.Context, organizationID pgtype.UUID) ([]ClinicAdminsRow, error) {
+	rows, err := q.db.Query(ctx, clinicAdmins, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClinicAdminsRow
+	for rows.Next() {
+		var i ClinicAdminsRow
+		if err := rows.Scan(&i.Email, &i.Language, &i.DetectedLanguage); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const closeAccount = `-- name: CloseAccount :execrows
 UPDATE account SET closed_at = $1, erase_after = $2
 WHERE id = $3 AND role = 'patient' AND closed_at IS NULL

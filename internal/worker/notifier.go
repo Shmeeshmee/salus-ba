@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/composition"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
@@ -48,12 +49,16 @@ type Notifier struct {
 	PatientAppURL string
 	LinkURL       string
 	Seller        subscription.Seller // on the membership invoices' PDF (config.LoadSeller)
+	// The operator, who gets the deadline warnings of the data requests to the account (config.LoadOperator): no
+	// address only in dev, where they are logged instead.
+	OperatorEmail    string
+	OperatorLanguage string
 }
 
 // NewNotifier returns the River client cmd/notifier runs: it works the email queue with the invite_email and
 // appointment e-mail workers, the chat's notifications (SAL-29) on the push queue (the fan-out and the pushes) and
-// the unread e-mails, and the reminders (SAL-33): their dispatch on the push queue and their sends on the email, push
-// and sms queues.
+// the unread e-mails, the reminders (SAL-33): their dispatch on the push queue and their sends on the email, push
+// and sms queues, and the data requests' deadline warnings (docs/clinic-cms/WAVE5.md D5) on the email queue.
 func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Client[pgx.Tx], error) {
 	if n.Sender == nil || n.Pusher == nil || n.SMS == nil || n.WebBaseURL == "" || n.PatientAppURL == "" || n.LinkURL == "" {
 		return nil, errors.New("worker: the notifier needs an SMTP sender, a push sender, an SMS sender, WEB_BASE_URL, PATIENT_APP_URL and APPOINTMENT_LINK_URL")
@@ -85,7 +90,10 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 		Devices: notification.NewPostgresRepository(pool), Reminders: appointments, Offers: appointments,
 		Rules:     organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Languages: accounts, Phones: patients, Pusher: n.Pusher, SMS: n.SMS, Audit: audit, Tx: tx, Clock: clk,
+		Admins: accounts, OperatorEmail: n.OperatorEmail, OperatorLanguage: n.OperatorLanguage,
 	})
+	// A deadline warning reads its request in the deadline job's scope, and the clinic for its time zone.
+	requests := datarequest.NewService(datarequest.Ports{Repo: datarequest.NewPostgresRepository(pool), Clock: clk, Tx: tx, Audit: audit, Clinics: clinics})
 
 	chat := newChatNotifier(chatNotifierPorts{
 		pool: pool, inserter: inserter, audit: audit, tx: tx, accounts: accounts, sender: n.Sender, pusher: n.Pusher,
@@ -98,6 +106,7 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	addEmailWorkers(workers, mail, newInvoiceMail(pool, audit, tx, clinics, mail, n.Seller), signups)
 	addChatWorkers(workers, chat)
 	addReminderWorkers(workers, mail)
+	addDataRequestMailWorkers(workers, requests, mail, log)
 	cfg := workConfig(log, emailQueue, workers)
 	cfg.Queues[pushQueue] = river.QueueConfig{MaxWorkers: maxWorkers}
 	cfg.Queues[smsQueue] = river.QueueConfig{MaxWorkers: maxWorkers}

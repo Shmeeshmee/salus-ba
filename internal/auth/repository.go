@@ -17,6 +17,8 @@ type Repository interface {
 	// ByPractitioner returns the account linked to the practitioner, or ErrNotFound (also for an id that is not a
 	// UUID).
 	ByPractitioner(ctx context.Context, practitionerID string) (Account, error)
+	// ClinicAdmins returns the e-mail and language of each admin of the clinic org.
+	ClinicAdmins(ctx context.Context, org string) ([]Contact, error)
 	// SetPasswordHash replaces the account's password hash.
 	SetPasswordHash(ctx context.Context, id, hash string) error
 	// SetLanguage sets the account's chosen language, or clears it for "", or returns ErrNotFound.
