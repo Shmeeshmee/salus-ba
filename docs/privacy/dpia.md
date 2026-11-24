@@ -2898,3 +2898,39 @@ queued a warning: an instant, no personal data).
 - **Logs.** The job logs only the request's id on a failure; no byte of the archive, no name or e-mail.
 - **A patient the clinic registered** (no account) gets no export from Salus: the clinic's hand-over (wave 4) is
   their copy, downloaded by the admin.
+
+### Package D3: closing the account and erasure (migration 00075, docs/clinic-cms/WAVE5.md S5, S6)
+
+**Processing added.** A patient closes their own Salus account in the app (`POST /me/account/close`, confirmed with
+the password). In one transaction: sign-in ends and every session is revoked, every active consent is revoked (the
+care consent's revocation cancels the future visits with that clinic and withdraws the waitlist entries there, with
+their notices, through the existing `consent_revoked` job), the push devices are deleted, and an account-target
+erasure request is filed and kept `in_progress`. 21 days later (owner, 2026-11-24: inside the one-month deadline of
+Art. 12(3)) the daily `account_erasure` job erases what has no legal basis to stay and fulfils the request. The
+operator may reopen the account before then (`datarequest.Closure.ReopenAccount`, salusctl in D5): the request is
+withdrawn; the revoked consents and cancelled visits stay so.
+
+**Erased** (Art. 17(1)): the account's e-mail (replaced by `<opaque id>@erased.invalid`, so the row stays unique and
+referenced), its password hash, its TOTP secret, last step and enrolment, its chosen and detected language; the push
+devices (also at closure). The account row itself is kept, blank, as data requests, audit events and the clinics'
+records reference it.
+
+**Kept, restricted** (Art. 17(3)(b), (c), Art. 18): at every clinic the patient ever gave a consent to, the clinic's
+record of the patient (profile, consents, visits and their history, the clinical entries, receipts, quotes, chat) stays
+under the medical-record retention, each table under its rule in `internal/retention/rules.go`, and is restricted
+there by the job (`patient_restriction` with no staff: the clinic never lifts it). The request is answered
+`done_partly_kept`; `done` when the patient had no record anywhere.
+
+**Kept as accountability** (Art. 5(2)): the erasure request and its history, and the audit events of the closure and
+the erasure (the job is their agent, `data_request_erasure`; opaque ids and counts only).
+
+**Not yet erased by this package** (DEFERRED in PROGRESS.md, each needs its owning domain's deleter): the notification
+delivery log and the notification preferences of the account (until then the 90-day rule and the account row keep
+them), unsubmitted questionnaire answers (until then their own rule deletes them once due), chat uploads never attached
+(their own 24-hour rule deletes them), and the profile of a patient with no record anywhere (blanking it needs its
+columns' constraints relaxed). Sessions are revoked at closure and deleted by their 30-day rule.
+
+**Risks and measures.** The erasure scope (`app.erasure`, 00075) reaches only the account-target erasure request of a
+closed account and the restriction of a due profile; set only by `datarequest`. A wrong password at closure is a 403;
+the password is never logged. Nothing personal goes into a job's arguments or a log line (account and request ids, the
+number of clinics that keep a record).

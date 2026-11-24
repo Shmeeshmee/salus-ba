@@ -139,7 +139,7 @@ func (s *Service) passwordLogin(ctx context.Context, pre Account, verified bool,
 	if err != nil {
 		return Account{}, false, err
 	}
-	if !verified || a.PasswordHash != pre.PasswordHash {
+	if !verified || a.PasswordHash != pre.PasswordHash || !a.ClosedAt.IsZero() { // a closed account never signs in (S5)
 		return a, false, s.recordLogin(ctx, a, auditevent.CodeLogin, auditevent.OutcomeMinorFailure)
 	}
 	if rehash != "" {

@@ -220,6 +220,7 @@ type Account struct {
 	DetectedLanguage NullLanguage
 	ClosedAt         pgtype.Timestamptz
 	EraseAfter       pgtype.Timestamptz
+	ErasedAt         pgtype.Timestamptz
 }
 
 type AllergyIntolerance struct {

@@ -16,24 +16,14 @@ import (
 // account. The reads it makes through the other services are audited by them, as the patient's own request.
 const AgentExport = "data_request_export_build"
 
-// ExportTransactor runs fn in a transaction carried by the context, joining one already there (postgres.Transactor).
-type ExportTransactor interface {
-	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
-}
-
-// ExportAuditor records an AuditEvent inside the caller's transaction (auditevent.Service).
-type ExportAuditor interface {
-	Record(ctx context.Context, e auditevent.AuditEvent) error
-}
-
 // Records builds the patient's own record as a FHIR Bundle, from every clinic for an empty org and from the clinic org
 // otherwise, each read audited as the patient's; nil for an account with no profile (clinicexport.OwnRecords).
 type Records interface {
 	Bundle(ctx context.Context, account, org string) ([]byte, error)
 }
 
-// Accounts reads the patient's account, audited (auth.Service).
-type Accounts interface {
+// ExportAccounts reads the patient's account, audited (auth.Service).
+type ExportAccounts interface {
 	Me(ctx context.Context, id string) (auth.Account, error)
 }
 
@@ -41,13 +31,13 @@ type Accounts interface {
 // worker's build needs them all.
 type ExportPorts struct {
 	Repo     ExportRepository
-	Audit    ExportAuditor
-	Tx       ExportTransactor
+	Audit    Auditor
+	Tx       Transactor
 	Jobs     ExportJobs
 	Store    Store
 	KEK      *envelope.KEK
 	Records  Records
-	Accounts Accounts
+	Accounts ExportAccounts
 }
 
 // StoredExport is the export of one access or portability request as it is stored, with its request's kind and

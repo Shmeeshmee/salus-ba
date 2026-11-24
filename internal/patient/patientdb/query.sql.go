@@ -330,6 +330,25 @@ func (q *Queries) RegisteredByClinic(ctx context.Context, organizationID pgtype.
 	return items, nil
 }
 
+const restrictForErasure = `-- name: RestrictForErasure :exec
+INSERT INTO patient_restriction (restricted_at, patient_id, organization_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (patient_id, organization_id) DO NOTHING
+`
+
+type RestrictForErasureParams struct {
+	RestrictedAt   pgtype.Timestamptz
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+// The erasure's restriction of the record a clinic keeps (docs/clinic-cms/WAVE5.md S6, D3): by the job, in the clinic's
+// scope with the erasure scope (00075); a record restricted there already stays as it is.
+func (q *Queries) RestrictForErasure(ctx context.Context, arg RestrictForErasureParams) error {
+	_, err := q.db.Exec(ctx, restrictForErasure, arg.RestrictedAt, arg.PatientID, arg.OrganizationID)
+	return err
+}
+
 const searchClinicPatients = `-- name: SearchClinicPatients :many
 SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
 FROM patient p

@@ -468,13 +468,3 @@ func (r Request) closed() bool {
 }
 
 func (st Staff) admin() bool { return st.Admin && st.OrganizationID != "" && st.AccountID != "" }
-
-// CloseAccount closes the patient's account once the password confirms it (S5, D3).
-func (s *Service) CloseAccount(_ context.Context, _ Patient, _ string) error {
-	return errors.ErrUnsupported
-}
-
-// ReopenAccount reopens a closed account before its erasure (the operator's, from salusctl; D3).
-func (s *Service) ReopenAccount(_ context.Context, _ string) error {
-	return errors.ErrUnsupported
-}

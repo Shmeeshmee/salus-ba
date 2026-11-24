@@ -116,7 +116,7 @@ class PrivacyApi {
 
   /// Close the patient's account
   ///
-  /// At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn and consents revoked (S5). Not reversible by the patient; the operator may reopen it within 30 days, after which what has no legal basis to stay is erased and the clinical record stays with each clinic, restricted (S6). Confirmed with the password. For a patient. Built in package D3. Audited.
+  /// At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn and consents revoked (S5). Not reversible by the patient; the operator may reopen it within 21 days, after which what has no legal basis to stay is erased and the clinical record stays with each clinic, restricted (S6). Confirmed with the password. For a patient. Built in package D3. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -161,7 +161,7 @@ class PrivacyApi {
 
   /// Close the patient's account
   ///
-  /// At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn and consents revoked (S5). Not reversible by the patient; the operator may reopen it within 30 days, after which what has no legal basis to stay is erased and the clinical record stays with each clinic, restricted (S6). Confirmed with the password. For a patient. Built in package D3. Audited.
+  /// At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn and consents revoked (S5). Not reversible by the patient; the operator may reopen it within 21 days, after which what has no legal basis to stay is erased and the clinical record stays with each clinic, restricted (S6). Confirmed with the password. For a patient. Built in package D3. Audited.
   ///
   /// Parameters:
   ///
