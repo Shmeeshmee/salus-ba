@@ -35,7 +35,7 @@ func newFakeRepo() *fakeRepo {
 
 func (r *fakeRepo) Insert(_ context.Context, in signup.Request, hash []byte) (string, error) {
 	id := "s" + string(rune('0'+len(r.signups)))
-	r.signups[id] = signup.Signup{ID: id, CreatedAt: now, Email: in.Email, ClinicName: in.ClinicName, Language: in.Language}
+	r.signups[id] = signup.Signup{ID: id, CreatedAt: now, TokenIssuedAt: now, Email: in.Email, ClinicName: in.ClinicName, Language: in.Language}
 	r.hashes[id] = hash
 	return id, nil
 }
@@ -57,12 +57,25 @@ func (r *fakeRepo) ByTokenHash(_ context.Context, hash []byte) (signup.Signup, e
 	return signup.Signup{}, signup.ErrNotFound
 }
 
-func (r *fakeRepo) SetToken(_ context.Context, id string, hash []byte) (bool, error) {
-	if s, ok := r.signups[id]; !ok || !s.VerifiedAt.IsZero() {
+func (r *fakeRepo) SetToken(_ context.Context, id string, hash []byte, at time.Time) (bool, error) {
+	s, ok := r.signups[id]
+	if !ok || !s.VerifiedAt.IsZero() {
 		return false, nil
 	}
 	r.hashes[id] = hash
+	s.TokenIssuedAt = at
+	r.signups[id] = s
 	return true, nil
+}
+
+func (r *fakeRepo) ForgetEmail(_ context.Context, org string) error {
+	for id, s := range r.signups {
+		if s.OrganizationID == org {
+			s.Email = ""
+			r.signups[id] = s
+		}
+	}
+	return nil
 }
 
 func (r *fakeRepo) MarkVerified(_ context.Context, id, org string, at time.Time) (bool, error) {
@@ -347,7 +360,7 @@ func TestVerify_RefusesAnUnknownOrExpiredToken(t *testing.T) {
 	f := newFixture()
 	token := startAndIssue(t, f)
 	s := f.repo.signups["s0"]
-	s.CreatedAt = now.Add(-signup.TokenLifetime - time.Second)
+	s.TokenIssuedAt = now.Add(-signup.TokenLifetime - time.Second)
 	f.repo.signups["s0"] = s
 	for name, tok := range map[string]string{"expired": token, "unknown": "unknown", "empty": ""} {
 		if _, err := f.svc.Verify(t.Context(), tok, "192.0.2.1"); !errors.Is(err, signup.ErrInvalidToken) {
@@ -456,5 +469,33 @@ func TestSetup_EveryStepOpenUntilSavedAndOnlyTheAdminReadsOrSaves(t *testing.T) 
 		if _, err := f.svc.SaveSetup(t.Context(), admin, signup.Setup{Steps: steps}); !errors.Is(err, signup.ErrInvalidSetup) {
 			t.Errorf("SaveSetup(%s) = %v, want ErrInvalidSetup", name, err)
 		}
+	}
+}
+
+// U8 (docs/clinic-cms/WAVE6.md): the link's 72 hours count from the latest verification e-mail, not from the signup.
+func TestVerify_CountsTheLinksLifetimeFromTheLatestEmail(t *testing.T) {
+	f := newFixture()
+	if err := f.svc.Start(t.Context(), valid, "192.0.2.1"); err != nil {
+		t.Fatal(err)
+	}
+	s := f.repo.signups["s0"]
+	s.CreatedAt = now.Add(-2 * signup.TokenLifetime) // made long ago; its e-mail job ran only now
+	f.repo.signups["s0"] = s
+	v, err := f.svc.IssueVerification(t.Context(), "s0")
+	if err != nil || !f.repo.signups["s0"].TokenIssuedAt.Equal(now) {
+		t.Fatalf("IssueVerification() = %v, issued at %v; want the issue recorded now", err, f.repo.signups["s0"].TokenIssuedAt)
+	}
+	if _, err := f.svc.Verify(t.Context(), v.Token, "192.0.2.1"); err != nil {
+		t.Errorf("Verify() of a fresh link to an old signup = %v, want it verified", err)
+	}
+}
+
+func TestAdminJoined_ForgetsTheSignupsEmail(t *testing.T) {
+	f := newFixture()
+	if _, err := f.svc.Verify(t.Context(), startAndIssue(t, f), "192.0.2.1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.AdminJoined(t.Context(), newClinic); err != nil || f.repo.signups["s0"].Email != "" {
+		t.Errorf("AdminJoined() = %v, e-mail %q; want it forgotten", err, f.repo.signups["s0"].Email)
 	}
 }

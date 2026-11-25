@@ -41,7 +41,8 @@ func TestPostgresRepository_SignupFromInsertToApproval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Insert() = %v", err)
 	}
-	if ok, err := repo.SetToken(ctx, id, hashOf("two")); err != nil || !ok {
+	issued := now.Add(time.Hour)
+	if ok, err := repo.SetToken(ctx, id, hashOf("two"), issued); err != nil || !ok {
 		t.Fatalf("SetToken() = %v, %v", ok, err)
 	}
 	if _, err := repo.ByTokenHash(ctx, hashOf("one")); !errors.Is(err, signup.ErrNotFound) {
@@ -58,13 +59,13 @@ func TestPostgresRepository_SignupFromInsertToApproval(t *testing.T) {
 		}
 		return err
 	})
-	if err != nil || got.ID != id || got.Email != "admin@example.test" || got.Language != "en" || got.CreatedAt.IsZero() {
+	if err != nil || got.ID != id || got.Email != "admin@example.test" || got.Language != "en" || got.CreatedAt.IsZero() || !got.TokenIssuedAt.Equal(issued) {
 		t.Fatalf("ByTokenHash() = %+v, %v", got, err)
 	}
 	if ok, err := repo.MarkVerified(ctx, id, clinicA, now); err != nil || ok {
 		t.Errorf("MarkVerified() twice = %v, %v; want false", ok, err)
 	}
-	if ok, err := repo.SetToken(ctx, id, hashOf("three")); err != nil || ok {
+	if ok, err := repo.SetToken(ctx, id, hashOf("three"), issued); err != nil || ok {
 		t.Errorf("SetToken() of a verified signup = %v, %v; want false", ok, err)
 	}
 	if got, err := repo.ByID(ctx, id); err != nil || got.OrganizationID != clinicA || !got.VerifiedAt.Equal(now) {
@@ -82,6 +83,25 @@ func TestPostgresRepository_SignupFromInsertToApproval(t *testing.T) {
 	list, err := ownerRepo.Verified(ctx)
 	if err != nil || len(list) != 1 || list[0].ID != id || list[0].ApprovedAt.IsZero() {
 		t.Errorf("Verified() = %+v, %v", list, err)
+	}
+	// U8: once the admin joined, the verified signup forgets the e-mail; the rest of the row stays.
+	if err := repo.ForgetEmail(ctx, clinicA); err != nil {
+		t.Fatalf("ForgetEmail() = %v", err)
+	}
+	if got, err := repo.ByID(ctx, id); err != nil || got.Email != "" || got.ClinicName != "Synthetic clinic A" {
+		t.Errorf("ByID() after ForgetEmail = %+v, %v; want no e-mail", got, err)
+	}
+}
+
+// U8: an unverified signup keeps its e-mail (its link is still to be sent); only a verified one may lose it.
+func TestPostgresRepository_AnUnverifiedSignupKeepsItsEmail(t *testing.T) {
+	t.Parallel()
+	owner, _ := pgtest.NewAppDatabase(t)
+	_, err := owner.Exec(t.Context(), `INSERT INTO clinic_signup (email, clinic_name, language, token_hash)
+		VALUES ('admin@example.test', 'Synthetic clinic', 'en', sha256('a'));
+		UPDATE clinic_signup SET email = NULL`)
+	if err == nil || !strings.Contains(err.Error(), "clinic_signup_email_kept") {
+		t.Errorf("blanking an unverified signup's e-mail: %v, want clinic_signup_email_kept", err)
 	}
 }
 

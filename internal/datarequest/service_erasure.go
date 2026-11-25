@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
+
+// ErasureAgent names the erasure job as the agent of its audit events, as auth, consent and patient name it.
+const ErasureAgent = "data_request_erasure"
 
 // RecordClinics says at which clinics a patient has a record (consent.Service): every clinic they ever gave a consent to, as
 // a booking or a clinic's registration needs one.
@@ -28,6 +32,7 @@ type ErasurePorts struct {
 	Records      RecordClinics
 	Restrictions Restrictions
 	Devices      Devices
+	Audit        Auditor // the answer's own data_request event
 	Clock        clock.Clock
 }
 
@@ -105,6 +110,11 @@ func (e *Erasure) erase(ctx context.Context, accountID string) (Erased, error) {
 		}
 		if ok, err := e.p.Repo.Update(ctx, r, ""); err != nil || !ok {
 			return errors.Join(err, ErrVersionConflict)
+		}
+		answer := event("", r, auditevent.CodeUpdate, auditevent.CodeHOPERAT, 1)
+		answer.AgentName = ErasureAgent
+		if err := e.p.Audit.Record(ctx, answer); err != nil {
+			return err
 		}
 		if _, err := e.p.Devices.RemoveDevices(ctx, accountID); err != nil {
 			return err

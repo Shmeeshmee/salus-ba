@@ -309,6 +309,11 @@ func (s *Service) acceptInvite(ctx context.Context, hash, secret []byte, in Acco
 	if err := s.setUpAccount(ctx, a, inv, secret); err != nil {
 		return Account{}, nil, err
 	}
+	if a.Role == RoleAdmin && s.signups != nil {
+		if err := s.signups.AdminJoined(ctx, a.OrganizationID); err != nil {
+			return Account{}, nil, err
+		}
+	}
 	return a, nil, s.audit.Record(ctx, event(restCoding, interaction(auditevent.CodeCreate), auditevent.ActionCreate, a, auditevent.OutcomeSuccess))
 }
 

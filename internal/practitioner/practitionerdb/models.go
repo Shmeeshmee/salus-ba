@@ -503,10 +503,11 @@ type ClinicSignup struct {
 	VerifiedAt     pgtype.Timestamptz
 	ApprovedAt     pgtype.Timestamptz
 	OrganizationID pgtype.UUID
-	Email          string
+	Email          pgtype.Text
 	ClinicName     string
 	Language       Language
 	TokenHash      []byte
+	TokenIssuedAt  pgtype.Timestamptz
 }
 
 type ClinicSubscription struct {

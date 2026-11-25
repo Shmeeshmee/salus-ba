@@ -29,7 +29,7 @@ func (r *postgresRepository) q(ctx context.Context) *signupdb.Queries {
 
 func (r *postgresRepository) Insert(ctx context.Context, in Request, tokenHash []byte) (string, error) {
 	row, err := r.q(ctx).InsertSignup(ctx, signupdb.InsertSignupParams{
-		Email: in.Email, ClinicName: in.ClinicName, Language: signupdb.Language(in.Language), TokenHash: tokenHash,
+		Email: pgtype.Text{String: in.Email, Valid: true}, ClinicName: in.ClinicName, Language: signupdb.Language(in.Language), TokenHash: tokenHash,
 	})
 	if err != nil {
 		return "", err
@@ -49,13 +49,21 @@ func (r *postgresRepository) ByTokenHash(ctx context.Context, hash []byte) (Sign
 	return one(r.q(ctx).SignupByTokenHash(ctx, hash))
 }
 
-func (r *postgresRepository) SetToken(ctx context.Context, id string, tokenHash []byte) (bool, error) {
+func (r *postgresRepository) SetToken(ctx context.Context, id string, tokenHash []byte, at time.Time) (bool, error) {
 	u, ok := uuid(id)
 	if !ok {
 		return false, nil
 	}
-	n, err := r.q(ctx).SetSignupToken(ctx, signupdb.SetSignupTokenParams{ID: u, TokenHash: tokenHash})
+	n, err := r.q(ctx).SetSignupToken(ctx, signupdb.SetSignupTokenParams{ID: u, TokenHash: tokenHash, TokenIssuedAt: instant(at)})
 	return n == 1, err
+}
+
+func (r *postgresRepository) ForgetEmail(ctx context.Context, organizationID string) error {
+	o, ok := uuid(organizationID)
+	if !ok {
+		return nil
+	}
+	return r.q(ctx).ForgetSignupEmail(ctx, o)
 }
 
 func (r *postgresRepository) MarkVerified(ctx context.Context, id, organizationID string, at time.Time) (bool, error) {
@@ -138,7 +146,7 @@ func one(row signupdb.ClinicSignup, err error) (Signup, error) {
 func toSignup(row signupdb.ClinicSignup) Signup {
 	s := Signup{
 		ID: row.ID.String(), CreatedAt: row.CreatedAt.Time, VerifiedAt: row.VerifiedAt.Time, ApprovedAt: row.ApprovedAt.Time,
-		Email: row.Email, ClinicName: row.ClinicName, Language: string(row.Language),
+		TokenIssuedAt: row.TokenIssuedAt.Time, Email: row.Email.String, ClinicName: row.ClinicName, Language: string(row.Language),
 	}
 	if row.OrganizationID.Valid {
 		s.OrganizationID = row.OrganizationID.String()

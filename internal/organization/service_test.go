@@ -209,6 +209,16 @@ func TestUpdate_RefusesToListAClinicTheOperatorHasNotApproved(t *testing.T) {
 	}
 }
 
+// A city that is not one of a leaf region (the foreign keys) is a refusal like the others: audited (BG4).
+func TestUpdate_RefusesAndAuditsAnInvalidLocation(t *testing.T) {
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	repo.updateErr = organization.ErrInvalidLocation
+	_, err := newService(repo, audit).Update(t.Context(), admin, clinicA, organization.Changes{Name: "Synthetic clinic"}, 2)
+	if !errors.Is(err, organization.ErrInvalidLocation) || len(audit.events) != 1 || audit.events[0].Outcome != auditevent.OutcomeMinorFailure {
+		t.Errorf("Update(an invalid location) = %v, events %+v; want ErrInvalidLocation, audited as refused", err, audit.events)
+	}
+}
+
 func TestUpdate_RefusesAndAuditsAnyoneButTheClinicsAdmin(t *testing.T) {
 	tests := []struct {
 		want   error

@@ -41,6 +41,7 @@ func newErasure(pool *pgxpool.Pool, clk clock.Clock) *datarequest.Erasure {
 		Records:      consents,
 		Restrictions: patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, consents, nil),
 		Devices:      notification.NewChat(notification.ChatPorts{Repo: notification.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
+		Audit:        audit,
 		Clock:        clk,
 	})
 }

@@ -333,8 +333,8 @@ func (s *Service) update(ctx context.Context, id string, ch Changes, version int
 	if errors.Is(err, ErrConflict) { // changed since the read
 		return cur, ErrConflict, nil
 	}
-	if errors.Is(err, ErrNotApproved) {
-		return cur, ErrNotApproved, nil
+	if errors.Is(err, ErrNotApproved) || errors.Is(err, ErrInvalidLocation) {
+		return cur, err, nil
 	}
 	return o, nil, err
 }

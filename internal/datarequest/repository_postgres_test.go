@@ -3,6 +3,7 @@ package datarequest_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -96,6 +97,10 @@ func TestPostgresRepository_ARequestsLife(t *testing.T) {
 	err = within(t, app, asClinic, func(ctx context.Context) error {
 		_, err := repo.Insert(ctx, datarequest.Request{PatientID: s.profile, OrganizationID: clinicA, FiledBy: s.admin,
 			Kind: datarequest.KindErasure, ReceivedAt: now, DueAt: now.AddDate(0, 1, 0)})
+		// BG4: the refusal rolls back to a savepoint; the transaction goes on to audit it.
+		if _, readErr := repo.ByID(ctx, onBehalf.ID); readErr != nil {
+			return fmt.Errorf("the transaction after the refusal %v: %w", err, readErr)
+		}
 		return err
 	})
 	if !errors.Is(err, datarequest.ErrNotFound) {

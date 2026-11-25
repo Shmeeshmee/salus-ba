@@ -52,10 +52,25 @@ func (r *postgresRepository) Insert(ctx context.Context, x Request) (Request, er
 	if !okAccount || !okPatient || !okOrg {
 		return Request{}, ErrNotFound
 	}
-	row, err := r.q(ctx).InsertRequest(ctx, datarequestdb.InsertRequestParams{
+	// In a savepoint of the caller's transaction (as consent's GrantInPerson): row-level security's refusal rolls back
+	// to it, not the transaction, which then audits the refusal (BG4).
+	db := r.db
+	commit := func(context.Context) error { return nil }
+	if tx, ok := postgres.Tx(ctx); ok {
+		sp, err := tx.Begin(ctx)
+		if err != nil {
+			return Request{}, err
+		}
+		defer func() { _ = sp.Rollback(context.WithoutCancel(ctx)) }()
+		db, commit = sp, sp.Commit
+	}
+	row, err := datarequestdb.New(db).InsertRequest(ctx, datarequestdb.InsertRequestParams{
 		AccountID: account, PatientID: patient, OrganizationID: org, FiledByAccountID: filedBy, Kind: string(x.Kind),
 		ReceivedAt: instant(x.ReceivedAt), DueAt: instant(x.DueAt),
 	})
+	if err == nil {
+		err = commit(ctx)
+	}
 	if err != nil {
 		return Request{}, refused(err)
 	}

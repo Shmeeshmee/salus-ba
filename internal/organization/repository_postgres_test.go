@@ -3,6 +3,7 @@ package organization_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -208,7 +209,7 @@ func TestUpdate_RefusesACityOutsideItsRegion(t *testing.T) {
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		_, err := repo.Update(ctx, organization.Organization{ID: clinicA, Name: "A", TimeZone: "UTC", DefaultLanguage: "en", VersionID: 1,
 			Region: "BA-01", City: "Q1270190", LocationSince: at, ContributesSince: at}, at)
-		return err
+		return stillOpen(ctx, repo, err)
 	})
 	if !errors.Is(err, organization.ErrInvalidLocation) {
 		t.Errorf("Update() = %v, want ErrInvalidLocation", err)
@@ -230,9 +231,18 @@ func TestUpdate_GivesErrNotApprovedForASignedUpClinicWaitingForTheOperator(t *te
 	repo := organization.NewPostgresRepository(app)
 	err := inClinic(t, app, repo, clinicA, func(ctx context.Context) error {
 		_, err := repo.Update(ctx, organization.Organization{ID: clinicA, Name: "Synthetic clinic A", Listed: true, TimeZone: "UTC", DefaultLanguage: "en", VersionID: 1}, now)
-		return err
+		return stillOpen(ctx, repo, err)
 	})
 	if !errors.Is(err, organization.ErrNotApproved) {
 		t.Errorf("Update(listed) before approval = %v, want ErrNotApproved", err)
 	}
+}
+
+// stillOpen returns err once the transaction in ctx has shown it still works after the refused update (BG4): the
+// refusal rolls back to a savepoint, so the service can audit it in the same transaction.
+func stillOpen(ctx context.Context, repo organization.Repository, err error) error {
+	if _, readErr := repo.ByID(ctx, clinicA); readErr != nil {
+		return fmt.Errorf("the transaction after the refusal %v: %w", err, readErr)
+	}
+	return err
 }
