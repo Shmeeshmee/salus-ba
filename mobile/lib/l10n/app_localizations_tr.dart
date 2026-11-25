@@ -2326,4 +2326,48 @@ class AppLocalizationsTr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Hesabınızın 21 gün içinde yeniden açılmasını istemek için $email adresine yazın.';
   }
+
+  @override
+  String get myLabResults => 'Laboratuvar sonuçlarım';
+
+  @override
+  String get labResultsIntro =>
+      'Doktorunuzun incelediği ve sizinle paylaştığı laboratuvar sonuçları. Sizin için ne anlama geldiklerini doktorunuza sorun.';
+
+  @override
+  String get noLabResults => 'Henüz laboratuvar sonucunuz yok.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Numune alındı: $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Paylaşıldı: $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Referans aralığı $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normal',
+      'L': 'Düşük',
+      'H': 'Yüksek',
+      'LL': 'Kritik düşük',
+      'HH': 'Kritik yüksek',
+      'A': 'Anormal',
+      'other': '',
+    });
+    return '$_temp0';
+  }
 }

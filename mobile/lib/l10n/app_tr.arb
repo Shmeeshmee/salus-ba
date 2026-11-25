@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "Verilerinizin bir kopyasını saklamak istiyorsanız hesabı kapatmadan önce Gizlilik bölümünden isteyin: hesap kapandıktan sonra indirmek için oturum açamazsınız.",
   "closeAccountConfirm": "Onaylamak için parolanızı girin.",
   "accountClosed": "Hesabınız kapatıldı ve oturumunuz kapandı.",
-  "accountClosedReopen": "Hesabınızın 21 gün içinde yeniden açılmasını istemek için {email} adresine yazın."
+  "accountClosedReopen": "Hesabınızın 21 gün içinde yeniden açılmasını istemek için {email} adresine yazın.",
+  "myLabResults": "Laboratuvar sonuçlarım",
+  "labResultsIntro": "Doktorunuzun incelediği ve sizinle paylaştığı laboratuvar sonuçları. Sizin için ne anlama geldiklerini doktorunuza sorun.",
+  "noLabResults": "Henüz laboratuvar sonucunuz yok.",
+  "labResultSampleDate": "Numune alındı: {date}",
+  "labResultReleasedOn": "Paylaşıldı: {date}",
+  "labResultValue": "{test}: {value}",
+  "labResultRange": "Referans aralığı {range}",
+  "labResultFlag": "{flag, select, N{Normal} L{Düşük} H{Yüksek} LL{Kritik düşük} HH{Kritik yüksek} A{Anormal} other{}}"
 }

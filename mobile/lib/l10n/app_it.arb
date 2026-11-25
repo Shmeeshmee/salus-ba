@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "Per conservare una copia dei Suoi dati, la chieda in Privacy prima di chiudere l'account: dopo la chiusura non potrà accedere per scaricarla.",
   "closeAccountConfirm": "Inserisca la password per confermare.",
   "accountClosed": "Il Suo account è chiuso ed è stato disconnesso.",
-  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}."
+  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}.",
+  "myLabResults": "I miei esami di laboratorio",
+  "labResultsIntro": "Gli esiti di laboratorio che il medico ha esaminato e reso disponibili per te. Chiedi al medico che cosa significano per te.",
+  "noLabResults": "Non hai ancora esiti di laboratorio.",
+  "labResultSampleDate": "Campione prelevato il {date}",
+  "labResultReleasedOn": "Reso disponibile il {date}",
+  "labResultValue": "{test}: {value}",
+  "labResultRange": "Intervallo di riferimento {range}",
+  "labResultFlag": "{flag, select, N{Normale} L{Basso} H{Alto} LL{Criticamente basso} HH{Criticamente alto} A{Anomalo} other{}}"
 }

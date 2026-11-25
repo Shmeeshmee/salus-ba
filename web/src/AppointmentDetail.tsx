@@ -8,6 +8,7 @@ import { ConfirmationTag, InPersonTag } from './Calendar'
 import { joinWindow, useNow } from './consultation'
 import { useFormat, useT } from './i18n/useT'
 import { ChevronIcon } from './icons'
+import { VisitLabResults } from './LabResults'
 import { useLoad } from './load'
 import { NoShowCorrection, NoShowFlag } from './NoShows'
 import { navigate } from './route'
@@ -32,7 +33,8 @@ type Detail = { zone: string; appt: Appointment; profile?: Patient; consultation
 // Both see the appointment's questionnaire requests; only the appointment's own practitioner changes them. Both
 // correct a no-show into fulfilled and back within 30 days, and see the repeat no-show flag (SAL-36). Its own
 // practitioner also opens the patient's history and the pre-visit summary (SAL-40), read and audited only once asked
-// for.
+// for. The visit's practitioner and the admin see its lab results and attach one; only its practitioner releases one
+// to the patient (clinic-cms LB2).
 // Everything above the questionnaires is read in one load, so the page appears in one piece: a section that came
 // in on its own would push down what is already shown, under a click on its way.
 export function AppointmentDetail({ api, fhir, account, id, now = () => new Date() }: Props) {
@@ -137,6 +139,7 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
       {practitioner && join === 'before' && <p className="hint join">{t('calendar.joinFrom')}</p>}
       {consultation && <Consultation status={consultation} zone={zone} />}
       <AppointmentQuestionnaires api={api} fhir={fhir} appt={appt} zone={zone} own={own} admin={admin} now={at} />
+      {(own || admin) && <VisitLabResults api={api} appointmentId={appt.id} zone={zone} practitioner={own} canAdd={open} />}
       <VisitActions
         api={api}
         fhir={fhir}
