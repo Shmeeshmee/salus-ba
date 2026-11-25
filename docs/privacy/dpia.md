@@ -3145,7 +3145,7 @@ values only; the lab's PDF waits for its storage (see "Left" below), so no file 
 - **Minimisation.** No new field: a plan's visits are ordinary appointments (their e-mails, reminders and statistics as
   for a staff booking); nothing of a plan goes into a log line, a metric or a job argument.
 
-### Package BG4: backend hardening, second pass (migration 00085, docs/clinic-cms/WAVE6.md U8)
+### Package BG4: backend hardening, second pass (migration 00083, numbered 00085 in its worktree, docs/clinic-cms/WAVE6.md U8)
 
 - **Less kept on a signup (U8).** A verified signup forgets the admin's e-mail (`clinic_signup.email` becomes null) in
   the transaction in which the clinic's admin accepts their invite: from then on the account holds the address, so the
