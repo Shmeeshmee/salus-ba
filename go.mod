@@ -12,13 +12,13 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/livekit/protocol v1.54.1
 	github.com/livekit/server-sdk-go/v2 v2.19.0
-	github.com/pion/webrtc/v4 v4.2.27
+	github.com/pion/webrtc/v4 v4.2.29
 	github.com/pressly/goose/v3 v3.30.1
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/riverqueue/river v0.51.2
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.2
 	github.com/riverqueue/river/rivertype v0.51.2
-	github.com/signintech/gopdf v0.38.4
+	github.com/signintech/gopdf v0.38.6
 	github.com/tphakala/go-opus v1.4.0
 	github.com/twitchtv/twirp v8.1.3+incompatible
 	golang.org/x/crypto v0.59.0
