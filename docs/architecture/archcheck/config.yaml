@@ -4,7 +4,7 @@
 contexts:
   analytics: [clinicstats, trends]
   billing: [chargeitemdefinition, invoice, subscription]
-  clinical: [allergyintolerance, binary, composition, condition, history, medicationstatement, questionnaire, questionnaireresponse]
+  clinical: [allergyintolerance, binary, careplan, composition, condition, diagnosticreport, history, medicationstatement, questionnaire, questionnaireresponse]
   consultation: [communication, encounter, suggestion, transcript, videosession]
   directory: [clinicexport, organization, practitioner, practitionerrole]
   identity: [auth, signup]
@@ -12,7 +12,7 @@ contexts:
   patient: [patient]
   privacy: [access, auditevent, consent, datarequest, retention]
   reference: [terminology]
-  scheduling: [appointment, schedule, slot]
+  scheduling: [appointment, location, schedule, slot]
 
 # Packages under internal/ that are not domains: configuration and composition roots.
 infrastructure: [api, config, worker]

@@ -23,6 +23,7 @@ class Service {
     this.modes = const {},
     required this.active,
     this.translations = const [],
+    this.deviceId,
     required this.versionId,
   });
 
@@ -77,6 +78,15 @@ class Service {
 
   List<ServiceTranslation> translations;
 
+  /// The device a visit for it needs (U4 of docs/clinic-cms/WAVE6.md, x-salus-package cms-rm1); absent for none.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? deviceId;
+
   int versionId;
 
   @override
@@ -93,6 +103,7 @@ class Service {
           _deepEquality.equals(other.modes, modes) &&
           other.active == active &&
           _deepEquality.equals(other.translations, translations) &&
+          other.deviceId == deviceId &&
           other.versionId == versionId;
 
   @override
@@ -108,11 +119,12 @@ class Service {
       (modes.hashCode) +
       (active.hashCode) +
       (translations.hashCode) +
+      (deviceId == null ? 0 : deviceId!.hashCode) +
       (versionId.hashCode);
 
   @override
   String toString() =>
-      'Service[id=$id, name=$name, code=$code, priceMinor=$priceMinor, currency=$currency, durationMinutes=$durationMinutes, vatRateBp=$vatRateBp, modes=$modes, active=$active, translations=$translations, versionId=$versionId]';
+      'Service[id=$id, name=$name, code=$code, priceMinor=$priceMinor, currency=$currency, durationMinutes=$durationMinutes, vatRateBp=$vatRateBp, modes=$modes, active=$active, translations=$translations, deviceId=$deviceId, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -138,6 +150,11 @@ class Service {
     json[r'modes'] = this.modes.toList(growable: false);
     json[r'active'] = this.active;
     json[r'translations'] = this.translations;
+    if (this.deviceId != null) {
+      json[r'deviceId'] = this.deviceId;
+    } else {
+      json[r'deviceId'] = null;
+    }
     json[r'versionId'] = this.versionId;
     return json;
   }
@@ -199,6 +216,7 @@ class Service {
         modes: VisitMode.listFromJson(json[r'modes']).toSet(),
         active: mapValueOfType<bool>(json, r'active')!,
         translations: ServiceTranslation.listFromJson(json[r'translations']),
+        deviceId: mapValueOfType<String>(json, r'deviceId'),
         versionId: mapValueOfType<int>(json, r'versionId')!,
       );
     }

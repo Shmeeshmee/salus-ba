@@ -44,6 +44,19 @@ writes under its own heading here.
 | D5 | done 2026-11-24 on its rerun after D1 to D4 (no migration), integrated 2026-11-24 | `cms(D5)`, merged into `feat/cms` with `cms(wave 5)` |
 | D6 | done 2026-11-24, integrated 2026-11-24; the support address joined at the integration | `cms(D6)`, merged into `feat/cms` with `cms(wave 5)` |
 | D7 | done 2026-11-24, integrated 2026-11-24 (migration `00077`, renumbered from `00078`); the chat joined at the integration | `cms(D7)`, merged into `feat/cms` with `cms(wave 5)` |
+| 6.0 | done 2026-11-25 (migration `00080`) | `cms(6.0)` |
+| BG1 | not started (wave 6, first half) | |
+| BG2 | not started (wave 6, first half) | |
+| BG3 | not started (wave 6, first half) | |
+| PX | not started (wave 6, first half) | |
+| LC1 | not started (wave 6, second half, after 6.0) | |
+| RM1 | not started (wave 6, second half, after 6.0) | |
+| LB1 | not started (wave 6, second half, after 6.0) | |
+| TP1 | not started (wave 6, second half, after 6.0) | |
+| LC2 | not started (wave 6, second half, after 6.0) | |
+| LB2 | not started (wave 6, second half, after 6.0) | |
+| TP2 | not started (wave 6, second half, after 6.0) | |
+| LC3 | not started (wave 6, second half, after 6.0) | |
 
 ## A: visit modes
 
@@ -3103,3 +3116,170 @@ was not captured; the full `make test` before it passed). `web`: `make web-lint`
 `desk.patient.born`, `desk.patient.phone`, `desk.patient.noPhone`, `desk.patient.consentActive`,
 `desk.patient.consentNone`, `desk.patient.requestTitle`, `desk.patient.requestHint` [legal], `desk.patient.requestKind`,
 `desk.patient.fileRequest`, `desk.patient.requestFiled`, `desk.patient.requestFailed`.
+
+## 6.0: the wave 6 contract
+
+Status: done, 2026-11-25, on `wt/cms/6.0`, one commit `cms(6.0)`. Migration `00080_wave6_contract.sql` (main's next
+free number). Contract only, as 3.0 and 5.0: no behaviour; every new service method refuses with
+`errors.ErrUnsupported`, with a test that says so. No Jira export for this run: built from `WAVE6.md`.
+
+**Decisions applied** (WAVE6.md, the agent's defaults of 2026-11-25, for the owner to confirm): U1 locations, U2 hours
+per location, U3 rooms, U4 equipment, U5 lab results, U6 treatment plans, U7 the open invite (BG1), U8 the signup link
+(BG1), as the table in `WAVE6.md` states them.
+
+**Built.**
+
+- **Migration 00080.** `location` (a clinic's site: name, address line, postal code, city, phone, time zone, active;
+  FHIR Location): the clinic's scope reads and writes its own, the directory reads the active locations of listed
+  clinics, a patient's scope the location of their own visits; never deleted. The backfill gives every clinic that
+  exists its first location from its name and today's address, and puts every in-person rule (`location_id` key of
+  `schedule.availability`), slot and visit there. `room` and `device` (each of one location, the clinic's scope only,
+  never deleted or moved). `charge_item_definition.device_id` (the device a service needs). `slot.location_id`,
+  `room_id` (a video slot has none; two slots in one room never overlap, an exclusion constraint whoever's schedule they
+  are in). `appointment.location_id`, `room_id`, `device_id` (a video visit has no location or device; two visits that
+  need one device never overlap unless cancelled; salus_app may update the three for a move). `diagnostic_report`
+  (a lab result on a visit: title and an optional LOINC code, the sample's date, `preliminary` until released,
+  `final` with who and when) and `diagnostic_report_result` (the typed-in values: test, LOINC, a number with its UCUM
+  unit or a text, the reference range as printed, a v3-ObservationInterpretation flag): written in the clinic's scope
+  by its own staff for a visit's patient with its active care consent, released only by a practitioner of the clinic,
+  seen by the patient only once final; a trigger refuses a report inserted final and any change to a final one, the
+  results' policy any write once final. `care_plan` (draft, active, completed, revoked; title, quote, start day,
+  booked and revoked dates) and `care_plan_activity` (position, service, day offset, visit mode, its visit): written in
+  the clinic's scope by its own staff for a patient with its active care consent, from its own price list, a quote and
+  visits of the same patient; the patient sees a plan once booked. Ownership: `location`, `room`, `device` by
+  `location`; `diagnostic_report`, `_result` by `diagnosticreport`; `care_plan`, `_activity` by `careplan`. Retention:
+  the four health tables are clinical tables (`clinicalTables`, `clinicWave6Rules`): kept with the clinical record.
+- **Go.** Three new domains: `location` (context `scheduling`: `Locations`, `SaveLocation`, `PublicLocations` for LC1;
+  `Rooms`, `SaveRoom`, `Devices`, `SaveDevice` for RM1), `diagnosticreport` (context `clinical`: `Attach`, `Change`,
+  `AttachPDF`, `Release`, `ForVisit`, `Read`, `PDF`, `Mine`, `MyReport`, `MyPDF` for LB1) and `careplan` (context
+  `clinical`: `Write`, `Change`, `Book`, `Cancel`, `Read`, `ForPatient`, `Mine` for TP1), each with `model.go`,
+  `errors.go`, `repository.go` (the port its package implements) and `service.go`.
+- **OpenAPI.** Every second-half route with `x-salus-package`: `/clinic/locations` (list, add), `/{id}` (change),
+  `/organizations/{id}/locations` (public) for cms-lc1; `/clinic/locations/{id}/rooms` and `/devices` (list, add),
+  `/clinic/rooms/{id}`, `/clinic/devices/{id}` (change) for cms-rm1; `/clinic/appointments/{id}/diagnostic-reports`
+  (list, attach), `/clinic/diagnostic-reports/{id}` (read, change), `/pdf` (read, attach), `/release`,
+  `/me/diagnostic-reports`, `/{id}`, `/{id}/pdf` for cms-lb1; `/clinic/care-plans` (write),
+  `/clinic/patients/{id}/care-plans`, `/clinic/care-plans/{id}` (read, change), `/book`, `/cancel`, `/me/care-plans`
+  for cms-tp1. `AvailabilityRule.locationId` and `roomId`, `Appointment.locationId` and `roomId`, `Service.deviceId`
+  and `SaveServiceRequest.deviceId`, the desk day's `locationId` filter. The schemas `Location`, `Room`, `Device`,
+  `DiagnosticReport*`, `ObservationInterpretation`, `CarePlan*`, `Save…Request`, `BookCarePlanRequest`; seven error
+  codes (`invalid_location`, `resource_busy`, `invalid_diagnostic_report`, `report_released`, `invalid_care_plan`,
+  `care_plan_not_draft`, `care_plan_ended`); the tags `locations`, `lab-results`, `care-plans`. The contract test
+  (`api/clinic_wave6_contract_test.go`): the schemas are the Go models' fields (required exactly when always encoded),
+  the enums the Go constants, every route names its package. The 27 routes are classified for the receptionist and
+  listed in `notServedYet`. `make gen-clients` (Dart `LocationsApi`, `LabResultsApi`, `CarePlansApi` and models, web
+  `schema.d.ts`).
+- **Docs.** The DPIA's "Package 6.0" block; this record, the table rows and a heading for every wave 6 package.
+
+**Contract changes** (where the code fit better than the plan's text):
+
+| Plan's text | As built | Why |
+| --- | --- | --- |
+| "Staff attach a result" (U5) | The clinic's admin and its practitioners; a receptionist is refused every lab result and treatment plan route | CLAUDE.md "Product": the receptionist has no clinical content (owner, 2026-11-23) |
+| The location on a rule | A key `location_id` (and `room_id`) of each rule in `schedule.availability`, as its `mode` | Rules are a JSON array of the schedule, not rows |
+| Rooms and devices | Their own tables `room`, `device`, owned by `location` | A room is a FHIR Location `partOf` its site and a device a FHIR Device; separate tables keep the address and time zone checks off them |
+| "a price-list service may require one" (a device) | `charge_item_definition.device_id`, one device of the clinic | The simplest reading; a clinic with the same kind of device at two locations needs a device kind instead (for the owner) |
+| The test's code (U5) | A text as the lab prints it with an optional LOINC code; the unit a UCUM code | Staff type in what the paper says; a LOINC coding when known, never a free-text code in a `Coding` |
+| The PDF as `Binary` | Its storage is LB1's | `binary` rows belong to a questionnaire response today; LB1 either relaxes that or stores the key on the report |
+| Treatment plan statuses | FHIR request-status `draft`, `active`, `completed`, `revoked` | "Cancelling the plan" is `revoked` in FHIR |
+| Room overlap (U3) | An exclusion constraint on `slot` (`room_id`, `period`) as the database's backstop | RM1 refuses the overlapping rule at save (`resource_busy`) before any slot is generated |
+
+**Left to the packages** (their migrations are reserved in WAVE6.md's order: BG1 `00081`, PX `00082`, LC1 `00083`,
+RM1 `00084`, LB1 `00085`, TP1 `00086`):
+
+- **LC1.** The first location of a clinic made after the migration (salusctl, signup: a migrated database has none for
+  them); whether an in-person slot and visit must have a location (a `NOT NULL` check once the generator sets it); the
+  location on the FHIR Slot and Appointment (and `Location` in the CapabilityStatement, if served); the directory's
+  slots by location; the visit's address on receipts, reminders and e-mails.
+- **RM1.** The rule overlap check per room; the device check at booking (`resource_busy`) with Postgres concurrency
+  tests; slot generation with the room constraint (generation inserts `ON CONFLICT DO NOTHING`, which would now also
+  skip a slot that overlaps another schedule's in the same room).
+- **LB1.** The PDF's storage, scan and download; the audit of every read and write; the report in the record hand-over
+  and the patient's export; a mistaken report (FHIR `entered-in-error` is not in the contract).
+- **TP1.** Booking every step in one transaction (the slots' holds), moving a step, cancelling the future visits,
+  `completed` (a job or on read), the quote's link.
+
+**Review** (a fresh subagent over the diff and the plan docs; Copilot is out of quota until 2026-12-01). **Fixed**, with
+their cases in the migration tests: (1) a draft could not be revoked (the booked check); a draft revoked before booking
+stays hidden from the patient (`booked_at IS NOT NULL`); (2) a receptionist could write a lab result or a plan in the
+database (the author must be the clinic's admin or a practitioner); (3) the backfill test had no visits (now an
+in-person and a video one); (4) the "another patient's visit" case passed only because that visit was hidden (the
+second patient now has the clinic's consent); (7) the active consent was asked on every update, so a result could not be
+released, nor a plan cancelled, after a revocation: it is a restrictive policy on insert only; (8) the plan's PUT said
+both "a draft only" and "booked steps move" (a booked step moves with its visit's reschedule); (9) the clinic policies
+of `location`, `room`, `device` lacked the patient and account scope guards; (10) the guard's comment; (12) the
+`salus_stats` grants had no consumer (dropped) and `appointment` gained an index on its location. **Left to the
+packages**, recorded here: (5) a patient's scope may update a visit's `location_id`, `room_id`, `device_id` (the grant
+serves the move; `appointment_own` is FOR ALL): LC1 and RM1 set them from the slot and the service in a guard trigger
+and refuse other values, and a patient's booking takes the service's device; (6) `appointment/repository_postgres.go`
+maps every `23P01` to `slot_unavailable` (RM1 branches on `appointment_device_no_overlap` for `resource_busy`), and
+slot generation's `ON CONFLICT DO NOTHING` and `DeleteFreeSlotsExcept` do not know the room or location (RM1, LC1);
+(8) a plan's status has no forward-only guard and a booked plan's steps can still be deleted (TP1); (11) the PDF's
+column and its freeze at release (LB1); (13) the FHIR form of `DiagnosticReport` and `CarePlan` (reads, the
+CapabilityStatement, `Patient/$everything` and the export Bundle: LB1, TP1); (14) tests of who sees rooms and devices,
+and of a cancelled visit freeing its device (RM1).
+
+**Test first.** The migration tests (`migrations/wave6_contract_test.go`, `wave6_clinical_contract_test.go`) were
+written after the migration (as 3.0's) and run against it: the first run found the `location_own` policy placed before
+the column it reads, and that a clinic made after the migration has no first location (the tests seed one). The
+retention rule test was run red (no rules) before the rules. The skeleton and contract tests were written with their
+code.
+
+**Checks** (this worktree's compose project, `salus-cms-6-0`): the full set once, after the review's fixes, `make
+gen-clients`, `make lint` (gofmt, vet, golangci-lint, i18n-check, migrations, caddy routes), `make test`, `make
+archcheck`, `make web-lint`, `web-typecheck`, `web-test`, `web-build`, `make mobile-analyze`, `mobile-test` (701): all
+pass. The fast layer's Go set ran every package (a migration changed) and hit its 10-minute timeout; the full set
+replaced it. Not run: `make cover` (no behaviour; the new packages are skeletons), `make e2e` and `make fhir-validate`
+(no route is served and no golden file changed).
+
+**Copy waiting for the owner:** none. 6.0 adds no user-facing string; the API returns codes only. **For the owner:** a
+receptionist has no lab result or treatment plan route (U5 said "staff"); one device per service (a device kind if a
+clinic has the same device at two sites).
+
+## BG1: backend hardening
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## BG2: web polish
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## BG3: tooling
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## PX: privacy follow-ups
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## LC1: locations on the server
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## RM1: rooms and devices
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## LB1: lab results on the server
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## TP1: treatment plans on the server
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## LC2: locations, rooms and devices on the web
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## LB2: lab results on the web and in the app
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## TP2: treatment plans on the web and in the app
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## LC3: the location in the patient app
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.

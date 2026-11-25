@@ -18,6 +18,8 @@ class Appointment {
     required this.practitionerRoleId,
     required this.slotId,
     this.serviceId,
+    this.locationId,
+    this.roomId,
     required this.start,
     required this.end,
     required this.status,
@@ -48,6 +50,24 @@ class Appointment {
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
   String? serviceId;
+
+  /// Where an in-person visit takes place, from its slot (U2 of docs/clinic-cms/WAVE6.md, x-salus-package cms-lc1); absent for a video visit. Receipts, reminders and e-mails use its address.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? locationId;
+
+  /// The room, from its slot; absent for none (U3, x-salus-package cms-rm1).
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? roomId;
 
   DateTime start;
 
@@ -111,6 +131,8 @@ class Appointment {
           other.practitionerRoleId == practitionerRoleId &&
           other.slotId == slotId &&
           other.serviceId == serviceId &&
+          other.locationId == locationId &&
+          other.roomId == roomId &&
           other.start == start &&
           other.end == end &&
           other.status == status &&
@@ -132,6 +154,8 @@ class Appointment {
       (practitionerRoleId.hashCode) +
       (slotId.hashCode) +
       (serviceId == null ? 0 : serviceId!.hashCode) +
+      (locationId == null ? 0 : locationId!.hashCode) +
+      (roomId == null ? 0 : roomId!.hashCode) +
       (start.hashCode) +
       (end.hashCode) +
       (status.hashCode) +
@@ -147,7 +171,7 @@ class Appointment {
 
   @override
   String toString() =>
-      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, serviceId=$serviceId, start=$start, end=$end, status=$status, arrivedAt=$arrivedAt, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
+      'Appointment[id=$id, organizationId=$organizationId, practitionerRoleId=$practitionerRoleId, slotId=$slotId, serviceId=$serviceId, locationId=$locationId, roomId=$roomId, start=$start, end=$end, status=$status, arrivedAt=$arrivedAt, cancellationReason=$cancellationReason, cancelledAt=$cancelledAt, confirmedAt=$confirmedAt, confirmedVia=$confirmedVia, bookedVia=$bookedVia, visitMode=$visitMode, rescheduleCount=$rescheduleCount, versionId=$versionId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -159,6 +183,16 @@ class Appointment {
       json[r'serviceId'] = this.serviceId;
     } else {
       json[r'serviceId'] = null;
+    }
+    if (this.locationId != null) {
+      json[r'locationId'] = this.locationId;
+    } else {
+      json[r'locationId'] = null;
+    }
+    if (this.roomId != null) {
+      json[r'roomId'] = this.roomId;
+    } else {
+      json[r'roomId'] = null;
     }
     json[r'start'] = this.start.toUtc().toIso8601String();
     json[r'end'] = this.end.toUtc().toIso8601String();
@@ -260,6 +294,8 @@ class Appointment {
             mapValueOfType<String>(json, r'practitionerRoleId')!,
         slotId: mapValueOfType<String>(json, r'slotId')!,
         serviceId: mapValueOfType<String>(json, r'serviceId'),
+        locationId: mapValueOfType<String>(json, r'locationId'),
+        roomId: mapValueOfType<String>(json, r'roomId'),
         start: mapDateTime(json, r'start', r'')!,
         end: mapDateTime(json, r'end', r'')!,
         status: AppointmentStatusEnum.fromJson(json[r'status'])!,

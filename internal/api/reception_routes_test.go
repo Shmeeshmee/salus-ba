@@ -164,12 +164,36 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /clinic/data-requests/{id}/answer": refused, "POST /clinic/data-requests/{id}/extend": refused,
 	"POST /clinic/patients/{id}/data-requests": desk, "PUT /clinic/patients/{id}/restriction": refused,
 	"DELETE /clinic/patients/{id}/restriction": refused, "GET /clinic/patients/{id}/restriction": refused,
+	// Wave 6 (docs/clinic-cms/WAVE6.md): the desk reads the locations, rooms and devices (its day by location, why a
+	// device is busy), the admin writes them; lab results and treatment plans are clinical content, never the desk's.
+	"GET /clinic/locations": desk, "POST /clinic/locations": refused, "PUT /clinic/locations/{id}": refused,
+	"GET /organizations/{id}/locations": public, "GET /clinic/locations/{id}/rooms": desk,
+	"POST /clinic/locations/{id}/rooms": refused, "PUT /clinic/rooms/{id}": refused, "GET /clinic/locations/{id}/devices": desk,
+	"POST /clinic/locations/{id}/devices": refused, "PUT /clinic/devices/{id}": refused,
+	"GET /clinic/appointments/{id}/diagnostic-reports": refused, "POST /clinic/appointments/{id}/diagnostic-reports": refused,
+	"GET /clinic/diagnostic-reports/{id}": refused, "PUT /clinic/diagnostic-reports/{id}": refused,
+	"GET /clinic/diagnostic-reports/{id}/pdf": refused, "PUT /clinic/diagnostic-reports/{id}/pdf": refused,
+	"POST /clinic/diagnostic-reports/{id}/release": refused, "GET /me/diagnostic-reports": stranger,
+	"GET /me/diagnostic-reports/{id}": stranger, "GET /me/diagnostic-reports/{id}/pdf": stranger,
+	"POST /clinic/care-plans": refused, "GET /clinic/patients/{id}/care-plans": refused, "GET /clinic/care-plans/{id}": refused,
+	"PUT /clinic/care-plans/{id}": refused, "POST /clinic/care-plans/{id}/book": refused,
+	"POST /clinic/care-plans/{id}/cancel": refused, "GET /me/care-plans": stranger,
 }
 
-// notServedYet are the routes in the contract that are not mounted: wave 5's, declared by its contract (5.0) and
-// served by D1 to D4. A route declared before it is built goes here and answers the router's own 404; when it is
-// mounted, the test fails until it is taken off this list, and the route is then held to its class above.
-var notServedYet = []string{}
+// notServedYet are the routes in the contract that are not mounted: wave 6's, declared by its contract (6.0) and
+// served by LC1, RM1, LB1 and TP1. A route declared before it is built goes here and answers the router's own 404;
+// when it is mounted, the test fails until it is taken off this list, and the route is then held to its class above.
+var notServedYet = []string{
+	"GET /clinic/locations", "POST /clinic/locations", "PUT /clinic/locations/{id}", "GET /organizations/{id}/locations",
+	"GET /clinic/locations/{id}/rooms", "POST /clinic/locations/{id}/rooms", "PUT /clinic/rooms/{id}",
+	"GET /clinic/locations/{id}/devices", "POST /clinic/locations/{id}/devices", "PUT /clinic/devices/{id}",
+	"GET /clinic/appointments/{id}/diagnostic-reports", "POST /clinic/appointments/{id}/diagnostic-reports",
+	"GET /clinic/diagnostic-reports/{id}", "PUT /clinic/diagnostic-reports/{id}", "GET /clinic/diagnostic-reports/{id}/pdf",
+	"PUT /clinic/diagnostic-reports/{id}/pdf", "POST /clinic/diagnostic-reports/{id}/release", "GET /me/diagnostic-reports",
+	"GET /me/diagnostic-reports/{id}", "GET /me/diagnostic-reports/{id}/pdf", "POST /clinic/care-plans",
+	"GET /clinic/patients/{id}/care-plans", "GET /clinic/care-plans/{id}", "PUT /clinic/care-plans/{id}",
+	"POST /clinic/care-plans/{id}/book", "POST /clinic/care-plans/{id}/cancel", "GET /me/care-plans",
+}
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.
 func contractOperations(t *testing.T) map[string]bool {

@@ -250,6 +250,14 @@ class ApiClient {
           return Binary.fromJson(value);
         case 'BookAppointmentRequest':
           return BookAppointmentRequest.fromJson(value);
+        case 'BookCarePlanRequest':
+          return BookCarePlanRequest.fromJson(value);
+        case 'CarePlan':
+          return CarePlan.fromJson(value);
+        case 'CarePlanStatus':
+          return CarePlanStatusTypeTransformer().decode(value);
+        case 'CarePlanStep':
+          return CarePlanStep.fromJson(value);
         case 'ChatAttachment':
           return ChatAttachment.fromJson(value);
         case 'ChatCommand':
@@ -390,6 +398,8 @@ class ApiClient {
           return DeskReceipt.fromJson(value);
         case 'DeskVisit':
           return DeskVisit.fromJson(value);
+        case 'Device':
+          return Device.fromJson(value);
         case 'DiagnosisGroup':
           return DiagnosisGroup.fromJson(value);
         case 'DiagnosisGroupList':
@@ -398,6 +408,12 @@ class ApiClient {
           return DiagnosisGroupName.fromJson(value);
         case 'DiagnosisGroupNameList':
           return DiagnosisGroupNameList.fromJson(value);
+        case 'DiagnosticReport':
+          return DiagnosticReport.fromJson(value);
+        case 'DiagnosticReportResult':
+          return DiagnosticReportResult.fromJson(value);
+        case 'DiagnosticReportStatus':
+          return DiagnosticReportStatusTypeTransformer().decode(value);
         case 'DocumentFieldTexts':
           return DocumentFieldTexts.fromJson(value);
         case 'DocumentTemplate':
@@ -482,6 +498,8 @@ class ApiClient {
           return LanguageTypeTransformer().decode(value);
         case 'LiveKitWebhookEvent':
           return LiveKitWebhookEvent.fromJson(value);
+        case 'Location':
+          return Location.fromJson(value);
         case 'LoginRequest':
           return LoginRequest.fromJson(value);
         case 'LoginResponse':
@@ -508,6 +526,8 @@ class ApiClient {
           return NotificationChannels.fromJson(value);
         case 'NotificationSettings':
           return NotificationSettings.fromJson(value);
+        case 'ObservationInterpretation':
+          return ObservationInterpretationTypeTransformer().decode(value);
         case 'OfferedService':
           return OfferedService.fromJson(value);
         case 'OpenConversationRequest':
@@ -608,16 +628,30 @@ class ApiClient {
           return ReviewStatusTypeTransformer().decode(value);
         case 'RoleSpecialty':
           return RoleSpecialty.fromJson(value);
+        case 'Room':
+          return Room.fromJson(value);
         case 'SaveAnswersRequest':
           return SaveAnswersRequest.fromJson(value);
         case 'SaveAvailabilityRequest':
           return SaveAvailabilityRequest.fromJson(value);
+        case 'SaveCarePlanRequest':
+          return SaveCarePlanRequest.fromJson(value);
+        case 'SaveCarePlanRequestStepsInner':
+          return SaveCarePlanRequestStepsInner.fromJson(value);
+        case 'SaveDeviceRequest':
+          return SaveDeviceRequest.fromJson(value);
+        case 'SaveDiagnosticReportRequest':
+          return SaveDiagnosticReportRequest.fromJson(value);
         case 'SaveDocumentTemplateRequest':
           return SaveDocumentTemplateRequest.fromJson(value);
+        case 'SaveLocationRequest':
+          return SaveLocationRequest.fromJson(value);
         case 'SavePatientRequest':
           return SavePatientRequest.fromJson(value);
         case 'SaveQuestionnaireRequest':
           return SaveQuestionnaireRequest.fromJson(value);
+        case 'SaveRoomRequest':
+          return SaveRoomRequest.fromJson(value);
         case 'SaveServiceRequest':
           return SaveServiceRequest.fromJson(value);
         case 'SendAck':

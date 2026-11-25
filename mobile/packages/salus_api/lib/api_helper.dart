@@ -80,6 +80,9 @@ String parameterToString(dynamic value) {
   if (value is AppointmentChangeVia) {
     return AppointmentChangeViaTypeTransformer().encode(value).toString();
   }
+  if (value is CarePlanStatus) {
+    return CarePlanStatusTypeTransformer().encode(value).toString();
+  }
   if (value is ClinicExportStatus) {
     return ClinicExportStatusTypeTransformer().encode(value).toString();
   }
@@ -104,6 +107,9 @@ String parameterToString(dynamic value) {
   if (value is DataRequestTarget) {
     return DataRequestTargetTypeTransformer().encode(value).toString();
   }
+  if (value is DiagnosticReportStatus) {
+    return DiagnosticReportStatusTypeTransformer().encode(value).toString();
+  }
   if (value is DoseUnit) {
     return DoseUnitTypeTransformer().encode(value).toString();
   }
@@ -118,6 +124,9 @@ String parameterToString(dynamic value) {
   }
   if (value is MedicationStatus) {
     return MedicationStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is ObservationInterpretation) {
+    return ObservationInterpretationTypeTransformer().encode(value).toString();
   }
   if (value is PaymentMethod) {
     return PaymentMethodTypeTransformer().encode(value).toString();

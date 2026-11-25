@@ -3062,3 +3062,28 @@ consents.
 | The widened scope shows more than the requests' patients | The policy holds only with the setting on and only for a patient a request targeting the scope's clinic names; tested against another clinic and with the setting off and off again (`TestRequestSubject_TheClinicsScopeWidenedToItsRequests`) |
 | `data_request_names_patient` as a probe | It answers one yes or no about two opaque ids to the server's own role (as 00076 and 00078) |
 | A restricted patient's name on the admin's queue | Intended (S7, owner 2026-11-25): listed in `restrictedOpenings` of the restriction route test; every other route still returns nothing of a restricted patient |
+
+### Package 6.0: the wave 6 contract, locations, lab results and treatment plans (migration 00080, docs/clinic-cms/WAVE6.md)
+
+**Processing added.** None yet: 6.0 adds the tables, columns, policies and routes; the services refuse until LC1, RM1,
+LB1 and TP1 fill them, and each of those adds its own block here. What the contract prepares:
+
+- **Locations, rooms and devices** (`location`, `room`, `device`, U1, U3, U4): a clinic's sites (name, address, phone,
+  time zone) with their rooms and devices. Not personal data. The visit carries its location, room and device
+  (`appointment.location_id`, `room_id`, `device_id`): that a patient's in-person visit is at one site of the clinic adds
+  nothing to what the visit already says (whom they consult, when). A patient's scope sees the location of their own
+  visits and the directory the active locations of listed clinics; rooms and devices are seen in the clinic's scope
+  only.
+- **Lab results** (`diagnostic_report`, `diagnostic_report_result`, U5): health data (Art. 9(2)(h), the clinic's care
+  record), attached by the clinic's admin or practitioners (never a receptionist: no clinical content) for a visit's
+  patient with the clinic's active care consent. The patient sees a result only once a practitioner of the clinic
+  released it (row-level security: `status = 'final'`), and a released result never changes (a trigger). Values are
+  typed in as the lab prints them (test, value with its UCUM unit or a text value, reference range, a
+  v3-ObservationInterpretation flag); no direct interface to a laboratory, so no new processor. The lab's PDF is a
+  Binary, encrypted and scanned as every attachment; where it is stored is LB1's. Every read and write will be audited
+  (LB1). Retention: with the clinical record (kept, pending the lawyer).
+- **Treatment plans** (`care_plan`, `care_plan_activity`, U6): health data (which care is planned), written for a
+  patient with the clinic's active care consent by its own staff, from its own price list, with a quote of the same
+  patient (X1). A draft is the clinic's; the patient sees a plan once booked. Retention: with the clinical record.
+- **Minimisation.** No new field about the patient: the result's values and the plan's steps are the care itself.
+  Nothing of a result or a plan goes into a log line, a metric, a job argument (opaque ids only) or an e-mail.
