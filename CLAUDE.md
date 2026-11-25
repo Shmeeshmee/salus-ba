@@ -261,7 +261,7 @@ tests green at the end of every package. Measure before claiming a performance g
 | `.claude/skills/database-migrations/` | Migration conventions, ownership and retention for personal data |
 | `.claude/skills/merge-stack/` | Merge a stacked PR series bottom-up |
 | `scripts/run-feature.sh` | Runs a plan end to end: a time budget per package (`RUNNER_BUDGET_MIN`, 60), cleanup after each, never waits on CI |
-| `scripts/runner.sh` | The runner's helpers: per-worktree compose project and ports, phases and budget, waits with a pidfile and a timeout, fast and full check layers, cleanup, the TIMINGS and CLEANUP lines |
+| `scripts/runner.sh` | The runner's helpers: per-worktree compose project and ports (never shared by two worktrees; `start` refuses a port held by anything else), phases and budget, waits with a pidfile and a timeout, fast and full check layers, cleanup, the TIMINGS and CLEANUP lines |
 | `scripts/runner-reap.sh` | Lists (and with `--kill` ends) shells, containers and worktree stacks that sessions left behind for N hours |
 
 ## Checks
@@ -280,7 +280,15 @@ service).
 - `make cover` — tests with coverage, each package measured by its own tests, failing when any package is
   below 80%. Excluded: `cmd/*/main.go`, and the generated sqlc packages `internal/<domain>/<domain>db`
   (exercised by their domain's repository tests).
-- `make e2e` — the end-to-end suite against `docker compose`.
+- `make check` — exactly the plans' check sets for the files changed (`scripts/check.sh`): `go` (Go, SQL, `api/`,
+  `tools/`, `scripts/`, `deployments/`, the Makefile: `make gen-clients` leaves no diff, then `make lint test archcheck
+  cover i18n-check`, and `fhir-validate` when a golden FHIR file changed), `web`, `mobile`, `landing`, and `e2e` when
+  `test/e2e/` changed. Measured from the merge base with `origin/main` (`BASE=<rev>`), uncommitted and untracked files
+  included; `SETS=e2e` adds a set a package names; `bash scripts/check.sh --dry-run` prints the plan. Every package
+  ends with it (`runner.sh full` runs it), so every package runs the same thing.
+- `make e2e` — the end-to-end suite on a fresh compose project of its own (`<project>-e2e`, `scripts/e2e.sh`): its
+  Postgres and object store volumes are removed before and after the run, it publishes no host ports, and the dev
+  stack and its data are never touched.
 - `make lint` — gofmt, `go vet`, golangci-lint (depguard, forbidigo, funlen, gocognit, govet fieldalignment,
   errcheck, staticcheck, bodyclose, noctx, unused) over `cmd/ internal/ pkg/`, and
   `scripts/check-migrations.sh` (no migration that exists on `main` was modified or deleted).

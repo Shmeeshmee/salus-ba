@@ -1,0 +1,12 @@
+# make e2e only (scripts/e2e.sh), on top of docker-compose.yml and docker-compose.e2e.yml: the e2e project publishes
+# no host ports. The journeys reach every service on the compose network (the web journey forwards LiveKit's
+# localhost URL itself, test/e2e/web/livekit-forward.ts), so the run never takes the dev stack's ports and runs beside it.
+services:
+  api:
+    ports: !reset []
+  livekit:
+    ports: !reset []
+  mailpit:
+    ports: !reset []
+  landing:
+    ports: !reset []
