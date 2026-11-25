@@ -55,7 +55,7 @@ writes under its own heading here.
 | TP1 | not started (wave 6, second half, after 6.0) | |
 | LC2 | not started (wave 6, second half, after 6.0) | |
 | LB2 | not started (wave 6, second half, after 6.0) | |
-| TP2 | not started (wave 6, second half, after 6.0) | |
+| TP2 | done 2026-11-25 (no migration; against 6.0's client with a fake API) | `cms(TP2)` |
 | LC3 | not started (wave 6, second half, after 6.0) | |
 | BG4 | not started (wave 6, second half, after the first half) | |
 
@@ -3527,7 +3527,68 @@ Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
 
 ## TP2: treatment plans on the web and in the app
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/TP2`, one commit `cms(TP2)`. No Go, no migration, no schema: built against 6.0's
+generated clients (web `schema.d.ts`, Dart `CarePlansApi`) with a fake API in every test, as WAVE6.md says for the
+second half's web and mobile packages. No Jira export for this run: built from `WAVE6.md` (U6) and 6.0's record.
+
+**Built.**
+
+- **Web, the visit page.** A "Show treatment plans" toggle beside the quotes, for the clinic's admin and the visit's
+  own practitioner on a visit that happens (as quotes; never a receptionist, who has no clinical content), reads
+  (and so audits) the patient's plans only once asked (`GET /clinic/patients/{id}/care-plans`). `CarePlans.tsx`: each
+  plan with its title, state (draft, booked, completed, cancelled), first day and its steps in order, each with its
+  service, visit type and day (the date once booked, "day N" in a draft). A draft has "Change" and "Book"; a draft or
+  a booked plan "Cancel plan", which asks first and says the effect (future visits cancelled, past ones kept; the
+  `legal` tag), then `POST /cancel` at the version read. `CarePlanDialog.tsx` lays out or changes a draft
+  (`POST /clinic/care-plans`, `PUT` with If-Match): a title, steps of the active price list moved up and down in place,
+  each with its days from the start (0 to 730) and a visit type its service is offered in, and optionally one of the
+  visit's quotes (X1). `CarePlanBook.tsx` books a draft (`POST /book` with If-Match): one practitioner (the signed-in
+  practitioner's own role first), the first day (today or later in the clinic's zone), then for each step one free
+  slot of its visit type on its day (FHIR `Slot` search of the role's schedule, as the desk's move), no slot twice; the
+  server books every visit or none. Every refusal code of the contract has its sentence (`invalid_care_plan`,
+  `care_plan_not_draft`, `care_plan_ended`, `version_conflict`, `slot_unavailable` with the times read again,
+  `resource_busy`, `forbidden`/`not_found`). Shared helpers in `carePlan.ts`. Catalog area `carePlans` in the five
+  staff languages.
+- **Mobile.** "My treatment plans" on the home screen opens `CarePlansScreen` (`GET /me/care-plans` through
+  `Booking.carePlans`): each booked plan with its clinic from the directory (or "no longer listed"), its state, first
+  day and each step as a visit on its date and of its type. Eight strings in the ten languages (`app_sr.arb` too).
+
+**Decisions** (where the contract left a choice):
+
+| Point | As built | Why |
+| --- | --- | --- |
+| Where plans are laid out | On the visit page, beside the quotes, not a screen of its own | A plan is written for a patient the practitioner is seeing, as a quote; the visit names the patient and its quotes |
+| One practitioner per booking | One role for every step | The simplest booking; a plan with steps at two practitioners books twice (two plans) for now; for the owner |
+| The step's day | Its slot must start on the first day plus its offset, in the clinic's zone | U6 "a day offset"; the server checks the slots it gets (TP1) |
+| The patient's step | Date and visit type, no service name | `/me/care-plans` carries the service's id only and the app has no clinic price list to read; for TP1 or the owner |
+
+**Test first.** The web tests (`CarePlans.test.tsx`, `CarePlanBook.test.tsx`, the visit page's toggle in
+`AppointmentDetail.test.tsx`) and the mobile test (`care_plans_test.dart`) were written before their code, but their
+first run came after it (the missing modules would only have failed the import), so they were never seen red for the
+right reason. The first run found a test's own mistake (it read the first slot search, made for today's default, not
+the one after the first day was chosen). The catalog test's area list gained `carePlans`; the visit page's button list
+gained "Show treatment plans".
+
+**Walk** (`docs/clinic-cms/walk/tp2/WALK.md`, 1280 and 390 px against a fake API): the plan dialog ran past the right
+edge at 390 px with a long service name, the state tag was stretched in the row's buttons, and "Cancel plan" wrapped
+in red at 1280 px: fixed and walked again.
+
+**Checks** (this worktree's compose project, `salus-cms-tp2`): `runner.sh full` (sets web, mobile: `web-lint`,
+`web-typecheck`, `web-test`, `mobile-analyze`, `mobile-test`): the first run failed on the catalog test's area list
+and an oxlint purity warning (both fixed) and on `DeskMove.test.tsx` "reads the times again", which TP2 does not
+touch and which passed alone (flaky under the suite's load). The rerun, after the fixes and the walk's CSS: passed
+(oxlint 0 warnings, typecheck, web-test 1357, flutter analyze no issues, mobile-test 704). Not run: the go and e2e sets (no
+file of theirs changed).
+
+**Copy waiting for the owner:** the `carePlans` web area (63 strings, five languages) and the eight mobile strings in
+ten languages, the cancel question and its effect tagged `legal`.
+
+**For the integration** (against the real server, once TP1 is merged): every plan route answers as the fakes do
+(201 on write with `ETag`, the plan's `versionId` in the body, the error codes); a receptionist gets no plan button
+and the server refuses them; a booked plan's steps come in their visits' order after a move; `/me/care-plans` never
+lists a draft; a cancelled plan's future visits are gone from the patient's visits; the booking's slot search finds the
+role's in-person slots (LC1's location) and `resource_busy` (RM1) reads as built; the e2e journey of a plan if the
+owner wants one.
 
 ## LC3: the location in the patient app
 

@@ -2386,4 +2386,33 @@ class AppLocalizationsAr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'لطلب إعادة فتح حسابك خلال 21 يومًا، راسل $email.';
   }
+
+  @override
+  String get myCarePlans => 'خطط علاجي';
+
+  @override
+  String get carePlansIntro =>
+      'خطط العلاج التي حجزتها لك العيادات. كل خطوة في الخطة موعد تجده بين مواعيدك.';
+
+  @override
+  String get noCarePlans => 'ليست لديك خطط علاج بعد.';
+
+  @override
+  String get carePlanActive => 'محجوزة';
+
+  @override
+  String get carePlanCompleted => 'مكتملة';
+
+  @override
+  String get carePlanRevoked => 'ملغاة';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'تبدأ في $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
 }

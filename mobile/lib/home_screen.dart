@@ -6,6 +6,7 @@ import 'package:salus_api/api.dart';
 import 'appointments_screen.dart';
 import 'booking.dart';
 import 'call.dart';
+import 'care_plans_screen.dart';
 import 'chat.dart';
 import 'chat_list_screen.dart';
 import 'files.dart';
@@ -220,6 +221,10 @@ class _HomeScreenState extends State<HomeScreen> {
         OutlinedButton(
           onPressed: () => _open(() => QuotesScreen(booking: booking, files: widget.files)),
           child: Text(t.myQuotes),
+        ),
+        OutlinedButton(
+          onPressed: () => _open(() => CarePlansScreen(booking: booking)),
+          child: Text(t.myCarePlans),
         ),
         OutlinedButton(
           onPressed: () => _open(() => NotificationSettingsScreen(booking: booking)),

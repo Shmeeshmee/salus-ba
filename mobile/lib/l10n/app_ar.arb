@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "للاحتفاظ بنسخة من بياناتك، اطلبها من «الخصوصية» قبل إغلاق الحساب: بعد إغلاقه لا يمكنك تسجيل الدخول لتنزيلها.",
   "closeAccountConfirm": "أدخل كلمة المرور للتأكيد.",
   "accountClosed": "تم إغلاق حسابك وتسجيل خروجك.",
-  "accountClosedReopen": "لطلب إعادة فتح حسابك خلال 21 يومًا، راسل {email}."
+  "accountClosedReopen": "لطلب إعادة فتح حسابك خلال 21 يومًا، راسل {email}.",
+  "myCarePlans": "خطط علاجي",
+  "carePlansIntro": "خطط العلاج التي حجزتها لك العيادات. كل خطوة في الخطة موعد تجده بين مواعيدك.",
+  "noCarePlans": "ليست لديك خطط علاج بعد.",
+  "carePlanActive": "محجوزة",
+  "carePlanCompleted": "مكتملة",
+  "carePlanRevoked": "ملغاة",
+  "carePlanStartsOn": "تبدأ في {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

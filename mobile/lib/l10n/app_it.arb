@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "Per conservare una copia dei Suoi dati, la chieda in Privacy prima di chiudere l'account: dopo la chiusura non potrà accedere per scaricarla.",
   "closeAccountConfirm": "Inserisca la password per confermare.",
   "accountClosed": "Il Suo account è chiuso ed è stato disconnesso.",
-  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}."
+  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}.",
+  "myCarePlans": "I miei piani di cura",
+  "carePlansIntro": "I piani di cura che le cliniche hanno prenotato per lei. Ogni fase di un piano è una visita, che trova tra le sue visite.",
+  "noCarePlans": "Non ha ancora piani di cura.",
+  "carePlanActive": "Prenotato",
+  "carePlanCompleted": "Completato",
+  "carePlanRevoked": "Annullato",
+  "carePlanStartsOn": "Inizia il {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

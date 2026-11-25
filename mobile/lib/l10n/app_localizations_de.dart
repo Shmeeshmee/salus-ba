@@ -2354,4 +2354,33 @@ class AppLocalizationsDe extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an $email.';
   }
+
+  @override
+  String get myCarePlans => 'Meine Behandlungspläne';
+
+  @override
+  String get carePlansIntro =>
+      'Behandlungspläne, die Kliniken für Sie gebucht haben. Jeder Schritt eines Plans ist ein Termin, den Sie bei Ihren Terminen finden.';
+
+  @override
+  String get noCarePlans => 'Sie haben noch keine Behandlungspläne.';
+
+  @override
+  String get carePlanActive => 'Gebucht';
+
+  @override
+  String get carePlanCompleted => 'Abgeschlossen';
+
+  @override
+  String get carePlanRevoked => 'Storniert';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Beginnt am $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
 }

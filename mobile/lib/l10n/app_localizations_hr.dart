@@ -2353,4 +2353,33 @@ class AppLocalizationsHr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Ako želite da Salus ponovno otvori račun u roku od 21 dana, pišite na $email.';
   }
+
+  @override
+  String get myCarePlans => 'Moji planovi liječenja';
+
+  @override
+  String get carePlansIntro =>
+      'Planovi liječenja koje su vam klinike rezervirale. Svaki korak plana termin je koji nalazite među svojim terminima.';
+
+  @override
+  String get noCarePlans => 'Još nemate plan liječenja.';
+
+  @override
+  String get carePlanActive => 'Rezerviran';
+
+  @override
+  String get carePlanCompleted => 'Završen';
+
+  @override
+  String get carePlanRevoked => 'Otkazan';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Počinje $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
 }

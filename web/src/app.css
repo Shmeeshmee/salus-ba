@@ -588,6 +588,13 @@ p.hint.join { margin-bottom: 20px; }
 .receipt-line { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
 .receipt-line > .field:first-of-type { grid-column: 1 / -1; }
 .receipt-line select, .receipt-line input { width: 100%; }
+/* A treatment plan's dialogs (TP2): a long service name shrinks with the dialog instead of widening it. */
+.care-plan-dialog form > *, .care-plan-dialog .receipt-line > *, .care-plan-dialog .field > * { min-width: 0; }
+.care-plan-dialog .receipt-line > .actions { grid-column: 1 / -1; }
+.care-plans .steps { margin: 4px 0 0; padding: 0; list-style: none; }
+.care-plans .rows .steps li { display: block; padding: 2px 0; border: 0; }
+.care-plans .rows > li > .actions { flex: none; }
+.care-plans > .actions { margin-top: 12px; }
 .tag.fiscal-fiscalized { color: var(--color-brand-hover); border-color: var(--color-mint); background: var(--color-mint-faint); }
 .tag.fiscal-failed { color: var(--color-danger, #B3261E); border-color: currentColor; }
 /* The report's own classes: the membership screen has facts and a table of its own (D). */

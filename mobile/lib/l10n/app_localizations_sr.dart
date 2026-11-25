@@ -2348,6 +2348,35 @@ class AppLocalizationsSr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
   }
+
+  @override
+  String get myCarePlans => 'Моји планови лијечења';
+
+  @override
+  String get carePlansIntro =>
+      'Планови лијечења које су вам клинике заказале. Сваки корак плана је термин, који налазите међу својим терминима.';
+
+  @override
+  String get noCarePlans => 'Још немате план лијечења.';
+
+  @override
+  String get carePlanActive => 'Заказан';
+
+  @override
+  String get carePlanCompleted => 'Завршен';
+
+  @override
+  String get carePlanRevoked => 'Отказан';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Почиње $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4692,6 +4721,35 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   @override
   String accountClosedReopen(String email) {
     return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
+  }
+
+  @override
+  String get myCarePlans => 'Моји планови лијечења';
+
+  @override
+  String get carePlansIntro =>
+      'Планови лијечења које су вам клинике заказале. Сваки корак плана је термин, који налазите међу својим терминима.';
+
+  @override
+  String get noCarePlans => 'Још немате план лијечења.';
+
+  @override
+  String get carePlanActive => 'Заказан';
+
+  @override
+  String get carePlanCompleted => 'Завршен';
+
+  @override
+  String get carePlanRevoked => 'Отказан';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Почиње $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
   }
 }
 
@@ -7039,5 +7097,34 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   @override
   String accountClosedReopen(String email) {
     return 'Ako želite da Salus ponovo otvori nalog u roku od 21 dana, pišite na $email.';
+  }
+
+  @override
+  String get myCarePlans => 'Moji planovi liječenja';
+
+  @override
+  String get carePlansIntro =>
+      'Planovi liječenja koje su vam klinike zakazale. Svaki korak plana je termin, koji nalazite među svojim terminima.';
+
+  @override
+  String get noCarePlans => 'Još nemate plan liječenja.';
+
+  @override
+  String get carePlanActive => 'Zakazan';
+
+  @override
+  String get carePlanCompleted => 'Završen';
+
+  @override
+  String get carePlanRevoked => 'Otkazan';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Počinje $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
   }
 }

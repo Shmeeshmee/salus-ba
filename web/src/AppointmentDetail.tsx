@@ -148,6 +148,8 @@ function Body({ zone, appt, profile, consultation, api, fhir, practitioner, own,
         history={own && !!patientId}
         receipts={(own || admin) && open}
         quotes={(own || admin) && !!patientId && open}
+        plans={(own || admin) && !!patientId && open}
+        practitionerId={own ? participant(appt, 'Practitioner')?.id : undefined}
       />
       {appt.status === 'booked' && <Actions api={api} id={appt.id} practitioner={practitioner} started={at >= start} onChanged={onChanged} />}
       {(own || admin) && <NoShowCorrection api={api} id={appt.id} start={start} status={appt.status} now={at} onChanged={onChanged} />}

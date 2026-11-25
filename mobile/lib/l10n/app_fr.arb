@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "Pour garder une copie de vos données, demandez-la dans Confidentialité avant de fermer le compte : une fois fermé, vous ne pourrez plus vous connecter pour la télécharger.",
   "closeAccountConfirm": "Saisissez votre mot de passe pour confirmer.",
   "accountClosed": "Votre compte est fermé et vous êtes déconnecté.",
-  "accountClosedReopen": "Pour demander la réouverture de votre compte dans un délai de 21 jours, écrivez à {email}."
+  "accountClosedReopen": "Pour demander la réouverture de votre compte dans un délai de 21 jours, écrivez à {email}.",
+  "myCarePlans": "Mes plans de traitement",
+  "carePlansIntro": "Les plans de traitement que vos cliniques ont réservés pour vous. Chaque étape d’un plan est un rendez-vous, que vous retrouvez parmi vos rendez-vous.",
+  "noCarePlans": "Vous n’avez pas encore de plan de traitement.",
+  "carePlanActive": "Réservé",
+  "carePlanCompleted": "Terminé",
+  "carePlanRevoked": "Annulé",
+  "carePlanStartsOn": "Commence le {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

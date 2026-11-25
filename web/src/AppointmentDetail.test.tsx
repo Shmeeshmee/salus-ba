@@ -160,7 +160,7 @@ describe('AppointmentDetail', () => {
     // A fulfilled one may be corrected within 30 days (SAL-36, docs/plans/appointments.md Q6), and nothing else.
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
     expect(await screen.findByText('Fulfilled')).toBeTruthy()
-    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Issue receipt', 'Write a quote', 'Show quotes', 'Correct to no-show'])
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Issue receipt', 'Write a quote', 'Show quotes', 'Show treatment plans', 'Correct to no-show'])
   })
 
   it("lets the visit's practitioner write its patient a quote and then shows the visit's quotes (clinic-cms X1)", async () => {
@@ -186,6 +186,20 @@ describe('AppointmentDetail', () => {
     expect(body).toEqual({ patientId, appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
     fireEvent.click(screen.getByRole('button', { name: 'Show quotes' }))
     expect(await screen.findByText('Sent')).toBeTruthy()
+  })
+
+  it("shows the visit's practitioner the patient's treatment plans once asked, read only then (clinic-cms TP2)", async () => {
+    const fake = renderDetail(practitioner, {
+      [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }),
+      [patientRead]: () => outcome(404, 'not-found'),
+      'GET /clinic/services': () => Response.json([]),
+      [`GET /clinic/patients/${patientId}/care-plans`]: () => Response.json([]),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Show treatment plans' }))
+    expect(await screen.findByText('No treatment plans for this patient yet.')).toBeTruthy()
+    expect(fake.requests.filter((r) => r.url.includes('/care-plans'))).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Hide treatment plans' }))
+    expect(screen.queryByText('No treatment plans for this patient yet.')).toBeNull()
   })
 
   describe('issue receipt (clinic-cms C)', () => {

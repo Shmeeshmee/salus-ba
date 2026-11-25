@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "Ako želite zadržati kopiju svojih podataka, zatražite je pod Privatnost prije nego što zatvorite račun: kada je zatvoren, ne možete se prijaviti kako biste je preuzeli.",
   "closeAccountConfirm": "Unesite lozinku kako biste potvrdili.",
   "accountClosed": "Vaš je račun zatvoren i odjavljeni ste.",
-  "accountClosedReopen": "Ako želite da Salus ponovno otvori račun u roku od 21 dana, pišite na {email}."
+  "accountClosedReopen": "Ako želite da Salus ponovno otvori račun u roku od 21 dana, pišite na {email}.",
+  "myCarePlans": "Moji planovi liječenja",
+  "carePlansIntro": "Planovi liječenja koje su vam klinike rezervirale. Svaki korak plana termin je koji nalazite među svojim terminima.",
+  "noCarePlans": "Još nemate plan liječenja.",
+  "carePlanActive": "Rezerviran",
+  "carePlanCompleted": "Završen",
+  "carePlanRevoked": "Otkazan",
+  "carePlanStartsOn": "Počinje {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }
