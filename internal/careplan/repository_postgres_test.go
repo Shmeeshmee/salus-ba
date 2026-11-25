@@ -158,3 +158,27 @@ func TestRepository_RefusesWhatRowLevelSecurityRefuses(t *testing.T) {
 		t.Errorf("a malformed id: %v, want ErrNotFound", err)
 	}
 }
+
+// An id that is no UUID, NUL and invalid UTF-8 included (BG4's probe of the staff routes), finds nothing.
+func TestRepository_AnIDThatIsNoUUIDFindsNothing(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seedDB(t, owner)
+	repo, tr := careplan.NewPostgresRepository(app), postgres.NewTransactor(app)
+	for _, id := range []string{"not-a-uuid", "\x00", "\xc0\xaf"} {
+		err := inScope(t, tr, repo, clinicA, "", func(ctx context.Context) error {
+			_, err := repo.ByID(ctx, id)
+			return err
+		})
+		if !errors.Is(err, careplan.ErrNotFound) {
+			t.Errorf("ByID(%q): %v, want ErrNotFound", id, err)
+		}
+		err = inScope(t, tr, repo, clinicA, "", func(ctx context.Context) error {
+			_, err := repo.ForPatient(ctx, id)
+			return err
+		})
+		if !errors.Is(err, careplan.ErrNotFound) {
+			t.Errorf("ForPatient(%q): %v, want ErrNotFound", id, err)
+		}
+	}
+}

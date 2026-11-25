@@ -73,7 +73,19 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	if u.Scan(o.ID) != nil {
 		return Organization{}, ErrConflict
 	}
-	row, err := r.q(ctx).UpdateOrganization(ctx, organizationdb.UpdateOrganizationParams{
+	// In a savepoint of the caller's transaction (as consent's GrantInPerson): a refusal by the foreign keys or 00066's
+	// trigger rolls back to it, not the transaction, which then audits the refusal (BG4).
+	db := r.db
+	commit := func(context.Context) error { return nil }
+	if tx, ok := postgres.Tx(ctx); ok {
+		sp, err := tx.Begin(ctx)
+		if err != nil {
+			return Organization{}, err
+		}
+		defer func() { _ = sp.Rollback(context.WithoutCancel(ctx)) }()
+		db, commit = sp, sp.Commit
+	}
+	row, err := organizationdb.New(db).UpdateOrganization(ctx, organizationdb.UpdateOrganizationParams{
 		ID: u, Name: o.Name, Listed: o.Listed, TimeZone: o.TimeZone, DefaultLanguage: organizationdb.Language(o.DefaultLanguage), VersionID: o.VersionID,
 		PatientTranscriptCopy: o.PatientTranscriptCopy, UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true},
 		RegionID: text(o.Region), CityID: text(o.City), LocationSince: instant(o.LocationSince),
@@ -88,6 +100,9 @@ func (r *postgresRepository) Update(ctx context.Context, o Organization, at time
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Organization{}, ErrConflict
+	}
+	if err == nil {
+		err = commit(ctx)
 	}
 	if err != nil {
 		return Organization{}, err

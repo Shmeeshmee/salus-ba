@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -13,7 +14,7 @@ import (
 func (f *closureFixture) erasure() *datarequest.Erasure {
 	return datarequest.NewErasure(datarequest.ErasurePorts{
 		Tx: closureTx{}, Repo: f.repo, Scope: f.scope, Accounts: f.accounts, Records: f.consents,
-		Restrictions: f.restrictions, Devices: f.devices, Clock: clock.Fixed{T: closedNow.Add(datarequest.EraseAfter)},
+		Restrictions: f.restrictions, Devices: f.devices, Clock: clock.Fixed{T: closedNow.Add(datarequest.EraseAfter)}, Audit: f.audit,
 	})
 }
 
@@ -73,6 +74,16 @@ func TestErasure_ErasesTheAccountRestrictsEachClinicsRecordAndFulfilsTheRequest(
 	}
 	if last := f.repo.changes[len(f.repo.changes)-1]; last.Status != datarequest.StatusFulfilled || last.ChangedBy != "" {
 		t.Errorf("last change %+v, want fulfilled by the job", last)
+	}
+	// BG4: the answer has its own data_request event, the job's, about the patient.
+	if len(f.audit.events) != 1 {
+		t.Fatalf("audit events %+v, want the answer's", f.audit.events)
+	}
+	e := f.audit.events[0]
+	if e.AgentName != datarequest.ErasureAgent || e.AgentAccountID != "" || e.EntityName != "data_request" || e.EntityCount != 1 ||
+		e.EntityReference != "Patient/"+profileID || e.Subtype.Code != auditevent.CodeUpdate || e.Action != auditevent.ActionUpdate ||
+		e.Outcome != auditevent.OutcomeSuccess {
+		t.Errorf("the answer's event %+v", e)
 	}
 }
 

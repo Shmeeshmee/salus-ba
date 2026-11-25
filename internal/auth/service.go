@@ -35,6 +35,12 @@ type Auditor interface {
 	Record(ctx context.Context, e auditevent.AuditEvent) error
 }
 
+// Signups is told, in the acceptance's transaction, that the admin of a clinic accepted their invite (signup.Service):
+// the clinic's verified signup then forgets the admin's e-mail (docs/clinic-cms/WAVE6.md, U8).
+type Signups interface {
+	AdminJoined(ctx context.Context, organizationID string) error
+}
+
 // Practitioners adds a practitioner to a clinic (practitioner.Service).
 type Practitioners interface {
 	Create(ctx context.Context, c practitioner.Caller, givenName, familyName string) (practitioner.Practitioner, error)
@@ -60,6 +66,8 @@ type Ports struct {
 	// Practitioners and PractitionerRoles create the directory entries of an accepted practitioner invite.
 	Practitioners     Practitioners
 	PractitionerRoles PractitionerRoles
+	// Signups hears that a clinic's admin accepted their invite (signup.Service, U8); nil where no invite is accepted.
+	Signups Signups
 	// RateLimitKey keys the HMAC that names the rate-limit counters, so neither e-mail nor IP is readable in
 	// Redis (RATE_LIMIT_KEY).
 	RateLimitKey []byte
@@ -77,6 +85,7 @@ type Service struct {
 	counters   Counters
 	box        SecretBox
 	jobs       Jobs
+	signups    Signups
 	directory  Practitioners
 	roles      PractitionerRoles
 	rateKey    []byte
@@ -87,7 +96,7 @@ func NewService(p Ports) *Service {
 	return &Service{
 		repo: p.Repo, hasher: p.Hasher, audit: p.Audit, tx: p.Tx, clock: p.Clock,
 		challenges: p.Challenges, counters: p.Counters, box: p.Box, jobs: p.Jobs, directory: p.Practitioners,
-		roles: p.PractitionerRoles, rateKey: p.RateLimitKey,
+		roles: p.PractitionerRoles, rateKey: p.RateLimitKey, signups: p.Signups,
 	}
 }
 

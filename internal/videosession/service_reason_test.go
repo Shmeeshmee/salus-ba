@@ -191,6 +191,20 @@ func TestStatus_TheRoomRuleShowsNobodyElse(t *testing.T) {
 	}
 }
 
+// BG4: an id that is no UUID (a NUL byte, invalid UTF-8) never reaches the room rule's scope, which Postgres would
+// refuse with an error: it is not found, audited without the entity.
+func TestStatus_TheRoomRuleIgnoresAMalformedID(t *testing.T) {
+	for _, id := range []string{"not-a-uuid", "\x00", "\xc0\xaf"} {
+		f := revokedBeforeTheStart()
+		f.repo.narrowed = ""
+		f.audit.events = nil
+		if _, err := f.svc.Status(t.Context(), pract, id); !errors.Is(err, videosession.ErrNotFound) || f.repo.narrowed != "" {
+			t.Errorf("Status(%q) = %v, narrowed to %q; want ErrNotFound before any scope", id, err, f.repo.narrowed)
+		}
+		checkEvents(t, "a malformed id", f.audit, statusRead(pract, "", auditevent.OutcomeMinorFailure))
+	}
+}
+
 // A failure while reading by the room rule fails the read, audited nothing.
 func TestStatus_TheRoomRuleFailsWithTheBackend(t *testing.T) {
 	f := revokedBeforeTheStart()

@@ -251,8 +251,27 @@ func TestFileOnBehalf(t *testing.T) {
 		t.Errorf("an unknown kind: %v, want ErrInvalid", err)
 	}
 	f.repo.insertErr = datarequest.ErrNotFound // a profile the clinic did not register: row-level security refuses it
+	f.audit.events = nil
 	if _, err := f.svc.FileOnBehalf(t.Context(), desk, "00000000-0000-4000-8000-0000000000e9", datarequest.KindErasure); !errors.Is(err, datarequest.ErrNotFound) {
 		t.Errorf("another's patient: %v, want ErrNotFound", err)
+	}
+	// BG4: the refusal has its audit row, naming nothing it did not reach.
+	if len(f.audit.events) != 1 || f.audit.events[0].Outcome != auditevent.OutcomeMinorFailure || f.audit.events[0].EntityReference != "" ||
+		f.audit.events[0].OrganizationID != clinicA || f.audit.events[0].AgentAccountID != deskA {
+		t.Errorf("audit of the refused filing %+v, want one refusal by the desk in clinic A", f.audit.events)
+	}
+}
+
+// BG4: a patient's filing that row-level security refuses (a profile or clinic out of the scope) is audited too.
+func TestFile_AuditsAFilingRowLevelSecurityRefuses(t *testing.T) {
+	t.Parallel()
+	f := newFixture(filedAt)
+	f.repo.insertErr = datarequest.ErrNotFound
+	if _, err := f.svc.File(t.Context(), patientA, datarequest.Filing{Kind: datarequest.KindAccess, Target: datarequest.TargetAccount}); !errors.Is(err, datarequest.ErrNotFound) {
+		t.Fatalf("File() = %v, want ErrNotFound", err)
+	}
+	if len(f.audit.events) != 1 || f.audit.events[0].Outcome != auditevent.OutcomeMinorFailure || f.audit.events[0].AgentAccountID != accountA {
+		t.Errorf("audit %+v, want one refusal by the patient", f.audit.events)
 	}
 }
 

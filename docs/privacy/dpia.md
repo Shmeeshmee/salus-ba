@@ -3144,3 +3144,19 @@ values only; the lab's PDF waits for its storage (see "Left" below), so no file 
   cancellation cancels is audited as the appointment's, in the same transaction.
 - **Minimisation.** No new field: a plan's visits are ordinary appointments (their e-mails, reminders and statistics as
   for a staff booking); nothing of a plan goes into a log line, a metric or a job argument.
+
+### Package BG4: backend hardening, second pass (migration 00085, docs/clinic-cms/WAVE6.md U8)
+
+- **Less kept on a signup (U8).** A verified signup forgets the admin's e-mail (`clinic_signup.email` becomes null) in
+  the transaction in which the clinic's admin accepts their invite: from then on the account holds the address, so the
+  signup row no longer duplicates it. The migration does the same for the clinics whose admin already joined. An
+  unverified signup keeps its e-mail (a check constraint): its link is still to be sent, and the row is deleted by its
+  retention rule as before. `salusctl signup list` prints opaque ids and dates only, so the operator loses nothing.
+- **The signup link's 72 hours** count from the latest verification e-mail (`clinic_signup.token_issued_at`, a time, not
+  personal data), so a delayed e-mail job does not send a link that is already nearly dead.
+- **Refusals audited.** A data request that row-level security refuses (a profile or clinic outside the filer's scope)
+  and a clinic update the foreign keys or the signup trigger refuse now roll back to a savepoint and are audited as
+  refused in the same transaction, instead of aborting it without an audit row. The refusal names no entity it did not
+  reach.
+- **The erasure's answer** writes its own `data_request` AuditEvent (the erasure job as the agent, about the patient),
+  beside the account, device and restriction events it wrote before.

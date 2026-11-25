@@ -57,7 +57,7 @@ writes under its own heading here.
 | LB2 | not started (wave 6, second half, after 6.0) | |
 | TP2 | not started (wave 6, second half, after 6.0) | |
 | LC3 | not started (wave 6, second half, after 6.0) | |
-| BG4 | not started (wave 6, second half, after the first half) | |
+| BG4 | done 2026-11-25 (migration `00085`, the next free after LC1, RM1, LB1, TP1; the integration renumbers) | `cms(BG4)` |
 
 ## A: visit modes
 
@@ -3833,4 +3833,73 @@ Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
 
 ## BG4: backend hardening, second pass
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md` and `docs/clinic-cms/notes/BG4.txt`.
+Done 2026-11-25 in the worktree `wt/cms/BG4` (compose project `salus-cms-bg4`), from BG1's "Deferred" paragraph and
+`docs/clinic-cms/notes/BG4.txt`. No Jira export for this run. Migration `00085_signup_link.sql` (00081 to 00084 left to
+LC1, RM1, LB1, TP1 in WAVE6.md's order; the integration renumbers). No schema or route of LC1, RM1, LB1 or TP1 touched.
+
+**Decisions applied** (WAVE6.md, agent's defaults 2026-11-25, owner to confirm): U8 built here.
+
+**Built** (each with its failing test first):
+
+- **U8, the link's 72 hours from the latest e-mail.** `clinic_signup.token_issued_at` (backfilled from `created_at`,
+  default now): `IssueVerification` sets it with the new token (`SetSignupToken`), `Verify` counts `TokenLifetime` from
+  it. Tests: `TestVerify_CountsTheLinksLifetimeFromTheLatestEmail` (a signup made 144 hours ago whose e-mail job ran
+  now verifies), the expiry test now ages the issue, and the repository test reads the time back. The retention rule
+  (30 days after `created_at` for an unverified signup) is unchanged.
+- **U8, the verified row drops the e-mail.** `clinic_signup.email` is nullable with `clinic_signup_email_kept` (only a
+  verified signup may lose it); salus_app may update `email` and `token_issued_at`. `signup.Service.AdminJoined`
+  (`ForgetSignupEmail`) is the hook: `auth.Ports.Signups` (a port declared by auth, nil where no invite is accepted:
+  the worker's and salusctl's auth services) is called by `acceptInvite` in the acceptance's transaction, for an admin's
+  invite only. `internal/api/app.go` gives auth a signup service on Repo and Tx alone, built before auth, so the
+  construction order stays (signupRoutes still builds the full one on auth). The migration blanks the e-mail of the
+  verified signups whose clinic already has an admin account. Tests: `TestAcceptInvite_TellsTheSignupThatTheAdminJoined`
+  (admin yes, in the transaction; practitioner and receptionist no), `TestAdminJoined_ForgetsTheSignupsEmail`, the
+  repository's `ForgetEmail` and `TestPostgresRepository_AnUnverifiedSignupKeepsItsEmail` (the constraint).
+- **The 500 probe of the staff routes.** `internal/api/staff_probe_test.go`: every operation of `receptionRoutes`
+  (the whole contract, kept complete by the existing classification test) as the clinic's admin, its practitioner and
+  its receptionist, with four malformed path ids (not a UUID, `%00`, invalid UTF-8, 300 characters) and five malformed
+  bodies (`{`, `null`, `[1]`, a string, an object of wrong field types); none may answer 5xx. It found one:
+  `GET /appointments/{id}/consultation` as the practitioner with `%00` or invalid UTF-8 answered 500, as the room rule
+  (`videosession` `attended`) put the id into `app.appointment_id` and Postgres refused the byte sequence. Fixed: an id
+  that is no UUID never reaches the scope (`fhir.IsUUID`), not found, audited without the entity
+  (`TestStatus_TheRoomRuleIgnoresAMalformedID`). Logout and account closure are left out (they end the session the probe
+  goes on with).
+- **Refusals that row-level security turns into a rollback** (survey of every repository that maps a Postgres refusal to
+  a domain error, and of every trigger raising one). Two left the transaction aborted, so the refusal had no audit row:
+  - `organization.Update`: the signup trigger (`ErrNotApproved`) was audited in the aborted transaction, a 500 with no
+    audit row; a city outside its region (`ErrInvalidLocation`, the foreign keys) was not audited at all. The update now
+    runs in a savepoint (consent's `GrantInPerson` pattern) and both are audited as refused updates. The repository tests
+    now read in the same transaction after each refusal (failed first with `25P02`);
+    `TestUpdate_RefusesAndAuditsAnInvalidLocation`.
+  - `datarequest` `File` and `FileOnBehalf`: a filing that row-level security refuses (a profile or clinic outside the
+    scope, `ErrNotFound`) was returned unaudited. The insert runs in a savepoint and the refusal is audited as a refused
+    create in the same transaction, naming no entity (`insert` in `service.go`); the repository test reads after the
+    refusal, and `TestFile_AuditsAFilingRowLevelSecurityRefuses` and the on-behalf test check the event.
+  - The others need nothing: consent's in-person grant (BG1's savepoint), and allergy, medication, quote, appointment and
+    consent sharing refusals, which audit in a transaction of their own after the failed one (correct while no caller
+    wraps them in an outer transaction; none does today). Unmapped trigger errors stay internal errors by design.
+- **The erasure's answer has its own `data_request` event.** `ErasurePorts.Audit` (wired in `internal/worker/erasure.go`):
+  the job's answer is audited as an update of the request, `datarequest.ErasureAgent` (`data_request_erasure`, the
+  name auth, consent and patient use) as the agent, about the patient, in the answer's transaction. Tests: the service's
+  erasure test and the worker's Postgres test (one event; a second run adds none).
+- **A River worker test of `clinicExportWorker`'s last attempt** (M2's deferral):
+  `internal/worker/clinicexport_internal_test.go` against Postgres with an object store that refuses the archive: the
+  attempt before the last returns the error and leaves the export queued, unaudited, unlogged; the last marks it failed
+  with one serious-failure event of `clinic_export_build`, returns nil, and logs the export's id only.
+
+**Checks** (compose project `salus-cms-bg4`): the fast layer (every Go package, as `migrations/` changed): passed but
+for `internal/worker`'s `TestChatNotifications_NeverCarryTheMessageText` (`"5c1d" is in what was sent, enqueued or
+logged`), which passed on its one rerun: flaky, and not this package's. Its forbidden string `5c1d` is four hex digits,
+which a random UUID or request id in the jobs or logs it searches contains now and then.
+The full set (`runner.sh full e2e`: `make check`, sets go and e2e): its first run stopped at `make lint` (funlen of
+`api.New` at 81 lines, the probe's cognitive complexity, a field order in the probe) and was stopped before its tests;
+after the fixes `make lint` 0 issues and the probe passed, and the second run passed: `make gen-clients` with no diff,
+`lint`, `test`, `archcheck`, `cover` (90.0% total, every package at 80% or more), `i18n-check`, and `make e2e` on its own
+project (`salus-cms-bg4-e2e`, removed after). Not run: `make fhir-validate` (no golden FHIR file changed).
+
+**Deferred:**
+
+- The chat test's `5c1d` probe string (above): a longer marker would end the collisions; outside this package.
+- List and refusal audit events without an entity (BG1's open point for the owner): unchanged; the new refusals follow
+  it.
+- The probe covers path ids and bodies, not query parameters; the routes' query parsing was not probed.

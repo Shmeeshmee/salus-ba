@@ -182,7 +182,9 @@ func mapErr(err error) error {
 		return ErrNotFound
 	case !errors.As(err, &pgErr):
 		return err
-	case pgErr.Code == "42501", pgErr.Code == "22P02":
+	case pgErr.Code == "42501", pgErr.Code == "22P02", pgErr.Code == "22021":
+		// 22P02 and 22021: an id that is no UUID, or not even UTF-8 (a NUL from a path); a body's text is valid UTF-8
+		// once decoded, so 22021 comes from an id only.
 		return ErrNotFound
 	case pgErr.Code == "23503", pgErr.Code == "23514":
 		return ErrInvalid

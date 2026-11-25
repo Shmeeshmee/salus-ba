@@ -38,6 +38,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/internal/signup"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/terminology"
@@ -123,8 +124,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
-		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles,
 		RateLimitKey: cfg.RateLimitKey, Hasher: auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes),
+		// U8: an accepted admin invite makes the clinic's signup forget the e-mail. Only Repo and Tx: the signup's own
+		// routes are built on accounts (signupRoutes).
+		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles, Signups: signup.NewService(signup.Ports{Repo: signup.NewPostgresRepository(pool), Tx: tx}),
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies).WithFeatures(features(cfg.Analytics))
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners, roles, appointment.NewFacts(appointmentRepo))
