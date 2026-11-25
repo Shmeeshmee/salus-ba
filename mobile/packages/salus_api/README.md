@@ -219,6 +219,7 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
+*InvitesApi* | [**withdrawInvite**](doc//InvitesApi.md#withdrawinvite) | **DELETE** /invites/{id} | Withdraw an open invite
 *LabResultsApi* | [**attachDiagnosticReport**](doc//LabResultsApi.md#attachdiagnosticreport) | **POST** /clinic/appointments/{id}/diagnostic-reports | Attach a lab result to a visit
 *LabResultsApi* | [**getClinicDiagnosticReport**](doc//LabResultsApi.md#getclinicdiagnosticreport) | **GET** /clinic/diagnostic-reports/{id} | A lab result of the clinic
 *LabResultsApi* | [**getClinicDiagnosticReportPdf**](doc//LabResultsApi.md#getclinicdiagnosticreportpdf) | **GET** /clinic/diagnostic-reports/{id}/pdf | A lab result's PDF

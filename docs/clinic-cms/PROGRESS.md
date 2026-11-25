@@ -44,11 +44,11 @@ writes under its own heading here.
 | D5 | done 2026-11-24 on its rerun after D1 to D4 (no migration), integrated 2026-11-24 | `cms(D5)`, merged into `feat/cms` with `cms(wave 5)` |
 | D6 | done 2026-11-24, integrated 2026-11-24; the support address joined at the integration | `cms(D6)`, merged into `feat/cms` with `cms(wave 5)` |
 | D7 | done 2026-11-24, integrated 2026-11-24 (migration `00077`, renumbered from `00078`); the chat joined at the integration | `cms(D7)`, merged into `feat/cms` with `cms(wave 5)` |
-| 6.0 | done 2026-11-25 (migration `00080`) | `cms(6.0)` |
-| BG1 | done 2026-11-25 (no migration); U8 and three audit items deferred, listed in its entry | `cms(BG1)` |
-| BG2 | not started (wave 6, first half) | |
-| BG3 | not started (wave 6, first half) | |
-| PX | not started (wave 6, first half) | |
+| 6.0 | done 2026-11-25, integrated 2026-11-25 (migration `00080`) | `cms(6.0)`, merged into `feat/cms` with `cms(wave 6)` |
+| BG1 | done 2026-11-25, integrated 2026-11-25 (no migration); U8 and the other deferred items go to BG4 | `cms(BG1)`, merged into `feat/cms` with `cms(wave 6)` |
+| BG2 | done 2026-11-25, integrated 2026-11-25; the withdraw call on the generated client at the integration | `cms(BG2)`, merged into `feat/cms` with `cms(wave 6)` |
+| BG3 | done 2026-11-25, integrated 2026-11-25; CI's e2e failure logs at the integration | `cms(BG3)`, merged into `feat/cms` with `cms(wave 6)` |
+| PX | done 2026-11-25, integrated 2026-11-25 (no migration) | `cms(PX)`, merged into `feat/cms` with `cms(wave 6)` |
 | LC1 | not started (wave 6, second half, after 6.0) | |
 | RM1 | not started (wave 6, second half, after 6.0) | |
 | LB1 | not started (wave 6, second half, after 6.0) | |
@@ -57,6 +57,7 @@ writes under its own heading here.
 | LB2 | not started (wave 6, second half, after 6.0) | |
 | TP2 | not started (wave 6, second half, after 6.0) | |
 | LC3 | not started (wave 6, second half, after 6.0) | |
+| BG4 | not started (wave 6, second half, after the first half) | |
 
 ## A: visit modes
 
@@ -3458,6 +3459,48 @@ admin, ten languages (`internal/notification/templates/<language>/data_request_d
 `internal/notification/testdata/en/data_request_deadline_no_admin.txt`); the manifest's line "could not be opened, so
 not in this archive: <path>" (English only, as the rest of `manifest.txt`).
 
+## Wave 6, first half
+
+Done 2026-11-25 on `feat/cms` (from `fa77c488`): `wt/cms/6.0`, `BG3`, `BG1`, `PX`, `BG2` merged with `--no-ff` in that
+order, each built by a package runner in its own worktree and compose project; then the integration's commit
+`cms(wave 6): integrate 6.0, BG1, BG2, BG3, PX`. One migration, 6.0's `00080_wave6_contract.sql`, after main's `00079`;
+BG1 and PX needed none, so their reserved numbers are unused (`00081`, `00082`), and the second half's packages take the
+next free numbers after `00080` in WAVE6.md's order, renumbered at their integration.
+
+- **Merges.** Only the records and one generated file conflicted. `PROGRESS.md`: each package's block replaced the
+  heading 6.0 had written for it, and each status row its own row; `docs/privacy/dpia.md` keeps the 6.0 and PX blocks in
+  that order. Generated code was not hand-merged: `make sqlc` (6.0 had not regenerated the sqlc packages after its
+  migration: every `<domain>db/models.go` gains the location, room, device, lab result and plan types and columns, added
+  only), `make gen-clients` (the Dart README gains BG1's `withdrawInvite`) and `flutter gen-l10n` (no change).
+- **BG1 with BG2.** BG2's "Withdraw" now calls BG1's `DELETE /invites/{id}` through the generated client
+  (`api.DELETE('/invites/{id}', ...)`); the hand-typed cast is gone. The route answers 204 when withdrawn and 404 when the
+  invite is no longer open, the shape BG2 built against; its four tests in `Practitioners.test.tsx` keep their fake.
+- **BG3's deferred item.** CI's e2e job printed `docker compose logs` of the default project on a failure, which is
+  empty now that `scripts/e2e.sh` runs on `<project>-e2e` (`salus-e2e` in CI), and that script removes its containers
+  when it ends, so a later step cannot read them either. With `E2E_LOGS=<file>`, a failed run now writes the e2e
+  project's full logs there before its cleanup; `.github/workflows/go.yml` sets it and the failure step prints the file.
+  Tested first in `scripts/e2e.test.sh` (red: no logs read, no file; then green; a passing run writes none).
+- **BG4.** What BG1 deferred is a package of its own in the second half (`RUN.tsv`, WAVE6.md's table, its integration
+  order and run line, `notes/BG4.txt`): U8, the 500 probe of the staff routes, the survey of RLS refusals with the
+  savepoint pattern, the erasure answer's audit event, the clinic export worker's last attempt. Go and e2e; no schema or
+  route of LC1, RM1, LB1 or TP1.
+- **Open for the owner** (from the reports, unchanged): receptionists out of lab results and treatment plans (6.0), one
+  device per service (6.0), whether refusal and list audit events name the clinic (BG1), BG2's eight withdraw strings
+  in five languages, PX's new line of `data_request_deadline` in ten languages and the operator fallback (D5's question).
+- **BG2 with the e2e suite.** BG2's withdraw button sits in the invite's row, so `test/e2e/web/language.spec.ts`
+  (the row's text ends with the expiry time) failed in the integration's first `make e2e` (BG2's sets were web only). The
+  journey now reads the invite's expiry line itself, with the same anchored pattern and the same "no `M` month" check.
+
+**Checks** (the main checkout's compose project `salus`):
+`make check BASE=origin/main` (sets go, web, mobile: `make gen-clients` with no diff, `make lint` 0 issues, `test`,
+`archcheck`, `cover` 90.0% total and every package at 80% or more, `i18n-check`, `web-lint`, `web-typecheck`,
+`web-test` 1346, `mobile-analyze`, `mobile-test` 701): passed on its second run. The first stopped at `internal/api`,
+which ran past `go test`'s 10-minute package timeout under the suite's load (603 s; the test running at the alarm had
+been going for 27 s, so no hang); the same package took 294 s in that run's `make cover`, 302 s in a full `make test`
+rerun and 180 s in the passing `make check`. It is the slowest package and close to the ceiling under load: worth a
+look before the second half adds routes to it. `make e2e` (`salus-e2e`, its own project): the first run failed on the
+language journey above; after the fix, passed (350 s) and removed its project. `scripts/e2e.test.sh`: ok.
+
 ## LC1: locations on the server
 
 Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
@@ -3489,3 +3532,7 @@ Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
 ## LC3: the location in the patient app
 
 Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+
+## BG4: backend hardening, second pass
+
+Status: not started. Specification: `docs/clinic-cms/WAVE6.md` and `docs/clinic-cms/notes/BG4.txt`.

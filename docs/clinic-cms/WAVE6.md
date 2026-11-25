@@ -6,8 +6,8 @@ file: fixes for what the walks, reviews and reports left open, and three feature
 rooms and equipment; SAL-52 lab results; SAL-53 treatment plans; SAL-59 privacy follow-ups).
 
 Run: first `wave docs/clinic-cms 6.0 BG1 BG2 BG3 PX --max 3` (the features' contract beside the four fix packages),
-then, with all five merged into `feat/cms`, `wave docs/clinic-cms LC1 LC2 LC3 RM1 LB1 LB2 TP1 TP2 --max 3`.
-Integration order of the second half: LC1, RM1, LB1, TP1, LC2, LB2, TP2, LC3.
+then, with all five merged into `feat/cms`, `wave docs/clinic-cms LC1 LC2 LC3 RM1 LB1 LB2 TP1 TP2 BG4 --max 3`.
+Integration order of the second half: LC1, RM1, LB1, TP1, LC2, LB2, TP2, LC3, BG4.
 
 Migration numbers: 6.0 takes main's next free number; every other package that needs one takes the next free after
 it, in the order BG1, PX, LC1, RM1, LB1, TP1, and says which in its report. The integration renumbers.
@@ -98,6 +98,7 @@ request targets a clinic with no admin. The notification erasers wait for the la
 | LB2 | SAL-52 | 6.0 | web, mobile | Attaching and releasing a result on the visit page; the patient's results in the app |
 | TP2 | SAL-53 | 6.0 | web, mobile | Laying out and booking a plan on the web; the patient's plan in the app |
 | LC3 | SAL-51 | 6.0 | mobile | The patient picks a location when booking in person and sees its address on the visit |
+| BG4 | - | the first half | go, e2e | Backend hardening, second pass: what BG1 deferred (U8, the 500 probe of the staff routes, the RLS refusals' audit rows, the erasure answer's audit event, the export worker's last attempt) |
 
 The Go packages own their own domain's files; the three that touch `appointment` (LC1 the location, RM1 the device
 check, TP1 the plan's booking) each add one file there and one appended block in the core files. The web and mobile

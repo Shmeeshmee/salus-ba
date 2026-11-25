@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests scripts/e2e.sh (make e2e) with a fake docker on PATH: every compose call runs on the e2e project of this
 # checkout (<project>-e2e), never on the dev stack's; the project's data volumes are removed before the run (fresh)
-# and after it, also when a journey fails; no other volume is removed; and a failing journey fails the script.
+# and after it, also when a journey fails; no other volume is removed; a failing journey fails the script; and with
+# E2E_LOGS a failing run writes the e2e project's full logs to that file before the cleanup (CI's failure step).
 # Run by scripts/lint.sh.
 set -euo pipefail
 
@@ -47,6 +48,16 @@ first_up=$(grep -n -- ' up ' "$work/log" | head -n1 | cut -d: -f1)
 run 1 "a failing journey" FAKE_JOURNEYS=1
 [ "$(grep -c '^docker volume rm' "$work/log")" -eq 2 ] || fail "a failing journey: not cleaned up after"
 grep -q -- ' logs --no-color --tail ' "$work/log" || fail "a failing journey: the stack's logs were not printed"
+grep -q -- ' logs --no-color --timestamps' "$work/log" && fail "a failing journey: full logs written without E2E_LOGS"
+
+run 1 "a failing journey with E2E_LOGS" FAKE_JOURNEYS=1 E2E_LOGS="$work/e2e-logs.txt"
+grep -q -- '-p wt-x-e2e .* logs --no-color --timestamps$' "$work/log" || fail "E2E_LOGS: the e2e project's full logs were not read"
+[ -f "$work/e2e-logs.txt" ] || fail "E2E_LOGS: no log file"
+log_line=$(grep -n -- ' logs --no-color --timestamps' "$work/log" | head -n1 | cut -d: -f1) || true
+last_rm=$(grep -n '^docker volume rm' "$work/log" | tail -n1 | cut -d: -f1)
+[ -n "$log_line" ] && [ "$log_line" -lt "$last_rm" ] || fail "E2E_LOGS: the logs were read after the cleanup"
+run 0 "a passing run with E2E_LOGS" E2E_LOGS="$work/e2e-logs-pass.txt"
+[ -f "$work/e2e-logs-pass.txt" ] && fail "E2E_LOGS: a passing run wrote the logs"
 
 : > "$work/log"
 (cd "$work/repo" && env PATH="$work/bin:$PATH" FAKE_LOG="$work/log" FAKE_VOLUMES= bash scripts/e2e.sh report) > /dev/null 2>&1 ||

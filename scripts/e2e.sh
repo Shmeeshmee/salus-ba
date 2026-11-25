@@ -13,7 +13,8 @@
 # from one IP, and a run signs in more often than the production limit of 30 per 15 minutes allows. After the
 # journeys, LiveKit's log must hold none of the run's synthetic names, e-mails and ids (scripts/e2e-livekit-log.sh).
 #
-#   e2e.sh           the run
+#   e2e.sh           the run; with E2E_LOGS=<file>, a failed run also writes the project's full logs there before
+#                    its containers are removed (CI's failure step prints them)
 #   e2e.sh report    print the last run's latency report (make e2e-report), touching nothing else
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -42,6 +43,10 @@ finish() {
   if [ "$code" -ne 0 ]; then
     echo "e2e: failed (exit $code); the last lines of the $project stack's logs:" >&2
     "${compose[@]}" logs --no-color --tail 200 >&2 || true
+    if [ -n "${E2E_LOGS:-}" ]; then
+      "${compose[@]}" logs --no-color --timestamps > "$E2E_LOGS" 2>&1 || true
+      echo "e2e: the $project stack's full logs are in $E2E_LOGS" >&2
+    fi
   fi
   clean
   echo "e2e: $project removed (containers, network, ${data_volumes[*]} volumes)" >&2

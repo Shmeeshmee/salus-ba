@@ -36,9 +36,11 @@ test('the web app follows the browser, then the language the user saves', async 
   await second.getByLabel('Language').selectOption('bs')
   await expect(second.getByText('Jezik je sačuvan.')).toBeVisible()
   await second.getByRole('link', { name: 'Ljekari' }).click()
+  // The invite's line of its own: the row also holds the "Povuci" (withdraw) button (wave 6, U7).
   const invite = second.getByRole('list', { name: 'Otvorene pozivnice' }).getByRole('listitem')
-  await expect(invite).toContainText(/Ističe \d{1,2}\. (jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec) \d{4}\. \d{2}:\d{2}$/)
-  await expect(invite).not.toContainText(/M\d{2}/)
+  const expiry = invite.getByText(/Ističe \d{1,2}\. (jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec) \d{4}\. \d{2}:\d{2}$/)
+  await expect(expiry).toBeVisible()
+  await expect(expiry).not.toContainText(/M\d{2}/)
   await second.getByLabel('Jezik').selectOption('')
   await expect(second.getByText('Language saved.')).toBeVisible()
 })

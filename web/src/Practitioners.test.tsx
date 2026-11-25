@@ -197,8 +197,7 @@ describe('Practitioners', () => {
     expect(within(screen.getByRole('list', { name: 'Open invites' })).getAllByText('dana@example.test')).toHaveLength(1)
   })
 
-  // DELETE /invites/{id} is BG1's route (wave 6, U7), built in parallel: these tests are its fake until the
-  // integration, which checks the wiring against the real route.
+  // DELETE /invites/{id} (wave 6, U7): the fake answers as the route does, 204 when withdrawn, 404 when no longer open.
   const withdrawRoute = `DELETE /invites/${openInvite.id}`
 
   it('withdraws an open invite after asking, and takes it off the list (wave 6, U7)', async () => {

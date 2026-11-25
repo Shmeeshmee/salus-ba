@@ -251,12 +251,9 @@ function InviteRow({ api, invite, onGone }: { api: ApiClient; invite: Invite; on
   )
 }
 
-// withdrawInvite calls DELETE /invites/{id}, BG1's route of wave 6, through the same client (and its CSRF header).
-// The generated client gains the route when the wave is integrated; until then the call is typed here by hand.
+// withdrawInvite calls DELETE /invites/{id} (wave 6, U7): 204 when withdrawn, 404 when no longer open.
 function withdrawInvite(api: ApiClient, id: string) {
-  type Delete = (path: string, init: { params: { path: { id: string } } }) => Promise<{ data?: undefined; error?: unknown; response: Response }>
-  const del = api.DELETE as unknown as Delete
-  return attempt(del('/invites/{id}', { params: { path: { id } } }))
+  return attempt(api.DELETE('/invites/{id}', { params: { path: { id } } }))
 }
 
 // An invite's expiry is shown in the admin's own time zone, as the browser keeps it.
