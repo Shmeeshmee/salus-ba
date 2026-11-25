@@ -13,22 +13,70 @@ afterEach(cleanup)
 const open = { ...requests[0], history: [{ status: 'received' as const, changedAt: '2026-11-02T09:00:00Z' }] }
 const id = open.id
 const patient = open.patientId!
+const atDesk = requests[1] // the desk filed it for a patient the clinic registered
+const notRestricted = () => Response.json({ restricted: false })
+const byClinic = () => Response.json({ restricted: true, restrictedAt: '2026-11-03T09:00:00Z', by: 'clinic' })
 
 function renderDetail(routes: Record<string, Route> = {}) {
-  const fake = fakeFetch({ ...clinicRoute, [`GET /clinic/data-requests/${id}`]: () => Response.json(open), ...routes })
+  const fake = fakeFetch({
+    ...clinicRoute,
+    [`GET /clinic/data-requests/${id}`]: () => Response.json(open),
+    [`GET /clinic/patients/${patient}/restriction`]: notRestricted,
+    ...routes,
+  })
   renderInLanguage(<DataRequestDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={admin} id={id} />, 'en')
   return fake
 }
 
 describe('DataRequestDetail', () => {
-  it('shows the request with its due date, what it needs and its history', async () => {
+  it('shows the request with its patient, due date, what it needs and its history', async () => {
     renderDetail()
     expect(await screen.findByRole('heading', { name: 'Erasure' })).toBeTruthy()
+    expect(screen.getByText('Ada Example')).toBeTruthy()
+    expect(screen.getByText('Born 1 January 1990')).toBeTruthy()
     expect(screen.getByText('Due Wednesday, 2 December 2026')).toBeTruthy()
     expect(screen.getByText(/Erase what has no legal basis to stay/)).toBeTruthy()
     expect(screen.getByRole('list', { name: 'History' }).textContent).toContain('Received')
     expect(screen.getByRole('link', { name: 'All requests' }).getAttribute('href')).toBe('/data-requests')
-    expect(screen.getByRole('link', { name: 'Open the hand-over' }).getAttribute('href')).toBe(`${location.origin}/clinic/patients/${patient}/record`)
+    // An app patient's record is handed over by their own export in the app: no hand-over here.
+    expect(screen.queryByRole('link', { name: 'Open the hand-over' })).toBeNull()
+  })
+
+  it("downloads the hand-over of a patient the clinic registered, from the detail (S7: the admin's way to a restricted record)", async () => {
+    const registered = atDesk.patientId!
+    const fake = fakeFetch({
+      ...clinicRoute,
+      [`GET /clinic/data-requests/${atDesk.id}`]: () => Response.json(atDesk),
+      [`GET /clinic/patients/${registered}/restriction`]: byClinic,
+    })
+    renderInLanguage(<DataRequestDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={admin} id={atDesk.id} />, 'en')
+    const link = await screen.findByRole('link', { name: 'Open the hand-over' })
+    expect(link.getAttribute('href')).toBe(`${location.origin}/clinic/patients/${registered}/record`)
+    expect(link.hasAttribute('download')).toBe(true)
+    expect(await screen.findByText('Restricted by the clinic since Tuesday, 3 November 2026.')).toBeTruthy()
+  })
+
+  it('shows whether the record is restricted, and offers only the action that applies', async () => {
+    renderDetail()
+    expect(await screen.findByText('The record is not restricted.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Restrict the record' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Lift the restriction' })).toBeNull()
+    cleanup()
+
+    renderDetail({ [`GET /clinic/patients/${patient}/restriction`]: byClinic })
+    expect(await screen.findByText('Restricted by the clinic since Tuesday, 3 November 2026.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Lift the restriction' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Restrict the record' })).toBeNull()
+    cleanup()
+
+    renderDetail({ [`GET /clinic/patients/${patient}/restriction`]: () => Response.json({ restricted: true, restrictedAt: '2026-11-03T09:00:00Z', by: 'erasure' }) })
+    expect(await screen.findByText('Restricted by the erasure of the account since Tuesday, 3 November 2026. The clinic cannot lift it.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Lift the restriction' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Restrict the record' })).toBeNull()
+    cleanup()
+
+    renderDetail({ [`GET /clinic/patients/${patient}/restriction`]: () => apiError(500, 'internal error') })
+    expect((await screen.findByRole('alert')).textContent).toBe('The restriction could not be read. Reload the page.')
   })
 
   it('answers with a code, at the version read, and shows the answer', async () => {
@@ -68,17 +116,20 @@ describe('DataRequestDetail', () => {
   })
 
   it("restricts the patient's record for the request and lifts the restriction", async () => {
+    let restricted = false
     const fake = renderDetail({
-      [`PUT /clinic/patients/${patient}/restriction`]: () => new Response(null, { status: 204 }),
-      [`DELETE /clinic/patients/${patient}/restriction`]: () => new Response(null, { status: 204 }),
+      [`GET /clinic/patients/${patient}/restriction`]: () => (restricted ? byClinic() : notRestricted()),
+      [`PUT /clinic/patients/${patient}/restriction`]: () => ((restricted = true), new Response(null, { status: 204 })),
+      [`DELETE /clinic/patients/${patient}/restriction`]: () => ((restricted = false), new Response(null, { status: 204 })),
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Restrict the record' }))
     expect((await screen.findByRole('status')).textContent).toBe('The record is restricted.')
     const put = fake.requests.find((r) => r.method === 'PUT')!
     expect(await put.json()).toEqual({ dataRequestId: id })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Lift the restriction' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Lift the restriction' }))
     expect(await screen.findByText('The restriction is lifted.')).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Restrict the record' })).toBeTruthy()
     expect(paths(fake.requests)).toContain(`DELETE /clinic/patients/${patient}/restriction`)
     expectCsrfOnWrites(fake.requests)
   })
@@ -87,6 +138,7 @@ describe('DataRequestDetail', () => {
     const answered = { ...open, status: 'fulfilled' as const, answerCode: 'done' as const, answeredAt: '2026-11-05T09:00:00Z', version: 2 }
     renderDetail({
       [`GET /clinic/data-requests/${id}`]: () => Response.json(answered),
+      [`GET /clinic/patients/${patient}/restriction`]: byClinic,
       [`DELETE /clinic/patients/${patient}/restriction`]: () => apiError(403, 'forbidden'),
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Lift the restriction' }))

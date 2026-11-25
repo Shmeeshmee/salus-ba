@@ -33,8 +33,8 @@ describe('DeskPatients', () => {
     const asked = new URL(fake.requests.find((r) => r.url.includes('/clinic/patients'))!.url).searchParams
     expect(asked.get('name')).toBe('Im')
     expect(asked.get('birthDate')).toBe('1975-05-05')
-    // An app patient manages their profile in the app: no card.
-    expect(found.queryByRole('button', { name: 'Ana Example' })).toBeNull()
+    // An app patient manages their profile in the app: their card is read-only (wave 5 walk, finding 6).
+    expect(found.getByRole('button', { name: 'Ana Example' })).toBeTruthy()
     fireEvent.click(found.getByRole('button', { name: 'Ida Import' }))
     expect(await screen.findByRole('dialog', { name: 'Patient card' })).toBeTruthy()
   })

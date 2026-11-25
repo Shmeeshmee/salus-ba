@@ -3,6 +3,7 @@ package api_test
 import (
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -154,5 +155,84 @@ func TestNew_AnObjectionLeavesThePatientOutOfTheAnalytics(t *testing.T) {
 	if err := owner.QueryRow(t.Context(), `SELECT analytics_objected_at IS NOT NULL FROM patient p JOIN account a ON a.id = p.account_id
 		WHERE a.email = 'ana@example.test'`).Scan(&marked); err != nil || !marked {
 		t.Errorf("objected %v, %v; want the profile marked", marked, err)
+	}
+}
+
+// The clinic's queue and detail name the request's patient to the clinic's admin, whatever the patient's consent or
+// restriction (wave 5 walk, findings 3 and 4), each read audited as a read of the Patient at the patient's request,
+// naming the request; a practitioner of the clinic, another clinic's admin and the patient's own list get no name.
+func TestNew_ARequestNamesItsPatientToTheAnsweringAdminOnly(t *testing.T) {
+	cfg := testConfig(t)
+	owner := ownerPool(t, cfg)
+	count := openDB(t, cfg)
+	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL) // row-level security on, as in production
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(app.Close)
+	d := newDirectory(t, app.Handler, owner)
+	other := otherClinicAdmin(t, app.Handler, owner)
+	if rec := d.patient.do(http.MethodPut, "/me/patient", `{"givenName":"Zorana","familyName":"Syntheticova","birthDate":"1977-07-07","phone":"+38760000777"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("PUT /me/patient = %d %s", rec.Code, rec.Body)
+	}
+	rec := d.patient.do(http.MethodPost, "/consents", `{"organizationId":"`+inviteClinic+`"}`)
+	var granted struct{ ID string }
+	decode(t, rec, &granted)
+	rec = d.patient.do(http.MethodPost, "/me/data-requests", `{"kind":"restriction","target":"clinic","organizationId":"`+inviteClinic+`"}`)
+	var filed struct{ ID string }
+	decode(t, rec, &filed)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST /me/data-requests = %d %s", rec.Code, rec.Body)
+	}
+	// The patient withdraws their consent: the clinic's admin still answers the request and must know whose it is.
+	if rec := d.patient.do(http.MethodPost, "/consents/"+granted.ID+"/revoke", ""); rec.Code != http.StatusOK {
+		t.Fatalf("revoke = %d %s", rec.Code, rec.Body)
+	}
+	var patientID string
+	if err := owner.QueryRow(t.Context(), "SELECT id::text FROM patient").Scan(&patientID); err != nil {
+		t.Fatal(err)
+	}
+	named := `"patient":{"birthDate":"1977-07-07","givenName":"Zorana","familyName":"Syntheticova","registeredByClinic":false}`
+	for _, path := range []string{"/clinic/data-requests", "/clinic/data-requests/" + filed.ID} {
+		if rec := d.admin.do(http.MethodGet, path, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), named) || strings.Contains(rec.Body.String(), "+38760000777") {
+			t.Errorf("the admin GET %s = %d %s, want the patient named, without the phone", path, rec.Code, rec.Body)
+		}
+	}
+	if n := count(`SELECT count(*) FROM audit_event WHERE entity_reference = $1 AND purpose_code = 'PATRQT' AND outcome = 0
+		AND subtype_code = 'read' AND request_id = $2`, "Patient/"+patientID, "data_request/"+filed.ID); n != 2 {
+		t.Errorf("%d audited reads of the patient naming the request, want 2 (the list and the detail)", n)
+	}
+	// The restriction's state, before and after; the name stays for the admin.
+	restriction := "/clinic/patients/" + patientID + "/restriction"
+	if rec := d.admin.do(http.MethodGet, restriction, ""); rec.Code != http.StatusOK || rec.Body.String() != `{"restricted":false}`+"\n" {
+		t.Errorf("GET restriction before = %d %s", rec.Code, rec.Body)
+	}
+	if rec := d.admin.do(http.MethodPut, restriction, `{"dataRequestId":"`+filed.ID+`"}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("restrict = %d %s", rec.Code, rec.Body)
+	}
+	if rec := d.admin.do(http.MethodGet, restriction, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"by":"clinic","restricted":true`) {
+		t.Errorf("GET restriction after = %d %s, want restricted by the clinic", rec.Code, rec.Body)
+	}
+	if rec := d.admin.do(http.MethodGet, "/clinic/data-requests/"+filed.ID, ""); !strings.Contains(rec.Body.String(), named) {
+		t.Errorf("the admin reads the restricted patient's request = %d %s, want the patient named", rec.Code, rec.Body)
+	}
+	// Nobody else.
+	for name, rec := range map[string]*httptest.ResponseRecorder{
+		"the practitioner's list":             d.practitioner.do(http.MethodGet, "/clinic/data-requests", ""),
+		"the practitioner's read":             d.practitioner.do(http.MethodGet, "/clinic/data-requests/"+filed.ID, ""),
+		"the practitioner's restriction read": d.practitioner.do(http.MethodGet, restriction, ""),
+		"another clinic's list":               other.do(http.MethodGet, "/clinic/data-requests", ""),
+		"another clinic's read":               other.do(http.MethodGet, "/clinic/data-requests/"+filed.ID, ""),
+		"another clinic's restriction read":   other.do(http.MethodGet, restriction, ""),
+		"the patient's own list":              d.patient.do(http.MethodGet, "/me/data-requests", ""),
+	} {
+		body := rec.Body.String()
+		if strings.Contains(body, "Syntheticova") || strings.Contains(body, "Zorana") || strings.Contains(body, "1977-07-07") || strings.Contains(body, `"restricted"`) {
+			t.Errorf("%s = %d %s, want no name, birth date or restriction", name, rec.Code, body)
+		}
+		if name == "another clinic's list" && (rec.Code != http.StatusOK || strings.Contains(body, filed.ID)) {
+			t.Errorf("%s = %d %s, want 200 without the request", name, rec.Code, body)
+		}
 	}
 }

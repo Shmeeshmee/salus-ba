@@ -108,3 +108,10 @@ SELECT patient_id FROM patient_restriction WHERE organization_id = @organization
 -- Read from any scope (00078): the worker's jobs and another clinic's guest practitioner see the treating clinic's.
 -- name: PatientRestricted :one
 SELECT patient_record_restricted(@patient_id::uuid, @organization_id::uuid)::boolean AS restricted;
+
+-- The restriction of a patient's record at the clinic, for its admin's detail of a request (walk finding 4): when, and
+-- whether the erasure made it (by nobody). In the clinic's scope; no row for none.
+-- name: PatientRestriction :many
+SELECT restricted_at, (restricted_by_account_id IS NULL)::boolean AS by_erasure
+FROM patient_restriction
+WHERE patient_id = @patient_id AND organization_id = @organization_id;

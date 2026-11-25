@@ -23,6 +23,10 @@ describe('DataRequests', () => {
 
     const rows = within(await screen.findByRole('list', { name: 'Data requests' })).getAllByRole('listitem')
     expect(rows).toHaveLength(3)
+    expect(rows[0].textContent).toContain('Ada Example')
+    expect(rows[0].textContent).toContain('Born 1 January 1990')
+    expect(rows[1].textContent).toContain('Rina Sample')
+    expect(rows[2].textContent).not.toContain('Born')
     expect(rows[0].textContent).toContain('Erasure')
     expect(rows[0].textContent).toContain('Due Wednesday, 2 December 2026')
     expect(rows[0].textContent).toContain('Received')

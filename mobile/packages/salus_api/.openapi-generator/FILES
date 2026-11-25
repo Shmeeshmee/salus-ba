@@ -119,6 +119,7 @@ lib/model/data_request_extension.dart
 lib/model/data_request_extension_reason.dart
 lib/model/data_request_filing.dart
 lib/model/data_request_kind.dart
+lib/model/data_request_patient.dart
 lib/model/data_request_status.dart
 lib/model/data_request_target.dart
 lib/model/desk_day.dart
@@ -189,6 +190,7 @@ lib/model/open_item.dart
 lib/model/patient.dart
 lib/model/patient_import.dart
 lib/model/patient_import_row.dart
+lib/model/patient_restriction.dart
 lib/model/payment_method.dart
 lib/model/period_unit.dart
 lib/model/place.dart

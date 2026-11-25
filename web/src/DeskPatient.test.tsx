@@ -23,10 +23,44 @@ async function openCard() {
 }
 
 describe('DeskPatient', () => {
-  it("shows an app patient's name as text, without a card", () => {
-    renderCard({}, admin, ana)
-    expect(screen.getByText('Ana Example')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Ana Example' })).toBeNull()
+  it("opens an app patient's card read-only: name, birth date, phone and consent, nothing to change or file", async () => {
+    const fake = renderCard({}, admin, ana)
+    fireEvent.click(screen.getByRole('button', { name: 'Ana Example' }))
+    const card = within(await screen.findByRole('dialog', { name: 'Patient card' }))
+    const rows = card.getByRole('definition', { name: 'Name' })
+    expect(rows.textContent).toBe('Ana Example')
+    expect(card.getByRole('definition', { name: 'Birth date' }).textContent).toBe('2 March 1980')
+    expect(card.getByRole('definition', { name: 'Phone' }).textContent).toBe('+387 61 000 001')
+    expect(card.getByRole('definition', { name: 'Consent to care' }).textContent).toBe('Active')
+    expect(card.getByText('This patient manages their profile and files their data requests in the Salus app.')).toBeTruthy()
+    expect(card.queryByRole('textbox')).toBeNull()
+    expect(card.queryByRole('button', { name: 'File a data request on their behalf' })).toBeNull()
+    expect(card.queryByRole('button', { name: 'Record withdrawal of consent' })).toBeNull()
+    expect(card.queryByRole('link', { name: 'Download the record' })).toBeNull()
+    fireEvent.click(card.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fake.requests).toHaveLength(0)
+  })
+
+  it("files a data request on a registered patient's behalf, as the desk (S10)", async () => {
+    const fake = renderCard({
+      [`POST /clinic/patients/${bo.id}/data-requests`]: () => Response.json({}, { status: 201 }),
+    }, reception)
+    const card = await openCard()
+    expect(card.getByText(/Check the patient's identity first/)).toBeTruthy()
+    fireEvent.change(card.getByLabelText('Kind of request'), { target: { value: 'restriction' } })
+    fireEvent.click(card.getByRole('button', { name: 'File a data request on their behalf' }))
+    expect(await card.findByText("The request is filed. The clinic's admin answers it.")).toBeTruthy()
+    const post = fake.requests.find((r) => new URL(r.url).pathname.endsWith('/data-requests'))!
+    expect(await post.json()).toEqual({ kind: 'restriction' })
+    expectCsrfOnWrites(fake.requests)
+  })
+
+  it('says when the request could not be filed', async () => {
+    renderCard({ [`POST /clinic/patients/${bo.id}/data-requests`]: () => apiError(500, 'internal error') })
+    const card = await openCard()
+    fireEvent.click(card.getByRole('button', { name: 'File a data request on their behalf' }))
+    expect(await card.findByText('The request could not be filed. Try again.')).toBeTruthy()
   })
 
   it('corrects the profile at the version read and shows the new name', async () => {

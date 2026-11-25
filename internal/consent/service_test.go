@@ -685,6 +685,18 @@ func (r *fakeRepository) RevokeChat(ctx context.Context, conversationID, roleID 
 	}, at)
 }
 
+func (r *fakeRepository) RevokeChats(ctx context.Context, patientID string, at time.Time) ([]consent.Consent, error) {
+	r.seen(ctx, "RevokeChats")
+	var out []consent.Consent
+	for i, c := range r.consents {
+		if c.Kind == consent.KindChat && c.PatientID == patientID && c.Status == consent.StatusActive {
+			r.consents[i].Status, r.consents[i].RevokedAt = consent.StatusInactive, at
+			out = append(out, r.consents[i])
+		}
+	}
+	return out, r.err
+}
+
 func (r *fakeRepository) ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error) {
 	r.seen(ctx, "ChatGranted")
 	for _, c := range r.consents {
@@ -737,6 +749,43 @@ func TestGrantChat_EndsAnEarlierActiveConsentForTheConversationAndRole(t *testin
 	}
 	checkEvents(t, "GrantChat twice", f.audit, event(me, auditevent.CodeCreate, first.ID, auditevent.OutcomeSuccess),
 		event(me, auditevent.CodeUpdate, first.ID, auditevent.OutcomeSuccess), event(me, auditevent.CodeCreate, second.ID, auditevent.OutcomeSuccess))
+}
+
+// The patient's closure ends every active chat consent of theirs at once (owner, 2026-11-25), each audited as an update;
+// staff are refused, and a patient without a profile has none.
+func TestRevokeChats_EndsEveryActiveChatConsentOfThePatient(t *testing.T) {
+	f := newFixture()
+	first, err := f.svc.GrantChat(t.Context(), me, chatGrant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := chatGrant
+	other.PractitionerRoleID = "e9000000-0000-4000-8000-0000000000e9"
+	second, err := f.svc.GrantChat(t.Context(), me, other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.audit.events = nil
+	got, err := f.svc.RevokeChats(t.Context(), me)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("RevokeChats() = %+v, %v; want both", got, err)
+	}
+	for _, c := range f.repo.consents {
+		if c.Kind == consent.KindChat && c.Status == consent.StatusActive {
+			t.Errorf("%+v still active", c)
+		}
+	}
+	checkEvents(t, "RevokeChats", f.audit, event(me, auditevent.CodeUpdate, first.ID, auditevent.OutcomeSuccess),
+		event(me, auditevent.CodeUpdate, second.ID, auditevent.OutcomeSuccess))
+	if again, err := f.svc.RevokeChats(t.Context(), me); err != nil || len(again) != 0 {
+		t.Errorf("RevokeChats() again = %+v, %v; want none", again, err)
+	}
+	if _, err := f.svc.RevokeChats(t.Context(), staff); !errors.Is(err, consent.ErrForbidden) {
+		t.Errorf("RevokeChats(staff) = %v, want ErrForbidden", err)
+	}
+	if got, err := f.svc.RevokeChats(t.Context(), noProf); err != nil || len(got) != 0 {
+		t.Errorf("RevokeChats(no profile) = %+v, %v; want none", got, err)
+	}
 }
 
 func TestGrantChatAndRevokeChat_RefuseStaffAndAPatientWithoutAProfile(t *testing.T) {

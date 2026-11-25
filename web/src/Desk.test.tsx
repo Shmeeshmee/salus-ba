@@ -158,17 +158,20 @@ describe('Desk', () => {
     })
     await screen.findByText('Ana Example')
     expect(rowOf('Ana Example').textContent).toContain('Cancelled')
-    expect(within(rowOf('Ana Example')).queryByRole('button')).toBeNull()
-    // Only the registered patient's name, which opens their card (R2).
+    // Only the patient's name, which opens their card (R2; an app patient's read-only, wave 5 walk finding 6).
+    expect(within(rowOf('Ana Example')).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ana Example'])
     expect(within(rowOf('Bo Sample')).getAllByRole('button').map((b) => b.textContent)).toEqual(['Bo Sample'])
     expect(within(rowOf('Cleo Test')).getByRole('button', { name: 'Issue receipt' })).toBeTruthy()
   })
 
-  it("opens the card of a patient the clinic registered from their name (R2)", async () => {
+  it("opens the card of a patient the clinic registered from their name (R2), and an app patient's read-only", async () => {
     renderDesk({ 'GET /auth/me': () => Response.json(reception) }, reception)
     fireEvent.click(await screen.findByRole('button', { name: 'Bo Sample' }))
     expect(await screen.findByRole('dialog', { name: 'Patient card' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Ana Example' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ana Example' }))
+    const card = within(await screen.findByRole('dialog', { name: 'Patient card' }))
+    expect(card.queryByRole('textbox')).toBeNull()
   })
 
   it('names a practitioner who left the clinic', async () => {

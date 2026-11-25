@@ -65,5 +65,14 @@
   "erasureKeeps": {
     "defaultMessage": "Brisanje drži ovaj karton ograničenim; klinika ne može ukinuti ograničenje.",
     "description": "legal"
-  }
+  },
+  "born": "Datum rođenja: {date}",
+  "recordTitle": "Karton pacijenta u klinici",
+  "notRestricted": "Karton nije ograničen.",
+  "restrictedByClinic": "Klinika je ograničila karton {date}.",
+  "restrictedByErasure": {
+    "defaultMessage": "Karton je ograničen brisanjem računa {date}. Klinika ne može ukinuti ograničenje.",
+    "description": "legal"
+  },
+  "restrictionLoadFailed": "Ograničenje se nije moglo učitati. Ponovo učitajte stranicu."
 }

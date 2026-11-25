@@ -50,6 +50,11 @@ type Repository interface {
 	Restrict(ctx context.Context, patientID, org, by, requestID string, at time.Time) error
 	// Unrestrict lifts a staff restriction of the patient's record at the clinic org; the erasure's stays.
 	Unrestrict(ctx context.Context, patientID, org string) error
+	// Restriction returns the restriction of the patient's record at the clinic org in the scope in ctx, zero for none.
+	Restriction(ctx context.Context, patientID, org string) (Restriction, error)
+	// SetDataRequests widens (on) the clinic's scope set by SetClinic to the patients its data requests name, for the
+	// rest of the transaction in ctx, or narrows it again (off).
+	SetDataRequests(ctx context.Context, on bool) error
 	// Restricted reports whether the patient's record is restricted at the clinic org, as the scope in ctx shows it.
 	Restricted(ctx context.Context, patientID, org string) (bool, error)
 }

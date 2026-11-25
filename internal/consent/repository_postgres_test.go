@@ -541,6 +541,9 @@ func TestChat_GrantsRevokesAndShowsTheConsentForTheConversationAndRole(t *testin
 	if !errors.Is(err, consent.ErrInactive) {
 		t.Errorf("a second RevokeChat() = %v, want ErrInactive", err)
 	}
+
+	revokeChatsAtClosure(t, app, repo, asA, g, later)
+	granted("the guest after the closure", guest(clinicB, roleB), roleB, false)
 }
 
 // A chat consent is refused for another patient's conversation and for a clinic that is not the role's.
@@ -606,5 +609,35 @@ func TestGrantInPerson_StoresTheClinicsCareConsentForAPatientItRegisteredOnly(t 
 	}
 	if _, err := grant(patientB); !errors.Is(err, consent.ErrNotFound) {
 		t.Errorf("a patient with an account: %v, want ErrNotFound", err)
+	}
+}
+
+// revokeChatsAtClosure: the closure ends every active chat consent of patient A at once, in their scope; patient B's
+// scope ends none of theirs.
+func revokeChatsAtClosure(t *testing.T, app *pgxpool.Pool, repo consent.Repository, asA func(ctx context.Context) error, g consent.ChatGrant, later time.Time) {
+	t.Helper()
+	if err := in(t, app, asA, func(ctx context.Context) error { _, err := repo.GrantChat(ctx, patientA, g, later); return err }); err != nil {
+		t.Fatal(err)
+	}
+	revokeAll := func(set func(ctx context.Context) error, patient string) []consent.Consent {
+		t.Helper()
+		var out []consent.Consent
+		if err := in(t, app, set, func(ctx context.Context) error {
+			var err error
+			out, err = repo.RevokeChats(ctx, patient, later.Add(time.Hour))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	if got := revokeAll(func(ctx context.Context) error { return repo.SetPatient(ctx, patientB) }, patientA); len(got) != 0 {
+		t.Errorf("RevokeChats() in patient B's scope = %+v, want none", got)
+	}
+	if got := revokeAll(asA, patientA); len(got) != 1 || got[0].Status != consent.StatusInactive || got[0].ConversationID != conversationA {
+		t.Errorf("RevokeChats() = %+v, want the one active, now inactive", got)
+	}
+	if got := revokeAll(asA, patientA); len(got) != 0 {
+		t.Errorf("RevokeChats() again = %+v, want none", got)
 	}
 }

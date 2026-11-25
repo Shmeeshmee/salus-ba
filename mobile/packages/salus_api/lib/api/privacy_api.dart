@@ -588,6 +588,74 @@ class PrivacyApi {
     return null;
   }
 
+  /// Read a restriction
+  ///
+  /// Whether the record of the clinic's patient is restricted there, since when and by what, so the request's detail offers only the action that applies (wave 5 walk, finding 4). For the clinic's admin. Audited.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<Response> getClinicPatientRestrictionWithHttpInfo(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/clinic/patients/{id}/restriction'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Read a restriction
+  ///
+  /// Whether the record of the clinic's patient is restricted there, since when and by what, so the request's detail offers only the action that applies (wave 5 walk, finding 4). For the clinic's admin. Audited.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  Future<PatientRestriction?> getClinicPatientRestriction(
+    String id, {
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await getClinicPatientRestrictionWithHttpInfo(
+      id,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PatientRestriction',
+      ) as PatientRestriction;
+    }
+    return null;
+  }
+
   /// Where the export of an access or portability request stands
   ///
   /// Everything the patient can read in the app, from every clinic of the target, plus their account data for the account target, as FHIR Bundles in one encrypted archive built by a job (S4). Downloadable for 7 days once ready. For the patient who filed the request. Built in package D2. Audited, as a read of the patient's request.

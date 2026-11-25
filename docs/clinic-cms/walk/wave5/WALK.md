@@ -36,3 +36,29 @@ setup is not finished" banner comes from the seed (the clinic skipped the wizard
 | 4 | "Restrict the record" and "Lift the restriction" both show whatever the record's state; the detail does not say whether the record is restricted now | **Open**: the contract has no read of the restriction; small follow-up |
 | 5 | Once restricted, the patient leaves the desk's search for everyone, the admin included, with no hint; the admin reaches the record only through the request's hand-over | **Open, by design** (S7: hidden from everyday screens); the owner to confirm, with finding 3 |
 | 6 | An app patient's name at the desk is text, not a card (R2), so a restriction of an app patient's record cannot be walked from the card; it is covered by `TestPrivacy_ARestrictionHidesThePatientFromThePractitionerAndTheDesk` through the API | Noted |
+
+## Rerun after fixes
+
+Rerun 2026-11-25 on `fix/data-requests` (from `origin/main` 51a1b2e8 with the follow-ups to findings 3 to 6), in its
+own compose project `salus-fix-dr` (ports 21320–21327) on fresh volumes, started as `make e2e` starts it. The same
+driver and seed, with the journey extended: `TestPrivacy_TheAdminHandlesARestrictionInTheWebApp` with `E2E_WALK_DIR`
+set. Steps 2 to 6 were rerun and their screenshots replaced; step 1's are kept from the first walk (the desk card
+before is unchanged).
+
+| # | Step | Expected now | 1280 px | 390 px | Screenshots |
+| --- | --- | --- | --- | --- | --- |
+| 2 | The admin's queue | Each request names its patient with their birth date ("Rada Ogranicena, Born 9 August 1975"), then kind, due date, what it needs, state, "Filed at the desk" | pass | pass | [1280](1280-02-queue.png), [390](390-02-queue.png) |
+| 3 | Open the request | The patient's name and birth date; "The patient's record at the clinic: The record is not restricted."; only "Restrict the record" (no "Lift"); "Open the hand-over" (a patient the clinic registered) | pass | pass | [1280](1280-03-detail.png), [390](390-03-detail.png) |
+| 4 | "Restrict the record" | "The record is restricted."; "Restricted by the clinic since …"; only "Lift the restriction"; the hand-over downloads from the detail while restricted and holds the patient's record | pass | pass | [1280](1280-04-restricted.png), [390](390-04-restricted.png) |
+| 5 | Front desk, "Patients" search again | "No patient found.": the restricted patient stays hidden for everyone, the admin included (S7, confirmed by the owner) | pass | pass | [1280](1280-05-desk-search-after.png), [390](390-05-desk-search-after.png) |
+| 6 | Back on the request, "Lift the restriction" | "The restriction is lifted."; "The record is not restricted."; only "Restrict the record" again | pass | pass | [1280](1280-06-lifted.png), [390](390-06-lifted.png) |
+
+Nothing is wider than the screen at either width. The 390 px search after (step 5) came out byte-identical to the
+first walk's.
+
+| # | Finding | Status after the fixes |
+| --- | --- | --- |
+| 3 | The queue and the detail never name the patient | **Fixed**: name and birth date on both, for the clinic's admin only, each read audited (steps 2, 3) |
+| 4 | "Restrict" and "Lift" both shown whatever the state | **Fixed**: the detail shows the state, since when and by what, and only the action that applies; the erasure's restriction offers none (steps 3, 4, 6) |
+| 5 | A restricted patient leaves the desk search for everyone | **By design, confirmed by the owner** (2026-11-25); the admin opens the hand-over from the request's detail (step 4) |
+| 6 | An app patient's name at the desk is text | **Fixed**: it opens a read-only card (name, birth date, phone, consent); covered by the web unit tests (`DeskPatient.test.tsx`, `Desk.test.tsx`), not by this walk's seed |

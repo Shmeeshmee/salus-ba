@@ -96,6 +96,22 @@ type closureConsents struct {
 	all     []consent.Consent
 	revoked []string
 	callers []consent.Caller
+	chats   int // the patient's active chat consents, which Mine does not list
+}
+
+// RevokeChats ends the patient's active chat consents, in the closure's transaction.
+func (f *closureConsents) RevokeChats(ctx context.Context, c consent.Caller) ([]consent.Consent, error) {
+	if !inTx(ctx) {
+		panic("RevokeChats outside the transaction")
+	}
+	f.callers = append(f.callers, c)
+	out := make([]consent.Consent, f.chats)
+	for i := range out {
+		out[i] = consent.Consent{ID: "chat" + string(rune('1'+i)), PatientID: c.PatientID, Kind: consent.KindChat, Status: consent.StatusInactive}
+		f.revoked = append(f.revoked, out[i].ID)
+	}
+	f.chats = 0
+	return out, nil
 }
 
 func (f *closureConsents) Mine(_ context.Context, c consent.Caller) ([]consent.Consent, error) {

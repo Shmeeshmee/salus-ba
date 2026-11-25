@@ -65,6 +65,8 @@ type Repository interface {
 	// RevokeChat makes the active chat consent for the conversation and role inactive, revoked at, and returns it;
 	// ErrInactive when there is none in the scope.
 	RevokeChat(ctx context.Context, conversationID, roleID string, at time.Time) (Consent, error)
+	// RevokeChats makes every active chat consent of the patient inactive, revoked at, and returns them.
+	RevokeChats(ctx context.Context, patientID string, at time.Time) ([]Consent, error)
 	// ChatGranted reports whether the scope shows an active chat consent for the conversation and role.
 	ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error)
 }

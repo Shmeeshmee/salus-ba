@@ -23,6 +23,7 @@ type ClinicPatients interface {
 	Import(ctx context.Context, c Caller, data []byte, save bool) ([]ImportRow, error)
 	Restrict(ctx context.Context, c Caller, id, requestID string) error
 	LiftRestriction(ctx context.Context, c Caller, id string) error
+	Restriction(ctx context.Context, c Caller, id string) (Restriction, error)
 }
 
 // ClinicHandler serves the clinic's own patients in the JSON API (package F2 of docs/clinic-cms): the staff's search

@@ -253,6 +253,7 @@ func (o *fakeObjections) ObjectToAnalytics(_ context.Context, id string) error {
 }
 
 type fixture struct {
+	subjects   *fakeSubjects
 	objections *fakeObjections
 	svc        *datarequest.Service
 	repo       *fakeRepo
@@ -265,11 +266,12 @@ func newFixture(now time.Time) fixture { return newFixtureOn(newFakeRepo(), now)
 
 // newFixtureOn is a Service on the fakes at now, with repo's requests.
 func newFixtureOn(repo *fakeRepo, now time.Time) fixture {
-	f := fixture{repo: repo, audit: &fakeAudit{}, jobs: &fakeJobs{}, exports: newFakeExports(), objections: &fakeObjections{}}
+	f := fixture{repo: repo, audit: &fakeAudit{}, jobs: &fakeJobs{}, exports: newFakeExports(), objections: &fakeObjections{}, subjects: &fakeSubjects{}}
 	f.svc = datarequest.NewService(datarequest.Ports{
 		Repo: f.repo, Clock: clock.Fixed{T: now}, Tx: fakeTx{}, Audit: f.audit,
 		Profiles: fakeProfiles{}, Consents: fakeConsents{}, Clinics: fakeClinics{}, Jobs: f.jobs,
 		Export: datarequest.ExportPorts{Repo: f.exports, Audit: f.audit, Tx: fakeTx{}, Jobs: f.jobs}, Objections: f.objections,
+		Subjects: f.subjects,
 	})
 	return f
 }

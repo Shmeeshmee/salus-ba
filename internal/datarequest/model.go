@@ -89,7 +89,19 @@ type Request struct {
 	Status          Status
 	ExtensionReason ExtensionReason
 	AnswerCode      AnswerCode
-	Version         int
+	// Subject is the patient the request names, read for the answering clinic's admin only (ClinicRequests and
+	// ClinicRequest); zero everywhere else: the patient's own reads, the operator's, the warnings, every change.
+	Subject Subject
+	Version int
+}
+
+// Subject is the patient a request targeting a clinic names, as that clinic's admin sees them in the queue and the
+// detail (docs/clinic-cms/walk/wave5 finding 3): never stored with the request.
+type Subject struct {
+	BirthDate          time.Time // a date: midnight UTC
+	GivenName          string
+	FamilyName         string
+	RegisteredByClinic bool // the clinic registered the profile: its admin hands the record over (wave 4)
 }
 
 // Target is who answers the request.

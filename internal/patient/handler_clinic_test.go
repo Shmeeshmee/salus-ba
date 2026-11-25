@@ -15,12 +15,13 @@ import (
 
 // stubClinic answers with what it is given and keeps what it was asked.
 type stubClinic struct {
-	err    error
-	search patient.ClinicSearch
-	asked  string // the patient id a rights route named
-	in     patient.Patient
-	caller patient.Caller
-	out    []patient.Patient
+	err         error
+	restriction patient.Restriction
+	search      patient.ClinicSearch
+	asked       string // the patient id a rights route named
+	in          patient.Patient
+	caller      patient.Caller
+	out         []patient.Patient
 }
 
 func (s *stubClinic) SearchClinic(_ context.Context, c patient.Caller, q patient.ClinicSearch) ([]patient.Patient, error) {

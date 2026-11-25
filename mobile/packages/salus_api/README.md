@@ -231,6 +231,7 @@ Class | Method | HTTP request | Description
 *PrivacyApi* | [**fileClinicPatientDataRequest**](doc//PrivacyApi.md#fileclinicpatientdatarequest) | **POST** /clinic/patients/{id}/data-requests | File a request on behalf of a registered patient
 *PrivacyApi* | [**fileMyDataRequest**](doc//PrivacyApi.md#filemydatarequest) | **POST** /me/data-requests | File a data subject request
 *PrivacyApi* | [**getClinicDataRequest**](doc//PrivacyApi.md#getclinicdatarequest) | **GET** /clinic/data-requests/{id} | One request targeting the clinic
+*PrivacyApi* | [**getClinicPatientRestriction**](doc//PrivacyApi.md#getclinicpatientrestriction) | **GET** /clinic/patients/{id}/restriction | Read a restriction
 *PrivacyApi* | [**getMyDataRequestExport**](doc//PrivacyApi.md#getmydatarequestexport) | **GET** /me/data-requests/{id}/export | Where the export of an access or portability request stands
 *PrivacyApi* | [**liftClinicPatientRestriction**](doc//PrivacyApi.md#liftclinicpatientrestriction) | **DELETE** /clinic/patients/{id}/restriction | Lift a restriction
 *PrivacyApi* | [**listClinicDataRequests**](doc//PrivacyApi.md#listclinicdatarequests) | **GET** /clinic/data-requests | The requests targeting the clinic
@@ -368,6 +369,7 @@ Class | Method | HTTP request | Description
  - [DataRequestExtensionReason](doc//DataRequestExtensionReason.md)
  - [DataRequestFiling](doc//DataRequestFiling.md)
  - [DataRequestKind](doc//DataRequestKind.md)
+ - [DataRequestPatient](doc//DataRequestPatient.md)
  - [DataRequestStatus](doc//DataRequestStatus.md)
  - [DataRequestTarget](doc//DataRequestTarget.md)
  - [DeskDay](doc//DeskDay.md)
@@ -438,6 +440,7 @@ Class | Method | HTTP request | Description
  - [Patient](doc//Patient.md)
  - [PatientImport](doc//PatientImport.md)
  - [PatientImportRow](doc//PatientImportRow.md)
+ - [PatientRestriction](doc//PatientRestriction.md)
  - [PaymentMethod](doc//PaymentMethod.md)
  - [PeriodUnit](doc//PeriodUnit.md)
  - [Place](doc//Place.md)

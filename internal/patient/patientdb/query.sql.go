@@ -284,6 +284,44 @@ func (q *Queries) PatientRestricted(ctx context.Context, arg PatientRestrictedPa
 	return restricted, err
 }
 
+const patientRestriction = `-- name: PatientRestriction :many
+SELECT restricted_at, (restricted_by_account_id IS NULL)::boolean AS by_erasure
+FROM patient_restriction
+WHERE patient_id = $1 AND organization_id = $2
+`
+
+type PatientRestrictionParams struct {
+	PatientID      pgtype.UUID
+	OrganizationID pgtype.UUID
+}
+
+type PatientRestrictionRow struct {
+	RestrictedAt pgtype.Timestamptz
+	ByErasure    bool
+}
+
+// The restriction of a patient's record at the clinic, for its admin's detail of a request (walk finding 4): when, and
+// whether the erasure made it (by nobody). In the clinic's scope; no row for none.
+func (q *Queries) PatientRestriction(ctx context.Context, arg PatientRestrictionParams) ([]PatientRestrictionRow, error) {
+	rows, err := q.db.Query(ctx, patientRestriction, arg.PatientID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PatientRestrictionRow
+	for rows.Next() {
+		var i PatientRestrictionRow
+		if err := rows.Scan(&i.RestrictedAt, &i.ByErasure); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const registerPatient = `-- name: RegisterPatient :one
 INSERT INTO patient (registered_by_organization_id, given_name, family_name, birth_date, phone, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)

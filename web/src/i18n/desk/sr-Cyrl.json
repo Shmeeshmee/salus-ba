@@ -118,5 +118,21 @@
   "consent.failed": "Сагласност није могла да се упише. Покушајте поново.",
   "reminder.on": "Подсјетник ће бити послат",
   "reminder.noPhone": "Без подсјетника: нема броја телефона",
-  "reminder.smsOff": "Без подсјетника: СМС је искључен за клинику"
+  "reminder.smsOff": "Без подсјетника: СМС је искључен за клинику",
+  "patient.appHint": "Овај пацијент сам уређује своје податке и подноси захтјеве у вези са подацима у апликацији Salus.",
+  "patient.name": "Име и презиме",
+  "patient.born": "Датум рођења",
+  "patient.phone": "Телефон",
+  "patient.noPhone": "Није наведен",
+  "patient.consentActive": "Активна",
+  "patient.consentNone": "Нема активне",
+  "patient.requestTitle": "Захтјев у вези са подацима",
+  "patient.requestHint": {
+    "defaultMessage": "Прво провјерите идентитет пацијента. Администратор клинике одговара на захтјев у року од мјесец дана.",
+    "description": "legal"
+  },
+  "patient.requestKind": "Врста захтјева",
+  "patient.fileRequest": "Поднеси захтјев у име пацијента",
+  "patient.requestFiled": "Захтјев је поднесен. Администратор клинике одговара на њега.",
+  "patient.requestFailed": "Захтјев није могао да се поднесе. Покушајте поново."
 }

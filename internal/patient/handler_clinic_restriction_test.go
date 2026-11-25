@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/patient"
 )
@@ -16,6 +17,41 @@ func (s *stubClinic) Restrict(_ context.Context, c patient.Caller, id, requestID
 func (s *stubClinic) LiftRestriction(_ context.Context, c patient.Caller, id string) error {
 	s.caller, s.asked = c, id
 	return s.err
+}
+
+func (s *stubClinic) Restriction(_ context.Context, c patient.Caller, id string) (patient.Restriction, error) {
+	s.caller, s.asked = c, id
+	return s.restriction, s.err
+}
+
+// GET reads the restriction (walk finding 4): not restricted, since when by the clinic, or by the erasure; the
+// service's refusals as the contract's 403 and 404, never cached.
+func TestClinicHandler_ReadsTheRestriction(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 11, 24, 9, 30, 0, 0, time.FixedZone("CET", 3600))
+	tests := []struct {
+		err   error
+		state patient.Restriction
+		name  string
+		want  string
+		code  int
+	}{
+		{name: "none", code: http.StatusOK, want: `{"restricted":false}`},
+		{name: "the clinic's", state: patient.Restriction{At: at}, code: http.StatusOK, want: `{"restrictedAt":"2026-11-24T08:30:00Z","by":"clinic","restricted":true}`},
+		{name: "the erasure's", state: patient.Restriction{At: at, ByErasure: true}, code: http.StatusOK, want: `{"restrictedAt":"2026-11-24T08:30:00Z","by":"erasure","restricted":true}`},
+		{name: "not the admin", err: patient.ErrForbidden, code: http.StatusForbidden, want: `{"error":"forbidden"}`},
+		{name: "not the clinic's", err: patient.ErrNotFound, code: http.StatusNotFound, want: `{"error":"not_found"}`},
+	}
+	for _, tt := range tests {
+		svc := &stubClinic{err: tt.err, restriction: tt.state}
+		rec := serveClinicMatch(t, svc, http.MethodGet, "/clinic/patients/"+patientA+"/restriction", "", "")
+		if rec.Code != tt.code || rec.Body.String() != tt.want+"\n" || svc.asked != patientA {
+			t.Errorf("%s: %d %s asked %q; want %d %s", tt.name, rec.Code, rec.Body, svc.asked, tt.code, tt.want)
+		}
+		if tt.code == http.StatusOK && rec.Header().Get("Cache-Control") != "no-store" {
+			t.Errorf("%s: Cache-Control %q, want no-store", tt.name, rec.Header().Get("Cache-Control"))
+		}
+	}
 }
 
 // PUT restricts, with or without the request it answers, DELETE lifts; both 204, the service's refusals as the

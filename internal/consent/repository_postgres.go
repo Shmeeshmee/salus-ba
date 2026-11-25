@@ -406,6 +406,24 @@ func (r *postgresRepository) RevokeChat(ctx context.Context, conversationID, rol
 	return chatConsent(consentdb.GrantChatConsentRow(row)), nil
 }
 
+func (r *postgresRepository) RevokeChats(ctx context.Context, patientID string, at time.Time) ([]Consent, error) {
+	var p pgtype.UUID
+	if p.Scan(patientID) != nil {
+		return nil, nil
+	}
+	rows, err := consentdb.New(postgres.Conn(ctx, r.db)).RevokePatientChatConsents(ctx, consentdb.RevokePatientChatConsentsParams{
+		PatientID: p, RevokedAt: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("consent: revoke chats: %w", err)
+	}
+	out := make([]Consent, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, chatConsent(consentdb.GrantChatConsentRow(row)))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ChatGranted(ctx context.Context, conversationID, roleID string) (bool, error) {
 	var c, role pgtype.UUID
 	if c.Scan(conversationID) != nil || role.Scan(roleID) != nil {

@@ -848,6 +848,67 @@ func (q *Queries) RevokeInPersonConsent(ctx context.Context, arg RevokeInPersonC
 	return i, err
 }
 
+const revokePatientChatConsents = `-- name: RevokePatientChatConsents :many
+UPDATE chat_consent
+SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1
+WHERE patient_id = $2 AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status
+`
+
+type RevokePatientChatConsentsParams struct {
+	RevokedAt pgtype.Timestamptz
+	PatientID pgtype.UUID
+}
+
+type RevokePatientChatConsentsRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	DateTime                   pgtype.Timestamptz
+	RevokedAt                  pgtype.Timestamptz
+	PatientID                  pgtype.UUID
+	OrganizationID             pgtype.UUID
+	ConversationID             pgtype.UUID
+	PractitionerRoleID         pgtype.UUID
+	PractitionerOrganizationID pgtype.UUID
+	VersionID                  int32
+	Status                     string
+}
+
+// Every active chat consent of the patient, ended at once by the closure of their account (owner, 2026-11-25); in the
+// patient's scope.
+func (q *Queries) RevokePatientChatConsents(ctx context.Context, arg RevokePatientChatConsentsParams) ([]RevokePatientChatConsentsRow, error) {
+	rows, err := q.db.Query(ctx, revokePatientChatConsents, arg.RevokedAt, arg.PatientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RevokePatientChatConsentsRow
+	for rows.Next() {
+		var i RevokePatientChatConsentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.DateTime,
+			&i.RevokedAt,
+			&i.PatientID,
+			&i.OrganizationID,
+			&i.ConversationID,
+			&i.PractitionerRoleID,
+			&i.PractitionerOrganizationID,
+			&i.VersionID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeTranscriptionConsent = `-- name: RevokeTranscriptionConsent :one
 UPDATE transcription_consent
 SET status = 'inactive', revoked_at = $1, updated_at = $1, version_id = version_id + 1

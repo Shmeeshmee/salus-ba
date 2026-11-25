@@ -8,9 +8,14 @@ import (
 )
 
 // restrictedOpenings are the reads that open a restricted record on purpose (docs/clinic-cms/WAVE5.md S7): the admin's
-// hand-over of the record, read with its purpose and audited. Nobody else, and no other route, returns its data.
+// hand-over of the record, read with its purpose and audited; and the admin's queue and detail of the clinic's data
+// requests, which name the request's patient (its name and birth date only, each read audited as a read of the Patient
+// at the patient's request): the request is the stated reason, and the admin reaches a restricted patient only through
+// it (wave 5 walk, findings 3 and 5, the owner, 2026-11-25). Nobody else, and no other route, returns its data.
 var restrictedOpenings = map[string]bool{
 	"admin GET /clinic/patients/{id}/record": true,
+	"admin GET /clinic/data-requests":        true,
+	"admin GET /clinic/data-requests/{id}":   true,
 }
 
 // restrictedViewers are the clinic's staff a restricted record is hidden from.
