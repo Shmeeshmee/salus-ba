@@ -51,12 +51,12 @@ ON CONFLICT (organization_id) DO UPDATE SET last_number = invoice_sequence.last_
 RETURNING last_number;
 
 -- name: InsertInvoice :one
-INSERT INTO invoice (organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name,
-                     company_tax_id, appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id,
-                     payment_method, total_minor, currency, idempotency_key)
-VALUES (@organization_id, @seller_legal_name, @seller_tax_id, @seller_address, @patient_id, @company_name,
-        @company_tax_id, @appointment_id, @kind, @reverses_id, @number, @issued_at, @issued_by_account_id,
-        @payment_method, @total_minor, @currency, @idempotency_key)
+INSERT INTO invoice (organization_id, seller_legal_name, seller_tax_id, seller_address, place_of_service, patient_id,
+                     company_name, company_tax_id, appointment_id, kind, reverses_id, number, issued_at,
+                     issued_by_account_id, payment_method, total_minor, currency, idempotency_key)
+VALUES (@organization_id, @seller_legal_name, @seller_tax_id, @seller_address, sqlc.narg(place_of_service), @patient_id,
+        @company_name, @company_tax_id, @appointment_id, @kind, @reverses_id, @number, @issued_at,
+        @issued_by_account_id, @payment_method, @total_minor, @currency, @idempotency_key)
 RETURNING id;
 
 -- name: InsertInvoiceLine :one

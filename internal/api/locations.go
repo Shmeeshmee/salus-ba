@@ -11,6 +11,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/location"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/terminology"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -20,6 +21,7 @@ import (
 func locations(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clinics *organization.Service) *location.Service {
 	return location.NewService(location.Ports{
 		Repo: location.NewPostgresRepository(pool), Clock: clock.System{}, Audit: audit, Tx: tx, Clinics: clinics,
+		Places: terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool)), // a location's city in its address
 	})
 }
 

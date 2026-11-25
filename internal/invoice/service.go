@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/fiscal"
 )
@@ -41,6 +42,12 @@ type Visits interface {
 	Lookup(ctx context.Context, id string) (appointment.Appointment, error)
 	LookupPractitioner(ctx context.Context, id string) (string, error)
 	PatientHasAccount(ctx context.Context, id string) (bool, error)
+}
+
+// Sites names a clinic's location with its address on one line (location.Service.Place), "" for one it does not know:
+// the place of service of an in-person visit's receipt (docs/clinic-cms/WAVE6.md U2).
+type Sites interface {
+	Place(ctx context.Context, org, id string) (string, error)
 }
 
 // Consents gives the state of a patient's consents with the clinic, in the caller's transaction and scope
@@ -86,6 +93,7 @@ type Ports struct {
 	Sellers  Sellers
 	Clinics  Clinics
 	Visits   Visits
+	Sites    Sites // nil: no place of service on a receipt
 	Consents Consents
 	Care     Care
 	Jobs     Jobs
@@ -188,9 +196,15 @@ func validMethod(m PaymentMethod) bool {
 
 // draft is the receipt d asks for, without its number: the buyer checked, the seller and the lines copied.
 func (s *Service) draft(ctx context.Context, c Caller, d Draft) (Invoice, error) {
-	patientID, err := s.buyer(ctx, c, d)
+	patientID, visit, err := s.buyer(ctx, c, d)
 	if err != nil {
 		return Invoice{}, err
+	}
+	place := ""
+	if visit.Mode == schedule.ModeInPerson && visit.LocationID != "" && s.p.Sites != nil {
+		if place, err = s.p.Sites.Place(ctx, c.OrganizationID, visit.LocationID); err != nil {
+			return Invoice{}, err
+		}
 	}
 	seller, err := s.p.Sellers.Seller(ctx, c.OrganizationID)
 	if err != nil {
@@ -210,7 +224,7 @@ func (s *Service) draft(ctx context.Context, c Caller, d Draft) (Invoice, error)
 	}
 	inv := Invoice{
 		OrganizationID: c.OrganizationID, SellerLegalName: seller.LegalName, SellerTaxID: seller.TaxID, SellerAddress: seller.Address,
-		PatientID: patientID, CompanyName: d.CompanyName, CompanyTaxID: d.CompanyTaxID, AppointmentID: d.AppointmentID,
+		PlaceOfService: place, PatientID: patientID, CompanyName: d.CompanyName, CompanyTaxID: d.CompanyTaxID, AppointmentID: d.AppointmentID,
 		Kind: d.Kind, PaymentMethod: d.PaymentMethod, Currency: priced[0].Currency,
 	}
 	for _, l := range priced {
@@ -227,41 +241,41 @@ func (s *Service) draft(ctx context.Context, c Caller, d Draft) (Invoice, error)
 	return inv, nil
 }
 
-// buyer returns the patient the receipt names. For a visit: the visit's patient unless a company pays, and only to
+// buyer returns the patient the receipt names, and its visit (none for a receipt on its own). For a visit: the visit's patient unless a company pays, and only to
 // the clinic's admin, its receptionists or the visit's practitioner. On its own: only a patient the clinic treats (an active care
 // consent, or a visit), because the patient sees the receipt.
-func (s *Service) buyer(ctx context.Context, c Caller, d Draft) (string, error) {
+func (s *Service) buyer(ctx context.Context, c Caller, d Draft) (string, appointment.Appointment, error) {
 	if d.AppointmentID == "" {
 		if d.PatientID == "" {
-			return "", nil
+			return "", appointment.Appointment{}, nil
 		}
-		return d.PatientID, s.treats(ctx, c.OrganizationID, d.PatientID)
+		return d.PatientID, appointment.Appointment{}, s.treats(ctx, c.OrganizationID, d.PatientID)
 	}
 	a, err := s.p.Visits.Lookup(ctx, d.AppointmentID)
 	switch {
 	case errors.Is(err, appointment.ErrNotFound):
-		return "", ErrNotFound
+		return "", appointment.Appointment{}, ErrNotFound
 	case err != nil:
-		return "", err
+		return "", appointment.Appointment{}, err
 	case a.OrganizationID != c.OrganizationID:
-		return "", ErrNotFound
+		return "", appointment.Appointment{}, ErrNotFound
 	}
 	if !c.issuesAny() {
 		practitioner, err := s.p.Visits.LookupPractitioner(ctx, d.AppointmentID)
 		if err != nil {
-			return "", err
+			return "", appointment.Appointment{}, err
 		}
 		if practitioner != c.PractitionerID {
-			return "", ErrForbidden
+			return "", appointment.Appointment{}, ErrForbidden
 		}
 	}
 	switch {
 	case d.PatientID != "" && d.PatientID != a.PatientID:
-		return "", ErrInvalid
+		return "", appointment.Appointment{}, ErrInvalid
 	case d.CompanyName != "":
-		return "", nil
+		return "", a, nil
 	}
-	return a.PatientID, nil
+	return a.PatientID, a, nil
 }
 
 // treats returns ErrInvalid unless the clinic org treats the patient: their care consent with it is active, or they

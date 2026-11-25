@@ -31,6 +31,7 @@ type fakeAppointments struct {
 	err       error
 	status    appointment.Status
 	mode      schedule.VisitMode
+	location  string   // an in-person visit's location (docs/clinic-cms/WAVE6.md U2); "" for none
 	asked     []string // agent, clinic, appointment
 	noAccount bool     // the notice of a patient the clinic registered, without an account (docs/clinic-cms F2)
 }
@@ -48,6 +49,7 @@ func (f *fakeAppointments) Notice(_ context.Context, agent, org, id string) (app
 		Appointment: appointment.Appointment{
 			ID: id, OrganizationID: org, PatientID: "aa000000-0000-4000-8000-0000000000aa", PractitionerRoleID: "a4000000-0000-4000-8000-0000000000a1",
 			Start: start, End: start.Add(30 * time.Minute), Status: f.status, Mode: f.mode,
+			LocationID: f.location,
 		},
 		AccountID: account,
 	}, nil

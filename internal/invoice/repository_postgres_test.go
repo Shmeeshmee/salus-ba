@@ -441,3 +441,25 @@ func TestRepository_FindsAReceiptByItsIdempotencyKey(t *testing.T) {
 		t.Error("a second receipt with the same key was stored")
 	}
 }
+
+// A receipt keeps the place of service it was issued with (docs/clinic-cms/WAVE6.md U2), and never changes it.
+func TestRepository_KeepsThePlaceOfService(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	seed(t, owner)
+	repo, tr := invoice.NewPostgresRepository(app), postgres.NewTransactor(app)
+	inv := receipt(patA)
+	inv.PlaceOfService = "Synthetic annex, Synthetic annex 2, 88000 Mostar"
+	stored, err := issue(t, tr, repo, inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got invoice.Invoice
+	if err := in(t, tr, repo, clinicA, "", func(ctx context.Context) (err error) { got, err = repo.ByID(ctx, stored.ID); return err }); err != nil ||
+		got.PlaceOfService != inv.PlaceOfService {
+		t.Errorf("ByID() place %q, %v; want %q", got.PlaceOfService, err, inv.PlaceOfService)
+	}
+	if _, err := owner.Exec(t.Context(), `UPDATE invoice SET place_of_service = 'Elsewhere' WHERE id = $1`, stored.ID); err == nil {
+		t.Error("the place of service of an issued receipt changed")
+	}
+}

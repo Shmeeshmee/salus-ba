@@ -87,6 +87,9 @@ func document(inv Invoice, clinic organization.Organization, reversed int64) pdf
 		l.get("issued") + ": " + inv.IssuedAt.In(zone).Format("02.01.2006 15:04"),
 		l.get("payment") + ": " + l.method(inv.PaymentMethod),
 	}
+	if inv.PlaceOfService != "" { // where an in-person visit's service was given (docs/clinic-cms/WAVE6.md U2)
+		facts = append(facts, l.get("place_of_service")+": "+inv.PlaceOfService)
+	}
 	if inv.CompanyName != "" {
 		buyer := l.get("buyer") + ": " + inv.CompanyName
 		if inv.CompanyTaxID != "" {

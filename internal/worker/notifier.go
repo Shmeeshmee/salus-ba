@@ -16,6 +16,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/location"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -71,8 +72,10 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
 	// The places name the clinic's city in the address an in-person visit's e-mail gives (docs/plans/clinic-cms.md).
-	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk,
-		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool)))
+	places := terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool))
+	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, places)
+	// An in-person visit's messages give its location's address (docs/clinic-cms/WAVE6.md U2).
+	sites := location.NewService(location.Ports{Repo: location.NewPostgresRepository(pool), Clock: clk, Audit: audit, Tx: tx, Places: places})
 	// Issuing a token and reading an account's e-mail need only the repository, the audit, the transaction
 	// and the clock.
 	accounts := auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk})
@@ -84,7 +87,7 @@ func NewNotifier(pool *pgxpool.Pool, log *slog.Logger, n Notifier) (*river.Clien
 		Waitlist: appointment.NewPostgresWaitlistRepository(pool), // the offers' sends read their offer (SAL-35)
 	})
 	mail := notification.NewService(notification.Ports{
-		Invites: accounts, Appointments: appointments, Accounts: accounts, Clinics: clinics,
+		Invites: accounts, Appointments: appointments, Accounts: accounts, Clinics: clinics, Sites: sites,
 		Questionnaires: newQuestionnaireResponses(pool, clk), Sender: n.Sender, WebBaseURL: n.WebBaseURL, PatientAppURL: n.PatientAppURL,
 		Deliveries: notification.NewPostgresDeliveryRepository(pool), DeliveryJobs: notification.NewRiverDeliveryJobs(inserter),
 		Devices: notification.NewPostgresRepository(pool), Reminders: appointments, Offers: appointments,

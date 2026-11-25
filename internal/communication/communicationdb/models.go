@@ -834,6 +834,7 @@ type Invoice struct {
 	FiscalQr          pgtype.Text
 	FiscalizedAt      pgtype.Timestamptz
 	IdempotencyKey    pgtype.UUID
+	PlaceOfService    pgtype.Text
 }
 
 type InvoiceLine struct {

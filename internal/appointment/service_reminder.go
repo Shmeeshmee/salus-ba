@@ -175,7 +175,7 @@ func (s *Service) reminderNotice(ctx context.Context, agent string, r Reminder) 
 	}
 	return ReminderNotice{
 		Start: a.Start, ReminderID: r.ID, AppointmentID: a.ID, OrganizationID: a.OrganizationID, PatientID: a.PatientID, AccountID: p.AccountID,
-		Mode: visitMode(a.Mode),
+		LocationID: a.LocationID, Mode: visitMode(a.Mode),
 	}, nil
 }
 

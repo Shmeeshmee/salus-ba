@@ -24,6 +24,7 @@ type Ports struct {
 	Audit   Auditor    // the writes' AuditEvents (LC1, RM1)
 	Tx      Transactor // LC1, RM1
 	Clinics Clinics    // LC1: the directory's listed clinics
+	Places  Places     // the cities' names of an address (terminology.Service); nil: an address without its city
 }
 
 // Service is the locations' business rules.

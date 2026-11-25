@@ -362,6 +362,7 @@ type ReminderNotice struct {
 	OrganizationID string
 	PatientID      string
 	AccountID      string
+	LocationID     string             // an in-person visit's location (docs/clinic-cms/WAVE6.md U2): its address
 	Mode           schedule.VisitMode // in-person or video: an in-person visit's reminder says where to come
 }
 

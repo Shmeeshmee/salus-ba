@@ -187,7 +187,7 @@ func (r *postgresRepository) NextNumber(ctx context.Context, org string) (int64,
 func (r *postgresRepository) Insert(ctx context.Context, inv Invoice) (Invoice, error) {
 	p := invoicedb.InsertInvoiceParams{
 		SellerLegalName: inv.SellerLegalName, SellerTaxID: inv.SellerTaxID, SellerAddress: inv.SellerAddress,
-		CompanyName: optional(inv.CompanyName), CompanyTaxID: optional(inv.CompanyTaxID), Kind: string(inv.Kind),
+		PlaceOfService: optional(inv.PlaceOfService), CompanyName: optional(inv.CompanyName), CompanyTaxID: optional(inv.CompanyTaxID), Kind: string(inv.Kind),
 		Number: inv.Number, IssuedAt: timestamp(inv.IssuedAt), PaymentMethod: string(inv.PaymentMethod),
 		TotalMinor: inv.TotalMinor, Currency: inv.Currency,
 	}
@@ -283,7 +283,7 @@ func fromRow(i invoicedb.Invoice, reversedBy pgtype.UUID) Invoice {
 	return Invoice{
 		IssuedAt: i.IssuedAt.Time, FiscalizedAt: i.FiscalizedAt.Time, ID: i.ID.String(), OrganizationID: i.OrganizationID.String(),
 		SellerLegalName: i.SellerLegalName, SellerTaxID: i.SellerTaxID, SellerAddress: i.SellerAddress,
-		PatientID: text(i.PatientID), CompanyName: i.CompanyName.String, CompanyTaxID: i.CompanyTaxID.String,
+		PlaceOfService: i.PlaceOfService.String, PatientID: text(i.PatientID), CompanyName: i.CompanyName.String, CompanyTaxID: i.CompanyTaxID.String,
 		AppointmentID: text(i.AppointmentID), ReversesID: text(i.ReversesID), ReversedByID: text(reversedBy),
 		IssuedByAccountID: i.IssuedByAccountID.String(), Currency: i.Currency, FiscalID: i.FiscalID.String,
 		FiscalCode: i.FiscalCode.String, FiscalQR: i.FiscalQr.String, IdempotencyKey: text(i.IdempotencyKey), Kind: Kind(i.Kind),

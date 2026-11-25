@@ -12,12 +12,12 @@ import (
 )
 
 const insertInvoice = `-- name: InsertInvoice :one
-INSERT INTO invoice (organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name,
-                     company_tax_id, appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id,
-                     payment_method, total_minor, currency, idempotency_key)
+INSERT INTO invoice (organization_id, seller_legal_name, seller_tax_id, seller_address, place_of_service, patient_id,
+                     company_name, company_tax_id, appointment_id, kind, reverses_id, number, issued_at,
+                     issued_by_account_id, payment_method, total_minor, currency, idempotency_key)
 VALUES ($1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10, $11, $12, $13,
-        $14, $15, $16, $17)
+        $14, $15, $16, $17, $18)
 RETURNING id
 `
 
@@ -26,6 +26,7 @@ type InsertInvoiceParams struct {
 	SellerLegalName   string
 	SellerTaxID       string
 	SellerAddress     string
+	PlaceOfService    pgtype.Text
 	PatientID         pgtype.UUID
 	CompanyName       pgtype.Text
 	CompanyTaxID      pgtype.Text
@@ -47,6 +48,7 @@ func (q *Queries) InsertInvoice(ctx context.Context, arg InsertInvoiceParams) (p
 		arg.SellerLegalName,
 		arg.SellerTaxID,
 		arg.SellerAddress,
+		arg.PlaceOfService,
 		arg.PatientID,
 		arg.CompanyName,
 		arg.CompanyTaxID,
@@ -181,7 +183,7 @@ func (q *Queries) InsertQuoteLine(ctx context.Context, arg InsertQuoteLineParams
 
 const invoiceByID = `-- name: InvoiceByID :one
 
-SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, i.place_of_service, r.id AS reversed_by_id
 FROM invoice i
 LEFT JOIN invoice r ON r.reverses_id = i.id
 WHERE i.id = $1
@@ -221,13 +223,14 @@ func (q *Queries) InvoiceByID(ctx context.Context, id pgtype.UUID) (InvoiceByIDR
 		&i.Invoice.FiscalQr,
 		&i.Invoice.FiscalizedAt,
 		&i.Invoice.IdempotencyKey,
+		&i.Invoice.PlaceOfService,
 		&i.ReversedByID,
 	)
 	return i, err
 }
 
 const invoiceByIdempotencyKey = `-- name: InvoiceByIdempotencyKey :one
-SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, i.place_of_service, r.id AS reversed_by_id
 FROM invoice i
 LEFT JOIN invoice r ON r.reverses_id = i.id
 WHERE i.organization_id = $1 AND i.idempotency_key = $2
@@ -272,6 +275,7 @@ func (q *Queries) InvoiceByIdempotencyKey(ctx context.Context, arg InvoiceByIdem
 		&i.Invoice.FiscalQr,
 		&i.Invoice.FiscalizedAt,
 		&i.Invoice.IdempotencyKey,
+		&i.Invoice.PlaceOfService,
 		&i.ReversedByID,
 	)
 	return i, err
@@ -314,7 +318,7 @@ func (q *Queries) InvoiceLines(ctx context.Context, invoiceIds []pgtype.UUID) ([
 }
 
 const invoiceLocked = `-- name: InvoiceLocked :one
-SELECT id, created_at, organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name, company_tax_id, appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id, payment_method, total_minor, currency, fiscal_status, fiscal_id, fiscal_code, fiscal_qr, fiscalized_at, idempotency_key FROM invoice WHERE id = $1 FOR UPDATE
+SELECT id, created_at, organization_id, seller_legal_name, seller_tax_id, seller_address, patient_id, company_name, company_tax_id, appointment_id, kind, reverses_id, number, issued_at, issued_by_account_id, payment_method, total_minor, currency, fiscal_status, fiscal_id, fiscal_code, fiscal_qr, fiscalized_at, idempotency_key, place_of_service FROM invoice WHERE id = $1 FOR UPDATE
 `
 
 // The receipt, locked until the transaction ends: the fiscal job reports it once.
@@ -346,12 +350,13 @@ func (q *Queries) InvoiceLocked(ctx context.Context, id pgtype.UUID) (Invoice, e
 		&i.FiscalQr,
 		&i.FiscalizedAt,
 		&i.IdempotencyKey,
+		&i.PlaceOfService,
 	)
 	return i, err
 }
 
 const invoicesIssued = `-- name: InvoicesIssued :many
-SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, i.place_of_service, r.id AS reversed_by_id
 FROM invoice i
 LEFT JOIN invoice r ON r.reverses_id = i.id
 WHERE i.organization_id = $1 AND i.issued_at >= $2 AND i.issued_at < $3
@@ -403,6 +408,7 @@ func (q *Queries) InvoicesIssued(ctx context.Context, arg InvoicesIssuedParams) 
 			&i.Invoice.FiscalQr,
 			&i.Invoice.FiscalizedAt,
 			&i.Invoice.IdempotencyKey,
+			&i.Invoice.PlaceOfService,
 			&i.ReversedByID,
 		); err != nil {
 			return nil, err
@@ -416,7 +422,7 @@ func (q *Queries) InvoicesIssued(ctx context.Context, arg InvoicesIssuedParams) 
 }
 
 const invoicesOfPatient = `-- name: InvoicesOfPatient :many
-SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, i.place_of_service, r.id AS reversed_by_id
 FROM invoice i
 LEFT JOIN invoice r ON r.reverses_id = i.id
 WHERE i.patient_id = $1
@@ -462,6 +468,7 @@ func (q *Queries) InvoicesOfPatient(ctx context.Context, patientID pgtype.UUID) 
 			&i.Invoice.FiscalQr,
 			&i.Invoice.FiscalizedAt,
 			&i.Invoice.IdempotencyKey,
+			&i.Invoice.PlaceOfService,
 			&i.ReversedByID,
 		); err != nil {
 			return nil, err
@@ -475,7 +482,7 @@ func (q *Queries) InvoicesOfPatient(ctx context.Context, patientID pgtype.UUID) 
 }
 
 const invoicesOfVisits = `-- name: InvoicesOfVisits :many
-SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, r.id AS reversed_by_id
+SELECT i.id, i.created_at, i.organization_id, i.seller_legal_name, i.seller_tax_id, i.seller_address, i.patient_id, i.company_name, i.company_tax_id, i.appointment_id, i.kind, i.reverses_id, i.number, i.issued_at, i.issued_by_account_id, i.payment_method, i.total_minor, i.currency, i.fiscal_status, i.fiscal_id, i.fiscal_code, i.fiscal_qr, i.fiscalized_at, i.idempotency_key, i.place_of_service, r.id AS reversed_by_id
 FROM invoice i
 LEFT JOIN invoice r ON r.reverses_id = i.id
 WHERE i.organization_id = $1 AND i.appointment_id = ANY ($2::uuid[]) AND i.reverses_id IS NULL
@@ -527,6 +534,7 @@ func (q *Queries) InvoicesOfVisits(ctx context.Context, arg InvoicesOfVisitsPara
 			&i.Invoice.FiscalQr,
 			&i.Invoice.FiscalizedAt,
 			&i.Invoice.IdempotencyKey,
+			&i.Invoice.PlaceOfService,
 			&i.ReversedByID,
 		); err != nil {
 			return nil, err

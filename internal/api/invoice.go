@@ -15,6 +15,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/location"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -32,6 +33,7 @@ type invoicePorts struct {
 	consents     *consent.Service
 	care         *appointment.Facts
 	prices       *chargeitemdefinition.Service
+	sites        *location.Service // an in-person visit's place of service (docs/clinic-cms/WAVE6.md U2)
 	accounts     *auth.Service
 	patients     *patient.Service
 }
@@ -46,7 +48,7 @@ func invoiceRoutes(p invoicePorts, log *slog.Logger) func(*http.ServeMux) {
 		Sellers: clinicSeller{clinics: p.clinics, billing: organization.NewBilling(organization.BillingPorts{
 			Repo: organization.NewPostgresBillingRepository(p.pool), Audit: p.audit, Tx: p.tx,
 		})},
-		Clinics: p.clinics, Visits: p.appointments, Consents: p.consents, Care: p.care,
+		Clinics: p.clinics, Visits: p.appointments, Sites: p.sites, Consents: p.consents, Care: p.care,
 	})
 	return invoice.NewHTTPHandler(svc, invoiceCaller(p.accounts, p.patients), log).Routes
 }
