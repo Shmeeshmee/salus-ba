@@ -58,6 +58,12 @@ writes under its own heading here.
 | TP2 | done 2026-11-25, integrated 2026-11-25; a step's service name and visit time joined at the integration | `cms(TP2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 | LC3 | done 2026-11-25, integrated 2026-11-25; the slot-location extension and the Location participant served at the integration | `cms(LC3)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 | BG4 | done 2026-11-25, integrated 2026-11-25 (migration `00083`, `00085` in its worktree) | `cms(BG4)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| RD1 | planned 2026-11-25 (WAVE7.md) | |
+| RD2 | planned 2026-11-25 (WAVE7.md) | |
+| RD3 | planned 2026-11-25 (WAVE7.md) | |
+| RD4 | planned 2026-11-25 (WAVE7.md) | |
+| RD5 | planned 2026-11-25 (WAVE7.md) | |
+| RD6 | planned 2026-11-25 (WAVE7.md) | |
 
 ## A: visit modes
 
@@ -4246,3 +4252,31 @@ e2e` 468 s on `salus-e2e`, which it removed): passed, 853 s. Its first run, befo
 ran `scripts/check.sh --base af1079c0` in their worktrees: W6LB and W6TP passed on their first run; W6RM's failed on two
 timing tests outside its diff (`TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks` under `make cover`,
 `CallScreen.test.tsx` "no sound for 5 seconds"), each passed on its one rerun, and both passed in the integration's runs.
+
+## RD1: the role matrix
+
+Planned 2026-11-25 (`WAVE7.md`).
+
+## RD2: load and slow queries
+
+Planned 2026-11-25 (`WAVE7.md`).
+
+## RD3: accessibility and keyboard
+
+Planned 2026-11-25 (`WAVE7.md`).
+
+## RD4: operations drill
+
+Planned 2026-11-25 (`WAVE7.md`).
+
+## RD5: the demo
+
+Planned 2026-11-25 (`WAVE7.md`).
+
+## RD6: wave 6 leftovers
+
+Planned 2026-11-25 (`WAVE7.md`).
+
+## Wave 7 integration
+
+Not started.

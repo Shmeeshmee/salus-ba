@@ -280,3 +280,7 @@ R1, R2, R3, M1, M2, M3, M4: their specification, decisions, file ownership and m
 ## Wave 6 packages
 
 6.0, BG1, BG2, BG3, PX, LC1, LC2, LC3, RM1, LB1, LB2, TP1, TP2: their specification, decisions, file ownership and migration numbers are in `docs/clinic-cms/WAVE6.md`. Read it whole; the rules, check sets and definition of done above apply unchanged.
+
+## Wave 7 packages
+
+RD1 to RD6: their specification, file ownership and migration numbers are in `docs/clinic-cms/WAVE7.md`. Read it whole; the rules, check sets and definition of done above apply unchanged.
