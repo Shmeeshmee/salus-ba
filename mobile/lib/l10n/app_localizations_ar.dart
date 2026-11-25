@@ -2430,4 +2430,36 @@ class AppLocalizationsAr extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'خطط علاجي';
+
+  @override
+  String get carePlansIntro =>
+      'خطط العلاج التي حجزتها لك العيادات. كل خطوة في الخطة موعد تجده بين مواعيدك.';
+
+  @override
+  String get noCarePlans => 'ليست لديك خطط علاج بعد.';
+
+  @override
+  String get carePlanActive => 'محجوزة';
+
+  @override
+  String get carePlanCompleted => 'مكتملة';
+
+  @override
+  String get carePlanRevoked => 'ملغاة';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'تبدأ في $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'إلى أين تود الحضور؟';
 }

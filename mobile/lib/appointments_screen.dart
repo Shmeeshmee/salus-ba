@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:salus_api/api.dart' as api;
 
 import 'appointment_actions.dart';
 import 'booking.dart';
@@ -11,6 +12,7 @@ import 'fhir.dart';
 import 'files.dart';
 import 'l10n/app_localizations.dart';
 import 'loading.dart';
+import 'locations.dart';
 import 'messages.dart';
 import 'questionnaire.dart';
 import 'questionnaire_language.dart';
@@ -24,9 +26,18 @@ const cancelWindow = Duration(hours: 24);
 
 typedef _Questionnaires = ({List<Response> responses, Map<String, Version> versions});
 
-typedef _Appointments = ({List<Appointment> all, Places places, _Questionnaires questionnaires});
+typedef _Appointments = ({
+  List<Appointment> all,
+  Places places,
+  _Questionnaires questionnaires,
+  Map<String, api.Location> locations,
+});
 
 const _none = (responses: <Response>[], versions: <String, Version>{});
+
+/// The appointments [all] (none or none to place) without their clinics, questionnaires or locations.
+_Appointments _nothing(List<Appointment> all) =>
+    (all: all, places: const Places({}, {}), questionnaires: _none, locations: const <String, api.Location>{});
 
 /// The patient's appointments, upcoming and past, in each clinic's time zone; a booked one can be cancelled until
 /// 24 hours before its start, and joined as a video consultation in its join window.
@@ -94,15 +105,37 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
   @override
   Future<_Appointments> load() async {
     final me = await widget.booking.me();
-    if (me == null) return (all: const <Appointment>[], places: const Places({}, {}), questionnaires: _none);
+    if (me == null) return _nothing(const []);
     final all = await widget.booking.fhir.appointments(me.id);
-    if (all.isEmpty) return (all: all, places: const Places({}, {}), questionnaires: _none);
+    if (all.isEmpty) return _nothing(all);
     final consents = await widget.booking.consents();
+    final places = await widget.booking.places(consents.map((c) => c.organizationId));
     return (
       all: all,
-      places: await widget.booking.places(consents.map((c) => c.organizationId)),
+      places: places,
       questionnaires: await _questionnaires(me.id),
+      locations: await _locations(all, places),
     );
+  }
+
+  /// The locations of the clinics with an in-person visit, by id (WAVE6.md U2); a clinic's are left out when they
+  /// cannot be read, and its visits then show no address.
+  Future<Map<String, api.Location>> _locations(List<Appointment> all, Places places) async {
+    final clinics = {
+      for (final a in all)
+        if (a.locationId != null) ?places.roles[a.roleId]?.$1.id,
+    };
+    final found = <String, api.Location>{};
+    for (final id in clinics) {
+      try {
+        for (final l in await widget.booking.locations(id)) {
+          found[l.id] = l;
+        }
+      } on ApiFailure {
+        // The visit shows without its address.
+      }
+    }
+    return found;
   }
 
   /// The questionnaires, or none when they cannot be read: the appointments (and Join) still show.
@@ -236,6 +269,7 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
               place == null ? t.unlistedClinic : [place.$2.name, place.$1.name].where((s) => s.isNotEmpty).join(', '),
             ),
             if (a.inPerson) Text(t.visitModeInPerson),
+            if (a.inPerson && data.locations[a.locationId] != null) LocationLines(data.locations[a.locationId]!),
             Text(_status(t, a.status)),
             if (open)
               AppointmentActionsPanel(

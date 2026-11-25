@@ -624,5 +624,6 @@
   "carePlanCompleted": "Tamamlandı",
   "carePlanRevoked": "İptal edildi",
   "carePlanStartsOn": "Başlangıç: {date}",
-  "carePlanStep": "{n}. {date} · {mode}"
+  "carePlanStep": "{n}. {date} · {mode}",
+  "locationQuestion": "Nereye gelmek istersiniz?"
 }

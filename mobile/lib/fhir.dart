@@ -12,6 +12,7 @@ import 'session.dart';
 
 const _zoneExtension = 'https://salus.invalid/fhir/StructureDefinition/organization-timezone';
 const _visitModeExtension = 'https://salus.invalid/fhir/StructureDefinition/visit-mode';
+const _slotLocationExtension = 'https://salus.invalid/fhir/StructureDefinition/slot-location';
 
 /// A listed clinic: FHIR Organization with the time-zone extension.
 class Organization {
@@ -40,7 +41,7 @@ class PractitionerRole {
 
 /// A free FHIR Slot.
 class Slot {
-  const Slot({required this.id, required this.start, required this.end, this.inPerson = false});
+  const Slot({required this.id, required this.start, required this.end, this.inPerson = false, this.locationId});
 
   final String id;
   final DateTime start;
@@ -48,6 +49,10 @@ class Slot {
 
   /// Whether the visit is at the clinic; by video otherwise (the visit-mode extension, ADR 0016).
   final bool inPerson;
+
+  /// The clinic's location an in-person slot is at (docs/clinic-cms/WAVE6.md U2): the slot-location extension's
+  /// reference; null for a video slot.
+  final String? locationId;
 }
 
 /// The patient's FHIR Appointment.
@@ -60,6 +65,7 @@ class Appointment {
     this.roleId,
     this.confirmed = false,
     this.inPerson = false,
+    this.locationId,
   });
 
   final String id;
@@ -78,6 +84,9 @@ class Appointment {
 
   /// Whether the visit is at the clinic: it has no call to join (ADR 0016). By video otherwise.
   final bool inPerson;
+
+  /// The Location participant's id: where an in-person visit is (docs/clinic-cms/WAVE6.md U2); null for a video one.
+  final String? locationId;
 }
 
 /// Searches under /fhir/R4 through the generated client's transport, so they carry the session's bearer token.
@@ -130,7 +139,13 @@ class Fhir {
       QueryParam('start', 'ge${_instant(from)}'),
       QueryParam('start', 'lt${_instant(to)}'),
     ]))
-      Slot(id: _string(r['id']), start: _time(r['start']), end: _time(r['end']), inPerson: _inPerson(r['extension'])),
+      Slot(
+        id: _string(r['id']),
+        start: _time(r['start']),
+        end: _time(r['end']),
+        inPerson: _inPerson(r['extension']),
+        locationId: _slotLocation(r['extension']),
+      ),
   ];
 
   Future<List<Appointment>> appointments(String patientId) async => [
@@ -143,6 +158,7 @@ class Fhir {
         roleId: _participant(r['participant'], 'PractitionerRole/'),
         confirmed: _participantStatus(r['participant'], 'Patient/') == 'accepted',
         inPerson: _inPerson(r['extension']),
+        locationId: _participant(r['participant'], 'Location/'),
       ),
   ];
 
@@ -247,6 +263,16 @@ class Fhir {
       if (e['url'] == _visitModeExtension) return e['valueCode'] == 'in-person';
     }
     return false;
+  }
+
+  /// The Location id the slot-location extension references; null without one.
+  static String? _slotLocation(Object? extensions) {
+    for (final e in (extensions as List?) ?? const []) {
+      if (e['url'] != _slotLocationExtension) continue;
+      final ref = _reference(e['valueReference']);
+      return ref.startsWith('Location/') ? ref.substring('Location/'.length) : null;
+    }
+    return null;
   }
 
   static String _humanName(Object? names) {

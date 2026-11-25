@@ -2363,4 +2363,36 @@ class AppLocalizationsEn extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'My treatment plans';
+
+  @override
+  String get carePlansIntro =>
+      'Treatment plans your clinics booked for you. Each step of a plan is a visit, which you find among your visits.';
+
+  @override
+  String get noCarePlans => 'You have no treatment plans yet.';
+
+  @override
+  String get carePlanActive => 'Booked';
+
+  @override
+  String get carePlanCompleted => 'Completed';
+
+  @override
+  String get carePlanRevoked => 'Cancelled';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Starts on $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Where would you like to come?';
 }

@@ -2392,6 +2392,38 @@ class AppLocalizationsSr extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'Моји планови лијечења';
+
+  @override
+  String get carePlansIntro =>
+      'Планови лијечења које су вам клинике заказале. Сваки корак плана је термин, који налазите међу својим терминима.';
+
+  @override
+  String get noCarePlans => 'Још немате план лијечења.';
+
+  @override
+  String get carePlanActive => 'Заказан';
+
+  @override
+  String get carePlanCompleted => 'Завршен';
+
+  @override
+  String get carePlanRevoked => 'Отказан';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Почиње $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Гдје желите да дођете?';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4781,6 +4813,38 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'Моји планови лијечења';
+
+  @override
+  String get carePlansIntro =>
+      'Планови лијечења које су вам клинике заказале. Сваки корак плана је термин, који налазите међу својим терминима.';
+
+  @override
+  String get noCarePlans => 'Још немате план лијечења.';
+
+  @override
+  String get carePlanActive => 'Заказан';
+
+  @override
+  String get carePlanCompleted => 'Завршен';
+
+  @override
+  String get carePlanRevoked => 'Отказан';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Почиње $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Гдје желите да дођете?';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -7172,4 +7236,36 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'Moji planovi liječenja';
+
+  @override
+  String get carePlansIntro =>
+      'Planovi liječenja koje su vam klinike zakazale. Svaki korak plana je termin, koji nalazite među svojim terminima.';
+
+  @override
+  String get noCarePlans => 'Još nemate plan liječenja.';
+
+  @override
+  String get carePlanActive => 'Zakazan';
+
+  @override
+  String get carePlanCompleted => 'Završen';
+
+  @override
+  String get carePlanRevoked => 'Otkazan';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Počinje $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Gdje želite da dođete?';
 }

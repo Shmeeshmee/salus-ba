@@ -3166,5 +3166,9 @@
         "type": "String"
       }
     }
+  },
+  "locationQuestion": "Where would you like to come?",
+  "@locationQuestion": {
+    "description": "Clinic system, package LC3: above the choice between the clinic's locations for a visit at the clinic, before the time is picked. Draft, waiting for the owner."
   }
 }

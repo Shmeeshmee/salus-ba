@@ -3815,6 +3815,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{flag, select, N{Normal} L{Low} H{High} LL{Critically low} HH{Critically high} A{Abnormal} other{}}'**
   String labResultFlag(String flag);
+
+  /// Clinic system, package TP2: home button and screen title of the patient's treatment plans.
+  ///
+  /// In en, this message translates to:
+  /// **'My treatment plans'**
+  String get myCarePlans;
+
+  /// Clinic system, package TP2: above the patient's treatment plans; each step is one of their visits.
+  ///
+  /// In en, this message translates to:
+  /// **'Treatment plans your clinics booked for you. Each step of a plan is a visit, which you find among your visits.'**
+  String get carePlansIntro;
+
+  /// Clinic system, package TP2: the patient has no treatment plans.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no treatment plans yet.'**
+  String get noCarePlans;
+
+  /// Clinic system, package TP2: a treatment plan's state: its visits are booked (FHIR CarePlan active).
+  ///
+  /// In en, this message translates to:
+  /// **'Booked'**
+  String get carePlanActive;
+
+  /// Clinic system, package TP2: a treatment plan's state: every visit is past.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get carePlanCompleted;
+
+  /// Clinic system, package TP2: a treatment plan's state: the clinic cancelled it.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get carePlanRevoked;
+
+  /// Clinic system, package TP2: a plan's first day; a long date.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts on {date}'**
+  String carePlanStartsOn(String date);
+
+  /// Clinic system, package TP2: one step of a plan: its number, the long date of its visit and the visit type (visitModeInPerson or visitModeVideo).
+  ///
+  /// In en, this message translates to:
+  /// **'{n}. {date} · {mode}'**
+  String carePlanStep(int n, String date, String mode);
+
+  /// Clinic system, package LC3: above the choice between the clinic's locations for a visit at the clinic, before the time is picked. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Where would you like to come?'**
+  String get locationQuestion;
 }
 
 class _AppLocalizationsDelegate

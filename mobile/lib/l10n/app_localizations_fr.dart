@@ -2396,4 +2396,36 @@ class AppLocalizationsFr extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'Mes plans de traitement';
+
+  @override
+  String get carePlansIntro =>
+      'Les plans de traitement que vos cliniques ont réservés pour vous. Chaque étape d’un plan est un rendez-vous, que vous retrouvez parmi vos rendez-vous.';
+
+  @override
+  String get noCarePlans => 'Vous n’avez pas encore de plan de traitement.';
+
+  @override
+  String get carePlanActive => 'Réservé';
+
+  @override
+  String get carePlanCompleted => 'Terminé';
+
+  @override
+  String get carePlanRevoked => 'Annulé';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Commence le $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Où souhaitez-vous venir ?';
 }

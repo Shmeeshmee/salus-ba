@@ -624,5 +624,6 @@
   "carePlanCompleted": "Abgeschlossen",
   "carePlanRevoked": "Storniert",
   "carePlanStartsOn": "Beginnt am {date}",
-  "carePlanStep": "{n}. {date} · {mode}"
+  "carePlanStep": "{n}. {date} · {mode}",
+  "locationQuestion": "Wohin möchten Sie kommen?"
 }

@@ -56,7 +56,7 @@ writes under its own heading here.
 | LC2 | done 2026-11-25 (web only, against a fake API; no migration) | `cms(LC2)` |
 | LB2 | done 2026-11-25 (wave 6, second half) | lab results on the visit page and in the patient app |
 | TP2 | done 2026-11-25 (no migration; against 6.0's client with a fake API) | `cms(TP2)` |
-| LC3 | not started (wave 6, second half, after 6.0) | |
+| LC3 | done 2026-11-25 (mobile only, against 6.0's client; the FHIR form of the slot's location to check at the integration) | `cms(LC3)` |
 | BG4 | done 2026-11-25 (migration `00085`, the next free after LC1, RM1, LB1, TP1; the integration renumbers) | `cms(BG4)` |
 
 ## A: visit modes
@@ -3989,7 +3989,54 @@ owner wants one.
 
 ## LC3: the location in the patient app
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/LC3`, one commit `cms(LC3)`. Mobile only (check set `mobile`), built against 6.0's
+generated Dart client with the fake API of `test/support.dart`; no Go, no migration. No Jira export for this run: built
+from `WAVE6.md` (U1, U2).
+
+**Built.**
+
+- **Picking the location before the time** (`slots_screen.dart`, `locations.dart`). The practitioner's times screen reads
+  the clinic's active locations once (`GET /organizations/{id}/locations`, `Booking.locations`). When the day's
+  in-person times (after the visit mode, when a day has both) are at more than one location, it asks "Where would you
+  like to come?" with one chip per location in the clinic's order, the first picked, the picked one's address below,
+  and shows only that location's times; the pick is kept on the next day that has it. A day at one location names it
+  and its address and asks nothing; a video day names none.
+- **The address on the visit.** The booking screen shows the slot's location and address under the visit mode; the
+  appointments list shows them under "At the clinic" for an in-person visit (the clinics' locations read once per
+  load, only for clinics with a located visit).
+- **Rescheduling** offers only times at the visit's own location, as it already kept the visit mode.
+- **FHIR reads** (`fhir.dart`): `Slot.locationId` from a `slot-location` extension (`valueReference` to `Location/<id>`),
+  `Appointment.locationId` from the `Location/<id>` participant (FHIR R4's Appointment.participant.actor).
+- **Copy.** One string, `locationQuestion`, in all ten languages (marked a draft for the owner in `app_en.arb`).
+
+**Readings and decisions.**
+
+- The FHIR form of a slot's location is LC1's (6.0 left "the location on the FHIR Slot and Appointment" to it), and LC1
+  ran beside this package. FHIR R4's Slot has no location element, so the app reads an extension
+  `https://salus.invalid/fhir/StructureDefinition/slot-location` with a `valueReference`; the Appointment's location is
+  the standard Location participant. If LC1 chose otherwise, `Fhir._slotLocation` and the fixture `slotLocation` in
+  `test/support.dart` change together.
+- The location is picked per day among the day's locations (not once before the days): the times screen already picks
+  the mode per day, and a clinic's practitioner may work at different sites on different days.
+- When the locations cannot be read, times are not split by location and the visit shows no address: booking goes on
+  (the server knows the slot's location), as the prices do when they fail.
+- The address is the location's street line and postal code. The city is a Wikidata id, and its name comes only from
+  `GET /places`, which is for staff: the patient's app cannot name it.
+- No web screen in this package, so no browser walk; the 390 px width is a widget test (long location names wrap, no
+  overflow).
+
+**Checks.** `flutter analyze`: no issues. `test/locations_test.dart` (9 cases) red first (no question, no address, no
+locations read, the reschedule at both sites), then green. `runner.sh full` (set `mobile`: `make mobile-analyze` with
+`i18n-check`, `mobile-test` 710): passed. The fast layer ran `test/support.dart` as a test file (it has no `main`), a
+quirk of its "matching tests" rule, not a failure of the package.
+
+**For the integration** (against LC1's server): the slot's location in FHIR (the extension above, on `Slot?schedule=…`);
+the Location participant on the patient's `Appointment` search; `GET /organizations/{id}/locations` answering a signed-in
+patient; that a reschedule to another location is refused or not (the app never offers one).
+
+**Deferred.** The location's phone on the visit (not asked); the city's name for patients (needs a public read of the
+places or the name on `Location`, for the owner); the location in the waitlist (SAL-35 joins a practitioner's list, not
+a site's).
 
 ## BG4: backend hardening, second pass
 

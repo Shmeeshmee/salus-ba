@@ -2385,4 +2385,36 @@ class AppLocalizationsIt extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'I miei piani di cura';
+
+  @override
+  String get carePlansIntro =>
+      'I piani di cura che le cliniche hanno prenotato per lei. Ogni fase di un piano è una visita, che trova tra le sue visite.';
+
+  @override
+  String get noCarePlans => 'Non ha ancora piani di cura.';
+
+  @override
+  String get carePlanActive => 'Prenotato';
+
+  @override
+  String get carePlanCompleted => 'Completato';
+
+  @override
+  String get carePlanRevoked => 'Annullato';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Inizia il $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Dove desidera venire?';
 }

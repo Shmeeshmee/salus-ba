@@ -2370,4 +2370,36 @@ class AppLocalizationsTr extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get myCarePlans => 'Tedavi planlarım';
+
+  @override
+  String get carePlansIntro =>
+      'Kliniklerin sizin için ayırdığı tedavi planları. Bir planın her adımı, randevularınız arasında bulacağınız bir randevudur.';
+
+  @override
+  String get noCarePlans => 'Henüz tedavi planınız yok.';
+
+  @override
+  String get carePlanActive => 'Rezerve edildi';
+
+  @override
+  String get carePlanCompleted => 'Tamamlandı';
+
+  @override
+  String get carePlanRevoked => 'İptal edildi';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Başlangıç: $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Nereye gelmek istersiniz?';
 }

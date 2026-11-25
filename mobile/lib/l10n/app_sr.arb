@@ -624,5 +624,6 @@
   "carePlanCompleted": "Завршен",
   "carePlanRevoked": "Отказан",
   "carePlanStartsOn": "Почиње {date}",
-  "carePlanStep": "{n}. {date} · {mode}"
+  "carePlanStep": "{n}. {date} · {mode}",
+  "locationQuestion": "Гдје желите да дођете?"
 }

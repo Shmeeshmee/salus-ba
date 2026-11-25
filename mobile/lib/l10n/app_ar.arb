@@ -624,5 +624,6 @@
   "carePlanCompleted": "مكتملة",
   "carePlanRevoked": "ملغاة",
   "carePlanStartsOn": "تبدأ في {date}",
-  "carePlanStep": "{n}. {date} · {mode}"
+  "carePlanStep": "{n}. {date} · {mode}",
+  "locationQuestion": "إلى أين تود الحضور؟"
 }

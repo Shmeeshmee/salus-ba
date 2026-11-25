@@ -8,6 +8,7 @@ import 'consent_screen.dart';
 import 'fhir.dart';
 import 'files.dart';
 import 'loading.dart';
+import 'locations.dart';
 import 'messages.dart';
 import 'profile_screen.dart';
 import 'questionnaire_language.dart' show appLanguage;
@@ -59,16 +60,34 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
   /// The mode the patient picked on a day that has both, video until they pick (ADR 0016).
   bool _inPerson = false;
 
+  /// The clinic's locations, read once; none when they cannot be read, and then the times are not split by location.
+  List<api.Location>? _locations;
+
+  /// The location the patient picked on a day at more than one, the first until they pick (WAVE6.md U2).
+  String? _locationId;
+
   /// The day's times: the mode first, to pick when the day has both and named when it has one, then the times of it.
   List<Widget> _times(List<Slot> slots) {
     final t = context.t;
     final both = hasBothModes(slots);
-    final shown = both ? slotsOfMode(slots, inPerson: _inPerson) : slots;
+    final ofMode = both ? slotsOfMode(slots, inPerson: _inPerson) : slots;
+    final sites = locationsOf(ofMode, _locations ?? const []);
+    final site = sites.where((l) => l.id == _locationId).firstOrNull ?? sites.firstOrNull;
+    final shown = sites.length > 1
+        ? [
+            for (final s in ofMode)
+              if (s.locationId == site!.id) s,
+          ]
+        : ofMode;
     return [
       if (both)
         VisitModePicker(inPerson: _inPerson, onChanged: (v) => setState(() => _inPerson = v))
       else if (slots.isNotEmpty)
         Text(visitModeName(t, inPerson: slots.first.inPerson)),
+      if (sites.length > 1)
+        LocationPicker(locations: sites, selected: site!, onChanged: (l) => setState(() => _locationId = l.id))
+      else if (site != null)
+        LocationLines(site),
       if (shown.isEmpty) Text(t.noFreeTimes),
       Wrap(
         spacing: 8,
@@ -89,6 +108,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
     }
     final schedule = _schedule;
     if (schedule == null) return null;
+    _locations ??= await _readLocations();
     final next = DateTime.utc(_day.year, _day.month, _day.day + 1);
     final earliest = widget.now().add(_notBefore);
     final slots = await widget.booking.fhir.freeSlots(schedule, _zone.startOf(_day), _zone.startOf(next));
@@ -96,6 +116,14 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
       for (final s in slots)
         if (!s.start.isBefore(earliest)) s,
     ];
+  }
+
+  Future<List<api.Location>> _readLocations() async {
+    try {
+      return await widget.booking.locations(widget.clinic.id);
+    } on ApiFailure {
+      return const [];
+    }
   }
 
   void _move(int days) {
@@ -114,6 +142,7 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
           clinic: widget.clinic,
           role: widget.role,
           slot: slot,
+          location: _locations?.where((l) => l.id == slot.locationId).firstOrNull,
         ),
       ),
     );
@@ -123,7 +152,8 @@ class _SlotsScreenState extends LoadingState<SlotsScreen, List<Slot>?> {
   /// The waitlist for this practitioner (SAL-35), for a patient who finds no time that suits them.
   Future<void> _joinWaitlist() => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => JoinWaitlistScreen(booking: widget.booking, now: widget.now, clinic: widget.clinic, role: widget.role),
+      builder: (_) =>
+          JoinWaitlistScreen(booking: widget.booking, now: widget.now, clinic: widget.clinic, role: widget.role),
     ),
   );
 
@@ -167,6 +197,7 @@ class BookScreen extends StatefulWidget {
     required this.clinic,
     required this.role,
     required this.slot,
+    this.location,
   });
 
   final Booking booking;
@@ -176,6 +207,9 @@ class BookScreen extends StatefulWidget {
   final Organization clinic;
   final PractitionerRole role;
   final Slot slot;
+
+  /// Where the in-person visit is: the slot's location; null for a video visit or when the locations are unknown.
+  final api.Location? location;
 
   @override
   State<BookScreen> createState() => _BookScreenState();
@@ -365,6 +399,7 @@ class _BookScreenState extends State<BookScreen> {
         ui.Heading(_zone.date(slot.start, t.localeName)),
         Text(t.timeRange(_zone.time(slot.start), _zone.time(slot.end), _zone.name)),
         Text(visitModeName(t, inPerson: slot.inPerson)),
+        if (widget.location != null) LocationLines(widget.location!),
         Text(widget.role.name),
         if (specialty != null) Text(specialty),
         Text(widget.clinic.name),
