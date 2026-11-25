@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/location"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -45,6 +46,11 @@ type Clinics interface {
 	ListListed(ctx context.Context) ([]organization.Organization, error)
 }
 
+// Devices reads a device of a clinic in its scope, held until the transaction ends (location.Service).
+type Devices interface {
+	Device(ctx context.Context, org, id string) (location.Device, error)
+}
+
 // Ports are what the Service runs on.
 type Ports struct {
 	Repo    Repository
@@ -52,6 +58,7 @@ type Ports struct {
 	Tx      Transactor
 	Clock   clock.Clock
 	Clinics Clinics
+	Devices Devices // the API's: without it a service that names a device is refused
 }
 
 // Service holds the price list's rules: the clinic's staff see its services, only its admin changes them (audited,
@@ -113,6 +120,9 @@ func (s *Service) save(ctx context.Context, c Caller, d Definition, interaction 
 		if err := s.Repo.SetOrganization(ctx, c.OrganizationID); err != nil {
 			return err
 		}
+		if err := s.deviceInUse(ctx, c.OrganizationID, d.DeviceID); err != nil {
+			return err
+		}
 		var err error
 		if out, err = write(ctx, d, s.Clock.Now()); err != nil {
 			return err
@@ -126,6 +136,25 @@ func (s *Service) save(ctx context.Context, c Caller, d Definition, interaction 
 		return Definition{}, fmt.Errorf("chargeitemdefinition: save: %w", err)
 	}
 	return out, nil
+}
+
+// deviceInUse returns ErrInvalid unless device is "" (none) or a device of the clinic org in use (U4 of
+// docs/clinic-cms/WAVE6.md), in the save's transaction; err is any other error.
+func (s *Service) deviceInUse(ctx context.Context, org, device string) error {
+	if device == "" {
+		return nil
+	}
+	if s.Devices == nil {
+		return ErrInvalid
+	}
+	got, err := s.Devices.Device(ctx, org, device)
+	switch {
+	case errors.Is(err, location.ErrNotFound), err == nil && !got.Active:
+		return ErrInvalid
+	case err != nil:
+		return err
+	}
+	return nil
 }
 
 // refused audits a refused write and returns why it was refused, or the auditor's error.

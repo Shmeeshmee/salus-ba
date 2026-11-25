@@ -136,3 +136,18 @@ func TestService_LockRoom_TheClinicsRoomOnly(t *testing.T) {
 		t.Errorf("no clinic: %v, want ErrNotFound", err)
 	}
 }
+
+func TestService_Device_TheClinicsDeviceOnly(t *testing.T) {
+	t.Parallel()
+	repo := &fakeRepo{devices: []location.Device{{ID: "d1", LocationID: siteA, Name: "Device 1"}}}
+	s := newRoomService(repo, &fakeAudit{})
+	if got, err := s.Device(t.Context(), clinicA, "d1"); err != nil || got.ID != "d1" || got.Active || repo.outside {
+		t.Fatalf("Device() = %+v, %v; want device 1 as stored, read in a transaction", got, err)
+	}
+	if _, err := s.Device(t.Context(), "b0000000-0000-4000-8000-00000000000b", "d1"); !errors.Is(err, location.ErrNotFound) {
+		t.Errorf("another clinic: %v, want ErrNotFound", err)
+	}
+	if _, err := s.Device(t.Context(), "", "d1"); !errors.Is(err, location.ErrNotFound) {
+		t.Errorf("no clinic: %v, want ErrNotFound", err)
+	}
+}

@@ -45,6 +45,17 @@ func (s *Service) LockRoom(ctx context.Context, org, id string) (Room, error) {
 	return out, err
 }
 
+// Device returns the device id of the clinic org, held until the transaction in ctx ends, for a price-list service
+// that names it (chargeitemdefinition.Service, W6); ErrNotFound for none. A system step of the save, not audited.
+func (s *Service) Device(ctx context.Context, org, id string) (Device, error) {
+	var out Device
+	err := s.inClinic(ctx, Staff{OrganizationID: org}, func(ctx context.Context) (err error) {
+		out, err = s.p.Repo.Device(ctx, id)
+		return err
+	})
+	return out, err
+}
+
 // SaveRoom adds a room to a location of the admin's clinic (no id), or changes one at r.VersionID, the version the
 // caller read (RM1). Audited, also when refused: ErrForbidden to other staff, ErrNotFound for a location or room that
 // is not the clinic's, ErrVersionConflict for another version; ErrInvalid for an empty or too long name. A room never

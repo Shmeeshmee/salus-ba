@@ -39,3 +39,8 @@ RETURNING id, location_id, name, active, version_id;
 
 -- name: DeviceVisible :one
 SELECT EXISTS (SELECT 1 FROM device WHERE id = @id);
+
+-- name: Device :many
+-- The device a price-list service names at its save, held until the save ends so it is not taken out of use
+-- meanwhile (W6).
+SELECT id, location_id, name, active, version_id FROM device WHERE id = @id FOR SHARE;

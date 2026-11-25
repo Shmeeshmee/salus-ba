@@ -140,3 +140,13 @@ func (r *fakeRepo) SaveDevice(ctx context.Context, in location.Device) (location
 	r.rooms = saved
 	return location.Device(out), ok, err
 }
+
+func (r *fakeRepo) Device(ctx context.Context, id string) (location.Device, error) {
+	r.seen(ctx)
+	for _, x := range r.devices {
+		if x.ID == id && r.clinic == clinicA {
+			return x, r.err
+		}
+	}
+	return location.Device{}, location.ErrNotFound
+}

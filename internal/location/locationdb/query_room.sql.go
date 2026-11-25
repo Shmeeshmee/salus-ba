@@ -11,6 +11,46 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const device = `-- name: Device :many
+SELECT id, location_id, name, active, version_id FROM device WHERE id = $1 FOR SHARE
+`
+
+type DeviceRow struct {
+	ID         pgtype.UUID
+	LocationID pgtype.UUID
+	Name       string
+	Active     bool
+	VersionID  int32
+}
+
+// The device a price-list service names at its save, held until the save ends so it is not taken out of use
+// meanwhile (W6).
+func (q *Queries) Device(ctx context.Context, id pgtype.UUID) ([]DeviceRow, error) {
+	rows, err := q.db.Query(ctx, device, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DeviceRow
+	for rows.Next() {
+		var i DeviceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LocationID,
+			&i.Name,
+			&i.Active,
+			&i.VersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deviceVisible = `-- name: DeviceVisible :one
 SELECT EXISTS (SELECT 1 FROM device WHERE id = $1)
 `

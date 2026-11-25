@@ -165,6 +165,18 @@ func (r *postgresRepository) LockRoom(ctx context.Context, id string) (Room, err
 	return toRoom(locationdb.RoomsRow(rows[0])), nil
 }
 
+func (r *postgresRepository) Device(ctx context.Context, id string) (Device, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Device{}, ErrNotFound
+	}
+	rows, err := r.q(ctx).Device(ctx, u)
+	if err != nil || len(rows) == 0 {
+		return Device{}, notVisible(err)
+	}
+	return Device(toRoom(locationdb.RoomsRow(rows[0]))), nil
+}
+
 func (r *postgresRepository) SaveRoom(ctx context.Context, in Room) (Room, bool, error) {
 	q := r.q(ctx)
 	if in.ID == "" {
