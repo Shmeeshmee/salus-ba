@@ -34,6 +34,7 @@ func TestWrite_RefusesAndAuditsEachCase(t *testing.T) {
 	}{
 		"a receptionist":        {careplan.ErrForbidden, desk, draft()},
 		"no title":              {careplan.ErrInvalid, admin, mutate(func(d *careplan.Draft) { d.Title = "  " })},
+		"a NUL in the title":    {careplan.ErrInvalid, admin, mutate(func(d *careplan.Draft) { d.Title = "Synthetic\x00plan" })},
 		"no steps":              {careplan.ErrInvalid, admin, mutate(func(d *careplan.Draft) { d.Steps = nil })},
 		"a service not offered": {careplan.ErrInvalid, admin, mutate(func(d *careplan.Draft) { d.Steps[0].VisitMode = "video" })},
 		"an unknown service":    {careplan.ErrInvalid, admin, mutate(func(d *careplan.Draft) { d.Steps[0].ServiceID = patientA })},

@@ -148,7 +148,7 @@ func normalized(l Location) (Location, error) {
 	l.Name, l.AddressLine, l.PostalCode = strings.TrimSpace(l.Name), strings.TrimSpace(l.AddressLine), strings.TrimSpace(l.PostalCode)
 	l.CityID, l.Phone, l.TimeZone = strings.TrimSpace(l.CityID), strings.TrimSpace(l.Phone), strings.TrimSpace(l.TimeZone)
 	switch {
-	case l.Name == "", utf8.RuneCountInString(l.Name) > maxNameLength, utf8.RuneCountInString(l.AddressLine) > maxNameLength,
+	case l.Name == "", utf8.RuneCountInString(l.Name) > maxNameLength, strings.ContainsRune(l.Name+l.AddressLine+l.PostalCode+l.CityID+l.TimeZone, 0), utf8.RuneCountInString(l.AddressLine) > maxNameLength,
 		utf8.RuneCountInString(l.PostalCode) > maxPostalLength,
 		l.Phone != "" && !phonePattern.MatchString(l.Phone),
 		l.TimeZone != "" && !validZone(l.TimeZone):

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
 // syntheticPDF is a minimal PDF of synthetic content: what the file type check and the scan need to see.
@@ -29,12 +31,11 @@ func TestLabResults_ReleasedToThePatientAndNeverToTheDesk(t *testing.T) {
 	desk, _ := enrolFromInvite(t, deskAddr)
 
 	var report struct {
-		ID        string
-		VersionID int
-		Status    string
+		ID, Status string
+		VersionID  int
 	}
 	clinic.practitioner.must(http.StatusCreated, http.MethodPost, "/clinic/appointments/"+visit.ID+"/diagnostic-reports", map[string]any{
-		"title": "Synthetic blood count", "effectiveDate": time.Now().Format(time.DateOnly),
+		"title": "Synthetic blood count", "effectiveDate": clock.System{}.Now().Format(time.DateOnly),
 		"results": []map[string]any{{"test": "Synthetic haemoglobin", "value": 140, "unit": "g/L", "referenceRange": "120-160", "interpretation": "N"}},
 	}, &report)
 	if code, body := clinic.practitioner.rawPut("/clinic/diagnostic-reports/"+report.ID+"/pdf", report.VersionID, "application/pdf", []byte(syntheticPDF)); code != http.StatusOK {
@@ -141,8 +142,8 @@ func TestCarePlans_BookedWholeMovedAndCancelled(t *testing.T) {
 
 type carePlan struct {
 	ID, Status string
-	VersionID  int
 	Steps      []struct{ AppointmentID, VisitStart string }
+	VersionID  int
 }
 
 func (c *bookableClinic) newPlan(t *testing.T, patientID, service string) carePlan {
@@ -159,7 +160,7 @@ func (c *bookableClinic) newPlan(t *testing.T, patientID, service string) carePl
 func (c *bookableClinic) book(t *testing.T, plan carePlan, want int, slots ...string) {
 	t.Helper()
 	code, body := c.admin.send(http.Header{"If-Match": {`W/"` + strconv.Itoa(plan.VersionID) + `"`}}, http.MethodPost, "/clinic/care-plans/"+plan.ID+"/book",
-		map[string]any{"startsOn": time.Now().Format(time.DateOnly), "slotIds": slots})
+		map[string]any{"startsOn": clock.System{}.Now().Format(time.DateOnly), "slotIds": slots})
 	if code != want {
 		t.Fatalf("POST book = %d %s, want %d", code, body, want)
 	}

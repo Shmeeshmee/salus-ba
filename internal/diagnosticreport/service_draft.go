@@ -16,7 +16,7 @@ const MaxResults = 100
 // validate reports ErrInvalid for a draft the contract and the migration refuse.
 func (d Draft) validate() error {
 	title := strings.TrimSpace(d.Title)
-	if title == "" || utf8.RuneCountInString(title) > 200 || !code(d.LOINC) || len(d.Results) > MaxResults {
+	if title == "" || hasNUL(d.Title) || utf8.RuneCountInString(title) > 200 || !code(d.LOINC) || len(d.Results) > MaxResults {
 		return ErrInvalid
 	}
 	for _, r := range d.Results {
@@ -29,7 +29,7 @@ func (d Draft) validate() error {
 
 func (r Result) valid() bool {
 	switch {
-	case strings.TrimSpace(r.Test) == "", utf8.RuneCountInString(r.Test) > 200, !code(r.LOINC):
+	case strings.TrimSpace(r.Test) == "", utf8.RuneCountInString(r.Test) > 200, !code(r.LOINC), hasNUL(r.Test, r.Unit, r.ValueText, r.ReferenceRange):
 		return false
 	case (r.Value == nil) == (r.ValueText == ""), r.Unit != "" && r.Value == nil:
 		return false
@@ -50,4 +50,10 @@ func (d Draft) report(r Report) Report {
 		r.Results = []Result{}
 	}
 	return r
+}
+
+// hasNUL reports whether a text holds a NUL, which JSON allows and Postgres text refuses (the wave 6 review): an
+// invalid draft, not a 500.
+func hasNUL(texts ...string) bool {
+	return slices.ContainsFunc(texts, func(s string) bool { return strings.ContainsRune(s, 0) })
 }

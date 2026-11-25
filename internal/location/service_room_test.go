@@ -63,6 +63,7 @@ func TestService_SaveRoom_Refusals(t *testing.T) {
 		{name: "a version that moved on", staff: roomAdmin, room: location.Room{ID: "a4000000-0000-4000-8000-000000000000", Name: "Room 1", VersionID: 7}, want: location.ErrVersionConflict, audited: true},
 		{name: "an empty name", staff: roomAdmin, room: location.Room{LocationID: siteA, Name: "  "}, want: location.ErrInvalid},
 		{name: "a name too long", staff: roomAdmin, room: location.Room{LocationID: siteA, Name: string(make([]byte, 201))}, want: location.ErrInvalid},
+		{name: "a NUL in the name", staff: roomAdmin, room: location.Room{LocationID: siteA, Name: "Room\x001"}, want: location.ErrInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

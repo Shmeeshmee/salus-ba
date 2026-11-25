@@ -83,6 +83,8 @@ func TestAttach_Refusals(t *testing.T) {
 		{diagnosticreport.ErrNotFound, nil, "an unknown visit", "00000000-0000-4000-8000-0000000000d9", theAdmin, true},
 		{diagnosticreport.ErrNotFound, nil, "no active consent", visitID, thePractitioner, false},
 		{diagnosticreport.ErrInvalid, func(d *diagnosticreport.Draft) { d.Title = "  " }, "no title", visitID, thePractitioner, true},
+		{diagnosticreport.ErrInvalid, func(d *diagnosticreport.Draft) { d.Title = "Synthetic\x00count" }, "a NUL in the title", visitID, thePractitioner, true},
+		{diagnosticreport.ErrInvalid, func(d *diagnosticreport.Draft) { d.Results[0].Test = "Synthetic\x00test" }, "a NUL in a test", visitID, thePractitioner, true},
 		{diagnosticreport.ErrInvalid, func(d *diagnosticreport.Draft) { d.Title = long }, "a long title", visitID, thePractitioner, true},
 		{diagnosticreport.ErrInvalid, func(d *diagnosticreport.Draft) { d.LOINC = "abc" }, "a bad LOINC", visitID, thePractitioner, true},
 		{diagnosticreport.ErrInvalid, func(d *diagnosticreport.Draft) { d.Results[0].Test = "" }, "no test", visitID, thePractitioner, true},

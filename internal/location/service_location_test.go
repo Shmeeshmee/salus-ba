@@ -176,6 +176,7 @@ func TestSaveLocation_RefusesAndAuditsTheRefusal(t *testing.T) {
 		"another version":           {location.ErrVersionConflict, lcAdmin, stale, true},
 		"another clinic's location": {location.ErrNotFound, lcAdmin, other, true},
 		"an empty name":             {location.ErrInvalid, lcAdmin, location.Location{Name: "  "}, false},
+		"a NUL in the address":      {location.ErrInvalid, lcAdmin, location.Location{Name: "Site", AddressLine: "Synthetic\x00street"}, false},
 		"a malformed phone":         {location.ErrInvalid, lcAdmin, location.Location{Name: "Site", Phone: "033 000 000"}, false},
 		"an unknown time zone":      {location.ErrInvalid, lcAdmin, location.Location{Name: "Site", TimeZone: "Europe/Atlantis"}, false},
 		"Local as a time zone":      {location.ErrInvalid, lcAdmin, location.Location{Name: "Site", TimeZone: "Local"}, false},

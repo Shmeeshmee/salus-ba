@@ -103,7 +103,7 @@ func (s *Service) save(ctx context.Context, st Staff, entity string, r Room, wri
 		return Room{}, s.refused(ctx, st, interaction, action, "", ErrForbidden)
 	}
 	r.Name = strings.TrimSpace(r.Name)
-	if r.Name == "" || utf8.RuneCountInString(r.Name) > maxName {
+	if r.Name == "" || utf8.RuneCountInString(r.Name) > maxName || strings.ContainsRune(r.Name, 0) { // a NUL: Postgres refuses it
 		return Room{}, ErrInvalid
 	}
 	if r.ID != "" {

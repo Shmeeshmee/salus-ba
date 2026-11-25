@@ -258,7 +258,7 @@ func (s *Service) store(ctx context.Context, c Staff, p Plan) (Plan, error) {
 // (ErrNotFound). It returns the steps numbered in order.
 func (s *Service) checkDraft(ctx context.Context, c Staff, patientID string, d Draft) ([]Step, error) {
 	title := strings.TrimSpace(d.Title)
-	if title == "" || len([]rune(title)) > 200 || len(d.Steps) == 0 || len(d.Steps) > MaxSteps {
+	if title == "" || strings.ContainsRune(title, 0) || len([]rune(title)) > 200 || len(d.Steps) == 0 || len(d.Steps) > MaxSteps {
 		return nil, ErrInvalid
 	}
 	prices, err := s.p.Prices.OfClinic(ctx, c.OrganizationID)
