@@ -49,7 +49,7 @@ writes under its own heading here.
 | BG2 | done 2026-11-25, integrated 2026-11-25; the withdraw call on the generated client at the integration | `cms(BG2)`, merged into `feat/cms` with `cms(wave 6)` |
 | BG3 | done 2026-11-25, integrated 2026-11-25; CI's e2e failure logs at the integration | `cms(BG3)`, merged into `feat/cms` with `cms(wave 6)` |
 | PX | done 2026-11-25, integrated 2026-11-25 (no migration) | `cms(PX)`, merged into `feat/cms` with `cms(wave 6)` |
-| LC1 | not started (wave 6, second half, after 6.0) | |
+| LC1 | done 2026-11-25 (migration `00081`); the visit's location in the API, desk, receipts and e-mails deferred | `cms(LC1)` |
 | RM1 | not started (wave 6, second half, after 6.0) | |
 | LB1 | not started (wave 6, second half, after 6.0) | |
 | TP1 | not started (wave 6, second half, after 6.0) | |
@@ -3503,7 +3503,81 @@ language journey above; after the fix, passed (350 s) and removed its project. `
 
 ## LC1: locations on the server
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/LC1`, one commit `cms(LC1)`. Migration `00081_locations.sql` (the next free number
+after 6.0's `00080` on this branch; WAVE6.md reserved `00083`, the integration renumbers). No Jira export for this run:
+built from `WAVE6.md` and 6.0's record. Go only.
+
+**Built.**
+
+- **The clinic's locations** (`internal/location`): `Locations` (the clinic's staff, receptionist included: GET is
+  `desk` in the reception classes), `SaveLocation` (add and change at `If-Match`, by the admin only; audited as
+  `Location/<id>`, also when refused: forbidden, no clinic, another clinic's, another version), `PublicLocations` (the
+  active locations of a listed clinic; 404 for an unlisted one). A time zone left out is the clinic's for a new
+  location and unchanged on a change; an unknown city (the `place` key) or a malformed phone is `invalid_location`. Not
+  audited on read: a location is no personal data (as the price list). Postgres repository through `locationdb`
+  (`internal/location/query.sql`, a new `sqlc.yaml` entry); the handler and the four routes of `cms-lc1`, mounted in
+  `internal/api/locations.go` and taken off `notServedYet`. The rooms and devices stay RM1's: their service methods
+  and repository methods refuse with `errors.ErrUnsupported`.
+- **A new clinic's first location** (00081): an `AFTER INSERT` trigger on `organization` gives it its name, address and
+  time zone, as 00080's backfill did, whoever inserts it (signup, salusctl, tests).
+- **The location on rules** (`internal/schedule`): `Rule.LocationID`, stored as `location_id` in
+  `schedule.availability` (00080's key) and served as `locationId`. An in-person rule is at an active location of the
+  clinic: the one it names, or the clinic's only active one when it names none; otherwise `invalid_location` (audited
+  as a refused update); a video rule naming one is `invalid_availability`. The rule's location is checked through the
+  new `Sites` port (`location.Service.OfClinic`).
+- **The location on slots** (`internal/slot`): `Period.LocationID`; generation inserts it and a rule moved to another
+  location replaces its free slots (the delete compares the location too); a busy slot stays where it was booked.
+- **The location on visits** (00081): a `BEFORE INSERT OR UPDATE OF slot_id, visit_mode, location_id, room_id` trigger
+  sets a visit's `location_id` and `room_id` from its slot (none for a video visit or an unknown slot), so a booking, a
+  staff booking and a move (M1) are where their slot is, and no scope, a patient's included, can write another value
+  (6.0's review, point 5). The room is copied with the location because it is the slot's too; the device stays RM1's.
+
+**Decisions** (where the plan left a choice):
+
+| Point | As built | Why |
+| --- | --- | --- |
+| The first location of a new clinic | A database trigger, not code in signup and salusctl | One place for every insert of a clinic; the migration's backfill does the same |
+| An in-person rule that names no location | At the clinic's only active location; refused when it has two or more | Keeps today's web (no location picker before LC2) working for a one-site clinic |
+| The visit's location | Set by the database from the slot | Simplest guard for point 5; no change to `appointment`'s core files |
+| A `NOT NULL` check on in-person slots and visits | Not added | Fixtures across the packages insert in-person slots by hand; the generator and the trigger set it on every new one |
+| Time zone of slot generation | Still the clinic's | All clinics are in one zone today; a location in another zone is for the owner |
+
+**Tests first.** The service, handler and repository tests of `location`, the schedule and slot tests were written and
+run red (no `Auditor`, no `LocationID`, no `invalid_location`) before the code. The migration tests
+(`migrations/locations_test.go`) were written after `00081` and run against it, as 6.0's. 6.0's tests in
+`wave6_contract_test.go` changed on purpose: `seedLocation` now returns the clinic's first location (00081 gives every
+new clinic one), and the "patient sees their visit's location" case books the visit in a slot at that location, since
+the visit takes its slot's.
+
+**Deferred** (to a follow-up or the integration, with the reason):
+
+- `Appointment.locationId` in the JSON and FHIR form, the desk day's `locationId` filter, and the visit's location
+  address on receipts, reminders (SMS) and e-mails. Each needs the location on `appointment.Appointment` and its row
+  mappings (the middle of `appointment`'s core files, which RM1 and TP1 change in parallel) or a change to `invoice` and
+  `notification`; the database already holds the right location on every visit, so the integration (or a small
+  package after RM1) can expose it once. The receipt's seller address is the clinic's registered address today; whether
+  a receipt should show the visit's location instead (U2) is a fiscal question for the owner.
+- A location made inactive keeps the rules that name it: their slots are still generated. LC2's screen (or a check at
+  deactivation) should move the rules first.
+- `Location` in the CapabilityStatement and the FHIR Slot and Appointment's location: not served.
+- The directory's slots by location: the slot search has no location filter yet (no contract for it).
+
+**Checks** (this worktree's compose project, `salus-cms-lc1`). The fast layer ran every Go package (a migration
+changed); its wait hit the 10-minute timeout with `cmd/agent` failing on a River producer start timeout under load
+(`producer.StartWorkContext timed out after 10s`, a package LC1 does not touch; it passed in the full run). The full set
+(`runner.sh full e2e`: sets go, web, e2e) ran twice: the first stopped at `make lint` (fieldalignment of the new test
+tables and one staticcheck hint, fixed); the second passed `make gen-clients` with no diff, `make lint` (0 issues,
+i18n-check) and every `go test` package but `internal/api`, which hit `go test`'s 10-minute package timeout under the
+suite's load (603 s; the test running at the alarm had run 9 s; the same ceiling the wave 6 integration recorded), and
+was stopped there to stay inside the budget. `internal/api`, `migrations`, `worker`, `signup`, `appointment`,
+`clinicexport`, `organization`, `slot`, `schedule` and `location` were then run on their own, but that run hung: Postgres was stuck on the stopped run's `DROP DATABASE ... WITH (FORCE)` (wait event IPC, every test of `migrations` at 10m0s, unrelated ones included), so `internal/api`, `internal/worker`, the whole `migrations` package and `pkg/` are not verified on this tree; `make archcheck` passed. LC1's own migration tests (`TestLocations_*`, `TestWave6_*`) passed earlier on a healthy database. Not run inside the
+budget: `make cover`, the full web set (only a description changed in `schema.d.ts`; the fast layer's oxlint and `vitest related` passed) and `make e2e`;
+they are left to the integration's `make check`.
+
+**Merge notes for the integration.** `internal/location/repository_postgres.go`, `service.go`, `service_test.go` and
+`handler_http.go` will meet RM1's: RM1 replaces the room and device stubs. `schedule.Rule`, `ruleJSON`, `ruleOut`,
+`slot.Period`, `bounds` and `InsertSlots` gain RM1's room beside the location (a struct conversion needs the same field
+order in `Rule` and `ruleJSON`).
 
 ## RM1: rooms and devices
 

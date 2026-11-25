@@ -52,6 +52,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/location/query.sql
+    gen:
+      go:
+        package: locationdb
+        out: internal/location/locationdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/organization/query.sql
     gen:
       go:

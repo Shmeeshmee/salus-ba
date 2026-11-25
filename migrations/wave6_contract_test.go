@@ -35,15 +35,11 @@ func firstLocation(t *testing.T, owner *pgxpool.Pool, org string) string {
 	return id
 }
 
-// seedLocation creates, as the owner, a location of org and returns its id: a clinic made after the migration has
-// none until LC1 gives each new clinic its first.
+// seedLocation returns the location of org: a clinic made after the migration gets its first one from 00081's
+// trigger (LC1).
 func seedLocation(t *testing.T, owner *pgxpool.Pool, org string) string {
 	t.Helper()
-	var id string
-	if err := owner.QueryRow(t.Context(), `INSERT INTO location (organization_id, name) VALUES ($1, 'Synthetic site') RETURNING id`, org).Scan(&id); err != nil {
-		t.Fatal(err)
-	}
-	return id
+	return firstLocation(t, owner, org)
 }
 
 // execIn runs stmt in the app's scope and returns its error.
@@ -127,13 +123,17 @@ func TestWave6_TheClinicsAddressBecomesItsFirstLocation(t *testing.T) {
 func TestWave6_LocationsAreTheClinicsAndTheDirectorysAndTheVisitsPatients(t *testing.T) {
 	t.Parallel()
 	owner, app := pgtest.NewAppDatabase(t)
-	p, _, a := seedAppointments(t, owner)
+	p, dir, a := seedAppointments(t, owner)
 	ctx := t.Context()
 	locA, locB := seedLocation(t, owner, clinicA), seedLocation(t, owner, clinicB)
 	if _, err := owner.Exec(ctx, `UPDATE organization SET listed = (id = $1)`, clinicB); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(ctx, `UPDATE appointment SET visit_mode = 'in-person', location_id = $2 WHERE id = $1`, a.aFuture, locA); err != nil {
+	// The visit takes its slot's location (00081).
+	if _, err := owner.Exec(ctx, `WITH s AS (INSERT INTO schedule (organization_id, practitioner_role_id, slot_minutes) VALUES ($2, $3, 30) RETURNING id),
+		sl AS (INSERT INTO slot (schedule_id, organization_id, period, visit_mode, location_id)
+			SELECT id, $2, tstzrange('2031-01-06T08:00:00Z', '2031-01-06T08:30:00Z'), 'in-person', $4 FROM s RETURNING id)
+		UPDATE appointment SET visit_mode = 'in-person', slot_id = (SELECT id FROM sl) WHERE id = $1`, a.aFuture, clinicA, dir[clinicA].role, locA); err != nil {
 		t.Fatal(err)
 	}
 	const locations = "SELECT id::text FROM location"

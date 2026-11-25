@@ -7,11 +7,14 @@ import "context"
 type Repository interface {
 	// SetOrganization sets the clinic's scope on the transaction in ctx.
 	SetOrganization(ctx context.Context, organizationID string) error
+	// SetDirectory sets the public directory's scope on the transaction in ctx (LC1).
+	SetDirectory(ctx context.Context) error
 	// Locations returns the clinic's locations, active first, by name.
 	Locations(ctx context.Context, organizationID string) ([]Location, error)
 	// PublicLocations returns the active locations of a listed clinic, by name.
 	PublicLocations(ctx context.Context, organizationID string) ([]Location, error)
-	// SaveLocation inserts l (no id) or updates it at l.VersionID-1; false when the version moved on.
+	// SaveLocation inserts l (no id) or updates it at l.VersionID-1; false when the version moved on. ErrNotFound for a
+	// location the scope does not show, ErrInvalid for an unknown city.
 	SaveLocation(ctx context.Context, l Location) (Location, bool, error)
 	// Rooms returns the location's rooms, by name.
 	Rooms(ctx context.Context, locationID string) ([]Room, error)

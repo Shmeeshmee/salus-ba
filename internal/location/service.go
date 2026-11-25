@@ -9,8 +9,11 @@ import (
 
 // Ports are what the Service consumes.
 type Ports struct {
-	Repo  Repository
-	Clock clock.Clock
+	Repo    Repository
+	Clock   clock.Clock
+	Audit   Auditor    // LC1: the writes' AuditEvents
+	Tx      Transactor // LC1
+	Clinics Clinics    // LC1: the directory's listed clinics
 }
 
 // Service is the locations' business rules.
@@ -21,21 +24,6 @@ type Service struct {
 // NewService builds a Service on p.
 func NewService(p Ports) *Service {
 	return &Service{p: p}
-}
-
-// Locations returns the staff's clinic's locations (LC1).
-func (s *Service) Locations(_ context.Context, _ Staff) ([]Location, error) {
-	return nil, errors.ErrUnsupported
-}
-
-// SaveLocation adds a location to the admin's clinic, or changes one at its version (LC1).
-func (s *Service) SaveLocation(_ context.Context, _ Staff, _ Location) (Location, error) {
-	return Location{}, errors.ErrUnsupported
-}
-
-// PublicLocations returns the active locations of a listed clinic, for the patient booking in person (LC1).
-func (s *Service) PublicLocations(_ context.Context, _ string) ([]Location, error) {
-	return nil, errors.ErrUnsupported
 }
 
 // Rooms returns the rooms of a location of the staff's clinic (RM1).
