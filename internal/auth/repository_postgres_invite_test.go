@@ -250,3 +250,87 @@ func TestStaffAccount_IsCreatedInItsClinicLinkedResetAndSignedOutEverywhere(t *t
 		}
 	}
 }
+
+func TestWithdrawInvite_EndsAnOpenInviteAndItsToken(t *testing.T) {
+	t.Parallel()
+	d := newInviteDB(t)
+	id := d.put(t, storedInvite(clinicID))
+	hash := sha256.Sum256([]byte("synthetic withdrawn token"))
+	if err := d.in(t, clinicID, func(ctx context.Context) error { return d.repo.SetInviteToken(ctx, id, hash[:]) }); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := d.in(t, clinicID, func(ctx context.Context) error { return d.repo.WithdrawInvite(ctx, id, now) }); err != nil {
+		t.Fatalf("WithdrawInvite() error = %v", err)
+	}
+	var open []auth.Invite
+	if err := d.in(t, clinicID, func(ctx context.Context) error {
+		var err error
+		open, err = d.repo.OpenInvites(ctx, clinicID, now)
+		return err
+	}); err != nil || len(open) != 0 {
+		t.Errorf("OpenInvites() after withdrawal = %v, %v; want none", open, err)
+	}
+	var tokenGone bool
+	if err := d.owner.QueryRow(t.Context(), "SELECT token_hash IS NULL FROM invite WHERE id = $1", id).Scan(&tokenGone); err != nil || !tokenGone {
+		t.Errorf("token_hash cleared = %v, %v; want the e-mailed link dead", tokenGone, err)
+	}
+	if err := d.in(t, clinicID, func(ctx context.Context) error { return d.repo.WithdrawInvite(ctx, id, now) }); !errors.Is(err, auth.ErrInvalidInvite) {
+		t.Errorf("WithdrawInvite() twice = %v, want ErrInvalidInvite", err)
+	}
+}
+
+func TestWithdrawInvite_RefusesAnotherClinicsAnAcceptedAndAMalformedInvite(t *testing.T) {
+	t.Parallel()
+	d := newInviteDB(t)
+	other := d.put(t, storedInvite(otherClinicID))
+	accepted := d.put(t, storedInvite(clinicID))
+	if err := d.in(t, clinicID, func(ctx context.Context) error { return d.repo.AcceptInvite(ctx, accepted, now) }); err != nil {
+		t.Fatal(err)
+	}
+	for name, id := range map[string]string{"other clinic": other, "accepted": accepted, "malformed": "not-a-uuid"} {
+		err := d.in(t, clinicID, func(ctx context.Context) error { return d.repo.WithdrawInvite(ctx, id, now) })
+		if !errors.Is(err, auth.ErrInvalidInvite) {
+			t.Errorf("%s: WithdrawInvite() = %v, want ErrInvalidInvite", name, err)
+		}
+	}
+}
+
+// TestLockInvites_HoldsASecondTransactionOfTheClinicUntilTheFirstEnds is U7 of docs/clinic-cms/WAVE6.md: two
+// invites of one clinic count its open invites one after the other.
+func TestLockInvites_HoldsASecondTransactionOfTheClinicUntilTheFirstEnds(t *testing.T) {
+	t.Parallel()
+	d := newInviteDB(t)
+	locked, release, second := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	first := make(chan error, 1)
+	go func() {
+		first <- d.in(t, clinicID, func(ctx context.Context) error {
+			if err := d.repo.LockInvites(ctx, clinicID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+	go func() {
+		second <- d.in(t, clinicID, func(ctx context.Context) error { return d.repo.LockInvites(ctx, clinicID) })
+	}()
+	other := d.in(t, otherClinicID, func(ctx context.Context) error { return d.repo.LockInvites(ctx, otherClinicID) })
+	if other != nil {
+		t.Fatalf("LockInvites() of another clinic = %v, want it not held", other)
+	}
+	select {
+	case err := <-second:
+		t.Fatalf("second LockInvites() returned %v while the first transaction held the lock", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-second; err != nil {
+		t.Errorf("second LockInvites() = %v after the first ended", err)
+	}
+}

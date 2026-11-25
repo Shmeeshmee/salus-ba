@@ -60,7 +60,7 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /clinic/appointments/{id}/arrive": desk, "GET /clinic/desk/today": desk,
 
 	// Staff administration and the clinic's settings: the admin's.
-	"POST /invites": refused, "GET /invites": refused,
+	"POST /invites": refused, "GET /invites": refused, "DELETE /invites/{id}": refused,
 	"PUT /practitioner-roles/{id}/specialty": refused, "GET /practitioner-roles/{id}/availability": refused,
 	"PUT /practitioner-roles/{id}/availability": refused,
 	"GET /clinic/chat-settings":                 refused, "PUT /clinic/chat-settings": refused,

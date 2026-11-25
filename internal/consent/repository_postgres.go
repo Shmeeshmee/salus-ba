@@ -79,12 +79,27 @@ func (r *postgresRepository) GrantInPerson(ctx context.Context, patientID, organ
 	if err := a.Scan(accountID); err != nil {
 		return Consent{}, errors.New("consent: the account id is not a UUID")
 	}
-	row, err := consentdb.New(postgres.Conn(ctx, r.db)).GrantInPersonConsent(ctx, consentdb.GrantInPersonConsentParams{
+	// In a savepoint of the caller's transaction: the guard's refusal rolls back to it, not the transaction, which then
+	// audits the refusal.
+	db := r.db
+	commit := func(context.Context) error { return nil }
+	if tx, ok := postgres.Tx(ctx); ok {
+		sp, err := tx.Begin(ctx)
+		if err != nil {
+			return Consent{}, err
+		}
+		defer func() { _ = sp.Rollback(context.WithoutCancel(ctx)) }()
+		db, commit = sp, sp.Commit
+	}
+	row, err := consentdb.New(db).GrantInPersonConsent(ctx, consentdb.GrantInPersonConsentParams{
 		PatientID: p, OrganizationID: o, DateTime: pgtype.Timestamptz{Time: at, Valid: true}, RecordedByAccountID: a,
 	})
 	// consent_guard_in_person: not a patient the clinic registered (its existence is not disclosed).
 	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == checkViolation && pgErr.ConstraintName == "" {
 		return Consent{}, ErrNotFound
+	}
+	if err == nil {
+		err = commit(ctx)
 	}
 	c, err := toConsent(KindCare, consentdb.GrantConsentRow(row), err, ErrActive)
 	if err != nil {

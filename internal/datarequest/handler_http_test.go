@@ -15,6 +15,7 @@ import (
 // stubRequests answers every call with its request and error, and records what it was asked.
 type stubRequests struct {
 	err     error
+	patient datarequest.Patient // the caller Mine got
 	filing  datarequest.Filing
 	reason  datarequest.ExtensionReason
 	kind    datarequest.Kind
@@ -30,7 +31,8 @@ func (s *stubRequests) File(_ context.Context, _ datarequest.Patient, f datarequ
 	return s.request, s.err
 }
 
-func (s *stubRequests) Mine(context.Context, datarequest.Patient) ([]datarequest.Request, error) {
+func (s *stubRequests) Mine(_ context.Context, p datarequest.Patient) ([]datarequest.Request, error) {
+	s.patient = p
 	return []datarequest.Request{s.request}, s.err
 }
 
@@ -113,8 +115,11 @@ func TestHandler_ThePatientsRoutes(t *testing.T) {
 	if rec := serveAs(t, stub, asPatient, http.MethodPost, "/me/data-requests/"+reqID+"/withdraw", "", ""); rec.Code != http.StatusPreconditionRequired || !strings.Contains(rec.Body.String(), "if_match_required") {
 		t.Errorf("withdraw without If-Match = %d %s, want 428", rec.Code, rec.Body)
 	}
-	if rec := serveAs(t, stub, asAdmin, http.MethodGet, "/me/data-requests", "", ""); rec.Code != http.StatusForbidden {
-		t.Errorf("GET /me/data-requests as staff = %d, want 403", rec.Code)
+	// Staff reach the service, which refuses and audits them (docs/clinic-cms/WAVE6.md BG1).
+	refusing := &stubRequests{err: datarequest.ErrForbidden}
+	if rec := serveAs(t, refusing, asAdmin, http.MethodGet, "/me/data-requests", "", ""); rec.Code != http.StatusForbidden ||
+		refusing.patient != (datarequest.Patient{AccountID: adminA, OrganizationID: clinicA}) {
+		t.Errorf("GET /me/data-requests as staff = %d with %+v, want 403 from the service, told the clinic", rec.Code, refusing.patient)
 	}
 	if rec := serveAs(t, stub, datarequest.Staff{}, http.MethodGet, "/me/data-requests", "", ""); rec.Code != http.StatusUnauthorized {
 		t.Errorf("GET /me/data-requests signed out = %d, want 401", rec.Code)

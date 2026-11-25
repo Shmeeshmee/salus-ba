@@ -3,6 +3,7 @@ package consent_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -609,6 +610,18 @@ func TestGrantInPerson_StoresTheClinicsCareConsentForAPatientItRegisteredOnly(t 
 	}
 	if _, err := grant(patientB); !errors.Is(err, consent.ErrNotFound) {
 		t.Errorf("a patient with an account: %v, want ErrNotFound", err)
+	}
+	// The guard's refusal must leave the caller's transaction usable, so the refusal is audited in it and the route
+	// answers 404, not 500 (a profile gone in the same instant, docs/clinic-cms/WAVE6.md BG1).
+	err = in(t, app, func(ctx context.Context) error { return repo.SetClinic(ctx, clinicA) }, func(ctx context.Context) error {
+		if _, err := repo.GrantInPerson(ctx, patientB, clinicA, staffA, granted); !errors.Is(err, consent.ErrNotFound) {
+			return fmt.Errorf("GrantInPerson() = %w, want ErrNotFound", err)
+		}
+		_, err := repo.State(ctx, patientC, clinicA)
+		return err
+	})
+	if err != nil {
+		t.Errorf("the transaction after a refused GrantInPerson: %v, want it still usable", err)
 	}
 }
 

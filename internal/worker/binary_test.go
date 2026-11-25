@@ -78,7 +78,22 @@ func testFiles(t *testing.T) worker.Files {
 		Store:  binary.NewS3Store(&http.Client{Timeout: time.Minute}, endpoint, region, bucket, keyID, secret, 1000),
 		prefix: "test/" + strings.ReplaceAll(t.Name(), "/", "_") + "-" + strings.ToLower(rand.Text()) + "/",
 	}
-	return worker.Files{Store: store, KEK: kek, Scanner: clamd.New(addr)}
+	scanner := clamd.New(addr)
+	scannerReady(t, scanner)
+	return worker.Files{Store: store, KEK: kek, Scanner: scanner}
+}
+
+// scannerReady waits until clamd answers PING. With ConcurrentDatabaseReload off (ADR 0010) clamd answers nothing while
+// it reloads its signatures, which its SelfCheck does after freshclam's update: 37 s on the compose clamd, so a scan
+// test that started then failed its 15 s wait for the job (the flaky internal/worker run of docs/clinic-cms/WAVE6.md
+// BG1, reproduced in its PROGRESS entry). PING waits for the reload's end, so the test starts on an idle scanner.
+func scannerReady(t *testing.T, c *clamd.Client) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	if err := c.Ping(ctx); err != nil {
+		t.Fatalf("clamd did not answer PING: %v", err)
+	}
 }
 
 // eicar assembles the EICAR anti-malware test string, so the repository never holds it as a file.

@@ -74,6 +74,12 @@ type Repository interface {
 	// AcceptInvite marks the invite accepted at at, or returns ErrInvalidInvite when it was accepted or
 	// expired by then.
 	AcceptInvite(ctx context.Context, id string, at time.Time) error
+	// WithdrawInvite ends the open invite id at now and clears its token, or returns ErrInvalidInvite when the
+	// clinic set has no open invite id.
+	WithdrawInvite(ctx context.Context, id string, now time.Time) error
+	// LockInvites holds the clinic's invites for the rest of the transaction in ctx (an advisory lock), so two
+	// invites count its open ones one after the other.
+	LockInvites(ctx context.Context, org string) error
 
 	// CloseAccount closes the open patient account id at at, to be erased after eraseAfter, or returns ErrNotFound
 	// (staff, closed already, or no such account).

@@ -12,6 +12,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/invoice"
@@ -260,4 +261,14 @@ func (f *fakeSources) List(_ context.Context, c invoice.Caller, p invoice.Period
 	f.receiptCallers = append(f.receiptCallers, c)
 	f.periods = append(f.periods, p)
 	return f.receipts, nil
+}
+
+// fakeAdmins knows each admin account's clinic, as auth.Service reads it from the account.
+type fakeAdmins struct {
+	admins map[string]string // account id -> clinic id
+}
+
+func (a *fakeAdmins) IsClinicAdmin(_ context.Context, sess auth.Session) (bool, error) {
+	org, ok := a.admins[sess.AccountID]
+	return ok && org == sess.OrganizationID, nil
 }

@@ -199,7 +199,12 @@ type Export struct {
 // Patient is the signed-in patient: their account.
 type Patient struct {
 	AccountID string
+	// OrganizationID is set when the account is staff of a clinic: the patient's own routes refuse it, audited.
+	OrganizationID string
 }
+
+// refused tells whether p may not use the patient's own routes: no account, or a staff account.
+func (p Patient) refused() bool { return p.AccountID == "" || p.OrganizationID != "" }
 
 // Staff is the signed-in staff account, its clinic and whether it is the clinic's admin or a receptionist.
 type Staff struct {

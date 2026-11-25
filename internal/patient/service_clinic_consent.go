@@ -13,7 +13,8 @@ import (
 // registered gave in person, when they have none active with the clinic: after an import (V5 of docs/clinic-cms
 // WAVE4.md) or a withdrawal. consent.Service.RecordInPerson records it with c's account and audits it; the read of the
 // profile is audited here, in the same transaction. ErrForbidden to anyone else, ErrNotFound for a profile the clinic
-// did not register, consent.ErrActive when a care consent with the clinic is active already.
+// did not register (also one that goes as the consent is recorded), consent.ErrActive when a care consent with the
+// clinic is active already.
 func (s *Service) RecordConsent(ctx context.Context, c Caller, id string) (consent.Consent, error) {
 	if !c.desk() {
 		return consent.Consent{}, s.refuseRights(ctx, c, auditevent.CodeCreate, c.purpose(), ErrForbidden)
@@ -33,8 +34,11 @@ func (s *Service) RecordConsent(ctx context.Context, c Caller, id string) (conse
 			return err
 		}
 		out, err = s.consents.RecordInPerson(ctx, consent.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID}, id)
-		if errors.Is(err, consent.ErrActive) { // refused and audited by the consent domain, in this transaction
+		switch {
+		case errors.Is(err, consent.ErrActive): // refused and audited by the consent domain, in this transaction
 			refused, err = err, nil
+		case errors.Is(err, consent.ErrNotFound): // the profile went in the same instant; refused and audited there too
+			refused, err = ErrNotFound, nil
 		}
 		return err
 	})
