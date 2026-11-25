@@ -15,4 +15,7 @@ var (
 	// ErrInvalidAvailability is returned for a rule with a day outside 1 to 7, a time that is not HH:MM, an
 	// end not after its start, or rules that overlap on a day.
 	ErrInvalidAvailability = errors.New("schedule: invalid availability")
+	// ErrInvalidLocation is returned for an in-person rule at no active location of the clinic, or naming none when the
+	// clinic has more than one (docs/clinic-cms/WAVE6.md LC1).
+	ErrInvalidLocation = errors.New("schedule: invalid location")
 )

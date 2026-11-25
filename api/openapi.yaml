@@ -887,7 +887,9 @@ paths:
             `invalid_request`: no or an unreadable If-Match, or a body that is not the request;
             `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5;
             `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start,
-            or rules that overlap on a day.
+            rules that overlap on a day, or a video rule at a location; `invalid_location`: an in-person rule at no
+            active location of the clinic, or naming none when the clinic has more than one active location
+            (x-salus-package cms-lc1; with one, a rule that names none is at it).
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}

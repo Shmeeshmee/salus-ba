@@ -30,9 +30,10 @@ DELETE FROM slot
 WHERE schedule_id = $1
   AND status = 'free'
   AND lower(period) > $2::timestamptz
-  AND (lower(period), upper(period), visit_mode) NOT IN (
-      SELECT g.s, g.e, g.m
-      FROM (SELECT unnest($3::timestamptz[]) AS s, unnest($4::timestamptz[]) AS e, unnest($5::text[]) AS m) AS g)
+  AND (lower(period), upper(period), visit_mode, coalesce(location_id::text, '')) NOT IN (
+      SELECT g.s, g.e, g.m, g.l
+      FROM (SELECT unnest($3::timestamptz[]) AS s, unnest($4::timestamptz[]) AS e, unnest($5::text[]) AS m,
+                   unnest($6::text[]) AS l) AS g)
 `
 
 type DeleteFreeSlotsExceptParams struct {
@@ -41,10 +42,11 @@ type DeleteFreeSlotsExceptParams struct {
 	Starts     []pgtype.Timestamptz
 	Ends       []pgtype.Timestamptz
 	Modes      []string
+	Locations  []string
 }
 
-// Generation: the schedule's future free slots its rules no longer give, at that time or in that visit mode. A busy
-// slot is never deleted (here, and by the slot_delete_free_only policy).
+// Generation: the schedule's future free slots its rules no longer give, at that time, in that visit mode or at that
+// location (” for none). A busy slot is never deleted (here, and by the slot_delete_free_only policy).
 func (q *Queries) DeleteFreeSlotsExcept(ctx context.Context, arg DeleteFreeSlotsExceptParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteFreeSlotsExcept,
 		arg.ScheduleID,
@@ -52,6 +54,7 @@ func (q *Queries) DeleteFreeSlotsExcept(ctx context.Context, arg DeleteFreeSlots
 		arg.Starts,
 		arg.Ends,
 		arg.Modes,
+		arg.Locations,
 	)
 	if err != nil {
 		return 0, err
@@ -103,9 +106,10 @@ func (q *Queries) HoldSlot(ctx context.Context, arg HoldSlotParams) (HoldSlotRow
 }
 
 const insertSlots = `-- name: InsertSlots :execrows
-INSERT INTO slot (schedule_id, organization_id, period, visit_mode)
-SELECT $1::uuid, $2::uuid, tstzrange(g.s, g.e), g.m
-FROM (SELECT unnest($3::timestamptz[]) AS s, unnest($4::timestamptz[]) AS e, unnest($5::text[]) AS m) AS g
+INSERT INTO slot (schedule_id, organization_id, period, visit_mode, location_id)
+SELECT $1::uuid, $2::uuid, tstzrange(g.s, g.e), g.m, NULLIF(g.l, '')::uuid
+FROM (SELECT unnest($3::timestamptz[]) AS s, unnest($4::timestamptz[]) AS e, unnest($5::text[]) AS m,
+             unnest($6::text[]) AS l) AS g
 ON CONFLICT DO NOTHING
 `
 
@@ -115,10 +119,12 @@ type InsertSlotsParams struct {
 	Starts         []pgtype.Timestamptz
 	Ends           []pgtype.Timestamptz
 	Modes          []string
+	Locations      []string
 }
 
-// Generation: a free slot per period, in its rule's visit mode; one that overlaps a slot of the schedule
-// (slot_no_overlap) is skipped. The three arrays are as long as each other, so the unnest calls pair them up.
+// Generation: a free slot per period, in its rule's visit mode and at its location (” for none); one that overlaps a
+// slot of the schedule (slot_no_overlap) is skipped. The arrays are as long as each other, so the unnest calls pair
+// them up.
 func (q *Queries) InsertSlots(ctx context.Context, arg InsertSlotsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertSlots,
 		arg.ScheduleID,
@@ -126,6 +132,7 @@ func (q *Queries) InsertSlots(ctx context.Context, arg InsertSlotsParams) (int64
 		arg.Starts,
 		arg.Ends,
 		arg.Modes,
+		arg.Locations,
 	)
 	if err != nil {
 		return 0, err

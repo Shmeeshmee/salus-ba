@@ -181,10 +181,9 @@ var receptionRoutes = map[string]receptionClass{
 }
 
 // notServedYet are the routes in the contract that are not mounted: wave 6's, declared by its contract (6.0) and
-// served by LC1, RM1, LB1 and TP1. A route declared before it is built goes here and answers the router's own 404;
+// served by RM1, LB1 and TP1 (LC1 serves the locations). A route declared before it is built goes here and answers the router's own 404;
 // when it is mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{
-	"GET /clinic/locations", "POST /clinic/locations", "PUT /clinic/locations/{id}", "GET /organizations/{id}/locations",
 	"GET /clinic/locations/{id}/rooms", "POST /clinic/locations/{id}/rooms", "PUT /clinic/rooms/{id}",
 	"GET /clinic/locations/{id}/devices", "POST /clinic/locations/{id}/devices", "PUT /clinic/devices/{id}",
 	"GET /clinic/appointments/{id}/diagnostic-reports", "POST /clinic/appointments/{id}/diagnostic-reports",

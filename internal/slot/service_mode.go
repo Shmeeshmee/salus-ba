@@ -10,3 +10,12 @@ func ruleMode(r schedule.Rule) schedule.VisitMode {
 	}
 	return r.Mode
 }
+
+// ruleLocation is the location of the slots of r: an in-person rule's, none for a video one (docs/clinic-cms/WAVE6.md
+// U2).
+func ruleLocation(r schedule.Rule) string {
+	if ruleMode(r) != schedule.ModeInPerson {
+		return ""
+	}
+	return r.LocationID
+}

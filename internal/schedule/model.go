@@ -33,12 +33,13 @@ func (m VisitMode) Valid() bool { return m == ModeInPerson || m == ModeVideo }
 
 // Rule is one weekly window of availability: an ISO weekday (1 Monday to 7 Sunday), a start and end time of day,
 // HH:MM in the clinic's time zone, start before end, and the visit mode of its slots. Rules never overlap, whatever
-// their modes.
+// their modes. An in-person rule is at a location of the clinic (docs/clinic-cms/WAVE6.md U2); a video rule is at none.
 type Rule struct {
-	Start string
-	End   string
-	Mode  VisitMode
-	Day   int
+	Start      string
+	End        string
+	Mode       VisitMode
+	LocationID string // the in-person rule's location; empty for a video rule
+	Day        int
 }
 
 // Availability is what an edit sets: the slot length and the rules.
