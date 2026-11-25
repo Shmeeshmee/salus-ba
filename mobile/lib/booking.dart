@@ -289,6 +289,12 @@ class Booking {
     return response.bodyBytes;
   }
 
+  /// The patient's own booked treatment plans from every clinic, newest first, never a draft (docs/clinic-cms, U6).
+  Future<List<api.CarePlan>> carePlans() async {
+    final list = await apiCall(() => api.CarePlansApi(_client).listMyCarePlans());
+    return list ?? const <api.CarePlan>[];
+  }
+
   /// The patient's own treatment quotes from every clinic, newest first (docs/clinic-cms, package X1). Never charged.
   Future<List<api.Quote>> quotes() async {
     final list = await apiCall(() => api.BillingApi(_client).listMyQuotes());

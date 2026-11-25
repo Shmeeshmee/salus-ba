@@ -616,5 +616,13 @@
   "labResultReleasedOn": "Objavljeno {date}",
   "labResultValue": "{test}: {value}",
   "labResultRange": "Referentni raspon {range}",
-  "labResultFlag": "{flag, select, N{Uredno} L{Nisko} H{Visoko} LL{Kritično nisko} HH{Kritično visoko} A{Odstupa} other{}}"
+  "labResultFlag": "{flag, select, N{Uredno} L{Nisko} H{Visoko} LL{Kritično nisko} HH{Kritično visoko} A{Odstupa} other{}}",
+  "myCarePlans": "Moji planovi liječenja",
+  "carePlansIntro": "Planovi liječenja koje su vam klinike zakazale. Svaki korak plana je termin, koji nalazite među svojim terminima.",
+  "noCarePlans": "Još nemate plan liječenja.",
+  "carePlanActive": "Zakazan",
+  "carePlanCompleted": "Završen",
+  "carePlanRevoked": "Otkazan",
+  "carePlanStartsOn": "Počinje {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

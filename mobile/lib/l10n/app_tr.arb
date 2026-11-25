@@ -616,5 +616,13 @@
   "labResultReleasedOn": "Paylaşıldı: {date}",
   "labResultValue": "{test}: {value}",
   "labResultRange": "Referans aralığı {range}",
-  "labResultFlag": "{flag, select, N{Normal} L{Düşük} H{Yüksek} LL{Kritik düşük} HH{Kritik yüksek} A{Anormal} other{}}"
+  "labResultFlag": "{flag, select, N{Normal} L{Düşük} H{Yüksek} LL{Kritik düşük} HH{Kritik yüksek} A{Anormal} other{}}",
+  "myCarePlans": "Tedavi planlarım",
+  "carePlansIntro": "Kliniklerin sizin için ayırdığı tedavi planları. Bir planın her adımı, randevularınız arasında bulacağınız bir randevudur.",
+  "noCarePlans": "Henüz tedavi planınız yok.",
+  "carePlanActive": "Rezerve edildi",
+  "carePlanCompleted": "Tamamlandı",
+  "carePlanRevoked": "İptal edildi",
+  "carePlanStartsOn": "Başlangıç: {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

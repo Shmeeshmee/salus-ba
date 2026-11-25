@@ -616,5 +616,13 @@
   "labResultReleasedOn": "أُتيحت في {date}",
   "labResultValue": "{test}: {value}",
   "labResultRange": "المدى المرجعي {range}",
-  "labResultFlag": "{flag, select, N{طبيعي} L{منخفض} H{مرتفع} LL{منخفض بشكل حرج} HH{مرتفع بشكل حرج} A{غير طبيعي} other{}}"
+  "labResultFlag": "{flag, select, N{طبيعي} L{منخفض} H{مرتفع} LL{منخفض بشكل حرج} HH{مرتفع بشكل حرج} A{غير طبيعي} other{}}",
+  "myCarePlans": "خطط علاجي",
+  "carePlansIntro": "خطط العلاج التي حجزتها لك العيادات. كل خطوة في الخطة موعد تجده بين مواعيدك.",
+  "noCarePlans": "ليست لديك خطط علاج بعد.",
+  "carePlanActive": "محجوزة",
+  "carePlanCompleted": "مكتملة",
+  "carePlanRevoked": "ملغاة",
+  "carePlanStartsOn": "تبدأ في {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

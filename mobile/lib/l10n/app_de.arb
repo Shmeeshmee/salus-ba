@@ -616,5 +616,13 @@
   "labResultReleasedOn": "Freigegeben am {date}",
   "labResultValue": "{test}: {value}",
   "labResultRange": "Referenzbereich {range}",
-  "labResultFlag": "{flag, select, N{Normal} L{Niedrig} H{Hoch} LL{Kritisch niedrig} HH{Kritisch hoch} A{Auffällig} other{}}"
+  "labResultFlag": "{flag, select, N{Normal} L{Niedrig} H{Hoch} LL{Kritisch niedrig} HH{Kritisch hoch} A{Auffällig} other{}}",
+  "myCarePlans": "Meine Behandlungspläne",
+  "carePlansIntro": "Behandlungspläne, die Kliniken für Sie gebucht haben. Jeder Schritt eines Plans ist ein Termin, den Sie bei Ihren Terminen finden.",
+  "noCarePlans": "Sie haben noch keine Behandlungspläne.",
+  "carePlanActive": "Gebucht",
+  "carePlanCompleted": "Abgeschlossen",
+  "carePlanRevoked": "Storniert",
+  "carePlanStartsOn": "Beginnt am {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }

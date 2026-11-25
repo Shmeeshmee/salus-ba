@@ -3118,5 +3118,53 @@
         "type": "String"
       }
     }
+  },
+  "myCarePlans": "My treatment plans",
+  "@myCarePlans": {
+    "description": "Clinic system, package TP2: home button and screen title of the patient's treatment plans."
+  },
+  "carePlansIntro": "Treatment plans your clinics booked for you. Each step of a plan is a visit, which you find among your visits.",
+  "@carePlansIntro": {
+    "description": "Clinic system, package TP2: above the patient's treatment plans; each step is one of their visits."
+  },
+  "noCarePlans": "You have no treatment plans yet.",
+  "@noCarePlans": {
+    "description": "Clinic system, package TP2: the patient has no treatment plans."
+  },
+  "carePlanActive": "Booked",
+  "@carePlanActive": {
+    "description": "Clinic system, package TP2: a treatment plan's state: its visits are booked (FHIR CarePlan active)."
+  },
+  "carePlanCompleted": "Completed",
+  "@carePlanCompleted": {
+    "description": "Clinic system, package TP2: a treatment plan's state: every visit is past."
+  },
+  "carePlanRevoked": "Cancelled",
+  "@carePlanRevoked": {
+    "description": "Clinic system, package TP2: a treatment plan's state: the clinic cancelled it."
+  },
+  "carePlanStartsOn": "Starts on {date}",
+  "@carePlanStartsOn": {
+    "description": "Clinic system, package TP2: a plan's first day; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "carePlanStep": "{n}. {date} · {mode}",
+  "@carePlanStep": {
+    "description": "Clinic system, package TP2: one step of a plan: its number, the long date of its visit and the visit type (visitModeInPerson or visitModeVideo).",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "date": {
+        "type": "String"
+      },
+      "mode": {
+        "type": "String"
+      }
+    }
   }
 }

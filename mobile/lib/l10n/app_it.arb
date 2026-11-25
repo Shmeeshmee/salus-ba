@@ -616,5 +616,13 @@
   "labResultReleasedOn": "Reso disponibile il {date}",
   "labResultValue": "{test}: {value}",
   "labResultRange": "Intervallo di riferimento {range}",
-  "labResultFlag": "{flag, select, N{Normale} L{Basso} H{Alto} LL{Criticamente basso} HH{Criticamente alto} A{Anomalo} other{}}"
+  "labResultFlag": "{flag, select, N{Normale} L{Basso} H{Alto} LL{Criticamente basso} HH{Criticamente alto} A{Anomalo} other{}}",
+  "myCarePlans": "I miei piani di cura",
+  "carePlansIntro": "I piani di cura che le cliniche hanno prenotato per lei. Ogni fase di un piano è una visita, che trova tra le sue visite.",
+  "noCarePlans": "Non ha ancora piani di cura.",
+  "carePlanActive": "Prenotato",
+  "carePlanCompleted": "Completato",
+  "carePlanRevoked": "Annullato",
+  "carePlanStartsOn": "Inizia il {date}",
+  "carePlanStep": "{n}. {date} · {mode}"
 }
