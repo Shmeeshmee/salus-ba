@@ -115,6 +115,7 @@ type ruleJSON struct {
 	End        string    `json:"end"`
 	Mode       VisitMode `json:"mode"`
 	LocationID string    `json:"location_id,omitempty"` // since 00080
+	RoomID     string    `json:"room_id,omitempty"`     // RM1
 	Day        int       `json:"day"`
 }
 

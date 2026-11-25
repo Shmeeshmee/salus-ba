@@ -200,15 +200,21 @@ func TestWave6_ARoomAndADeviceAreNeverDoubleBooked(t *testing.T) {
 	if _, err := owner.Exec(ctx, slot, other, clinicA, "2030-02-05T08:00:00Z", "video", loc, nil); sqlState(err) != "23514" {
 		t.Errorf("a video slot at a location = %v, want a check violation", err)
 	}
-	const needs = `UPDATE appointment SET visit_mode = 'in-person', location_id = $2, device_id = $3 WHERE id = $1`
-	if _, err := owner.Exec(ctx, needs, a.aFuture, loc, device); err != nil {
+	// A visit takes its service's device (00082's guard, RM1), so the visits need it through a service.
+	var service string
+	if err := owner.QueryRow(ctx, `INSERT INTO charge_item_definition (organization_id, name, price_minor, device_id) VALUES ($1, 'Synthetic scan', 5000, $2)
+		RETURNING id`, clinicA, device).Scan(&service); err != nil {
+		t.Fatal(err)
+	}
+	const needs = `UPDATE appointment SET visit_mode = 'in-person', service_id = $2 WHERE id = $1`
+	if _, err := owner.Exec(ctx, needs, a.aFuture, service); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := owner.Exec(ctx, `UPDATE appointment SET period = (SELECT period FROM appointment WHERE id = $2),
 		practitioner_role_id = (SELECT practitioner_role_id FROM schedule WHERE id = $3) WHERE id = $1`, a.other, a.aFuture, other); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(ctx, needs, a.other, loc, device); sqlState(err) != "23P01" {
+	if _, err := owner.Exec(ctx, needs, a.other, service); sqlState(err) != "23P01" {
 		t.Errorf("an overlapping visit needing the same device = %v, want an exclusion violation", err)
 	}
 }

@@ -181,11 +181,9 @@ var receptionRoutes = map[string]receptionClass{
 }
 
 // notServedYet are the routes in the contract that are not mounted: wave 6's, declared by its contract (6.0) and
-// served by RM1, LB1 and TP1 (LC1 serves the locations). A route declared before it is built goes here and answers the router's own 404;
+// served by LB1 and TP1 (LC1 serves the locations, RM1 the rooms and devices). A route declared before it is built goes here and answers the router's own 404;
 // when it is mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{
-	"GET /clinic/locations/{id}/rooms", "POST /clinic/locations/{id}/rooms", "PUT /clinic/rooms/{id}",
-	"GET /clinic/locations/{id}/devices", "POST /clinic/locations/{id}/devices", "PUT /clinic/devices/{id}",
 	"GET /clinic/appointments/{id}/diagnostic-reports", "POST /clinic/appointments/{id}/diagnostic-reports",
 	"GET /clinic/diagnostic-reports/{id}", "PUT /clinic/diagnostic-reports/{id}", "GET /clinic/diagnostic-reports/{id}/pdf",
 	"PUT /clinic/diagnostic-reports/{id}/pdf", "POST /clinic/diagnostic-reports/{id}/release", "GET /me/diagnostic-reports",
@@ -258,6 +256,7 @@ type reception struct {
 	visit, patientID, receptionAccount, receipt string  // receipt: one the receptionist issued for the visit
 	registered                                  string  // a patient the receptionist registered (docs/clinic-cms R2)
 	request                                     string  // the booked patient's data request to the clinic, which names them (wave 5)
+	site                                        string  // a location of the clinic, for its rooms and devices (RM1)
 }
 
 func newReception(t *testing.T) (reception, func(string, ...any) int) {
@@ -299,6 +298,10 @@ func newReception(t *testing.T) (reception, func(string, ...any) int) {
 	decode(t, rec, &reg)
 	r.registered = reg.ID
 	r.request = receptionRequests(t, r)
+	if err := owner.QueryRow(t.Context(), `INSERT INTO location (organization_id, name) VALUES ($1, 'Synthetic site') RETURNING id::text`, inviteClinic).
+		Scan(&r.site); err != nil {
+		t.Fatal(err)
+	}
 	return r, count
 }
 
@@ -361,15 +364,16 @@ var receptionQueries = map[string]string{
 // are the clinic's own (real) or ids that do not exist; the clinic and its practitioner's role, which the public directory lists, are
 // always the clinic's own; every other id does not exist.
 func receptionPath(r reception, route string, real bool) string {
-	visit, patient, receipt, registered, request := r.visit, r.patientID, r.receipt, r.registered, r.request
+	visit, patient, receipt, registered, request, site := r.visit, r.patientID, r.receipt, r.registered, r.request, r.site
 	if !real {
-		visit, patient, receipt, registered, request = unknownID, unknownID, unknownID, unknownID, unknownID
+		visit, patient, receipt, registered, request, site = unknownID, unknownID, unknownID, unknownID, unknownID, unknownID
 	}
 	path := route
 	for prefix, id := range map[string]string{
 		"/appointments/{id}": visit, "/clinic/appointments/{id}": visit, "/patients/{id}": patient,
 		"/practitioner-roles/{id}": r.roleID, "/organizations/{id}": inviteClinic, "/history-sharing/{organizationId}": inviteClinic,
 		"/clinic/receipts/{id}": receipt, "/clinic/patients/{id}": registered, "/clinic/data-requests/{id}": request,
+		"/clinic/locations/{id}": site,
 	} {
 		if strings.HasPrefix(path, prefix) {
 			path = strings.Replace(path, prefix[strings.LastIndex(prefix, "{"):], id, 1)

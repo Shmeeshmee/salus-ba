@@ -93,6 +93,7 @@ type fakeRepository struct {
 	notice   string               // set by SetNotice
 	calls    []string
 	record   bool // set by SetRecord
+	busy     bool // Create, MoveByStaff and Reschedule meet a busy device (ErrResourceBusy, RM1)
 }
 
 func (r *fakeRepository) seen(ctx context.Context, call string) {
@@ -141,6 +142,9 @@ func (r *fakeRepository) Create(ctx context.Context, a appointment.Appointment) 
 	r.seen(ctx, "Create")
 	if r.err != nil {
 		return appointment.Appointment{}, r.err
+	}
+	if r.busy {
+		return appointment.Appointment{}, appointment.ErrResourceBusy
 	}
 	for _, b := range r.appts {
 		if b.PractitionerRoleID == a.PractitionerRoleID && b.Status != appointment.StatusCancelled && b.Start.Before(a.End) && a.Start.Before(b.End) {
@@ -233,6 +237,9 @@ func (r *fakeRepository) MoveByStaff(ctx context.Context, id string, m appointme
 	r.seen(ctx, "MoveByStaff")
 	if r.err != nil {
 		return appointment.Appointment{}, r.err
+	}
+	if r.busy {
+		return appointment.Appointment{}, appointment.ErrResourceBusy
 	}
 	for _, b := range r.appts {
 		if b.ID != id && b.PractitionerRoleID == m.PractitionerRoleID && b.Status != appointment.StatusCancelled && b.Start.Before(m.End) && m.Start.Before(b.End) {

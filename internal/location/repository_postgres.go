@@ -3,6 +3,7 @@ package location
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,7 +18,8 @@ type postgresRepository struct {
 }
 
 // NewPostgresRepository returns the Repository on db, as salus_app: row-level security shows the clinic set by
-// SetOrganization, or the active locations of listed clinics after SetDirectory.
+// SetOrganization, or the active locations of listed clinics after SetDirectory; it uses the transaction in the
+// context when there is one.
 func NewPostgresRepository(db postgres.Querier) Repository {
 	return &postgresRepository{db: db}
 }
@@ -109,20 +111,131 @@ func fromRow(row locationdb.LocationsRow) Location {
 
 func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
 
-// The rooms and devices are RM1's (docs/clinic-cms/WAVE6.md).
+// The rooms and devices (RM1).
 
-func (r *postgresRepository) Rooms(context.Context, string) ([]Room, error) {
-	return nil, errors.ErrUnsupported
+func (r *postgresRepository) Rooms(ctx context.Context, locationID string) ([]Room, error) {
+	var u pgtype.UUID
+	if u.Scan(locationID) != nil {
+		return nil, ErrNotFound
+	}
+	q := r.q(ctx)
+	if ok, err := q.LocationVisible(ctx, u); err != nil || !ok {
+		return nil, notVisible(err)
+	}
+	rows, err := q.Rooms(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Room, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toRoom(row))
+	}
+	return out, nil
 }
 
-func (r *postgresRepository) SaveRoom(context.Context, Room) (Room, bool, error) {
-	return Room{}, false, errors.ErrUnsupported
+func (r *postgresRepository) Devices(ctx context.Context, locationID string) ([]Device, error) {
+	var u pgtype.UUID
+	if u.Scan(locationID) != nil {
+		return nil, ErrNotFound
+	}
+	q := r.q(ctx)
+	if ok, err := q.LocationVisible(ctx, u); err != nil || !ok {
+		return nil, notVisible(err)
+	}
+	rows, err := q.Devices(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Device, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Device(toRoom(locationdb.RoomsRow(row))))
+	}
+	return out, nil
 }
 
-func (r *postgresRepository) Devices(context.Context, string) ([]Device, error) {
-	return nil, errors.ErrUnsupported
+func (r *postgresRepository) LockRoom(ctx context.Context, id string) (Room, error) {
+	var u pgtype.UUID
+	if u.Scan(id) != nil {
+		return Room{}, ErrNotFound
+	}
+	rows, err := r.q(ctx).LockRoom(ctx, u)
+	if err != nil || len(rows) == 0 {
+		return Room{}, notVisible(err)
+	}
+	return toRoom(locationdb.RoomsRow(rows[0])), nil
 }
 
-func (r *postgresRepository) SaveDevice(context.Context, Device) (Device, bool, error) {
-	return Device{}, false, errors.ErrUnsupported
+func (r *postgresRepository) SaveRoom(ctx context.Context, in Room) (Room, bool, error) {
+	q := r.q(ctx)
+	if in.ID == "" {
+		var loc pgtype.UUID
+		if loc.Scan(in.LocationID) != nil {
+			return Room{}, false, ErrNotFound
+		}
+		rows, err := q.InsertRoom(ctx, locationdb.InsertRoomParams{LocationID: loc, Name: in.Name, Active: in.Active})
+		if err != nil || len(rows) == 0 {
+			return Room{}, false, notVisible(err)
+		}
+		return toRoom(locationdb.RoomsRow(rows[0])), true, nil
+	}
+	var id pgtype.UUID
+	if id.Scan(in.ID) != nil {
+		return Room{}, false, ErrNotFound
+	}
+	rows, err := q.UpdateRoom(ctx, locationdb.UpdateRoomParams{ID: id, Name: in.Name, Active: in.Active, VersionID: int32(in.VersionID - 1)})
+	if err != nil {
+		return Room{}, false, err
+	}
+	if len(rows) == 1 {
+		return toRoom(locationdb.RoomsRow(rows[0])), true, nil
+	}
+	return Room{}, false, stale(q.RoomVisible(ctx, id))
+}
+
+func (r *postgresRepository) SaveDevice(ctx context.Context, in Device) (Device, bool, error) {
+	q := r.q(ctx)
+	if in.ID == "" {
+		var loc pgtype.UUID
+		if loc.Scan(in.LocationID) != nil {
+			return Device{}, false, ErrNotFound
+		}
+		rows, err := q.InsertDevice(ctx, locationdb.InsertDeviceParams{LocationID: loc, Name: in.Name, Active: in.Active})
+		if err != nil || len(rows) == 0 {
+			return Device{}, false, notVisible(err)
+		}
+		return Device(toRoom(locationdb.RoomsRow(rows[0]))), true, nil
+	}
+	var id pgtype.UUID
+	if id.Scan(in.ID) != nil {
+		return Device{}, false, ErrNotFound
+	}
+	rows, err := q.UpdateDevice(ctx, locationdb.UpdateDeviceParams{ID: id, Name: in.Name, Active: in.Active, VersionID: int32(in.VersionID - 1)})
+	if err != nil {
+		return Device{}, false, err
+	}
+	if len(rows) == 1 {
+		return Device(toRoom(locationdb.RoomsRow(rows[0]))), true, nil
+	}
+	return Device{}, false, stale(q.DeviceVisible(ctx, id))
+}
+
+// notVisible is ErrNotFound for a row the scope does not show, or the query's error.
+func notVisible(err error) error {
+	if err != nil {
+		return fmt.Errorf("location: %w", err)
+	}
+	return ErrNotFound
+}
+
+// stale is the answer to an update that matched no row: nil (a version that moved on) when the row is in the scope,
+// else ErrNotFound.
+func stale(visible bool, err error) error {
+	if err != nil || !visible {
+		return notVisible(err)
+	}
+	return nil
+}
+
+func toRoom(row locationdb.RoomsRow) Room {
+	return Room{ID: row.ID.String(), LocationID: row.LocationID.String(), Name: row.Name, Active: row.Active, VersionID: int(row.VersionID)}
 }

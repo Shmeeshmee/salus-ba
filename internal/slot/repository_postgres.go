@@ -40,9 +40,9 @@ func (r *postgresRepository) DeleteFreeExcept(ctx context.Context, scheduleID st
 	if err := u.Scan(scheduleID); err != nil {
 		return 0, err
 	}
-	starts, ends, modes, locations := bounds(keep)
+	starts, ends, modes, locations, rooms := bounds(keep)
 	return r.q(ctx).DeleteFreeSlotsExcept(ctx, slotdb.DeleteFreeSlotsExceptParams{
-		ScheduleID: u, After: ts(after), Starts: starts, Ends: ends, Modes: modes, Locations: locations,
+		ScheduleID: u, After: ts(after), Starts: starts, Ends: ends, Modes: modes, Locations: locations, Rooms: rooms,
 	})
 }
 
@@ -51,9 +51,9 @@ func (r *postgresRepository) Insert(ctx context.Context, scheduleID, org string,
 	if s.Scan(scheduleID) != nil || o.Scan(org) != nil {
 		return 0, errors.New("slot: an id is not a UUID")
 	}
-	starts, ends, modes, locations := bounds(periods)
+	starts, ends, modes, locations, rooms := bounds(periods)
 	return r.q(ctx).InsertSlots(ctx, slotdb.InsertSlotsParams{
-		ScheduleID: s, OrganizationID: o, Starts: starts, Ends: ends, Modes: modes, Locations: locations,
+		ScheduleID: s, OrganizationID: o, Starts: starts, Ends: ends, Modes: modes, Locations: locations, Rooms: rooms,
 	})
 }
 
@@ -118,19 +118,21 @@ func (r *postgresRepository) DeleteFreeEndedBefore(ctx context.Context, before t
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 
-// bounds are the periods' starts, ends and modes, as three arrays of one length.
-func bounds(periods []Period) (starts, ends []pgtype.Timestamptz, modes, locations []string) {
+// bounds are the periods' starts, ends, modes, locations and rooms ("" for none), as five arrays of one length.
+func bounds(periods []Period) (starts, ends []pgtype.Timestamptz, modes, locations, rooms []string) {
 	starts = make([]pgtype.Timestamptz, 0, len(periods))
 	ends = make([]pgtype.Timestamptz, 0, len(periods))
 	modes = make([]string, 0, len(periods))
-	locations = make([]string, 0, len(periods)) // "" for none
+	locations = make([]string, 0, len(periods))
+	rooms = make([]string, 0, len(periods))
 	for _, p := range periods {
 		modes = append(modes, string(p.Mode))
 		locations = append(locations, p.LocationID)
+		rooms = append(rooms, p.RoomID)
 		starts = append(starts, ts(p.Start))
 		ends = append(ends, ts(p.End))
 	}
-	return starts, ends, modes, locations
+	return starts, ends, modes, locations, rooms
 }
 
 // toSlot maps a row; every slot query selects the same columns.

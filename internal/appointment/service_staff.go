@@ -122,8 +122,8 @@ func (s *Service) BookForPatient(ctx context.Context, c Caller, b StaffBooking) 
 		return s.record(ctx, c, auditevent.CodeCreate, "Appointment", out.ID, auditevent.OutcomeSuccess)
 	})
 	switch {
-	case errors.Is(err, ErrSlotUnavailable): // the insert aborted the transaction
-		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrSlotUnavailable)
+	case errors.Is(err, ErrSlotUnavailable), errors.Is(err, ErrResourceBusy): // the insert aborted the transaction
+		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, err)
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: book for patient: %w", err)
 	case refused != nil:

@@ -54,6 +54,7 @@ type Ports struct {
 	Jobs    Jobs
 	Clinics Clinics
 	Sites   Sites // LC1: the clinic's locations, for an in-person rule
+	Rooms   Rooms // the API's only: without it a rule that names a room is refused (RM1)
 }
 
 // Service holds the schedule rules: the practitioner reads and edits their own role's availability, the
@@ -122,6 +123,11 @@ func (s *Service) SaveAvailability(ctx context.Context, c Caller, roleID string,
 		if failed == nil {
 			rules, failed, err = s.placed(ctx, c.OrganizationID, rules)
 			if err != nil {
+				return err
+			}
+		}
+		if failed == nil {
+			if failed, err = s.roomsFree(ctx, c, roleID, rules); err != nil {
 				return err
 			}
 		}
@@ -379,7 +385,7 @@ func validate(in Availability) ([]Rule, error) {
 			rules[i].Mode = ModeVideo
 		}
 		if r.Day < 1 || r.Day > 7 || !okStart || !okEnd || start >= end || !rules[i].Mode.Valid() ||
-			(rules[i].Mode == ModeVideo && r.LocationID != "") {
+			(rules[i].Mode == ModeVideo && r.LocationID != "") || (r.RoomID != "" && rules[i].Mode != ModeInPerson) {
 			return nil, ErrInvalidAvailability
 		}
 	}

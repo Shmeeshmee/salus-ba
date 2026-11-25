@@ -52,6 +52,7 @@ type ruleBody struct {
 	Mode VisitMode `json:"mode"`
 	// LocationID is an in-person rule's location; optional when the clinic has one active location (LC1).
 	LocationID string `json:"locationId"`
+	RoomID     string `json:"roomId"` // optional (RM1)
 }
 
 // ruleOut is a Rule in the AvailabilityRule schema of a response.
@@ -60,6 +61,7 @@ type ruleOut struct {
 	End        string    `json:"end"`
 	Mode       VisitMode `json:"mode"`
 	LocationID string    `json:"locationId,omitempty"`
+	RoomID     string    `json:"roomId,omitempty"`
 	Day        int       `json:"day"`
 }
 
@@ -143,7 +145,7 @@ func decodeAvailability(w http.ResponseWriter, r *http.Request) (Availability, b
 		if rule.Day == nil || rule.Start == nil || rule.End == nil {
 			return Availability{}, false
 		}
-		in.Rules = append(in.Rules, Rule{Day: *rule.Day, Start: *rule.Start, End: *rule.End, Mode: rule.Mode, LocationID: rule.LocationID})
+		in.Rules = append(in.Rules, Rule{Day: *rule.Day, Start: *rule.Start, End: *rule.End, Mode: rule.Mode, LocationID: rule.LocationID, RoomID: rule.RoomID})
 	}
 	return in, true
 }
@@ -170,6 +172,7 @@ var errorCodes = []struct {
 	{ErrForbidden, "forbidden", http.StatusForbidden},
 	{ErrNotFound, "not_found", http.StatusNotFound},
 	{ErrConflict, "version_conflict", http.StatusPreconditionFailed},
+	{ErrResourceBusy, "resource_busy", http.StatusConflict},
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {

@@ -39,6 +39,7 @@ type Rule struct {
 	End        string
 	Mode       VisitMode
 	LocationID string // the in-person rule's location; empty for a video rule
+	RoomID     string // an in-person rule's room, optional (U3 of docs/clinic-cms/WAVE6.md, RM1); its slots carry it
 	Day        int
 }
 

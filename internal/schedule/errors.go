@@ -18,4 +18,7 @@ var (
 	// ErrInvalidLocation is returned for an in-person rule at no active location of the clinic, or naming none when the
 	// clinic has more than one (docs/clinic-cms/WAVE6.md LC1).
 	ErrInvalidLocation = errors.New("schedule: invalid location")
+	// ErrResourceBusy is returned for an in-person rule in a room another practitioner's in-person hours hold at an
+	// overlapping time (U3 of docs/clinic-cms/WAVE6.md).
+	ErrResourceBusy = errors.New("schedule: room busy")
 )

@@ -4,7 +4,7 @@
 -- The services of a clinic that the scope shows (every one in the clinic's scope, the active ones of a listed clinic in
 -- the directory's), by name.
 SELECT id, updated_at, organization_id, name, code, price_minor, currency, duration_minutes, vat_rate_bp, modes, active,
-       version_id
+       version_id, device_id
 FROM charge_item_definition
 WHERE organization_id = @organization_id
 ORDER BY name, id;
@@ -43,3 +43,8 @@ WHERE charge_item_definition_id = @charge_item_definition_id;
 -- name: InsertDefinitionTranslation :exec
 INSERT INTO charge_item_definition_translation (charge_item_definition_id, language, name)
 VALUES (@charge_item_definition_id, @language, @name);
+
+-- name: SetDefinitionDevice :exec
+-- The device a service needs (RM1), set after its insert or update; a device of another clinic violates
+-- charge_item_definition_device_fkey.
+UPDATE charge_item_definition SET device_id = sqlc.narg(device_id) WHERE id = @id;

@@ -48,7 +48,7 @@ func (s *Service) MoveForPatient(ctx context.Context, c Caller, id, slotID strin
 		return s.record(ctx, c, auditevent.CodeUpdate, "Appointment", out.ID, auditevent.OutcomeSuccess)
 	})
 	switch {
-	case errors.Is(err, ErrSlotUnavailable), errors.Is(err, ErrVersionConflict): // the update aborted the transaction or changed nothing
+	case errors.Is(err, ErrSlotUnavailable), errors.Is(err, ErrVersionConflict), errors.Is(err, ErrResourceBusy): // the update aborted the transaction or changed nothing
 		return Appointment{}, s.refuse(ctx, c, auditevent.CodeUpdate, err)
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: move for patient: %w", err)

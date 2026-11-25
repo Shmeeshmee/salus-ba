@@ -24,16 +24,6 @@ const (
 // phonePattern is E.164, as the table's check.
 var phonePattern = regexp.MustCompile(`^\+[0-9]{8,15}$`)
 
-// Transactor runs fn in a transaction that travels in the context (postgres.Transactor).
-type Transactor interface {
-	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
-}
-
-// Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
-type Auditor interface {
-	Record(ctx context.Context, e auditevent.AuditEvent) error
-}
-
 // Clinics is the public directory of listed clinics (organization.Service).
 type Clinics interface {
 	ListListed(ctx context.Context) ([]organization.Organization, error)

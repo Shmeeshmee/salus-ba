@@ -8638,7 +8638,7 @@ export interface operations {
                     "application/json": components["schemas"]["Availability"];
                 };
             };
-            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, rules that overlap on a day, or a video rule at a location; `invalid_location`: an in-person rule at no active location of the clinic, or naming none when the clinic has more than one active location (x-salus-package cms-lc1; with one, a rule that names none is at it). */
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, rules that overlap on a day, or a video rule at a location; `invalid_location`: an in-person rule at no active location of the clinic, or naming none when the clinic has more than one active location (x-salus-package cms-lc1; with one, a rule that names none is at it); a room on a video rule, or one that is not an active room of the clinic (x-salus-package cms-rm1). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -8667,6 +8667,15 @@ export interface operations {
             };
             /** @description `not_found`: no such role in the caller's clinic. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `resource_busy`: an in-person rule names a room another practitioner's in-person hours hold at an overlapping time (U3 of docs/clinic-cms/WAVE6.md, x-salus-package cms-rm1). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9082,7 +9091,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed; `payment_declined`: a priced booking's payment was declined (none before the payments epic). */
+            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed; `payment_declined`: a priced booking's payment was declined (none before the payments epic); `resource_busy`: the visit's service needs a device another visit holds then (U4, x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13198,7 +13207,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked; `consent_required`: the patient's consent with the clinic is no longer active. */
+            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked; `consent_required`: the patient's consent with the clinic is no longer active; `resource_busy`: the visit's service needs a device another visit holds at the new time (U4, x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13611,7 +13620,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `offer_expired`, `slot_unavailable`, `consent_required`; `payment_declined` once prices exist. */
+            /** @description `offer_expired`, `slot_unavailable`, `consent_required`; `payment_declined` once prices exist; `resource_busy`: the service needs a device another visit holds then (x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14946,7 +14955,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped. */
+            /** @description `slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped; `resource_busy`: the service needs a device another visit holds then (U4, x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15017,7 +15026,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened) or `version_conflict`. */
+            /** @description `slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened), `resource_busy` (the service needs a device another visit holds at the new time; x-salus-package cms-rm1) or `version_conflict`. */
             409: {
                 headers: {
                     [name: string]: unknown;

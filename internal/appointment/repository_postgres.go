@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/appointment/appointmentdb"
@@ -64,10 +63,9 @@ func (r *postgresRepository) Create(ctx context.Context, a Appointment) (Appoint
 		StartAt: ts(a.Start), EndAt: ts(a.End), CreatedAt: ts(a.Created), BookedVia: string(bookedVia(a.BookedVia)),
 		VisitMode: string(visitMode(a.Mode)), ServiceID: service, BookedByAccountID: by,
 	})
-	var pgErr *pgconn.PgError
 	switch {
-	case errors.As(err, &pgErr) && (pgErr.Code == exclusionViolation || pgErr.Code == deadlockDetected):
-		return Appointment{}, ErrSlotUnavailable
+	case clashed(err) != nil:
+		return Appointment{}, clashed(err)
 	case err != nil:
 		return Appointment{}, err
 	}
@@ -388,9 +386,8 @@ func (r *postgresRepository) Reschedule(ctx context.Context, id string, m Move, 
 	row, err := r.q(ctx).RescheduleAppointment(ctx, appointmentdb.RescheduleAppointmentParams{
 		ID: u, SlotID: sl, StartAt: ts(m.Start), EndAt: ts(m.End), At: ts(at), FromCount: int16(m.From),
 	})
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && (pgErr.Code == exclusionViolation || pgErr.Code == deadlockDetected) {
-		return Appointment{}, ErrSlotUnavailable
+	if clashed(err) != nil {
+		return Appointment{}, clashed(err)
 	}
 	return changed(appointmentdb.AppointmentByIDRow(row), err)
 }
@@ -936,10 +933,9 @@ func (r *postgresRepository) MoveByStaff(ctx context.Context, id string, m Staff
 	row, err := r.q(ctx).MoveAppointmentByStaff(ctx, appointmentdb.MoveAppointmentByStaffParams{
 		ID: u, SlotID: sl, PractitionerRoleID: role, StartAt: ts(m.Start), EndAt: ts(m.End), At: ts(at), Version: m.Version,
 	})
-	var pgErr *pgconn.PgError
 	switch {
-	case errors.As(err, &pgErr) && (pgErr.Code == exclusionViolation || pgErr.Code == deadlockDetected):
-		return Appointment{}, ErrSlotUnavailable
+	case clashed(err) != nil:
+		return Appointment{}, clashed(err)
 	case errors.Is(err, pgx.ErrNoRows):
 		return Appointment{}, ErrVersionConflict
 	case err != nil:

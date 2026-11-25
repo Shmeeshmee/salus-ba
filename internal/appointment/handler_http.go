@@ -234,6 +234,7 @@ var errorCodes = []struct {
 	{ErrProfileRequired, "profile_required", http.StatusConflict},
 	{ErrConsentRequired, "consent_required", http.StatusConflict},
 	{ErrSlotUnavailable, "slot_unavailable", http.StatusConflict},
+	{ErrResourceBusy, "resource_busy", http.StatusConflict}, // a device (RM1)
 	{ErrCancellationWindowClosed, "cancellation_window_closed", http.StatusConflict},
 	{ErrClosed, "appointment_closed", http.StatusConflict},
 	{ErrNotStarted, "appointment_not_started", http.StatusConflict},

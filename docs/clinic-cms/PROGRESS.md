@@ -50,7 +50,7 @@ writes under its own heading here.
 | BG3 | done 2026-11-25, integrated 2026-11-25; CI's e2e failure logs at the integration | `cms(BG3)`, merged into `feat/cms` with `cms(wave 6)` |
 | PX | done 2026-11-25, integrated 2026-11-25 (no migration) | `cms(PX)`, merged into `feat/cms` with `cms(wave 6)` |
 | LC1 | done 2026-11-25 (migration `00081`); the visit's location in the API, desk, receipts and e-mails deferred | `cms(LC1)` |
-| RM1 | not started (wave 6, second half, after 6.0) | |
+| RM1 | done 2026-11-25 (migration `00082`, to renumber at the integration) | `cms(RM1)` |
 | LB1 | not started (wave 6, second half, after 6.0) | |
 | TP1 | not started (wave 6, second half, after 6.0) | |
 | LC2 | not started (wave 6, second half, after 6.0) | |
@@ -3581,7 +3581,87 @@ order in `Rule` and `ruleJSON`).
 
 ## RM1: rooms and devices
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/RM1b` (the first run stopped at its budget; its patch applied and checked by the integration session: `make check --base b6bec6d0`, sets go and web, passed), one commit `cms(RM1)`. Migration `00082_rooms_devices.sql` (the next free
+number after LC1's in WAVE6.md's order; the integration renumbers). No Jira export for this run: built from `WAVE6.md`
+and the 6.0 record. Go only.
+
+**Decisions applied:** U3 rooms and U4 equipment as WAVE6.md states them (the agent's defaults of 2026-11-25, for the
+owner to confirm); 6.0's "one device per service".
+
+**Built.**
+
+- **Rooms and devices** (`internal/location`, my own files `service_room.go`, the appended block of `repository_postgres.go` (archcheck: only that file imports `locationdb`),
+  `query_room.sql`, `handler_room.go`): `GET`/`POST /clinic/locations/{id}/rooms` and `/devices`, `PUT /clinic/rooms/{id}`
+  and `/clinic/devices/{id}` (If-Match). Any staff of the clinic reads them (the desk included, as 6.0 classified);
+  only its admin writes, audited as `Location/<id>` (a room is a FHIR Location `partOf` its site) or `Device/<id>`, also
+  when refused (not admin, another clinic's location or room, a stale version). A room or device never moves to another
+  location: a PUT names only the name and `active`. Reads are not audited (not personal data). Taken off `notServedYet`.
+- **A rule's room (U3)** (`internal/schedule/service_room.go`): `Rule.RoomID`, stored as `room_id` in
+  `schedule.availability` (6.0's key), `roomId` in the API. Only an in-person rule may name one, and only an active room
+  of the clinic (else `invalid_availability`). At save, in the save's transaction, the named rooms are locked (`SELECT …
+  FOR UPDATE`, in id order) through `location.Service.LockRoom`, then every other schedule of the clinic is read: an
+  in-person rule of another role in the same room, on the same day, at an overlapping time, refuses the save with
+  `resource_busy` (409, audited as refused). Two concurrent saves naming one room run one after the other. A service
+  built without the rooms port (the worker's) refuses any rule that names a room.
+- **Slots carry the room** (`internal/slot`): generation puts the rule's room and the room's location on each slot; a
+  rule moved to another room (or off a room) regenerates its free slots; the room enters `DeleteFreeSlotsExcept`'s
+  comparison as `coalesce(room_id::text, '')`, so a slot without a room still compares.
+- **The device at booking (U4)**: `charge_item_definition.device_id` through the price list (`Service.deviceId`, a PUT
+  without it clears it; another clinic's device is `invalid_service`). Migration 00082's guard trigger on `appointment`
+  sets `device_id` from the service for an in-person visit (none for video or without a service) and `room_id` (with the
+  slot's `location_id`) from the slot, on insert and on a change of service, mode or slot; on any other update it keeps
+  them, so no scope can write other values (6.0 review item 5). A booking that needs a device takes an advisory lock
+  on it first, so two such bookings run one after the other and the second meets `appointment_device_no_overlap`
+  (23P01), never the deadlock two concurrent inserts into an exclusion constraint can give (which would read as
+  `slot_unavailable`). `appointment` maps that constraint to `ErrResourceBusy` (`resource_busy`, 409) in Create,
+  the patient's reschedule and the staff move (review item 6); the patient's booking, the offer's accept, the desk's
+  booking and move and the reschedule audit it as a refusal. A cancelled visit frees its device (the constraint's
+  `WHERE`).
+- **Contract** (`api/openapi.yaml`, my own lines): `resource_busy` on the availability PUT (a 409 the contract lacked)
+  and in the 409 texts of the patient's booking, reschedule, offer accept, the desk's booking and move;
+  `invalid_availability`'s text names the room. `make gen-clients`: the web schema's comments only.
+
+**Contract changes:** `location.Repository` gains `LockRoom` and `location.Ports` `Tx` and `Audit` (6.0's skeleton had
+neither); `schedule.Ports` gains `Rooms`.
+
+**Test first.** Service, repository and handler tests per layer: location (fakes and a throwaway database: another
+clinic's and a patient's scope see and change no room or device), schedule (the overlap cases, the lock, the storage
+key), slot (red first: the slots had no room), appointment (red first: the device stayed empty, the overlap booked;
+then a concurrent pair over 10 rounds gives one visit and one `resource_busy`; a cancelled visit frees the device; a
+reschedule onto a busy device; the patient's scope cannot clear the device or room), the price list. Several service
+and handler tests were run for the first time with their code in place (compile failures were the red), not each seen
+failing on its assertion.
+
+**Review** (a fresh subagent over the diff; Copilot is out of quota until 2026-12-01). **Fixed:** (1) 6.0's
+`TestWave6_ARoomAndADeviceAreNeverDoubleBooked` wrote `device_id` directly, which the guard now overrides: the visits
+take the device through a service; (3) a room id in capitals escaped the overlap check and made generation delete and
+re-insert its slots every run: the service lowercases it; (5) a status change that brings a visit back takes the
+device's lock. **Left:** (2) the guard does not keep `location_id` on other updates (6.0's own test moves a visit's
+location directly): the location's guard is LC1's; (6) a `PUT /clinic/services/{id}` without `deviceId` clears the
+device (a PUT replaces the service): LC2's form must send it; (8) a deadlock between a device lock and the role's
+exclusion in one multi-visit transaction (TP1's plan booking) reads as `slot_unavailable`; (9) rules of an inactive
+role keep holding their room, and an inactive device can still be put on a service (for the owner).
+
+**Checks** (`salus-cms-rm1`): the fast layer per package while building (location, schedule, slot, appointment,
+chargeitemdefinition, the wave 6 migration tests, golangci-lint over the changed packages: 0 issues). `make check`
+(sets go and web from the diff): the first run met two lint findings in a test file, the receptionist probe (the room
+and device routes need a real location of the clinic: the fixture now seeds one) and archcheck (only
+`repository_postgres.go` may import a domain's sqlc package: the room queries and the price list's `setDevice` moved
+into it); each fixed and rerun alone, then `make check` once more (its result in the report).
+
+**Left for the integration and later:**
+
+- LC1 writes `internal/location/repository_postgres.go` too: mine holds the struct, the constructor, `SetOrganization`
+  and the three location methods as `errors.ErrUnsupported` stubs; take LC1's location methods and keep the rest.
+  `sqlc.yaml`'s `locationdb` entry lists `query_room.sql`; with LC1's `query.sql` the entry takes both files. LC1's
+  `handler_http.go` may declare `writeCode`: mine is `writeRoomCode`. Both packages add `Tx`/`Audit` to the ports.
+- `Rule.LocationID` is LC1's: a rule's room should then be a room of the rule's location (the slot's composite key
+  `(room_id, location_id)` refuses a mismatch at generation, not at save). The slot takes the room's location today;
+  with LC1 the two must agree.
+- `Appointment.roomId` in the JSON responses (6.0's schema) is not mapped: the visit row has it (from its slot), but
+  every appointment query's column list would change, as LC1's `locationId` does; do both once in the integration.
+- TP1's plan booking books through `appointment`'s Create, so a step's busy device is `ErrResourceBusy` there too.
+- The desk's "why" (U4) is the `resource_busy` code; the screen is LC2's.
 
 ## LB1: lab results on the server
 
