@@ -3312,7 +3312,40 @@ response changed).
 
 ## BG2: web polish
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+**Status: done.** Web only (`web/`), no generated client touched. Walk record: `docs/clinic-cms/walk/wave6-polish/WALK.md`.
+
+**Built.**
+- **Nested dialogs.** `chat/Dialog.tsx` stops Escape where it closes a dialog, so the patient card opened from the
+  desk's patient search closes alone (`chat/Dialog.test.tsx`).
+- **The patient search** (`DeskPatients`): the name on the left, not centred above the birth date (`.desk-name`
+  `justify-self: start; text-align: left`), and its search fills the dialog as the walk-in's does (the wave 3 rule now
+  on `.desk-dialog form[role='search']`, both desk dialogs).
+- **The phone grouped everywhere**: the visit page's "Patient details" uses `groupPhone`, the last staff screen that
+  showed a patient's phone raw.
+- **The lint warning** in `analytics/ClinicView.tsx`: `diagnosisBar` moved to `analytics/drill.ts`; `make web-lint` has no
+  warning left.
+- **Withdraw an open invite** (U7): "Withdraw" on each open invite on `/practitioners`, asked first (`Confirm`), then
+  `DELETE /invites/{id}`; 204 takes it off the list with a notice, 404 takes it off with "no longer open", anything else
+  keeps it with an alert. The route is BG1's, built in parallel: the call is typed by hand in `Practitioners.tsx`
+  (`withdrawInvite`) through the same client and CSRF header, and the tests answer it with a fake. **Integration:**
+  check BG1's route is `DELETE /invites/{id}` answering 204 and 404 `not_found` for an invite that is not open; once
+  the generated client has it, replace the cast with `api.DELETE('/invites/{id}', …)`.
+- **Clinic settings**: "Import patients" was a bare button that read as text; it is now in `.actions` (secondary style).
+- Membership invoices at 390 px and the walk-in's width at desktop were already fixed (package D's walk, the wave 3
+  rerun); the walk confirms both, see WALK.md.
+
+**Decisions.** The withdraw button in a row is secondary, only the confirm is red (a column of filled red buttons
+outweighed the list). A 404 on withdraw removes the row: the invite is not open whichever way it ended.
+
+**Checks.** `web`: `make web-lint` (0 warnings), `make web-typecheck`, `make web-test`, `make i18n-check`; the browser
+walk at 1280 and 390 px against a fake API (WALK.md, its limits too).
+
+**Copy waiting for the owner** (five staff languages; sr-Cyrl transliterated from sr-Latn; none `[legal]`):
+`admin.withdrawInvite`, `admin.withdrawInviteFor`, `admin.withdrawQuestion`, `admin.withdrawEffect`,
+`admin.keepInvite`, `admin.inviteWithdrawn`, `admin.inviteGone`, `admin.withdrawFailed`.
+
+**Deferred.** The other staff screens were seen empty or failing to load (the fake answered only the listed items'
+routes): their layout with real rows is for the integration's walk on a seeded stack.
 
 ## BG3: tooling
 

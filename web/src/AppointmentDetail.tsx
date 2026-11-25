@@ -14,6 +14,7 @@ import { navigate } from './route'
 import { loadTimeZone } from './staff'
 import { Alert, Link } from './ui'
 import { serviceOf } from './appointmentService'
+import { groupPhone } from './phone'
 import { visitModeOf } from './visitMode'
 import { VisitActions } from './VisitActions'
 
@@ -206,7 +207,7 @@ function Profile({ patient }: { patient: Patient }) {
         {phone && (
           <>
             <dt>{t('calendar.phone')}</dt>
-            <dd>{phone}</dd>
+            <dd>{groupPhone(phone)}</dd>
           </>
         )}
       </dl>

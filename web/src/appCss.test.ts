@@ -52,3 +52,19 @@ it("lays the visit page's actions out in one wrapping row, two even columns on a
   expect(appCSS).toMatch(/\.visit-actions \.actions \{[^}]*flex-wrap: wrap/)
   expect(appCSS).toMatch(/@media \(max-width: 520px\) \{[^@]*\.visit-actions \.actions \{ display: grid; grid-template-columns: 1fr 1fr;/)
 })
+
+// The wave 6 polish walk (docs/clinic-cms/walk/wave6-polish).
+it("lays the desk's patient search out as the walk-in's: one column, the dialog's full width", () => {
+  styled('<div class="receipt-dialog desk-dialog"><form class="toolbar" role="search"><div class="field"></div><button></button></form></div>')
+  const form = getComputedStyle(document.querySelector('form')!)
+  expect(form.display).toBe('grid')
+  expect(form.gridTemplateColumns).toBe('minmax(0px, 1fr)')
+  expect(getComputedStyle(document.querySelector('form button')!).width).toBe('100%')
+})
+
+it("puts a patient's name on the left in the patient search's results, as on the desk's rows", () => {
+  styled('<ul class="rows"><li><span class="stack"><button class="desk-name"></button><span></span></span></li></ul>')
+  const name = getComputedStyle(document.querySelector('.desk-name')!)
+  expect(name.justifySelf).toBe('start')
+  expect(name.textAlign).toBe('left')
+})

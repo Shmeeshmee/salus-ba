@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useT } from '../i18n/useT'
 import { useLoad } from '../load'
-import { BarChart, type Bar } from './BarChart'
+import { BarChart } from './BarChart'
 import { Loaded } from './chart'
-import { monthsBetween, type AnalyticsData, type AppointmentMonth, type ClinicQuery, type DiagnosisGroup, type Member, type Month, type Row, type Specialty } from './data'
-import { drillInto, drillOf, type Diagnosis } from './drill'
+import { monthsBetween, type AnalyticsData, type AppointmentMonth, type ClinicQuery, type DiagnosisGroup, type Member, type Month, type Specialty } from './data'
+import { diagnosisBar, drillInto, drillOf, type Diagnosis } from './drill'
 import { DiagnosisFilter, MonthRange, PractitionerFilter, SpecialtyFilter } from './Filters'
 import { Heatmap } from './Heatmap'
 import { LineChart } from './LineChart'
@@ -108,13 +108,6 @@ export function ClinicView({ data, reference, admin, now }: { data: AnalyticsDat
       </div>
     </div>
   )
-}
-
-// diagnosisBar is a row of a diagnosis breakdown as a bar: a code by its code, a group by its name, and the
-// diagnoses outside every subgroup (key "") as No subgroup, which has nothing to open.
-export function diagnosisBar(r: Row, by: 'group' | 'subgroup' | 'code', groupName: (code: string) => string, noSubgroup: string): Bar {
-  if (by === 'subgroup' && r.key === '') return { key: r.key, label: noSubgroup, count: r.count, fixed: true }
-  return { key: r.key, label: by === 'code' ? r.key : groupName(r.key), count: r.count }
 }
 
 // DrillPath is the way back up the diagnosis drill-down: every level above the bars shown.

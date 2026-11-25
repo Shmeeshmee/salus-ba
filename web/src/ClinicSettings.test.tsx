@@ -104,6 +104,8 @@ describe('ClinicSettings', () => {
     })
 
     expect(screen.queryByRole('heading', { name: 'Import patients' })).toBeNull()
+    // A button in the style of the page's other buttons, not bare text (walk/wave6-polish).
+    expect(screen.getByRole('button', { name: 'Import patients' }).closest('.actions')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Import patients' }))
     expect(screen.getByRole('heading', { name: 'Import patients' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))

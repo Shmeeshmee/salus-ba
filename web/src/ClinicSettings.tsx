@@ -105,7 +105,7 @@ export function ClinicSettings({
           onCancel={() => setImporting(false)}
         />
       ) : (
-        <p>
+        <p className="actions">
           <button
             type="button"
             onClick={() => {
