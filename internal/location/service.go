@@ -35,4 +35,3 @@ type Service struct {
 func NewService(p Ports) *Service {
 	return &Service{p: p}
 }
-

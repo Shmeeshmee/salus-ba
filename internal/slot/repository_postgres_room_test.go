@@ -11,8 +11,8 @@ import (
 
 const (
 	roomSiteA = "a7000000-0000-4000-8000-0000000000a1"
-	roomA = "a7100000-0000-4000-8000-0000000000a1"
-	roomB = "a7100000-0000-4000-8000-0000000000a2"
+	roomA     = "a7100000-0000-4000-8000-0000000000a1"
+	roomB     = "a7100000-0000-4000-8000-0000000000a2"
 )
 
 // seedRooms adds, as the owner, clinic A's site with rooms A and B.
