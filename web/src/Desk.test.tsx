@@ -256,3 +256,40 @@ describe('Desk', () => {
     expect(paths(fake.requests)).toContain(`POST /clinic/appointments/${anaVisit.appointment.id}/reschedule`)
   })
 })
+
+// Placeholder sites of the clinic (U2 of docs/clinic-cms/WAVE6.md, package LC2).
+const site = { id: 'f1000000-0000-4000-8000-000000000001', organizationId: 'org', name: 'Placeholder main site', timeZone: 'Europe/Sarajevo', active: true, versionId: 1 }
+const annex = { ...site, id: 'f1000000-0000-4000-8000-000000000002', name: 'Placeholder annex' }
+const closed = { ...site, id: 'f1000000-0000-4000-8000-000000000003', name: 'Placeholder closed site', active: false }
+
+describe('Desk by location', () => {
+  it('reads the day of one location, with its video visits, once one is picked', async () => {
+    const fake = renderDesk(
+      {
+        'GET /clinic/locations': () => Response.json([site, annex, closed]),
+        'GET /clinic/desk/today': (r) => Response.json(new URL(r.url).searchParams.get('locationId') === annex.id ? { ...deskDay, visits: [boVisit] } : deskDay),
+      },
+      reception,
+    )
+    const pick = (await screen.findByLabelText('Location')) as HTMLSelectElement
+    expect([...pick.options].map((o) => o.textContent)).toEqual(['All locations', 'Placeholder main site', 'Placeholder annex'])
+    await screen.findByText('Ana Example')
+    fireEvent.change(pick, { target: { value: annex.id } })
+    await waitFor(() => expect(screen.queryByText('Ana Example')).toBeNull())
+    expect(screen.getByText('Bo Sample')).toBeTruthy()
+    const asked = fake.requests.filter((r) => r.url.includes('/clinic/desk/today')).map((r) => new URL(r.url).search)
+    expect(asked).toEqual(['', `?locationId=${annex.id}`])
+    fireEvent.change(pick, { target: { value: '' } })
+    expect(await screen.findByText('Ana Example')).toBeTruthy()
+  })
+
+  it('offers no choice to a clinic with one location in use, or when the locations cannot be read', async () => {
+    renderDesk({ 'GET /clinic/locations': () => Response.json([site, closed]) })
+    await screen.findByText('Ana Example')
+    expect(screen.queryByLabelText('Location')).toBeNull()
+    cleanup()
+    renderDesk({ 'GET /clinic/locations': () => apiError(500, 'internal') })
+    await screen.findByText('Ana Example')
+    expect(screen.queryByLabelText('Location')).toBeNull()
+  })
+})

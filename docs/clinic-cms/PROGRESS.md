@@ -53,7 +53,7 @@ writes under its own heading here.
 | RM1 | not started (wave 6, second half, after 6.0) | |
 | LB1 | not started (wave 6, second half, after 6.0) | |
 | TP1 | not started (wave 6, second half, after 6.0) | |
-| LC2 | not started (wave 6, second half, after 6.0) | |
+| LC2 | done 2026-11-25 (web only, against a fake API; no migration) | `cms(LC2)` |
 | LB2 | not started (wave 6, second half, after 6.0) | |
 | TP2 | not started (wave 6, second half, after 6.0) | |
 | LC3 | not started (wave 6, second half, after 6.0) | |
@@ -3519,7 +3519,58 @@ Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
 
 ## LC2: locations, rooms and devices on the web
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/LC2`, one commit `cms(LC2)`. Web only (check set `web`), built against 6.0's
+generated client with a fake API in the tests: the routes it calls are LC1's and RM1's, built in parallel. No Jira export
+for this run: built from `WAVE6.md` (U1 to U4) and the 6.0 record. No migration, no Go, no OpenAPI change.
+
+**Built.**
+
+- **Locations** (`/locations`, the clinic's admin; linked from clinic settings beside the price list): every site with
+  its street, postal code, city and phone (grouped as people write it), "Not in use" on one taken out of use; add and
+  edit one at a time (`POST /clinic/locations`, `PUT /clinic/locations/{id}` with If-Match of the version read). The
+  city is a select of `GET /places`' cities grouped by region (Cyrillic names on a Cyrillic screen). Never deleted:
+  "In use" off takes it off the booking. `Locations.tsx`.
+- **Rooms and devices** of a location, opened under its row ("Rooms and devices"): two lists of the same shape (name, in
+  use), add and edit (`/clinic/locations/{id}/rooms|devices`, `PUT /clinic/rooms|devices/{id}` with If-Match).
+  `LocationResources.tsx`.
+- **Working hours**: an in-person row names its location (the ones in use, and the row's own), and a room of it when it
+  has rooms ("No room" by default); a row turned in-person takes the first location in use, a new row the row above's
+  place, a new location clears the room; a video row sends neither. `resource_busy` on save says another practitioner
+  works in that room then. With no location in use, the row says to add one. `Availability.tsx`, `AvailabilityPlaces.tsx`.
+- **Front desk**: with two or more locations in use, a "Location" select (every location, or one) reads the day with
+  `?locationId=` (that site's visits and the video visits, as 6.0's contract says). `Desk.tsx`.
+- **Copy**: a new catalog area `locations` in the five staff languages (46 strings).
+
+**Decisions** (where the contract left room; for the owner to confirm):
+
+- The time zone is not on the form: a new location sends none (the server takes the clinic's), an edit sends back the
+  one it has. Every clinic today is in Europe/Sarajevo; a picker waits until a clinic needs another zone.
+- The locations screen is its own page reached from clinic settings, not a section of that page (already long) and not
+  a menu item (the menu is full).
+- A failed read of the locations is not an error on the working hours or the desk: the hours show no location to pick
+  (the server says what is missing on save) and the desk shows the whole day without the filter.
+- The desk's choice of location is not remembered between visits to the page (no requirement asked for it).
+- The device a service needs (`Service.deviceId`, U4) has no picker on the price list: WAVE6.md gives LC2 the devices
+  screen, not the price list. Left for the owner to place (see Deferred).
+
+**Test first.** `Locations.test.tsx` (15 cases), the desk's two cases, the route and link cases were run red before the
+code. The five working hours cases were written before the code but first run after it (green); they cover each branch.
+
+**Checks.** The fast layer (oxlint, `vitest related`, i18n-check) after each change; the full set once:
+`runner.sh full` (set `web`: `make web-lint`, `web-typecheck`, `web-test`): the first run failed one case,
+`i18n/catalog.test.ts` "has the areas of the plan" (the list of catalog areas, which now has `locations`; added there);
+lint and typecheck passed. The second run passed: oxlint 0 warnings, `tsc -b`, i18n-check, 97 test files with 1369 tests. The walk at 1280 and 390 px
+against the Vite dev server with a fake API: `docs/clinic-cms/walk/wave6-locations/WALK.md` (three layout fixes found
+and made: the desk's select at 390 px, the hours row's place line, the "Not in use" tag).
+
+**Deferred.** A device picker on a price-list service (`deviceId`); the desk naming each in-person visit's location
+when every location is shown; a time zone picker for a location.
+
+**For the integration** (against LC1's and RM1's server): the shape of every call above; that `PUT
+/practitioner-roles/{id}/availability` accepts `locationId`/`roomId` and answers `resource_busy` (the code, whatever its
+status) for a taken room; that `GET /clinic/locations` and `/rooms` answer a practitioner (they read them on their own
+working hours), not only the admin; that the desk's `locationId` filter keeps the video visits; that a new location
+without `timeZone` gets the clinic's; and the walk again on the real stack.
 
 ## LB2: lab results on the web and in the app
 
