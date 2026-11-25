@@ -11,6 +11,7 @@ import (
 )
 
 func TestNew_StaffSearchTheTerminologyInTheirLanguageAndNoSearchTextIsLogged(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))

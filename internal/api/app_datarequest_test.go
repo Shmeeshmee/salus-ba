@@ -15,6 +15,7 @@ import (
 // they gave a consent, the clinic's admin finds it in the queue, extends it once and answers it, the patient sees the
 // answer and cannot withdraw it any more; each step is audited, and the practitioner is refused the queue.
 func TestNew_APatientsRequestIsFiledExtendedAndAnswered(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	count := openDB(t, cfg)
@@ -78,6 +79,7 @@ func TestNew_APatientsRequestIsFiledExtendedAndAnswered(t *testing.T) {
 // Filing an access request queues its export, which the patient sees as preparing; a portability request filed while
 // it is still queued answers 409 export_in_progress and files nothing (D1 with D2, S4).
 func TestNew_AnAccessRequestQueuesItsExportOncePerPatient(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
@@ -108,6 +110,7 @@ func TestNew_AnAccessRequestQueuesItsExportOncePerPatient(t *testing.T) {
 // The closure is mounted: a wrong password is refused and changes nothing; the right one closes the account, files its
 // erasure request in progress, and sign-in is refused afterwards (D3, S5).
 func TestNew_APatientClosesTheirAccount(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
@@ -136,6 +139,7 @@ func TestNew_APatientClosesTheirAccount(t *testing.T) {
 
 // An objection filed in the app marks the profile at once, under row-level security as the app role (S9).
 func TestNew_AnObjectionLeavesThePatientOutOfTheAnalytics(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
@@ -162,6 +166,7 @@ func TestNew_AnObjectionLeavesThePatientOutOfTheAnalytics(t *testing.T) {
 // restriction (wave 5 walk, findings 3 and 4), each read audited as a read of the Patient at the patient's request,
 // naming the request; a practitioner of the clinic, another clinic's admin and the patient's own list get no name.
 func TestNew_ARequestNamesItsPatientToTheAnsweringAdminOnly(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	count := openDB(t, cfg)

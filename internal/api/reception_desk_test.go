@@ -15,6 +15,7 @@ import (
 // walk-in with the in-person consent and books them at once with a service, sees the visit on the desk's day with the
 // service's name, marks the arrival and issues the receipt. A suspended clinic's booking stop holds at the desk too.
 func TestReceptionDesk_AnUnlistedClinicsDeskRegistersBooksChecksInAndIssuesTheReceipt(t *testing.T) {
+	t.Parallel()
 	r, count := newReception(t)
 	seedFree(t, r, 2)
 	var schedule, free, exam string

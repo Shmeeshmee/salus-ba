@@ -13,6 +13,7 @@ import (
 // figures without it and their own diagnoses; a patient is refused, nobody is unauthenticated; every read and
 // refusal is audited on the clinic.
 func TestNew_ServesTheClinicsStatisticsToItsStaffAndAuditsThem(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

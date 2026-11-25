@@ -66,6 +66,7 @@ func restrictedReads(t *testing.T, r reception) map[string]string {
 // a restricted patient's data reaches neither the practitioner of their visit, nor the admin, nor the desk, where it
 // did before the restriction; the patient still reads their own; lifting the restriction gives it back.
 func TestRestrictedRoutes_ARestrictedPatientsDataReachesNoStaff(t *testing.T) {
+	t.Parallel()
 	r, count := newReception(t)
 	leaked := shown(restrictedReads(t, r))
 	if len(leaked) < 3 {

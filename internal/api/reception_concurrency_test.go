@@ -11,6 +11,7 @@ import (
 // BG1; F2 tested it with a fake): two desks book two patients into one free slot at the same moment through the API.
 // One visit is booked, the other desk gets 409 slot_unavailable, and the slot holds exactly one appointment.
 func TestReceptionDesk_TwoDesksBookingOneSlotAtOnceGiveOneVisit(t *testing.T) {
+	t.Parallel()
 	r, _ := newReception(t)
 	seedFree(t, r, 3)
 	var free string

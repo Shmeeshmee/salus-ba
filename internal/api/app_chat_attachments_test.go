@@ -15,6 +15,7 @@ import (
 // opens; the search finds the messages each may read; after the patient's revocation the practitioner reads and
 // finds nothing. The log holds no file name and no message text.
 func TestNew_ServesTheChatsFilesAndSearchUnderTheChatsAccess(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	c.book(t, wallNow().Add(-48*time.Hour))
 	rec := c.d.patient.do(http.MethodPost, "/conversations", `{"organization_id":"`+inviteClinic+`","practitioner_role_id":"`+c.d.roleID+`"}`)

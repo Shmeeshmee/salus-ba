@@ -139,6 +139,7 @@ func missing(body string, want []string) []string {
 // practitioner ends it, once they joined, and again with the same answer; the Encounter is read and searched
 // by those who see the appointment; every read is audited and the log holds no token or name.
 func TestNew_ServesTheConsultationsJoinStatusAndEnd(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	now := clock.System{}.Now()
 	appt := c.book(t, now.Add(5*time.Minute))
@@ -237,6 +238,7 @@ func checkEncounterHTTP(t *testing.T, c consultationApp, appt, status string) {
 // A join is refused with its code: before the window opens, on a session that ended without the
 // practitioner (whose status the clinic reads, with the patient's join), and after the revocation.
 func TestNew_RefusesAConsultationJoinWithItsCode(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	now := clock.System{}.Now().UTC().Truncate(time.Second)
 	later, past, soon := c.book(t, now.Add(2*time.Hour)), c.book(t, now.Add(-2*time.Hour)), c.book(t, now.Add(5*time.Minute))
@@ -264,6 +266,7 @@ func TestNew_RefusesAConsultationJoinWithItsCode(t *testing.T) {
 // (and no consent_revoked: the appointment and the call stay), and the practitioner's join asks the agent in no
 // more. Agreeing again asks it in with the patient's join.
 func TestNew_WithoutTheTranscriptionConsentTheAgentIsNotAskedIn(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	now := wallNow()
 	appt := c.book(t, now.Add(-5*time.Minute))

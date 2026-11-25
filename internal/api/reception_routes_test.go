@@ -394,6 +394,7 @@ var registeredPatientData = []string{"Rina", "Registeredova", "1966-06-06"}
 // A receptionist reaches the desk's routes and is refused, as a stranger, on every other route of the contract
 // (docs/clinic-cms, F1).
 func TestReceptionRoutes_AReceptionistReachesTheDeskAndIsRefusedEverythingElse(t *testing.T) {
+	t.Parallel()
 	r, count := newReception(t)
 	unserved := map[string]bool{}
 	for _, op := range notServedYet {
@@ -489,6 +490,7 @@ func checkRefused(t *testing.T, r reception, op string, code int, body string) {
 
 // The receptionist's own session says what they are, and the price list is theirs to read.
 func TestReceptionRoutes_AReceptionistSeesTheirRoleAndThePriceList(t *testing.T) {
+	t.Parallel()
 	r, _ := newReception(t)
 	if rec := r.receptionist.do(http.MethodGet, "/auth/me", ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"role":"reception"`) {
 		t.Errorf("GET /auth/me as the receptionist = %d %s, want the reception role", rec.Code, rec.Body)

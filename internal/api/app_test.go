@@ -44,6 +44,7 @@ func testObjectStore(t *testing.T) config.ObjectStore {
 }
 
 func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
+	t.Parallel()
 	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -59,6 +60,7 @@ func TestNew_ServesReadinessAgainstTheDatabase(t *testing.T) {
 }
 
 func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
+	t.Parallel()
 	noDB := testConfig(t)
 	noDB.DatabaseURL = "postgres://nobody@127.0.0.1:1/none?connect_timeout=1"
 	noRedis := testConfig(t)
@@ -92,6 +94,7 @@ func TestNew_FailsWhenADependencyIsUnreachable(t *testing.T) {
 }
 
 func TestNew_ServesTheAccountRoutes(t *testing.T) {
+	t.Parallel()
 	app, err := api.New(t.Context(), testConfig(t), testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -113,6 +116,7 @@ func TestNew_ServesTheAccountRoutes(t *testing.T) {
 }
 
 func TestNew_AuditsEveryRegistrationInTheDatabase(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

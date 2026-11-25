@@ -13,6 +13,7 @@ import (
 // profile), staff may not; the clinic's admin reads its SMS usage, its practitioner may not. Audited; the log holds no
 // zone.
 func TestNew_ServesThePatientsNotificationSettingsAndTheSMSUsage(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))

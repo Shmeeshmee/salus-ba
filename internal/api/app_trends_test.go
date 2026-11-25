@@ -13,6 +13,7 @@ import (
 // feature; on, staff of a contributing clinic read the figures, a patient may not, and an opted-out clinic's staff
 // get analytics_not_contributing.
 func TestNew_ThePlatformViewFollowsItsFlag(t *testing.T) {
+	t.Parallel()
 	for _, on := range []bool{false, true} {
 		cfg := testConfig(t)
 		cfg.Analytics.PlatformEnabled, cfg.Analytics.MinCount = on, 10

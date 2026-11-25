@@ -15,6 +15,7 @@ import (
 // settings and the patient and the practitioner read its hours, the admin creates a webhook and sees its secret
 // once; a message enqueues one notification job with ids only; the log holds no token, secret or text.
 func TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	c.book(t, wallNow().Add(-48*time.Hour))
 
@@ -87,6 +88,7 @@ func TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks(t *testing.T) 
 // The clinic's appointment settings through api.New (docs/plans/appointments.md, step 0): the admin reads the defaults
 // and replaces them, a practitioner may not, and the paid SMS option is refused while the SMS engine is the fake.
 func TestNew_ServesTheClinicsAppointmentSettings(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	rules := `{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":12,"reschedule_max":1,` +
 		`"waitlist_enabled":true,"waitlist_hold_minutes":20,"noshow_flag_threshold":2,"noshow_flag_window_days":90}`
@@ -116,6 +118,7 @@ func TestNew_ServesTheClinicsAppointmentSettings(t *testing.T) {
 // Two saves of the settings read at the same version, sent at the same time by the admin from two copies of its client: exactly one is stored (200) and
 // the other is refused with 412 version_conflict; the stored settings are the winner's.
 func TestNew_ConcurrentAppointmentSettingsSavesLeaveOneWinner(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	body := func(hours int) string {
 		return fmt.Sprintf(`{"reminder_offsets_minutes":[1440],"sms_reminders":false,"reschedule_notice_hours":%d,"reschedule_max":1,`+

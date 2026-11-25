@@ -13,6 +13,7 @@ import (
 // back, each kept in the history and audited; a correction after 30 days and the patient are refused. With the
 // clinic's threshold on, staff get the repeat no-show flag beside the patient's next appointment; the patient gets 404.
 func TestNew_NoShowsAreCorrectedWithin30DaysAndFlaggedForStaffOnly(t *testing.T) {
+	t.Parallel()
 	app, cfg := newApp(t)
 	owner := ownerPool(t, cfg)
 	d := newDirectory(t, app.Handler, owner)

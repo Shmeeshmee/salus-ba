@@ -137,6 +137,7 @@ func next(t *testing.T, conn *websocket.Conn) (frame, error) {
 // replay (more than a page of them). The envelopes arrive as the producers wrote them. Each connection is one
 // audited subscription.
 func TestNew_ResumesTheEventStreamAfterTheLastCursorWithNoGapOrDuplicate(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	var want [][]byte
 	for n := range 3 {
@@ -230,6 +231,7 @@ func (s streamApp) count(t *testing.T, q string, args ...any) (n int) {
 // Only the encounter's practitioner follows the stream: the patient and the clinic's admin are refused, an
 // account the appointment does not show gets not found; each refusal is audited.
 func TestNew_RefusesTheEventStreamToAnyoneButTheEncountersPractitioner(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	for _, tt := range []struct {
 		cl     *client
@@ -252,6 +254,7 @@ func TestNew_RefusesTheEventStreamToAnyoneButTheEncountersPractitioner(t *testin
 // A revocation ends the stream at once, mid-consultation: an entry added after it commits never reaches the
 // practitioner, and an idle stream closes within RecheckEvery. A new subscription is refused.
 func TestNew_EndsTheEventStreamAtOnceOnARevocation(t *testing.T) {
+	t.Parallel()
 	for _, idle := range []bool{false, true} {
 		s := newStreamApp(t)
 		s.add(t, 0)
@@ -285,6 +288,7 @@ func TestNew_EndsTheEventStreamAtOnceOnARevocation(t *testing.T) {
 // The practitioner exports the stored transcript in the order it was said; nobody else does, and not after a
 // revocation. Each read is audited with the segments it returned.
 func TestNew_ExportsTheTranscriptToTheEncountersPractitioner(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	for i, at := range []string{"2030-01-07T09:01:00Z", "2030-01-07T09:00:00Z"} {
 		if _, err := s.owner.Exec(t.Context(), `INSERT INTO transcript_segment (id, encounter_id, speaker, lang, original, translation, ts_start, ts_end)

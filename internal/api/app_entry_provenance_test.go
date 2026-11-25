@@ -10,6 +10,7 @@ import (
 // GET /fhir/R4/Provenance/{id} beside the signatures' (one route, several sources): to the practitioner and to the
 // patient; the clinic's admin, who does not see the entry, gets not found. The creation and each read are audited.
 func TestNew_ServesTheProvenanceOfAClinicalWrite(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	for _, tt := range []struct{ path, body, table, column, typ string }{
 		{"/encounters/" + s.encounter + "/allergies", `{"text":"Placeholder substance","clinicalStatus":"active"}`,

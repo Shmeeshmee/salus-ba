@@ -41,6 +41,7 @@ func run(t *testing.T, steps []step) {
 // and admin build, publish, revise and retire, and set the practitioner's role default; a patient and another
 // clinic's admin see nothing; every call is audited, refusals included; the log holds no title or text.
 func TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
@@ -99,7 +100,6 @@ func TestNew_ServesTheQuestionnaireLibraryToStaffOfTheClinicAndAuditsIt(t *testi
 		{other, "another clinic's retire", http.MethodPost, q + "/retire", "", "", `"not_found"`, http.StatusNotFound},
 		{&client{t: t, h: app.Handler}, "nobody", http.MethodPost, "/questionnaires", "", qDraft, `"unauthenticated"`, http.StatusUnauthorized},
 	})
-
 	v2 := checkRevise(t, d, q)
 	checkDefault(t, d, other, v1.ID, v1.URL)
 	checkQuestionnaireFHIR(t, d, other, cfg.FHIRBaseURL, v1.ID, v2, v1.URL)

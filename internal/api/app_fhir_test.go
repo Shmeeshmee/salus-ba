@@ -97,6 +97,7 @@ func total(t *testing.T, body string) int {
 // The public directory, the access matrix of SPEC.md "Access rule" through FHIR with row-level security on
 // (salus_app), and the clinic after a revocation.
 func TestNew_ServesTheBookingResourcesOverFHIRAsAccessAllows(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)

@@ -12,6 +12,7 @@ import (
 // Package H's retry on Postgres: a receipt whose report job gave up is reported again once however often the admin
 // asks while that report is still queued, so the tax authority is not sent the same receipt once per click.
 func TestNew_RetryingAFailedReceiptQueuesOneReport(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

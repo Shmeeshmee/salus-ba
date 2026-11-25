@@ -19,6 +19,7 @@ import (
 // live, answers on the socket, and the patient reads both in the page; a stranger and the admin see nothing, and
 // after the patient's revocation the practitioner's socket closes and the page is refused.
 func TestNew_ServesTheChatBetweenThePatientAndTheirPractitioner(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	c.book(t, wallNow().Add(-48*time.Hour))
 	srv := httptest.NewServer(c.h)

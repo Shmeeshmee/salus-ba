@@ -38,6 +38,7 @@ func (c consultationApp) queued(t *testing.T, kind string) []string {
 // Both joined; the practitioner cancels the appointment. The next token request of either is refused at once,
 // and the cancellation queued consultation_access_end with the appointment's and the clinic's ids only.
 func TestNew_RefusesTheTokenAtOnceAfterACancellation(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	appt := c.book(t, clock.System{}.Now().Add(5*time.Minute))
 	join := "/appointments/" + appt + "/consultation/join"
@@ -58,6 +59,7 @@ func TestNew_RefusesTheTokenAtOnceAfterACancellation(t *testing.T) {
 // Both joined; the patient revokes their consent. The next token request of either is refused at once, while
 // the consent_revoked job, which removes the patient from the room, is still queued.
 func TestNew_RefusesTheTokenAtOnceAfterARevocation(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	appt := c.book(t, clock.System{}.Now().Add(5*time.Minute))
 	join := "/appointments/" + appt + "/consultation/join"

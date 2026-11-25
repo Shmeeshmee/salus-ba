@@ -115,6 +115,7 @@ func (p historyPage) refs() []string {
 // has a history of the patient. Every view is audited, and once the patient stops sharing, the visit and its
 // document are gone at once.
 func TestNew_ServesThePractitionerThePatientsHistory(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	h := seedPatientHistory(t, c)
 	path := "/patients/" + c.patientID + "/history"
@@ -183,6 +184,7 @@ func TestNew_ServesThePractitionerThePatientsHistory(t *testing.T) {
 
 // A page of the history holds at most limit items and its next cursor continues it.
 func TestNew_PagesThePatientsHistory(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	h := seedPatientHistory(t, c)
 	path := "/patients/" + c.patientID + "/history"
