@@ -66,6 +66,7 @@ type Booking struct {
 type Staff struct {
 	AccountID      string
 	OrganizationID string
+	PractitionerID string // the practitioner the account is; empty for an admin
 	Admin          bool
 	Practitioner   bool
 	Reception      bool

@@ -44,6 +44,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/careplan/query.sql
+    gen:
+      go:
+        package: careplandb
+        out: internal/careplan/careplandb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/invoice/query.sql
     gen:
       go:

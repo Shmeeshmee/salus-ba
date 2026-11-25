@@ -3108,3 +3108,15 @@ LB1 and TP1 fill them, and each of those adds its own block here. What the contr
 - **A clinic with no admin.** A deadline warning (D5) for a clinic target whose clinic has no admin goes to the operator
   instead, naming the clinic and the request by their opaque ids, the kind, the due date and the days left: never the
   patient. Without an operator address nobody is warned, and the worker logs the ids, as before.
+
+### Package TP1: treatment plans on the server (no migration, docs/clinic-cms/WAVE6.md U6)
+
+- **Who.** The clinic's admin and its practitioners write, book, cancel and read a patient's plans; a receptionist is
+  refused every plan route (no clinical content). A plan is written and changed only for a patient with the clinic's
+  active, unrestricted care consent; its cancellation goes on after a revocation. The patient reads their booked plans
+  (`GET /me/care-plans`), never a draft.
+- **Audit.** Every write, booking, cancellation and read writes an `AuditEvent` (`CarePlan/<id>`) in its transaction;
+  a list audits each plan it shows; a refusal is audited after the rollback, with no id. Each visit a booking makes or a
+  cancellation cancels is audited as the appointment's, in the same transaction.
+- **Minimisation.** No new field: a plan's visits are ordinary appointments (their e-mails, reminders and statistics as
+  for a staff booking); nothing of a plan goes into a log line, a metric or a job argument.
