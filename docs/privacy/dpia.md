@@ -3087,3 +3087,24 @@ LB1 and TP1 fill them, and each of those adds its own block here. What the contr
   patient (X1). A draft is the clinic's; the patient sees a plan once booked. Retention: with the clinical record.
 - **Minimisation.** No new field about the patient: the result's values and the plan's steps are the care itself.
   Nothing of a result or a plan goes into a log line, a metric, a job argument (opaque ids only) or an e-mail.
+
+### Package PX: privacy follow-ups (no migration, docs/clinic-cms/WAVE6.md PX)
+
+**Processing changed.** Four follow-ups of the data subject rights (wave 5), no new personal-data field.
+
+- **The export's receipts and quotes as PDFs.** Each part of the patient's export now holds the PDF of each receipt and
+  quote (`files/<Invoice id>.pdf`, `files/<quote id>.pdf`), rendered by `invoice.PDF` and `invoice.QuotePDF` as the
+  patient, each audited as a read with the request's id, the same documents the app downloads. The worker's invoice
+  service reads the clinic's letterhead (`organization.Clinic`: name, time zone, language; no personal data).
+- **A clinic target reads that clinic only.** `consent.MineAt`, `invoice.MineAt` and `invoice.MyQuotesAt` narrow the
+  patient's own consents, receipts and quotes to the target clinic in the service, so the other clinics' rows are
+  neither returned nor (for consents, audited one by one) audited as read for that export.
+- **A file the build cannot open** (a rotated key, a missing object) is left out and named in `manifest.txt` by its
+  archive path (an opaque id), and the rest of the archive is built: the patient gets their other data and knows what
+  is missing, instead of a failed export. Nothing about the file but its path is written.
+- **The closure's password** is limited as the login is: 5 wrong passwords per account in 15 minutes, then 429
+  `rate_limited` without checking it. The counter is a Redis key named by the HMAC of the account's opaque id
+  (`close:account:`), with the window as its TTL.
+- **A clinic with no admin.** A deadline warning (D5) for a clinic target whose clinic has no admin goes to the operator
+  instead, naming the clinic and the request by their opaque ids, the kind, the due date and the days left: never the
+  patient. Without an operator address nobody is warned, and the worker logs the ids, as before.

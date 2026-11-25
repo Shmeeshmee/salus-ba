@@ -66,7 +66,7 @@ func (o *OwnRecords) conversation(ctx context.Context, c appointment.Caller, k c
 	slices.Reverse(conv.messages) // the service gives the newest first
 	for _, m := range conv.messages {
 		for _, a := range m.Attachments {
-			body, err := readAll(o.chatFile(ctx, c, k.ID, a.ID))
+			f, err := o.p.Chat.Attachment(ctx, c, k.ID, a.ID, false)
 			switch {
 			case errors.Is(err, communication.ErrNotFound), errors.Is(err, binary.ErrScanning):
 				continue // the app cannot open it either
@@ -74,20 +74,22 @@ func (o *OwnRecords) conversation(ctx context.Context, c appointment.Caller, k c
 				return conversation{}, err
 			}
 			name := fileName(a.ID, a.ContentType)
-			conv.files[a.ID] = name
-			out.add(k.OrganizationID, OwnFile{Name: name, Body: body})
-			out.chatFiles[k.OrganizationID]++
+			r, err := o.chatContent(ctx, f)
+			in, err := out.open(ctx, k.OrganizationID, name, r, err)
+			if err != nil {
+				return conversation{}, err
+			}
+			if in {
+				conv.files[a.ID] = name
+				out.chatFiles[k.OrganizationID]++
+			}
 		}
 	}
 	return conv, nil
 }
 
-// chatFile opens the conversation id's attachment for the patient c and streams its bytes.
-func (o *OwnRecords) chatFile(ctx context.Context, c appointment.Caller, id, attachmentID string) (io.ReadCloser, error) {
-	f, err := o.p.Chat.Attachment(ctx, c, id, attachmentID, false)
-	if err != nil {
-		return nil, err
-	}
+// chatContent streams the bytes of the chat's file f.
+func (o *OwnRecords) chatContent(ctx context.Context, f binary.File) (io.ReadCloser, error) {
 	if f.Size == 0 {
 		return io.NopCloser(strings.NewReader("")), nil
 	}

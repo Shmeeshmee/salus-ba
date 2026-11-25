@@ -127,3 +127,20 @@ func TestErase_RefusesAnAccountNotYetDue(t *testing.T) {
 		t.Errorf("e-mail changed to %q", a.Email)
 	}
 }
+
+func TestClose_LimitsWrongPasswords(t *testing.T) {
+	f := newFixture(patientWithoutMFA())
+	for i := range 5 {
+		if err := f.svc.Close(t.Context(), accountID, "not the password at all", eraseAfter); !errors.Is(err, auth.ErrWrongCredentials) {
+			t.Fatalf("attempt %d: Close() error = %v, want ErrWrongCredentials", i+1, err)
+		}
+	}
+	err := f.svc.Close(t.Context(), accountID, password, eraseAfter)
+	var limited *auth.RateLimitedError
+	if !errors.As(err, &limited) || limited.RetryAfter <= 0 {
+		t.Fatalf("Close() after five wrong passwords error = %v, want a RateLimitedError with a retry", err)
+	}
+	if a := f.repo.accounts[accountID]; !a.ClosedAt.IsZero() {
+		t.Error("the account was closed over the limit")
+	}
+}

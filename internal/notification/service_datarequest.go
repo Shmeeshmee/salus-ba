@@ -30,19 +30,20 @@ type DataRequestDeadline struct {
 
 // SendDataRequestDeadline warns the request's answerers of its deadline (docs/clinic-cms/WAVE5.md D5): each admin of
 // the clinic for a clinic target, in their own language, with the link to the request; the operator for the account
-// target, in the operator's language, pointing at salusctl (ErrNoOperator without an operator address). It names the
-// kind, the deadline and the days left, never the patient. It returns how many it sent: none for a clinic without an
-// admin. An address SMTP cannot carry is skipped and its ErrRecipientNotASCII returned after the others are sent; a
+// target, in the operator's language, pointing at salusctl (ErrNoOperator without an operator address). A clinic
+// without an admin warns the operator instead, naming the clinic by its id (WAVE6.md PX). It names the kind, the
+// deadline and the days left, never the patient. It returns how many it sent: none for a clinic without an admin when
+// there is no operator address. An address SMTP cannot carry is skipped and its ErrRecipientNotASCII returned after the others are sent; a
 // retry after another failed send warns the earlier admins again. Errors carry no address.
 func (s *Service) SendDataRequestDeadline(ctx context.Context, w DataRequestDeadline) (int, error) {
-	to, link, err := s.deadlineRecipients(ctx, w)
+	to, link, orphan, err := s.deadlineRecipients(ctx, w)
 	if err != nil {
 		return 0, fmt.Errorf("notification: data request deadline: %w", err)
 	}
 	sent, skipped := 0, error(nil)
 	for _, c := range to {
 		l := s.in(c.Language)
-		data := letter{Request: w.RequestID, Kind: w.Kind, Days: w.Days, Link: link}
+		data := letter{Request: w.RequestID, Kind: w.Kind, Days: w.Days, Link: link, NoAdminClinic: orphan}
 		if data.When, err = l.when(w.Deadline.In(w.Zone), w.Zone.String()); err != nil {
 			return sent, fmt.Errorf("notification: data request deadline: %w", err)
 		}
@@ -63,14 +64,19 @@ func (s *Service) SendDataRequestDeadline(ctx context.Context, w DataRequestDead
 	return sent, skipped
 }
 
-// deadlineRecipients are who answers w's request and the link they follow ("" for the operator, who uses salusctl).
-func (s *Service) deadlineRecipients(ctx context.Context, w DataRequestDeadline) ([]auth.Contact, string, error) {
+// deadlineRecipients are who answers w's request and the link they follow ("" for the operator, who uses salusctl),
+// and the clinic's id when the operator is warned for a clinic with no admin.
+func (s *Service) deadlineRecipients(ctx context.Context, w DataRequestDeadline) ([]auth.Contact, string, string, error) {
+	operator := []auth.Contact{{Email: s.p.OperatorEmail, Language: s.p.OperatorLanguage}}
 	if w.OrganizationID == "" {
 		if s.p.OperatorEmail == "" {
-			return nil, "", ErrNoOperator
+			return nil, "", "", ErrNoOperator
 		}
-		return []auth.Contact{{Email: s.p.OperatorEmail, Language: s.p.OperatorLanguage}}, "", nil
+		return operator, "", "", nil
 	}
 	admins, err := s.p.Admins.ClinicAdmins(ctx, agentDataRequestDeadline, w.OrganizationID)
-	return admins, s.webBaseURL + "/data-requests/" + w.RequestID, err
+	if err == nil && len(admins) == 0 && s.p.OperatorEmail != "" {
+		return operator, "", w.OrganizationID, nil
+	}
+	return admins, s.webBaseURL + "/data-requests/" + w.RequestID, "", err
 }

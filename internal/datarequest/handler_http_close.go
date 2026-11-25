@@ -7,7 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"time"
 
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
 
@@ -56,11 +59,16 @@ func (h *CloseHandler) close(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err = h.svc.CloseAccount(r.Context(), p, *in.Password)
+	var limited *auth.RateLimitedError
 	switch {
 	case err == nil:
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, ErrWrongPassword):
 		closeCode(w, http.StatusForbidden, "wrong_credentials")
+	case errors.As(err, &limited): // too many wrong passwords; this one was not checked
+		secs := int64((limited.RetryAfter + time.Second - 1) / time.Second) // rounded up, at least 1
+		w.Header().Set("Retry-After", strconv.FormatInt(max(secs, 1), 10))
+		closeCode(w, http.StatusTooManyRequests, "rate_limited")
 	case errors.Is(err, ErrNotFound): // a staff account, or one closed already
 		closeCode(w, http.StatusForbidden, "forbidden")
 	default:

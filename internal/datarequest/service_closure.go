@@ -67,7 +67,8 @@ func NewClosure(p ClosurePorts) *Closure {
 // the sessions are revoked, every active consent is revoked (which cancels the future visits and withdraws the
 // waitlist entries, with their notices), the push devices are removed, and the account's erasure request is filed and
 // kept in progress until the erasure EraseAfter later (S6) answers it. Not reversible by the patient. ErrWrongPassword
-// for a wrong password, ErrNotFound for an account that is not an open patient account.
+// for a wrong password, ErrNotFound for an account that is not an open patient account, and auth's RateLimitedError
+// (wrapped) after too many wrong passwords.
 func (c *Closure) CloseAccount(ctx context.Context, p Patient, password string) (Request, error) {
 	profile, err := c.p.Profiles.Me(ctx, patient.Caller{AccountID: p.AccountID})
 	if err != nil && !errors.Is(err, patient.ErrNotFound) {

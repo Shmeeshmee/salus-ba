@@ -5,5 +5,5 @@ Bir ilgili kişi başvurusunu yanıtlama süresi {{if eq .Days 1}}1 gün{{else}}
 Tür: {{if eq .Kind "access"}}Erişim{{else if eq .Kind "portability"}}Taşınabilirlik{{else if eq .Kind "rectification"}}Düzeltme{{else if eq .Kind "restriction"}}Kısıtlama{{else if eq .Kind "objection"}}İtiraz{{else if eq .Kind "erasure"}}Silme{{end}}
 Başvuru: {{.Request}}
 
-{{if .Link}}İşleme almak için Salus'a giriş yapın:
+{{if .NoAdminClinic}}{{.NoAdminClinic}} kimlikli kliniğin talebi yanıtlayacak bir yöneticisi yok: klinikten son tarihten önce bir yönetici belirlemesini isteyin.{{else if .Link}}İşleme almak için Salus'a giriş yapın:
 {{.Link}}{{else}}İşleme almak için: salusctl datarequest show {{.Request}}{{end}}

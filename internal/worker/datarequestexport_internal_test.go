@@ -6,8 +6,10 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +61,7 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 		request, account); err != nil {
 		t.Fatal(err)
 	}
+	receipt := seedExportReceipt(t, owner, org, patient, account)
 	clk := clock.Fixed{T: time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)}
 	svc := newDataRequestExports(app, Files{Store: store, KEK: kek}, newRevocations(app, nil, clk), newReceipts(app, clk), clk)
 	w := &dataRequestExportWorker{exports: svc, log: slog.New(slog.DiscardHandler)}
@@ -94,8 +97,9 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 		}
 	}
 	if !strings.Contains(names["patient.json"], "urn:uuid:"+patient) || !strings.Contains(names["account.json"], account) ||
-		!strings.Contains(names["manifest.txt"], "clinics/"+org+"/") {
-		t.Errorf("archive %v, want the patient's profile, account and manifest", names)
+		!strings.Contains(names["manifest.txt"], "clinics/"+org+"/") || strings.Contains(names["manifest.txt"], "could not be opened") ||
+		!strings.HasPrefix(names["clinics/"+org+"/files/"+receipt+".pdf"], "%PDF-") { // the receipt's PDF (WAVE6.md PX)
+		t.Errorf("archive %v, want the patient's profile, account, receipt PDF and manifest", slices.Collect(maps.Keys(names)))
 	}
 	var named int
 	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_event WHERE agent_account_id = $1 AND request_id = $2`, account,
@@ -106,6 +110,20 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_event WHERE agent_account_id = $1`, account).Scan(&reads); err != nil || reads < 4 {
 		t.Errorf("%d audit events as the patient (%v), want the profile, consents, visits, receipts and account reads", reads, err)
 	}
+}
+
+// seedExportReceipt seeds, as the owner, a receipt of the clinic org to the patient: the export renders its PDF on the
+// clinic's letterhead (docs/clinic-cms/WAVE6.md PX).
+func seedExportReceipt(t *testing.T, owner *pgxpool.Pool, org, patient, account string) string {
+	t.Helper()
+	var id string
+	if err := owner.QueryRow(t.Context(), `INSERT INTO invoice (organization_id, seller_legal_name, seller_tax_id, seller_address,
+		patient_id, kind, number, issued_at, issued_by_account_id, payment_method, total_minor)
+		VALUES ($1, 'Synthetic clinic d.o.o.', '4200000000001', 'Synthetic street 1', $2, 'receipt', 1, now(), $3, 'cash', 5000)
+		RETURNING id`, org, patient, account).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 // seedExportVisit seeds, as the owner, a visit of the patient at a new clinic with their consent there, its encounter

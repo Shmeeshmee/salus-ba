@@ -53,9 +53,9 @@ var (
 	ErrLanguageUnavailable = errors.New("auth: language unavailable")
 )
 
-// RateLimitedError is returned for a login over its limit; the password was not checked.
+// RateLimitedError is returned for a login or an account closure over its limit; the password was not checked.
 type RateLimitedError struct {
 	RetryAfter time.Duration
 }
 
-func (e *RateLimitedError) Error() string { return "auth: too many login attempts" }
+func (e *RateLimitedError) Error() string { return "auth: too many attempts" }

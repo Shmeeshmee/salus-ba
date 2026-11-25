@@ -27,22 +27,34 @@ import (
 
 // ownSources is the patient's own reads, as each owning service gives them to the calling patient, and every call.
 type ownSources struct {
-	meErr     error
-	me        patient.Patient
-	consents  []consent.Consent
-	visits    []appointment.Seen
-	receipts  []invoice.Invoice
-	quotes    []invoice.Quote
-	encs      []encounter.Encounter
-	docs      []composition.Document
-	answers   []questionnaireresponse.Seen
-	files     map[string]string // clean files by binary id; any other is not found
-	convs     []communication.Conversation
-	msgs      map[string][]communication.Message // by conversation
-	chatFiles map[string]string                  // the chat's clean files by attachment id
-	calls     []string
-	visitOrgs []string
+	meErr      error
+	me         patient.Patient
+	consents   []consent.Consent
+	visits     []appointment.Seen
+	receipts   []invoice.Invoice
+	quotes     []invoice.Quote
+	encs       []encounter.Encounter
+	docs       []composition.Document
+	answers    []questionnaireresponse.Seen
+	files      map[string]string // clean files by binary id; any other is not found
+	convs      []communication.Conversation
+	msgs       map[string][]communication.Message // by conversation
+	chatFiles  map[string]string                  // the chat's clean files by attachment id
+	unreadable map[string]bool                    // the ids whose file or PDF cannot be opened
+	calls      []string
+	visitOrgs  []string
 }
+
+// opened is the body of the file or PDF id, or an error when it cannot be opened.
+func (o *ownSources) opened(body, id string) (io.ReadCloser, error) {
+	if o.unreadable[id] {
+		return nil, errors.New("synthetic: the key was rotated")
+	}
+	return io.NopCloser(strings.NewReader(body)), nil
+}
+
+// ofClinic is whether id is org's, or org is empty.
+func ofClinic(id, org string) bool { return org == "" || id == org }
 
 func (o *ownSources) call(s string) { o.calls = append(o.calls, s) }
 
@@ -51,9 +63,15 @@ func (o *ownSources) Me(_ context.Context, c patient.Caller) (patient.Patient, e
 	return o.me, o.meErr
 }
 
-func (o *ownSources) Mine(_ context.Context, c consent.Caller) ([]consent.Consent, error) {
-	o.call("consents " + c.PatientID)
-	return o.consents, nil
+func (o *ownSources) MineAt(_ context.Context, c consent.Caller, org string) ([]consent.Consent, error) {
+	var out []consent.Consent
+	for _, x := range o.consents {
+		if ofClinic(x.OrganizationID, org) {
+			o.call("consent " + x.ID)
+			out = append(out, x)
+		}
+	}
+	return out, nil
 }
 
 func (o *ownSources) Search(_ context.Context, c appointment.Caller, f appointment.Filter) ([]appointment.Seen, error) {
@@ -70,14 +88,47 @@ func (o *ownSources) Search(_ context.Context, c appointment.Caller, f appointme
 
 type ownInvoices struct{ o *ownSources }
 
-func (r ownInvoices) Mine(_ context.Context, c invoice.Caller) ([]invoice.Invoice, error) {
-	r.o.call("receipts " + c.PatientID)
-	return r.o.receipts, nil
+func (r ownInvoices) MineAt(_ context.Context, _ invoice.Caller, org string) ([]invoice.Invoice, error) {
+	var out []invoice.Invoice
+	for _, x := range r.o.receipts {
+		if ofClinic(x.OrganizationID, org) {
+			r.o.call("receipt " + x.ID)
+			out = append(out, x)
+		}
+	}
+	return out, nil
 }
 
-func (r ownInvoices) MyQuotes(_ context.Context, c invoice.Caller) ([]invoice.Quote, error) {
-	r.o.call("quotes " + c.PatientID)
-	return r.o.quotes, nil
+func (r ownInvoices) PDF(_ context.Context, c invoice.Caller, id string) ([]byte, error) {
+	r.o.call("receipt pdf " + id)
+	return r.pdf("%PDF receipt "+id, id, c)
+}
+
+func (r ownInvoices) MyQuotesAt(_ context.Context, _ invoice.Caller, org string) ([]invoice.Quote, error) {
+	var out []invoice.Quote
+	for _, x := range r.o.quotes {
+		if ofClinic(x.OrganizationID, org) {
+			r.o.call("quote " + x.ID)
+			out = append(out, x)
+		}
+	}
+	return out, nil
+}
+
+func (r ownInvoices) QuotePDF(_ context.Context, c invoice.Caller, id string) ([]byte, error) {
+	r.o.call("quote pdf " + id)
+	return r.pdf("%PDF quote "+id, id, c)
+}
+
+func (r ownInvoices) pdf(body, id string, c invoice.Caller) ([]byte, error) {
+	if c.PatientID != "pt1" || c.OrganizationID != "" {
+		return nil, invoice.ErrNotFound
+	}
+	rc, err := r.o.opened(body, id)
+	if err != nil {
+		return nil, err
+	}
+	return io.ReadAll(rc)
 }
 
 type ownEncounters struct{ o *ownSources }
@@ -108,8 +159,8 @@ func (d ownDocuments) Signed(_ context.Context, _ appointment.Caller, encounterI
 
 func (d ownDocuments) PDF(_ context.Context, _ appointment.Caller, id string) (io.ReadCloser, int64, error) {
 	d.o.call("pdf " + id)
-	body := "%PDF " + id
-	return io.NopCloser(strings.NewReader(body)), int64(len(body)), nil
+	rc, err := d.o.opened("%PDF "+id, id)
+	return rc, 5, err
 }
 
 type ownAnswers struct{ o *ownSources }
@@ -142,7 +193,7 @@ func (f ownFiles) Download(_ context.Context, c binary.Caller, id string) (binar
 }
 
 func (f ownFiles) Content(_ context.Context, file binary.File, from, to int64) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader(f.o.files[file.ID][from : to+1])), nil
+	return f.o.opened(f.o.files[file.ID][from:to+1], file.ID)
 }
 
 func newOwn() (*ownSources, *clinicexport.OwnRecords) {
@@ -245,11 +296,17 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 		"urn:uuid:e2", "urn:uuid:d2", "urn:uuid:r2", "urn:uuid:i2"}) {
 		t.Errorf("clinic B's record %v", got)
 	}
-	if want := []string{"record.json", "quotes.json", "files/d2.pdf", "files/b2.png"}; !slices.Equal(names(b), want) {
+	if want := []string{"record.json", "files/i1.pdf"}; !slices.Equal(names(a), want) {
+		t.Errorf("clinic A's files %v, want %v", names(a), want)
+	}
+	if want := []string{"record.json", "quotes.json", "files/d2.pdf", "files/b2.png", "files/i2.pdf", "files/q2.pdf"}; !slices.Equal(names(b), want) {
 		t.Errorf("clinic B's files %v, want %v", names(b), want)
 	}
 	if !bytes.Equal(file(t, b, "files/d2.pdf"), []byte("%PDF dr2")) || !bytes.Equal(file(t, b, "files/b2.png"), []byte("png bytes")) {
 		t.Error("the files' bytes are not the documents' and uploads'")
+	}
+	if !bytes.Equal(file(t, b, "files/i2.pdf"), []byte("%PDF receipt i2")) || !bytes.Equal(file(t, b, "files/q2.pdf"), []byte("%PDF quote q2")) {
+		t.Error("the receipt's and the quote's PDFs are not theirs")
 	}
 	if rec := file(t, b, "record.json"); !bytes.Contains(rec, []byte(`"url":"files/b2.png"`)) || bytes.Contains(rec, []byte("b3")) {
 		t.Error("the answer does not name its file in the archive")
@@ -257,7 +314,9 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 	if !bytes.Contains(file(t, b, "quotes.json"), []byte(`"id": "q2"`)) {
 		t.Errorf("quotes.json %s", file(t, b, "quotes.json"))
 	}
-	if !slices.Contains(b.Holds, "1 signed document (its PDF in files/)") {
+	if want := []string{"1 consent", "1 appointment (the cancelled ones too)", "1 visit record (Encounter)",
+		"1 signed document (its PDF in files/)", "1 submitted questionnaire answer", "1 file you uploaded with your answers (in files/)",
+		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)"}; !slices.Equal(b.Holds, want) {
 		t.Errorf("clinic B holds %q", b.Holds)
 	}
 	if !slices.Contains(o.calls, "answers a2 completed") || !slices.Contains(o.calls, "file b3") {
@@ -280,9 +339,44 @@ func TestOwnRecords_AClinicTargetReadsThatClinic(t *testing.T) {
 		t.Errorf("visits read for %v, want clinic A", o.visitOrgs)
 	}
 	for _, c := range o.calls {
-		if strings.Contains(c, "a2") || strings.Contains(c, "e2") || strings.Contains(c, "b2") {
+		if strings.Contains(c, "a2") || strings.Contains(c, "e2") || strings.Contains(c, "b2") ||
+			strings.Contains(c, "c2") || strings.Contains(c, "i2") || strings.Contains(c, "q2") {
 			t.Errorf("read %q of clinic B", c)
 		}
+	}
+	if !slices.Contains(o.calls, "consent c1") || !slices.Contains(o.calls, "receipt pdf i1") {
+		t.Errorf("calls %v, want clinic A's consent and receipt read", o.calls)
+	}
+}
+
+// A file the build cannot open (a rotated key, a missing object) is left out and named, and the rest is built
+// (docs/clinic-cms/WAVE6.md PX); a done context still fails the build.
+func TestOwnRecords_AFileThatCannotBeOpenedIsNamedNotFatal(t *testing.T) {
+	t.Parallel()
+	o, own := newOwn()
+	o.unreadable = map[string]bool{"dr2": true, "b2": true, "q2": true}
+	x, err := own.Export(t.Context(), "acc1", "")
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	b := x.Parts[1]
+	if want := []string{"record.json", "quotes.json", "files/i2.pdf"}; !slices.Equal(names(b), want) {
+		t.Errorf("clinic B's files %v, want %v", names(b), want)
+	}
+	if want := []string{"files/d2.pdf", "files/b2.png", "files/q2.pdf"}; !slices.Equal(b.Unreadable, want) {
+		t.Errorf("unreadable %v, want %v", b.Unreadable, want)
+	}
+	if got := entries(t, file(t, b, "record.json")); !slices.Contains(got, "urn:uuid:d2") {
+		t.Errorf("the document whose PDF failed is not in the record: %v", got)
+	}
+	if len(x.Parts[0].Unreadable) != 0 {
+		t.Errorf("clinic A unreadable %v", x.Parts[0].Unreadable)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := own.Export(ctx, "acc1", ""); err == nil {
+		t.Error("a cancelled build did not fail")
 	}
 }
 

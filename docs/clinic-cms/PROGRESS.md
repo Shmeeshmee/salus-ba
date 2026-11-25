@@ -3361,7 +3361,69 @@ the report from the kept `e2e` volume. shellcheck over the new scripts: two info
 
 ## PX: privacy follow-ups
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done 2026-11-25 on `wt/cms/PX`, one commit `cms(PX)`. No migration (PX's number after BG1 is left unused).
+Specification: `WAVE6.md` "PX"; the "Deferred" of "Wave 5 integration" and D7's and D5's notes above.
+
+**Built.**
+
+- **Receipt and quote PDFs in the patient's export.** `clinicexport.OwnRecords` reads each receipt's PDF
+  (`invoice.Service.PDF`) and each quote's (`invoice.Service.QuotePDF`) as the patient, each audited as the read, into
+  the clinic's part as `files/<Invoice id>.pdf` and `files/<quote id>.pdf`; the manifest's lines say "receipt (its PDF
+  in files/)" and "quote (quotes.json, its PDF in files/)". The worker's invoice service now has the `Clinics` port for
+  the letterhead (`internal/worker/invoice.go`, an `organization.Service` on the job's pool), which D7 lacked. The
+  worker's Postgres test seeds a receipt and finds its rendered PDF in the archive.
+- **A file the build cannot open is named, not fatal.** A signed document's PDF, an answer's upload, a chat file, a
+  receipt's or quote's PDF whose bytes cannot be read (a rotated KEK, a missing object, a render failure) is left out
+  of `files/` and listed in the part's `Unreadable`; `manifest.txt` writes "could not be opened, so not in this
+  archive: <path>" under the clinic. The rest is built. A done context still fails the build (the job's timeout). A
+  document or answer whose file failed stays in `record.json`; a chat file that failed has no `file` in `chat.json`
+  (its note says it is not in the archive). Listing reads (the services' searches) still fail the build: they are
+  not files, and the one retry is for them.
+- **Clinic narrowing.** `consent.Service.MineAt`, `invoice.Service.MineAt` and `invoice.Service.MyQuotesAt` (the
+  `Mine`, `Mine` and `MyQuotes` of every clinic call them with ""): a clinic-target export reads that clinic's
+  consents, receipts and quotes only; for consents, only that clinic's are audited (one event each). The narrowing is
+  in the service, after the patient-scoped query and before the audit.
+- **Closure password limit.** `auth.Service.Close` counts wrong passwords per account (Redis, `close:account:<HMAC of
+  the id>`, 15 minutes, the login's window); from the fifth it returns `RateLimitedError` without checking the
+  password. `POST /me/account/close` answers 429 `rate_limited` with `Retry-After` (already in `api/openapi.yaml`); the
+  app already shows `rate_limited` (`failureMessage`), so `mobile/` needed no change.
+- **No admin: the operator is warned.** `notification.SendDataRequestDeadline` sends a clinic target's warning to the
+  operator when the clinic has no admin, in the operator's language, naming the clinic by its opaque id (a new last
+  line in `data_request_deadline` in all ten languages, `NoAdminClinic`); never the patient. Without an operator
+  address nothing is sent and the worker logs the ids at warn, as before.
+- **Docs**: the DPIA block "Package PX".
+
+**Test first.** Red first: `TestClose_LimitsWrongPasswords` (no limit), the consent and invoice narrowing tests
+(compile failure: no `MineAt`, `MyQuotesAt`), the manifest test (no unreadable line), the operator fallback
+(`TestSendDataRequestDeadline_AClinicWithoutAnAdminWarnsTheOperator`, nothing sent). Written with or after their code:
+the close handler's 429 test (the mapping was typed before the test ran), and the export builder's tests
+(`TestOwnRecords_AFileThatCannotBeOpenedIsNamedNotFatal`, `TestOwnRecords_AChatFileThatCannotBeOpenedIsNamed`, the PDFs
+in `TestOwnRecords_OnePartPerClinicWithTheClinicalContent`), which were updated after the builder; the worker test's
+receipt was added with the wiring.
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Narrowing place | In the service, after the patient-scoped query | No sqlc or query change; nothing of another clinic leaves the service or is audited for the export |
+| What "cannot open" is | An error reading a file's bytes or rendering a PDF, unless the context is done | A search failing is not a file; a cancelled job must not report a half archive as done |
+| Closure limit | 5 wrong passwords per account per 15 minutes, keyed by account, not IP | The login's numbers; the caller is signed in, so the account is the one being guessed |
+| No admin | The operator gets the clinic's warning, with the clinic's id and no link | D5's open question; the operator cannot answer it (`salusctl` refuses clinic requests), so the e-mail asks to get the clinic an admin |
+
+**Checks** (this worktree's compose project `salus-cms-px`): the fast layer after each change (gofmt found two test
+files, fixed); `make lint` failed twice on funlen of the worker's export test (the receipt's seed moved to a helper),
+then passed with `make i18n-check` inside; `runner.sh full` (`make lint test archcheck`): pass; `make cover`: pass,
+90.0% total, every package at 80% or more. Not run: `make fhir-validate` (no golden FHIR file changed), `make
+gen-clients` (`api/openapi.yaml` unchanged), `mobile` (no file under `mobile/` changed: the app already maps
+`rate_limited`), `make e2e` (not in PX's check sets). No review subagent was run.
+
+**Deferred.** The notification erasers (wait for the lawyer's retention periods, WAVE6). The archive is still built in
+memory, orphan objects are still not swept (D7). Clinics in the manifest are still named by id.
+
+**New user-facing strings** (owner's copy review): the last line of `data_request_deadline` for a clinic without an
+admin, ten languages (`internal/notification/templates/<language>/data_request_deadline.txt`, English in
+`internal/notification/testdata/en/data_request_deadline_no_admin.txt`); the manifest's line "could not be opened, so
+not in this archive: <path>" (English only, as the rest of `manifest.txt`).
 
 ## LC1: locations on the server
 

@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -50,7 +49,7 @@ func (c ownChat) Attachment(_ context.Context, _ appointment.Caller, id, attachm
 }
 
 func (c ownChat) Content(_ context.Context, f binary.File, from, to int64) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader(c.o.chatFiles[f.ID][from : to+1])), nil
+	return c.o.opened(c.o.chatFiles[f.ID][from:to+1], f.ID)
 }
 
 // withChat gives the patient a conversation with clinic B: three messages, one with a clean file and one with a file
@@ -105,5 +104,24 @@ func TestOwnRecords_AClinicTargetReadsThatClinicsChat(t *testing.T) {
 	}
 	if slices.Contains(o.calls, "messages k1") {
 		t.Errorf("read clinic B's chat for clinic A: %v", o.calls)
+	}
+}
+
+// A chat file the build cannot open is left out of files/ and named in the part's unreadable list (WAVE6.md PX).
+func TestOwnRecords_AChatFileThatCannotBeOpenedIsNamed(t *testing.T) {
+	t.Parallel()
+	o, own := newOwn()
+	withChat(o)
+	o.unreadable = map[string]bool{"f1": true}
+	x, err := own.Export(t.Context(), "acc1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := x.Parts[1]
+	if slices.Contains(names(b), "files/f1.png") || !slices.Equal(b.Unreadable, []string{"files/f1.png"}) {
+		t.Errorf("files %v, unreadable %v; want f1 named, not in files/", names(b), b.Unreadable)
+	}
+	if chat := file(t, b, "chat.json"); bytes.Contains(chat, []byte(`"file": "files/f1.png"`)) {
+		t.Errorf("chat.json names a file not in the archive:\n%s", chat)
 	}
 }
