@@ -26,6 +26,9 @@ const (
 	visit    = "appt-1"
 	// revokedVisit is a visit whose patient revoked their care consent since.
 	revokedVisit = "appt-revoked"
+	// restrictedVisit is a visit whose patient's record the clinic restricts (docs/clinic-cms/WAVE5.md S7), with an
+	// active care consent.
+	restrictedVisit = "appt-restricted"
 	// registeredVisit is a visit of a patient the clinic registered, without an account (docs/clinic-cms W1), with an
 	// active care consent.
 	registeredVisit = "appt-registered"
@@ -261,6 +264,8 @@ func (fakeVisits) Lookup(_ context.Context, id string) (appointment.Appointment,
 		return appointment.Appointment{ID: revokedVisit, OrganizationID: org, PatientID: "patient-revoked"}, nil
 	case registeredVisit:
 		return appointment.Appointment{ID: registeredVisit, OrganizationID: org, PatientID: "patient-registered"}, nil
+	case restrictedVisit:
+		return appointment.Appointment{ID: restrictedVisit, OrganizationID: org, PatientID: "patient-restricted"}, nil
 	}
 	return appointment.Appointment{}, appointment.ErrNotFound
 }
@@ -286,6 +291,9 @@ func (fakeCare) Visits(_ context.Context, patientID, _ string) ([]access.Visit, 
 }
 
 func (fakeCare) State(_ context.Context, patientID, _ string) (access.Consent, error) {
+	if patientID == "patient-restricted" {
+		return access.Consent{Active: true, Restricted: true}, nil
+	}
 	return access.Consent{Active: patientID == "patient-consented" || patientID == patientA || patientID == "patient-registered"}, nil
 }
 

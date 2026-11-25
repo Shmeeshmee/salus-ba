@@ -69,6 +69,9 @@ type Consent struct {
 	Active        bool // the care consent is active
 	Transcription bool // the transcription consent (transcription, translation, AI assistance) is active
 	History       bool // the history consent is active
+	// Restricted: the patient's record is restricted at the clinic (docs/clinic-cms/WAVE5.md S7), gathered with the
+	// consent state; every rule for the clinic's staff then refuses, but ClinicRecord (Restricted, restricted.go).
+	Restricted bool
 }
 
 // Visit is one of the patient's appointments in the clinic, of any status.
@@ -133,6 +136,21 @@ func Appointment(v Viewer, f Facts, a Visit) Level {
 	return None
 }
 
+// ClinicRecord is what viewer may see of the patient's appointment a for the record the clinic hands over or exports
+// (docs/clinic-cms/WAVE5.md S11): the clinic's admin all of it with an active consent, and otherwise the name, times
+// and status of every one, the visits a withdrawal cancelled included, since the clinic holds the booking and the data
+// is the patient's; everyone else nothing. Only the hand-over and the export read through it.
+func ClinicRecord(v Viewer, f Facts, a Visit) Level {
+	f.Consent.Restricted = false // the admin's audited opening of a restricted record (restricted.go)
+	if v.Role != RoleAdmin || !staffOf(v, f) {
+		return None
+	}
+	if level := Appointment(v, f, a); level != None {
+		return level
+	}
+	return Name
+}
+
 // RecordsOutcome reports whether viewer may record how appointment a went (fulfilled or noshow): its
 // practitioner, with an active consent, or after a revocation for a past appointment, which is the care
 // record (Art. 9(2)(h)). That a has started is the service's check; cancelling a past one stays refused.
@@ -194,9 +212,10 @@ func ConsultationRecord(v Viewer, f Facts, a Visit) bool {
 // Transcribed reports whether the patient's consultations with the clinic may be transcribed and translated, with
 // AI assistance for the practitioner (the transcription agent in the call, the stored transcript, suggestions,
 // document drafts): only while both the care consent and the transcription consent are active (SAL-12,
-// docs/plans/v1-finish.md "Decisions"). Declined or withdrawn, the consultation goes on without them.
+// docs/plans/v1-finish.md "Decisions"), and never while the clinic restricts the record (docs/clinic-cms/WAVE5.md S7).
+// Declined or withdrawn, the consultation goes on without them.
 func Transcribed(c Consent) bool {
-	return c.Active && c.Transcription
+	return c.Active && c.Transcription && !c.Restricted
 }
 
 // SignedDocument reports whether viewer may read a signed document of the consultation of appointment a (the
@@ -221,9 +240,9 @@ func self(v Viewer, f Facts) bool {
 	return v.Role == RolePatient && v.Patient != "" && v.Patient == f.Patient
 }
 
-// staffOf reports whether v is staff of the facts' clinic.
+// staffOf reports whether v is staff of the facts' clinic, whose record of the patient is not restricted there.
 func staffOf(v Viewer, f Facts) bool {
-	return (v.Role == RolePractitioner || v.Role == RoleAdmin) && v.Clinic != "" && v.Clinic == f.Clinic
+	return (v.Role == RolePractitioner || v.Role == RoleAdmin) && v.Clinic != "" && v.Clinic == f.Clinic && !Restricted(v, f)
 }
 
 // ofPractitioner reports whether a is with the practitioner v.
@@ -265,7 +284,7 @@ func WritesChat(v Viewer, f Facts, participant bool) bool {
 // and only while the patient's care consent with the treating clinic is active, which rules every doctor's access.
 func GuestChat(v Viewer, f Facts, granted bool) bool {
 	return v.Role == RolePractitioner && v.Clinic != "" && v.Clinic != f.Clinic && v.PractitionerRole != "" &&
-		granted && f.Consent.Active
+		granted && f.Consent.Active && !f.Consent.Restricted
 }
 
 // ManagesChat reports whether viewer may add practitioners to and remove them from a conversation whose treating

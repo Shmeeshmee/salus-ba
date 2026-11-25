@@ -168,6 +168,8 @@ func TestTakeReminder_SkipsAReminderWhoseAppointmentNoLongerHolds(t *testing.T) 
 		{name: "moved", change: func(f *fixture) { f.repo.appts[0].Start = start.Add(time.Hour) }, org: clinicA, want: appointment.ErrReminderGone, state: appointment.ReminderSkipped},
 		{name: "started", change: func(f *fixture) { f.repo.appts[0].Start = now }, org: clinicA, want: appointment.ErrReminderGone, state: appointment.ReminderSkipped},
 		{name: "another clinic", change: func(*fixture) {}, org: clinicB, want: appointment.ErrNotFound, state: appointment.ReminderScheduled},
+		// A restricted record is never used for reminders (docs/clinic-cms/WAVE5.md S7).
+		{name: "restricted", change: func(f *fixture) { f.patients.restricted = patientA + clinicA }, org: clinicA, want: appointment.ErrReminderGone, state: appointment.ReminderSkipped},
 	} {
 		f := scheduledFixture(t)
 		tt.change(f)

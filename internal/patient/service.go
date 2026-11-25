@@ -202,6 +202,9 @@ func (s *Service) readAsStaff(ctx context.Context, c Caller, id string) (Patient
 	if err != nil {
 		return Patient{}, false, err
 	}
+	if state.Restricted, err = s.repo.Restricted(ctx, id, c.OrganizationID); err != nil {
+		return Patient{}, false, err
+	}
 	visits, err := s.appointments.Visits(ctx, id, c.OrganizationID)
 	if err != nil {
 		return Patient{}, false, err

@@ -210,3 +210,12 @@ export function DeskIcon() {
     </svg>
   )
 }
+
+// PrivacyIcon is the patients' data requests (clinic-cms D4): a shield.
+export function PrivacyIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M10 2.5 4 5v4.5c0 3.8 2.6 6.6 6 8 3.4-1.4 6-4.2 6-8V5z" />
+    </svg>
+  )
+}

@@ -78,6 +78,9 @@ func instant(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
+// FHIR is the encounter as an R4 Encounter, as the FHIR API serves it (the patient's export writes it too, D7).
+func FHIR(e Encounter) any { return toFHIR(e) }
+
 func toFHIR(e Encounter) resource {
 	return resource{
 		ResourceType: "Encounter", ID: e.ID, Meta: fhir.NewMeta(e.VersionID, e.LastUpdated), Status: e.Status,

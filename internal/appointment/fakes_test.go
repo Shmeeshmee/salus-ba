@@ -92,6 +92,7 @@ type fakeRepository struct {
 	clinic   string               // set by SetClinic
 	notice   string               // set by SetNotice
 	calls    []string
+	record   bool // set by SetRecord
 }
 
 func (r *fakeRepository) seen(ctx context.Context, call string) {
@@ -109,7 +110,7 @@ func (r *fakeRepository) visible(a appointment.Appointment) bool {
 		return false
 	}
 	st := r.consents.state[a.PatientID+a.OrganizationID]
-	return st.Active || a.Start.Before(st.RevokedAt) || a.ID == r.notice
+	return st.Active || a.Start.Before(st.RevokedAt) || a.ID == r.notice || r.record
 }
 
 func (r *fakeRepository) SetPatient(ctx context.Context, id string) error {
@@ -127,6 +128,12 @@ func (r *fakeRepository) SetClinic(ctx context.Context, id string) error {
 func (r *fakeRepository) SetNotice(ctx context.Context, id string) error {
 	r.seen(ctx, "SetNotice")
 	r.notice = id
+	return nil
+}
+
+func (r *fakeRepository) SetRecord(ctx context.Context) error {
+	r.seen(ctx, "SetRecord")
+	r.record = true
 	return nil
 }
 
@@ -419,9 +426,17 @@ func (s *fakeSlots) Release(ctx context.Context, org, id string) (bool, error) {
 
 // fakePatients gives a profile when the scope of the fake repository shows the patient.
 type fakePatients struct {
-	err    error
-	repo   *fakeRepository
-	lookup []string
+	err        error
+	repo       *fakeRepository
+	restricted string // the patient and clinic, joined, whose record is restricted
+	lookup     []string
+}
+
+func (p *fakePatients) Restricted(ctx context.Context, id, org string) (bool, error) {
+	if ctx.Value(txKey{}) == nil {
+		return false, errors.New("Restricted outside a transaction")
+	}
+	return p.restricted != "" && p.restricted == id+org, p.err
 }
 
 func (p *fakePatients) Lookup(ctx context.Context, id string) (patient.Patient, error) {

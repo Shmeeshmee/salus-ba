@@ -1,0 +1,6 @@
+Package D3. Your specification is the "D3" section of docs/clinic-cms/WAVE5.md; read that file whole first, and
+5.0's record in docs/clinic-cms/PROGRESS.md (every place the contract changed). Migration, only if needed: 00075.
+The other D packages run in parallel in internal/datarequest: write only your own files there.
+This is the package the lawyer must read: list in the report exactly what is erased, what is kept and under which
+rule, and every assumption about retention you made.
+- Changed after the contract (owner default, 2026-11-24): erasure runs 21 days after closure, not 30, so it always falls inside the one-month deadline of an erasure request (S5, S6). The operator may reopen within those 21 days. Keep the erasure request in_progress until the job has run, then fulfil it with the record of what was erased and kept.

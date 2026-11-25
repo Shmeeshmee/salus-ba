@@ -86,6 +86,24 @@ String parameterToString(dynamic value) {
   if (value is ConsentKind) {
     return ConsentKindTypeTransformer().encode(value).toString();
   }
+  if (value is DataRequestAnswerCode) {
+    return DataRequestAnswerCodeTypeTransformer().encode(value).toString();
+  }
+  if (value is DataRequestExportStatus) {
+    return DataRequestExportStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is DataRequestExtensionReason) {
+    return DataRequestExtensionReasonTypeTransformer().encode(value).toString();
+  }
+  if (value is DataRequestKind) {
+    return DataRequestKindTypeTransformer().encode(value).toString();
+  }
+  if (value is DataRequestStatus) {
+    return DataRequestStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is DataRequestTarget) {
+    return DataRequestTargetTypeTransformer().encode(value).toString();
+  }
   if (value is DoseUnit) {
     return DoseUnitTypeTransformer().encode(value).toString();
   }

@@ -13,6 +13,7 @@
 //	salusctl trends build <2026-10 | 2026-Q3 | 2026-W44>          a missed build of the platform figures (SAL-21)
 //	salusctl subscription plan|start-trial|mark-paid|status ...   the clinics' membership (subscription.go)
 //	salusctl signup list|approve <organization-id>                the clinics that signed themselves up (signup.go)
+//	salusctl datarequest list|show|answer|extend|reopen-account ... the data requests to the account (datarequest.go)
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
@@ -33,6 +34,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/condition"
 	"github.com/Shmeeshmee/salus/internal/config"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/signup"
 	"github.com/Shmeeshmee/salus/internal/subscription"
@@ -43,7 +45,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status | signup list|approve"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status | signup list|approve | datarequest list|show|answer|extend|reopen-account"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -66,6 +68,7 @@ type services struct {
 	trends     *trends.Builder // nil while ANALYTICS_PLATFORM_ENABLED is off
 	members    *subscription.Service
 	signups    *signup.Service // create-clinic's one path, and the signups' approval
+	operator   *datarequest.Operator
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
@@ -103,6 +106,13 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	s.signups = signup.NewService(signup.Ports{
 		Repo: signup.NewPostgresRepository(pool), Tx: tx, Clock: clock.System{}, Clinics: s.clinics, Admins: s.accounts, Trials: s.members,
 	})
+	// The operator's requests need the repository, the audit, the transaction and the clock (the operator's time zone,
+	// no clinic's); reopening an account the closure's scope and the accounts.
+	requests := datarequest.NewPostgresRepository(pool)
+	s.operator = datarequest.NewOperator(
+		datarequest.NewService(datarequest.Ports{Repo: requests, Clock: clock.System{}, Tx: tx, Audit: audit}),
+		datarequest.NewClosure(datarequest.ClosurePorts{Tx: tx, Repo: requests, Scope: datarequest.NewErasureScope(), Accounts: s.accounts, Clock: clock.System{}}),
+	)
 	if cfg.Analytics.PlatformEnabled {
 		s.trends = worker.NewTrendsBuilder(pool, pool, cfg.Analytics.MinCount, auditevent.AgentOperator)
 	}
@@ -121,6 +131,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return s.subscriptionCommand(ctx, args[1:], stdout)
 	case "signup":
 		return s.signupCommand(ctx, args[1:], stdout)
+	case "datarequest":
+		return s.dataRequestCommand(ctx, args[1:], stdout)
 	case "term-reviewer":
 		return s.termReviewer(ctx, args[1:], stdout)
 	case "reset-mfa":

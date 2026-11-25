@@ -1,0 +1,8 @@
+Subject: Una richiesta dell'interessato scade tra 7 giorni
+
+Il termine per rispondere a una richiesta dell'interessato scade il giovedì 24 dicembre 2026, ore 23:59 (Europe/Sarajevo), tra 7 giorni.
+
+Tipo: Accesso
+Richiesta: 00000000-0000-4000-8000-0000000000f1
+
+Per gestirla: salusctl datarequest show 00000000-0000-4000-8000-0000000000f1

@@ -134,6 +134,13 @@ func documentType(code string) fhir.CodeableConcept {
 	return fhir.CodeableConcept{Coding: []fhir.Coding{{System: SystemLOINC, Code: code}}}
 }
 
+// CompositionFHIR is the document as an R4 Composition, as the FHIR API serves it (the patient's export writes it too,
+// D7).
+func CompositionFHIR(doc Document) any {
+	out, _ := compositionOf(doc)
+	return out
+}
+
 // compositionOf is the draft as an R4 Composition: each field a section, its value the narrative (a list as
 // items, a coded field's ICD-10 code as text), a missing one with an emptyReason. A final one is attested by
 // its signer.

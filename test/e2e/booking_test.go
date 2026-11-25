@@ -73,7 +73,8 @@ func TestBooking_RevokedConsentEndsAccessAndCancelsTheFutureAppointment(t *testi
 // whose slots are generated.
 type bookableClinic struct {
 	practitioner     *api
-	admin            *api           // the clinic's admin, on the session their enrolment opened
+	admin            *api // the clinic's admin, on the session their enrolment opened
+	adminAddr        string
 	totp             *authenticator // the practitioner's, for the web app's sign-in
 	id               string
 	name             string
@@ -90,7 +91,7 @@ func newBookableClinic(t *testing.T) *bookableClinic {
 	t.Helper()
 	waitReady(t)
 	adminAddr, practitionerAddr := email(t, "admin"), email(t, "practitioner")
-	c := &bookableClinic{name: "E2E synthetic clinic " + suffix(t), practitionerAddr: practitionerAddr, practitionerName: "Bo Syntheticson"}
+	c := &bookableClinic{name: "E2E synthetic clinic " + suffix(t), adminAddr: adminAddr, practitionerAddr: practitionerAddr, practitionerName: "Bo Syntheticson"}
 	c.id = field(t, salusctl(t, "create-clinic", "-name", c.name, "-admin-email", adminAddr), "organization")
 	admin, _ := enrolFromInvite(t, adminAddr)
 	c.admin = admin

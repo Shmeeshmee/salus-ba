@@ -156,11 +156,19 @@ var receptionRoutes = map[string]receptionClass{
 	"DELETE /waitlist/{id}": stranger, "POST /waitlist/offers/{id}/accept": stranger,
 	"POST /waitlist/offers/{id}/decline": stranger, "GET /me/receipts": stranger, "GET /me/receipts/{id}/pdf": stranger,
 	"GET /me/quotes": stranger, "GET /me/quotes/{id}/pdf": stranger,
+	// Wave 5 (docs/clinic-cms/WAVE5.md): the patient's requests and closure are theirs; the clinic's queue and the
+	// restriction are the admin's; the desk files on behalf of a patient the clinic registered (S10).
+	"GET /me/data-requests": stranger, "POST /me/data-requests": stranger, "POST /me/data-requests/{id}/withdraw": stranger,
+	"GET /me/data-requests/{id}/export": stranger, "GET /me/data-requests/{id}/export/archive": stranger,
+	"POST /me/account/close": stranger, "GET /clinic/data-requests": refused, "GET /clinic/data-requests/{id}": refused,
+	"POST /clinic/data-requests/{id}/answer": refused, "POST /clinic/data-requests/{id}/extend": refused,
+	"POST /clinic/patients/{id}/data-requests": desk, "PUT /clinic/patients/{id}/restriction": refused,
+	"DELETE /clinic/patients/{id}/restriction": refused,
 }
 
-// notServedYet are the routes in the contract that are not mounted: none since wave 4 served the staff move and the
-// clinic export. A route declared before it is built goes here and answers the router's own 404; when it is mounted,
-// the test fails until it is taken off this list, and the route is then held to its class above.
+// notServedYet are the routes in the contract that are not mounted: wave 5's, declared by its contract (5.0) and
+// served by D1 to D4. A route declared before it is built goes here and answers the router's own 404; when it is
+// mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{}
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.

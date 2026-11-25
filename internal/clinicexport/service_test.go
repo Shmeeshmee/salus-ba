@@ -147,6 +147,7 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 	e.sources.quotes = []invoice.Quote{{ID: "q1", IssuedAt: start, ValidUntil: start.Add(30 * 24 * time.Hour), State: invoice.QuoteSent,
 		PatientID: "pt1", AppointmentID: "a1", Note: "Placeholder note", TotalMinor: 12000, Currency: "BAM"}}
 	e.sources.registered = []string{"pt1", "gone"} // the second deleted since the list was read
+	e.sources.restricted = []string{"pt1", "pt9"}  // records the clinic restricts (D4, S7)
 	e.sources.records["pt1"] = patient.ClinicRecord{Patient: patient.Patient{ID: "pt1", GivenName: "Cy", FamilyName: "Primjer",
 		BirthDate: time.Date(1980, 3, 4, 0, 0, 0, 0, time.UTC), RegisteredBy: clinicA, VersionID: 1, LastUpdated: start}}
 
@@ -204,10 +205,7 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 		}
 	}
 	checkPatientFile(t, files["patients/pt1.json"])
-	if m := files["manifest.txt"]; !strings.Contains(m, "Patients' records in this archive: 1\n") ||
-		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") {
-		t.Errorf("manifest.txt =\n%s", m)
-	}
+	checkManifest(t, files["manifest.txt"])
 	if len(files) != len(want)+2 {
 		t.Errorf("archive holds %d files, want %d (the CSVs, one patient's record and the manifest)", len(files), len(want)+2)
 	}
@@ -338,5 +336,17 @@ func checkReadAsTheAdmin(t *testing.T, f *fakeSources) {
 		if w != adminA+" "+clinicA+" true" {
 			t.Errorf("read as %q; want the asking admin", w)
 		}
+	}
+}
+
+// checkManifest checks the manifest of the clinic's export: one patient's record, what is not in it, the cancelled
+// visits (S11) and the records the clinic restricts (S7).
+func checkManifest(t *testing.T, m string) {
+	t.Helper()
+	if !strings.Contains(m, "Patients' records in this archive: 1\n") ||
+		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") ||
+		!strings.Contains(m, "the visits a withdrawal of consent cancelled are in it too") || strings.Contains(m, "in neither") ||
+		!strings.Contains(m, "Restricted records (GDPR Art. 18), by patient id:\npt1\npt9\n") {
+		t.Errorf("manifest.txt =\n%s", m)
 	}
 }

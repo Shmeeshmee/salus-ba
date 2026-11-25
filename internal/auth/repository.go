@@ -17,6 +17,8 @@ type Repository interface {
 	// ByPractitioner returns the account linked to the practitioner, or ErrNotFound (also for an id that is not a
 	// UUID).
 	ByPractitioner(ctx context.Context, practitionerID string) (Account, error)
+	// ClinicAdmins returns the e-mail and language of each admin of the clinic org.
+	ClinicAdmins(ctx context.Context, org string) ([]Contact, error)
 	// SetPasswordHash replaces the account's password hash.
 	SetPasswordHash(ctx context.Context, id, hash string) error
 	// SetLanguage sets the account's chosen language, or clears it for "", or returns ErrNotFound.
@@ -72,6 +74,17 @@ type Repository interface {
 	// AcceptInvite marks the invite accepted at at, or returns ErrInvalidInvite when it was accepted or
 	// expired by then.
 	AcceptInvite(ctx context.Context, id string, at time.Time) error
+
+	// CloseAccount closes the open patient account id at at, to be erased after eraseAfter, or returns ErrNotFound
+	// (staff, closed already, or no such account).
+	CloseAccount(ctx context.Context, id string, at, eraseAfter time.Time) error
+	// ReopenAccount clears the closure of account id while its erasure date is after now, or returns ErrNotFound.
+	ReopenAccount(ctx context.Context, id string, now time.Time) error
+	// AccountsDueForErasure returns the closed accounts whose erasure date is not after now and that are not erased.
+	AccountsDueForErasure(ctx context.Context, now time.Time) ([]string, error)
+	// EraseAccount replaces the login of account id due at now with one derived from its id and clears its password
+	// hash, MFA and languages, marking it erased at now, or returns ErrNotFound when it is not due or erased already.
+	EraseAccount(ctx context.Context, id string, now time.Time) error
 
 	// DeleteSessionsEndedBefore deletes the sessions revoked or expired before before, and counts them. Only
 	// the retention role may (built on its pool in internal/worker).

@@ -3453,6 +3453,234 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/data-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own data subject requests
+         * @description Every request the patient filed, to their account or to one of their clinics, newest first, with its state and due date (docs/clinic-cms WAVE5.md, S1 to S3). For a patient. Built in package D1. Audited.
+         */
+        get: operations["listMyDataRequests"];
+        put?: never;
+        /**
+         * File a data subject request
+         * @description A request of a kind (S2) to the patient's Salus account, which Salus answers, or to their record at one clinic they have a record with, which that clinic's admin answers (S1). Due one month after receipt (S3). An access or portability request queues the patient's export (S4). For a patient. Built in package D1. Audited.
+         */
+        post: operations["fileMyDataRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/data-requests/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw an open request
+         * @description The request is withdrawn and keeps its history; it is never deleted. For the patient who filed it, while it is received or in progress. Built in package D1. Audited.
+         */
+        post: operations["withdrawMyDataRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/data-requests/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the export of an access or portability request stands
+         * @description Everything the patient can read in the app, from every clinic of the target, plus their account data for the account target, as FHIR Bundles in one encrypted archive built by a job (S4). Downloadable for 7 days once ready. For the patient who filed the request. Built in package D2. Audited, as a read of the patient's request.
+         */
+        get: operations["getMyDataRequestExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/data-requests/{id}/export/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a ready export
+         * @description A zip archive of FHIR Bundles. For the patient who filed the request, until it expires. Built in package D2. Audited.
+         */
+        get: operations["downloadMyDataRequestExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/account/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close the patient's account
+         * @description At once: sign-in ends, sessions and device tokens are removed, future visits are cancelled with their notices, waitlist entries withdrawn and consents revoked (S5). Not reversible by the patient; the operator may reopen it within 21 days, after which what has no legal basis to stay is erased and the clinical record stays with each clinic, restricted (S6). Confirmed with the password. For a patient. Built in package D3. Audited.
+         */
+        post: operations["closeMyAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/data-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The requests targeting the clinic
+         * @description The open ones by due date first, then the answered and withdrawn ones (S1, S3). For the clinic's admin. Built in package D1. Audited.
+         */
+        get: operations["listClinicDataRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/data-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One request targeting the clinic
+         * @description With its history of status changes. For the clinic's admin. Built in package D1. Audited.
+         */
+        get: operations["getClinicDataRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/data-requests/{id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a request targeting the clinic
+         * @description Fulfilled or refused, with a code told to the patient (never free text about health). For the clinic's admin, while the request is open. Built in package D1. Audited.
+         */
+        post: operations["answerClinicDataRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/data-requests/{id}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend a request's deadline once
+         * @description By two months, with a reason told to the patient (GDPR Art. 12(3); S3). For the clinic's admin, once, while the request is open and its due date has not passed (S12). Built in package D1. Audited.
+         */
+        post: operations["extendClinicDataRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients/{id}/data-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * File a request on behalf of a registered patient
+         * @description At the desk, after checking the patient's identity, for a patient the clinic registered (S10); the request targets the clinic and is handled as any other. For the clinic's admin and its receptionists. Built in package D1. Audited.
+         */
+        post: operations["fileClinicPatientDataRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients/{id}/restriction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Restrict a patient's record at the clinic
+         * @description Hidden from the clinic's everyday screens and searches, and never used for analytics, reminders or messages; the admin opens it only with a stated reason (S7). Restricting a restricted record changes nothing. For the clinic's admin. Built in package D4. Audited.
+         */
+        put: operations["restrictClinicPatient"];
+        post?: never;
+        /**
+         * Lift a restriction
+         * @description Lifting a record that is not restricted changes nothing. For the clinic's admin. Built in package D4. Audited.
+         */
+        delete: operations["liftClinicPatientRestriction"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3910,6 +4138,97 @@ export interface components {
              * @description When a ready archive stops being downloadable.
              */
             expiresAt?: string;
+        };
+        /**
+         * @description What the patient asks for (GDPR Art. 15 to 21). Access and portability are served by the same export.
+         * @enum {string}
+         */
+        DataRequestKind: "access" | "portability" | "rectification" | "restriction" | "objection" | "erasure";
+        /**
+         * @description `account`: the patient's Salus account, answered by Salus; `clinic`: their record at one clinic, answered by its admin.
+         * @enum {string}
+         */
+        DataRequestTarget: "account" | "clinic";
+        /** @enum {string} */
+        DataRequestStatus: "received" | "in_progress" | "fulfilled" | "refused" | "withdrawn";
+        /**
+         * @description `done` and `done_partly_kept` (done; what the medical-record retention keeps is kept) fulfil a request; the others refuse it.
+         * @enum {string}
+         */
+        DataRequestAnswerCode: "done" | "done_partly_kept" | "identity_unverified" | "manifestly_unfounded" | "excessive" | "retention_law" | "no_data";
+        /** @enum {string} */
+        DataRequestExtensionReason: "complex" | "many_requests";
+        /** @description A data subject's request (docs/clinic-cms WAVE5.md). Personal data: it says what the patient asked of whom. `history` comes with the clinic's read of one request only. */
+        DataRequest: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            target: components["schemas"]["DataRequestTarget"];
+            /**
+             * Format: uuid
+             * @description The clinic of a clinic target.
+             */
+            organizationId?: string;
+            /**
+             * Format: uuid
+             * @description The patient's profile; on the clinic's reads.
+             */
+            patientId?: string;
+            status: components["schemas"]["DataRequestStatus"];
+            /** Format: date-time */
+            receivedAt: string;
+            /** Format: date-time */
+            dueAt: string;
+            /**
+             * Format: date-time
+             * @description The deadline once extended.
+             */
+            extendedUntil?: string;
+            extensionReason?: components["schemas"]["DataRequestExtensionReason"];
+            /** Format: date-time */
+            answeredAt?: string;
+            answerCode?: components["schemas"]["DataRequestAnswerCode"];
+            /** @description False for a request the clinic filed at the desk for the patient. */
+            filedByPatient: boolean;
+            version: number;
+            history?: components["schemas"]["DataRequestChange"][];
+        };
+        DataRequestChange: {
+            status: components["schemas"]["DataRequestStatus"];
+            /** Format: date-time */
+            changedAt: string;
+        };
+        DataRequestFiling: {
+            kind: components["schemas"]["DataRequestKind"];
+            target: components["schemas"]["DataRequestTarget"];
+            /**
+             * Format: uuid
+             * @description The clinic; required with the clinic target.
+             */
+            organizationId?: string;
+        };
+        DataRequestAnswer: {
+            /** @enum {string} */
+            status: "fulfilled" | "refused";
+            code: components["schemas"]["DataRequestAnswerCode"];
+        };
+        DataRequestExtension: {
+            reason: components["schemas"]["DataRequestExtensionReason"];
+        };
+        /** @enum {string} */
+        DataRequestExportStatus: "queued" | "ready" | "failed" | "expired";
+        DataRequestExport: {
+            status: components["schemas"]["DataRequestExportStatus"];
+            /**
+             * Format: date-time
+             * @description When a ready archive stops being downloadable.
+             */
+            expiresAt?: string;
+        };
+        /** @description The password confirms the closure. It is never logged or stored. */
+        AccountClosure: {
+            /** Format: password */
+            password: string;
         };
         /** @enum {string} */
         QuoteState: "sent" | "expired";
@@ -4741,7 +5060,7 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person" | "invalid_data_request" | "data_request_closed" | "already_extended" | "request_overdue" | "export_in_progress";
             /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
@@ -14685,6 +15004,634 @@ export interface operations {
                 };
             };
             /** @description `not_found`: no such listed clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyDataRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requests. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    fileMyDataRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataRequestFiling"];
+            };
+        };
+        responses: {
+            /** @description The request, received. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            /** @description `invalid_data_request`: an unknown kind or target, or a clinic target without a clinic. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no record of the patient at that clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `export_in_progress`: an access or portability request while the patient's export of an earlier one is still being prepared; nothing is filed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    withdrawMyDataRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request, withdrawn. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such request of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `data_request_closed`: fulfilled, refused or withdrawn already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the request changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `if_match_required`: no If-Match. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMyDataRequestExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequestExport"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such access or portability request of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    downloadMyDataRequestExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description attachment; filename="salus-export-<id>.zip" */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such request of the patient's, not ready, or expired. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    closeMyAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountClosure"];
+            };
+        };
+        responses: {
+            /** @description The account, closed; the session ends with it. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a staff account; `wrong_credentials`: the password is wrong. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicDataRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requests. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicDataRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description The request's version, `W/"<version>"`. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such request targeting the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    answerClinicDataRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataRequestAnswer"];
+            };
+        };
+        responses: {
+            /** @description The request, answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            /** @description `invalid_data_request`: a status other than fulfilled or refused, or a code that does not fit it. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such request targeting the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `data_request_closed`: fulfilled, refused or withdrawn already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the request changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `if_match_required`: no If-Match. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    extendClinicDataRequest: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataRequestExtension"];
+            };
+        };
+        responses: {
+            /** @description The request, extended. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            /** @description `invalid_data_request`: an unknown reason. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such request targeting the clinic. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `data_request_closed`: answered or withdrawn already; `already_extended`: extended once already; `request_overdue`: its due date has passed (S12). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: the request changed since it was read. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `if_match_required`: no If-Match. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    fileClinicPatientDataRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    kind: components["schemas"]["DataRequestKind"];
+                };
+            };
+        };
+        responses: {
+            /** @description The request, received. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            /** @description `invalid_data_request`: an unknown kind. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not the clinic's admin or receptionist. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no profile the clinic registered with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    restrictClinicPatient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description The request it answers; absent for none.
+                     */
+                    dataRequestId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The record, restricted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no patient with a record at the clinic with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    liftClinicPatientRestriction: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restriction, lifted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no patient with a record at the clinic with that id. */
             404: {
                 headers: {
                     [name: string]: unknown;

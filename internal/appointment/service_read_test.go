@@ -114,6 +114,18 @@ func TestSearch_APatientFindsOnlyTheirOwnAndEachIsAudited(t *testing.T) {
 	checkEvents(t, "Search", f.audit, want...)
 }
 
+// A patient's own search narrowed to one clinic reads and audits that clinic's only (the export of a clinic target,
+// docs/clinic-cms/WAVE5.md D7).
+func TestSearch_APatientNarrowsTheirOwnToOneClinic(t *testing.T) {
+	f := cancelFixture(start)
+	got, err := f.svc.Search(t.Context(), me, appointment.Filter{OrganizationID: clinicB})
+	if err != nil || len(got) != 1 || got[0].Appointment.ID != apptX {
+		t.Fatalf("Search() = %+v, %v; want patient A's one at clinic B", got, err)
+	}
+	checkEvents(t, "Search", f.audit, event(me, auditevent.CodeSearchType, "Appointment", apptX, auditevent.OutcomeSuccess),
+		event(me, auditevent.CodeSearchType, "Patient", patientA, auditevent.OutcomeSuccess))
+}
+
 func TestSearch_APractitionerSearchesOnlyTheirOwnRole(t *testing.T) {
 	f := cancelFixture(start)
 	f.consents.state[patientB+clinicA] = access.Consent{Active: true}
@@ -274,5 +286,36 @@ func TestReadAndSearch_FailOnABackendError(t *testing.T) {
 				t.Errorf("%s: Notice() = %v, want the backend's error", name, err)
 			}
 		}
+	}
+}
+
+// The clinic's record (docs/clinic-cms/WAVE5.md S11): the admin reads every appointment of the clinic, the future
+// visit a withdrawal cancelled included, with the patient's name, each one audited; anyone else is refused, audited.
+func TestClinicRecord_GivesTheAdminTheVisitsAWithdrawalCancelled(t *testing.T) {
+	cancelled := booked(apptB, patientB, roleA1, clinicA, start)
+	cancelled.Status = appointment.StatusCancelled
+	f := newFixture(booked(apptA, patientA, roleA1, clinicA, start), cancelled, booked(apptX, patientA, roleB, clinicB, start))
+	f.consents.state[patientB+clinicA] = access.Consent{RevokedAt: revokedAt}
+
+	if got, _ := f.svc.Search(t.Context(), admin, appointment.Filter{PatientID: patientB}); len(got) != 0 {
+		t.Fatalf("Search() = %+v; want the everyday search to leave the cancelled visit out", got)
+	}
+	f.audit.events = nil
+	got, err := f.svc.ClinicRecord(t.Context(), admin, appointment.Filter{PatientID: patientB})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("ClinicRecord() = %+v, %v; want the cancelled visit", got, err)
+	}
+	if got[0].Appointment != minimal(cancelled) || got[0].Level != access.Name || got[0].Patient.Given != "Bo" || got[0].PractitionerID != practA1 {
+		t.Errorf("ClinicRecord()[0] = %+v, want the minimal form with the name and the practitioner", got[0])
+	}
+	checkEvents(t, "ClinicRecord", f.audit, event(admin, auditevent.CodeSearchType, "Appointment", apptB, auditevent.OutcomeSuccess),
+		event(admin, auditevent.CodeSearchType, "Patient", patientB, auditevent.OutcomeSuccess))
+
+	for name, c := range map[string]appointment.Caller{"practitioner": pract, "patient": me} {
+		f := newFixture(cancelled)
+		if _, err := f.svc.ClinicRecord(t.Context(), c, appointment.Filter{}); !errors.Is(err, appointment.ErrForbidden) {
+			t.Errorf("%s: ClinicRecord() = %v, want ErrForbidden", name, err)
+		}
+		checkEvents(t, name, f.audit, event(c, auditevent.CodeSearchType, "", "", auditevent.OutcomeMinorFailure))
 	}
 }

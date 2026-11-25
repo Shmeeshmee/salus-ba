@@ -12,6 +12,9 @@ type Repository interface {
 	SetAccount(ctx context.Context, id string) error
 	// SetClinic scopes the rest of the transaction in ctx to the clinic id.
 	SetClinic(ctx context.Context, id string) error
+	// RestrictForErasure restricts the record of the profile patientID at the clinic org (the scope set by SetClinic,
+	// with the erasure scope of 00075) at at, as the erasure job's; nothing when the record is restricted there already.
+	RestrictForErasure(ctx context.Context, patientID, org string, at time.Time) error
 	// ByAccount returns the profile of the account, or ErrNotFound.
 	ByAccount(ctx context.Context, accountID string) (Patient, error)
 	// ByID returns the profile, or ErrNotFound (also for one outside the scope, or an id that is not a UUID).
@@ -38,4 +41,15 @@ type Repository interface {
 	Matching(ctx context.Context, org string, in []Patient) ([]Patient, error)
 	// RegisteredBy returns the ids of the profiles the clinic org registered, in the transaction and scope in ctx.
 	RegisteredBy(ctx context.Context, org string) ([]string, error)
+	// ObjectToAnalytics marks the patient id as objecting to the analytics from at, in the scope of ctx; a mark stays.
+	ObjectToAnalytics(ctx context.Context, id string, at time.Time) error
+	// RestrictedAt returns the ids of the patients whose record the clinic restricts, in its scope (D4).
+	RestrictedAt(ctx context.Context, org string) ([]string, error)
+	// Restrict restricts the patient's record at the clinic org (the scope set by SetClinic), by the staff account by,
+	// for the request requestID ("" for none), at; nothing changes for a record restricted already.
+	Restrict(ctx context.Context, patientID, org, by, requestID string, at time.Time) error
+	// Unrestrict lifts a staff restriction of the patient's record at the clinic org; the erasure's stays.
+	Unrestrict(ctx context.Context, patientID, org string) error
+	// Restricted reports whether the patient's record is restricted at the clinic org, as the scope in ctx shows it.
+	Restricted(ctx context.Context, patientID, org string) (bool, error)
 }

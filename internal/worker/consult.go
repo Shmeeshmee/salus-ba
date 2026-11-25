@@ -15,6 +15,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/encounter"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/transcript"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -55,6 +56,7 @@ func NewConsultStream(pool *pgxpool.Pool, rdb *goredis.Client, log *slog.Logger)
 	// Only Lookup is asked of the encounters, and only State of the consents: neither needs more.
 	encounters := encounter.NewService(encounter.Ports{Repo: encounter.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}})
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, nil)
+	consents = consents.WithRestrictions(patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, nil)) // S7
 	c := &ConsultStream{
 		transcripts: transcript.NewService(transcript.Ports{
 			Repo: transcript.NewPostgresRepository(pool), Encounters: encounters, Consents: consents, Audit: audit, Tx: tx,

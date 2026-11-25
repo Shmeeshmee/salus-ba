@@ -2118,6 +2118,236 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get clinicServices => 'Услуге и цијене';
+
+  @override
+  String get privacy => 'Приватност';
+
+  @override
+  String get privacyIntro =>
+      'Питајте Salus или неку од својих клиника које податке о вама чувају или затражите да их исправе, ограниче или избришу. На сваки захтјев одговара се у року од мјесец дана. Рок се може једном продужити, највише за два мјесеца, и биће вам речено зашто.';
+
+  @override
+  String get noDataRequests => 'Још нисте поднијели ниједан захтјев.';
+
+  @override
+  String get newDataRequest => 'Поднесите захтјев';
+
+  @override
+  String get closeMyAccount => 'Затворите свој налог';
+
+  @override
+  String get dataRequestAccess => 'Увид у моје податке';
+
+  @override
+  String get dataRequestPortability => 'Пренос мојих података';
+
+  @override
+  String get dataRequestRectification => 'Исправка мојих података';
+
+  @override
+  String get dataRequestRestriction => 'Ограничење употребе мојих података';
+
+  @override
+  String get dataRequestObjection => 'Приговор на употребу мојих података';
+
+  @override
+  String get dataRequestErasure => 'Брисање мојих података';
+
+  @override
+  String get explainAccess =>
+      'Добићете копију података који се о вама чувају, као архиву коју овдје можете преузети у року од 7 дана.';
+
+  @override
+  String get explainPortability =>
+      'Добићете исту архиву, у стандардном формату (FHIR) који други пружалац услуга може да прочита.';
+
+  @override
+  String get explainRectification =>
+      'Свој профил исправите сами под Мој профил. За унос у вашем медицинском картону обратите се клиници: она може да дода исправку која упућује на оригинал. Потписани документ се никада не мијења.';
+
+  @override
+  String get explainRestriction =>
+      'Ваши подаци се чувају, али се не користе, осим када то закон налаже, док се питање о њима не ријеши.';
+
+  @override
+  String get explainObjection =>
+      'Ваши подаци се од сада изостављају из анонимизованих статистика. Раније израђене статистике се не мијењају; у њима нико не може бити препознат.';
+
+  @override
+  String get explainErasure =>
+      'Брише се оно што ниједан закон не налаже да се чува. Ваш медицински картон остаје код сваке клинике, ограничен, онолико дуго колико прописује закон о медицинској документацији. Да бисте избрисали свој Salus налог, затворите га.';
+
+  @override
+  String get dataRequestKind => 'Шта тражите';
+
+  @override
+  String get chooseDataRequestKind => 'Изаберите шта тражите.';
+
+  @override
+  String get dataRequestTarget => 'Ко треба да одговори';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Salus одговара за ваш налог. Свака клиника одговара за картон који о вама води.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, о мом налогу';
+
+  @override
+  String get requestToSalus => 'За Salus, о вашем налогу';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'За: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Пошаљите захтјев';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'Ваш захтјев је примљен. Одговор треба да стигне до $date.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Примљен';
+
+  @override
+  String get dataRequestInProgress => 'У обради';
+
+  @override
+  String get dataRequestFulfilled => 'Одговорен';
+
+  @override
+  String get dataRequestRefused => 'Одбијен';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Повучен';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Примљен $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Одговор до $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Рок је продужен до $date јер је захтјев сложен.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Рок је продужен до $date јер је у исто вријеме стигло много захтјева.';
+  }
+
+  @override
+  String get answerDone => 'Извршено.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Извршено. Оно што закон о медицинској документацији налаже да се чува, чува се ограничено.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Одбијено: ваш идентитет није било могуће потврдити.';
+
+  @override
+  String get answerManifestlyUnfounded => 'Одбијено као очигледно неосновано.';
+
+  @override
+  String get answerExcessive =>
+      'Одбијено као претјерано, на примјер зато што понавља ранији захтјев.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Одбијено: закон налаже да се ови подаци чувају.';
+
+  @override
+  String get answerNoData => 'Тамо се не чувају никакви подаци о вама.';
+
+  @override
+  String get answerComplaint =>
+      'Ако се не слажете са одговором, можете поднијети приговор надлежном органу за заштиту података о личности.';
+
+  @override
+  String get withdrawDataRequest => 'Повуците захтјев';
+
+  @override
+  String get withdrawDataRequestTitle => 'Повући захтјев?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'Захтјев се затвара без одговора и остаје на вашем списку. Нови захтјев можете поднијети у било ком тренутку.';
+
+  @override
+  String get keepDataRequest => 'Задржите захтјев';
+
+  @override
+  String get dataRequestWithdrawn => 'Ваш захтјев је повучен.';
+
+  @override
+  String get exportPreparing =>
+      'Ваши подаци се припремају. Погледајте овдје поново касније.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'Спремно за преузимање до $date.';
+  }
+
+  @override
+  String get downloadExport => 'Преузмите своје податке';
+
+  @override
+  String get exportFailed => 'Архиву није било могуће припремити.';
+
+  @override
+  String get exportInProgress =>
+      'Ваши подаци по ранијем захтјеву се још припремају. Поново можете да затражите када буду спремни.';
+
+  @override
+  String get exportExpired =>
+      'Рок за преузимање је истекао. За нову копију поднесите нови захтјев.';
+
+  @override
+  String get dataRequestClosed => 'Овај захтјев је већ затворен.';
+
+  @override
+  String get noRecordAtClinic => 'Та клиника не води ваш картон.';
+
+  @override
+  String get dataRequestChanged =>
+      'Овај захтјев се у међувремену промијенио. Списак га приказује какав је сада.';
+
+  @override
+  String get closeAccountNow =>
+      'Када затворите налог, одмах: одјављени сте на свим уређајима и не можете поново да се пријавите, ваши будући термини се отказују и клинике се о томе обавјештавају, ваша мјеста на листама чекања се ослобађају, а ваше сагласности се повлаче. Ово не можете сами да поништите.';
+
+  @override
+  String get closeAccountErased =>
+      'Ако се предомислите, Salus може поново да отвори налог у року од 21 дана. Након 21 дана Salus брише вашу адресу е-поште, лозинку и кодове за пријаву, ваш избор језика, ваше уређаје, евиденцију порука које су вам послате, одговоре на упитнике које нисте послали и датотеке које сте додали у разговор, а никада их нисте послали.';
+
+  @override
+  String get closeAccountKept =>
+      'Ваш медицински картон остаје код сваке клинике онолико дуго колико прописује закон о медицинској документацији. Скривен је из свакодневног рада клинике и отвара се само уз наведени разлог.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Ако желите да задржите копију својих података, затражите је под Приватност прије него што затворите налог: када је затворен, не можете да се пријавите да бисте је преузели.';
+
+  @override
+  String get closeAccountConfirm => 'Унесите лозинку да бисте потврдили.';
+
+  @override
+  String get accountClosed => 'Ваш налог је затворен и одјављени сте.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
+  }
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4233,6 +4463,236 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
 
   @override
   String get clinicServices => 'Услуге и цијене';
+
+  @override
+  String get privacy => 'Приватност';
+
+  @override
+  String get privacyIntro =>
+      'Питајте Salus или неку од својих клиника које податке о вама чувају или затражите да их исправе, ограниче или избришу. На сваки захтјев одговара се у року од мјесец дана. Рок се може једном продужити, највише за два мјесеца, и биће вам речено зашто.';
+
+  @override
+  String get noDataRequests => 'Још нисте поднијели ниједан захтјев.';
+
+  @override
+  String get newDataRequest => 'Поднесите захтјев';
+
+  @override
+  String get closeMyAccount => 'Затворите свој налог';
+
+  @override
+  String get dataRequestAccess => 'Увид у моје податке';
+
+  @override
+  String get dataRequestPortability => 'Пренос мојих података';
+
+  @override
+  String get dataRequestRectification => 'Исправка мојих података';
+
+  @override
+  String get dataRequestRestriction => 'Ограничење употребе мојих података';
+
+  @override
+  String get dataRequestObjection => 'Приговор на употребу мојих података';
+
+  @override
+  String get dataRequestErasure => 'Брисање мојих података';
+
+  @override
+  String get explainAccess =>
+      'Добићете копију података који се о вама чувају, као архиву коју овдје можете преузети у року од 7 дана.';
+
+  @override
+  String get explainPortability =>
+      'Добићете исту архиву, у стандардном формату (FHIR) који други пружалац услуга може да прочита.';
+
+  @override
+  String get explainRectification =>
+      'Свој профил исправите сами под Мој профил. За унос у вашем медицинском картону обратите се клиници: она може да дода исправку која упућује на оригинал. Потписани документ се никада не мијења.';
+
+  @override
+  String get explainRestriction =>
+      'Ваши подаци се чувају, али се не користе, осим када то закон налаже, док се питање о њима не ријеши.';
+
+  @override
+  String get explainObjection =>
+      'Ваши подаци се од сада изостављају из анонимизованих статистика. Раније израђене статистике се не мијењају; у њима нико не може бити препознат.';
+
+  @override
+  String get explainErasure =>
+      'Брише се оно што ниједан закон не налаже да се чува. Ваш медицински картон остаје код сваке клинике, ограничен, онолико дуго колико прописује закон о медицинској документацији. Да бисте избрисали свој Salus налог, затворите га.';
+
+  @override
+  String get dataRequestKind => 'Шта тражите';
+
+  @override
+  String get chooseDataRequestKind => 'Изаберите шта тражите.';
+
+  @override
+  String get dataRequestTarget => 'Ко треба да одговори';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Salus одговара за ваш налог. Свака клиника одговара за картон који о вама води.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, о мом налогу';
+
+  @override
+  String get requestToSalus => 'За Salus, о вашем налогу';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'За: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Пошаљите захтјев';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'Ваш захтјев је примљен. Одговор треба да стигне до $date.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Примљен';
+
+  @override
+  String get dataRequestInProgress => 'У обради';
+
+  @override
+  String get dataRequestFulfilled => 'Одговорен';
+
+  @override
+  String get dataRequestRefused => 'Одбијен';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Повучен';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Примљен $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Одговор до $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Рок је продужен до $date јер је захтјев сложен.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Рок је продужен до $date јер је у исто вријеме стигло много захтјева.';
+  }
+
+  @override
+  String get answerDone => 'Извршено.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Извршено. Оно што закон о медицинској документацији налаже да се чува, чува се ограничено.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Одбијено: ваш идентитет није било могуће потврдити.';
+
+  @override
+  String get answerManifestlyUnfounded => 'Одбијено као очигледно неосновано.';
+
+  @override
+  String get answerExcessive =>
+      'Одбијено као претјерано, на примјер зато што понавља ранији захтјев.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Одбијено: закон налаже да се ови подаци чувају.';
+
+  @override
+  String get answerNoData => 'Тамо се не чувају никакви подаци о вама.';
+
+  @override
+  String get answerComplaint =>
+      'Ако се не слажете са одговором, можете поднијети приговор надлежном органу за заштиту података о личности.';
+
+  @override
+  String get withdrawDataRequest => 'Повуците захтјев';
+
+  @override
+  String get withdrawDataRequestTitle => 'Повући захтјев?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'Захтјев се затвара без одговора и остаје на вашем списку. Нови захтјев можете поднијети у било ком тренутку.';
+
+  @override
+  String get keepDataRequest => 'Задржите захтјев';
+
+  @override
+  String get dataRequestWithdrawn => 'Ваш захтјев је повучен.';
+
+  @override
+  String get exportPreparing =>
+      'Ваши подаци се припремају. Погледајте овдје поново касније.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'Спремно за преузимање до $date.';
+  }
+
+  @override
+  String get downloadExport => 'Преузмите своје податке';
+
+  @override
+  String get exportFailed => 'Архиву није било могуће припремити.';
+
+  @override
+  String get exportInProgress =>
+      'Ваши подаци по ранијем захтјеву се још припремају. Поново можете да затражите када буду спремни.';
+
+  @override
+  String get exportExpired =>
+      'Рок за преузимање је истекао. За нову копију поднесите нови захтјев.';
+
+  @override
+  String get dataRequestClosed => 'Овај захтјев је већ затворен.';
+
+  @override
+  String get noRecordAtClinic => 'Та клиника не води ваш картон.';
+
+  @override
+  String get dataRequestChanged =>
+      'Овај захтјев се у међувремену промијенио. Списак га приказује какав је сада.';
+
+  @override
+  String get closeAccountNow =>
+      'Када затворите налог, одмах: одјављени сте на свим уређајима и не можете поново да се пријавите, ваши будући термини се отказују и клинике се о томе обавјештавају, ваша мјеста на листама чекања се ослобађају, а ваше сагласности се повлаче. Ово не можете сами да поништите.';
+
+  @override
+  String get closeAccountErased =>
+      'Ако се предомислите, Salus може поново да отвори налог у року од 21 дана. Након 21 дана Salus брише вашу адресу е-поште, лозинку и кодове за пријаву, ваш избор језика, ваше уређаје, евиденцију порука које су вам послате, одговоре на упитнике које нисте послали и датотеке које сте додали у разговор, а никада их нисте послали.';
+
+  @override
+  String get closeAccountKept =>
+      'Ваш медицински картон остаје код сваке клинике онолико дуго колико прописује закон о медицинској документацији. Скривен је из свакодневног рада клинике и отвара се само уз наведени разлог.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Ако желите да задржите копију својих података, затражите је под Приватност прије него што затворите налог: када је затворен, не можете да се пријавите да бисте је преузели.';
+
+  @override
+  String get closeAccountConfirm => 'Унесите лозинку да бисте потврдили.';
+
+  @override
+  String get accountClosed => 'Ваш налог је затворен и одјављени сте.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
+  }
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -6350,4 +6810,234 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
 
   @override
   String get clinicServices => 'Usluge i cijene';
+
+  @override
+  String get privacy => 'Privatnost';
+
+  @override
+  String get privacyIntro =>
+      'Pitajte Salus ili neku od svojih klinika koje podatke o vama čuvaju ili zatražite da ih isprave, ograniče ili izbrišu. Na svaki zahtjev odgovara se u roku od mjesec dana. Rok se može jednom produžiti, najviše za dva mjeseca, i biće vam rečeno zašto.';
+
+  @override
+  String get noDataRequests => 'Još niste podnijeli nijedan zahtjev.';
+
+  @override
+  String get newDataRequest => 'Podnesite zahtjev';
+
+  @override
+  String get closeMyAccount => 'Zatvorite svoj nalog';
+
+  @override
+  String get dataRequestAccess => 'Uvid u moje podatke';
+
+  @override
+  String get dataRequestPortability => 'Prenos mojih podataka';
+
+  @override
+  String get dataRequestRectification => 'Ispravka mojih podataka';
+
+  @override
+  String get dataRequestRestriction => 'Ograničenje upotrebe mojih podataka';
+
+  @override
+  String get dataRequestObjection => 'Prigovor na upotrebu mojih podataka';
+
+  @override
+  String get dataRequestErasure => 'Brisanje mojih podataka';
+
+  @override
+  String get explainAccess =>
+      'Dobićete kopiju podataka koji se o vama čuvaju, kao arhivu koju ovdje možete preuzeti u roku od 7 dana.';
+
+  @override
+  String get explainPortability =>
+      'Dobićete istu arhivu, u standardnom formatu (FHIR) koji drugi pružalac usluga može da pročita.';
+
+  @override
+  String get explainRectification =>
+      'Svoj profil ispravite sami pod Moj profil. Za unos u vašem medicinskom kartonu obratite se klinici: ona može da doda ispravku koja upućuje na original. Potpisani dokument se nikada ne mijenja.';
+
+  @override
+  String get explainRestriction =>
+      'Vaši podaci se čuvaju, ali se ne koriste, osim kada to zakon nalaže, dok se pitanje o njima ne riješi.';
+
+  @override
+  String get explainObjection =>
+      'Vaši podaci se od sada izostavljaju iz anonimizovanih statistika. Ranije izrađene statistike se ne mijenjaju; u njima niko ne može biti prepoznat.';
+
+  @override
+  String get explainErasure =>
+      'Briše se ono što nijedan zakon ne nalaže da se čuva. Vaš medicinski karton ostaje kod svake klinike, ograničen, onoliko dugo koliko propisuje zakon o medicinskoj dokumentaciji. Da biste izbrisali svoj Salus nalog, zatvorite ga.';
+
+  @override
+  String get dataRequestKind => 'Šta tražite';
+
+  @override
+  String get chooseDataRequestKind => 'Izaberite šta tražite.';
+
+  @override
+  String get dataRequestTarget => 'Ko treba da odgovori';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Salus odgovara za vaš nalog. Svaka klinika odgovara za karton koji o vama vodi.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, o mom nalogu';
+
+  @override
+  String get requestToSalus => 'Za Salus, o vašem nalogu';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'Za: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Pošaljite zahtjev';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'Vaš zahtjev je primljen. Odgovor treba da stigne do $date.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Primljen';
+
+  @override
+  String get dataRequestInProgress => 'U obradi';
+
+  @override
+  String get dataRequestFulfilled => 'Odgovoren';
+
+  @override
+  String get dataRequestRefused => 'Odbijen';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Povučen';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Primljen $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Odgovor do $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Rok je produžen do $date jer je zahtjev složen.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Rok je produžen do $date jer je u isto vrijeme stiglo mnogo zahtjeva.';
+  }
+
+  @override
+  String get answerDone => 'Izvršeno.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Izvršeno. Ono što zakon o medicinskoj dokumentaciji nalaže da se čuva, čuva se ograničeno.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Odbijeno: vaš identitet nije bilo moguće potvrditi.';
+
+  @override
+  String get answerManifestlyUnfounded => 'Odbijeno kao očigledno neosnovano.';
+
+  @override
+  String get answerExcessive =>
+      'Odbijeno kao pretjerano, na primjer zato što ponavlja raniji zahtjev.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Odbijeno: zakon nalaže da se ovi podaci čuvaju.';
+
+  @override
+  String get answerNoData => 'Tamo se ne čuvaju nikakvi podaci o vama.';
+
+  @override
+  String get answerComplaint =>
+      'Ako se ne slažete sa odgovorom, možete podnijeti prigovor nadležnom organu za zaštitu podataka o ličnosti.';
+
+  @override
+  String get withdrawDataRequest => 'Povucite zahtjev';
+
+  @override
+  String get withdrawDataRequestTitle => 'Povući zahtjev?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'Zahtjev se zatvara bez odgovora i ostaje na vašem spisku. Novi zahtjev možete podnijeti u bilo kom trenutku.';
+
+  @override
+  String get keepDataRequest => 'Zadržite zahtjev';
+
+  @override
+  String get dataRequestWithdrawn => 'Vaš zahtjev je povučen.';
+
+  @override
+  String get exportPreparing =>
+      'Vaši podaci se pripremaju. Pogledajte ovdje ponovo kasnije.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'Spremno za preuzimanje do $date.';
+  }
+
+  @override
+  String get downloadExport => 'Preuzmite svoje podatke';
+
+  @override
+  String get exportFailed => 'Arhivu nije bilo moguće pripremiti.';
+
+  @override
+  String get exportInProgress =>
+      'Vaši podaci po ranijem zahtjevu se još pripremaju. Ponovo možete da zatražite kada budu spremni.';
+
+  @override
+  String get exportExpired =>
+      'Rok za preuzimanje je istekao. Za novu kopiju podnesite novi zahtjev.';
+
+  @override
+  String get dataRequestClosed => 'Ovaj zahtjev je već zatvoren.';
+
+  @override
+  String get noRecordAtClinic => 'Ta klinika ne vodi vaš karton.';
+
+  @override
+  String get dataRequestChanged =>
+      'Ovaj zahtjev se u međuvremenu promijenio. Spisak ga prikazuje kakav je sada.';
+
+  @override
+  String get closeAccountNow =>
+      'Kada zatvorite nalog, odmah: odjavljeni ste na svim uređajima i ne možete ponovo da se prijavite, vaši budući termini se otkazuju i klinike se o tome obavještavaju, vaša mjesta na listama čekanja se oslobađaju, a vaše saglasnosti se povlače. Ovo ne možete sami da poništite.';
+
+  @override
+  String get closeAccountErased =>
+      'Ako se predomislite, Salus može ponovo da otvori nalog u roku od 21 dana. Nakon 21 dana Salus briše vašu adresu e-pošte, lozinku i kodove za prijavu, vaš izbor jezika, vaše uređaje, evidenciju poruka koje su vam poslate, odgovore na upitnike koje niste poslali i datoteke koje ste dodali u razgovor, a nikada ih niste poslali.';
+
+  @override
+  String get closeAccountKept =>
+      'Vaš medicinski karton ostaje kod svake klinike onoliko dugo koliko propisuje zakon o medicinskoj dokumentaciji. Skriven je iz svakodnevnog rada klinike i otvara se samo uz navedeni razlog.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Ako želite da zadržite kopiju svojih podataka, zatražite je pod Privatnost prije nego što zatvorite nalog: kada je zatvoren, ne možete da se prijavite da biste je preuzeli.';
+
+  @override
+  String get closeAccountConfirm => 'Unesite lozinku da biste potvrdili.';
+
+  @override
+  String get accountClosed => 'Vaš nalog je zatvoren i odjavljeni ste.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Ako želite da Salus ponovo otvori nalog u roku od 21 dana, pišite na $email.';
+  }
 }

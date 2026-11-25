@@ -408,3 +408,33 @@ func TestRules_KeepReceiptsAndTheirLinesUntilTheLegalPeriodIsDecided(t *testing.
 		t.Errorf("no rule for %s", table)
 	}
 }
+
+// A data subject's request, its history and a restriction are kept: the request is the proof of how it was answered
+// (Art. 5(2)), the restriction lasts as long as the record it restricts (docs/clinic-cms/WAVE5.md, 5.0).
+func TestRules_KeepDataRequestsAndRestrictions(t *testing.T) {
+	want := map[string]bool{"data_request": true, "data_request_change": true, "patient_restriction": true}
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
+		if want[r.Table] {
+			if r.Then != retention.ThenKeep {
+				t.Errorf("%s then %q, want %q", r.Table, r.Then, retention.ThenKeep)
+			}
+			delete(want, r.Table)
+		}
+	}
+	if len(want) != 0 {
+		t.Errorf("no rule for %v", want)
+	}
+}
+
+// The patient's export is deleted with its archive 7 days after it was ready (docs/clinic-cms/WAVE5.md D2, S4).
+func TestRules_DeleteDataRequestExports(t *testing.T) {
+	for _, r := range retention.Rules(retention.DefaultPolicy()) {
+		if r.Table == "data_request_export" {
+			if r.Then != retention.ThenDelete || r.Keep != 7*24*time.Hour {
+				t.Errorf("data_request_export: %q after %s, want %q after 7 days", r.Then, r.Keep, retention.ThenDelete)
+			}
+			return
+		}
+	}
+	t.Error("no rule for data_request_export")
+}

@@ -21,10 +21,20 @@ const (
 	RolePatient   Role = "patient"
 )
 
+// Contact is where a job's message to an account goes: its e-mail and the language to write it in ("" for the sender's
+// fallback).
+type Contact struct {
+	Email    string
+	Language string
+}
+
 // Account is one person who can sign in. Staff (admin, practitioner, reception) belong to exactly one clinic; a patient
 // to none.
 type Account struct {
 	MFAEnrolledAt  time.Time // zero until MFA is set up
+	ClosedAt       time.Time // when the patient closed the account (docs/clinic-cms/WAVE5.md S5); zero while open
+	EraseAfter     time.Time // when the closed account is erased (S6); zero while open
+	ErasedAt       time.Time // when its login, password, MFA and languages were erased; zero before
 	ID             string
 	Email          string // trimmed and lower-cased: the login
 	OrganizationID string // the clinic of a staff account; empty for a patient

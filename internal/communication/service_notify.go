@@ -39,10 +39,11 @@ func (s *Service) NoticeConversation(ctx context.Context, agent, org, id string)
 	var out Conversation
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		if out, err = s.clinicConversation(ctx, org, id); err != nil {
+		var restricted bool
+		if out, restricted, err = s.clinicConversation(ctx, org, id); err != nil {
 			return err
 		}
-		if out.Participants, err = s.noticed(ctx, out); err != nil {
+		if out.Participants, err = s.noticed(ctx, out, restricted); err != nil {
 			return err
 		}
 		return s.recordJob(ctx, agent, org, "Patient/"+out.PatientID, "conversation_participant", int64(len(out.Participants)))
@@ -55,15 +56,19 @@ func (s *Service) NoticeConversation(ctx context.Context, agent, org, id string)
 
 // NoticeMessage returns the message messageID of the conversation id of the clinic org, for the job agent that
 // sends it to the clinic's own webhook (with its clinical content turned on): in the clinic's scope, so nothing after
-// the patient's revocation (ErrNotFound), audited as a read of the message with the job as agent.
+// the patient's revocation nor while the clinic restricts the record (ErrNotFound), audited as a read of the message
+// with the job as agent.
 func (s *Service) NoticeMessage(ctx context.Context, agent, org, id, messageID string) (Message, error) {
 	if !validUUID(id) || !validUUID(messageID) {
 		return Message{}, ErrNotFound
 	}
 	var out Message
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
-		if _, err := s.clinicConversation(ctx, org, id); err != nil {
+		switch _, restricted, err := s.clinicConversation(ctx, org, id); {
+		case err != nil:
 			return err
+		case restricted: // never sent on while the clinic restricts the record (S7)
+			return ErrNotFound
 		}
 		if err := s.Repo.SetConversation(ctx, id); err != nil {
 			return err
@@ -83,7 +88,8 @@ func (s *Service) NoticeMessage(ctx context.Context, agent, org, id, messageID s
 // noticed is the participants of conv who may read it now (SAL-28): active ones only, never one waiting for the
 // patient's consent; a doctor of another clinic only while the patient's chat consent for them is active (the care
 // consent with the clinic is clinicConversation's); never the patient in a doctor-only side thread.
-func (s *Service) noticed(ctx context.Context, conv Conversation) ([]Participant, error) {
+// While the clinic restricts the patient's record (restricted, docs/clinic-cms/WAVE5.md S7) only the patient is told.
+func (s *Service) noticed(ctx context.Context, conv Conversation, restricted bool) ([]Participant, error) {
 	parts, err := s.Repo.Participants(ctx, conv.ID)
 	if err != nil {
 		return nil, err
@@ -91,7 +97,7 @@ func (s *Service) noticed(ctx context.Context, conv Conversation) ([]Participant
 	out := parts[:0]
 	for _, p := range parts {
 		switch {
-		case p.Status != StatusActive, conv.StaffOnly && p.Role == RolePatient:
+		case p.Status != StatusActive, conv.StaffOnly && p.Role == RolePatient, restricted && p.Role != RolePatient:
 			continue
 		case p.Role == RolePractitioner && p.OrganizationID != "" && p.OrganizationID != conv.OrganizationID:
 			granted, err := s.ChatConsents.ChatGranted(ctx, root(conv), p.PractitionerRoleID)
@@ -107,28 +113,29 @@ func (s *Service) noticed(ctx context.Context, conv Conversation) ([]Participant
 	return out, nil
 }
 
-// clinicConversation scopes the transaction to the clinic org and reads the conversation id there; ErrNotFound
-// when the scope does not show it, it is another clinic's, or the patient's care consent with the clinic is not
-// active (as the clinic's row-level security answers; checked here too, not on it alone).
-func (s *Service) clinicConversation(ctx context.Context, org, id string) (Conversation, error) {
+// clinicConversation scopes the transaction to the clinic org and reads the conversation id there, with whether the
+// clinic restricts the patient's record (S7); ErrNotFound when the scope does not show it, it is another clinic's, or
+// the patient's care consent with the clinic is not active (as the clinic's row-level security answers; checked here
+// too, not on it alone).
+func (s *Service) clinicConversation(ctx context.Context, org, id string) (Conversation, bool, error) {
 	if err := s.Repo.SetClinic(ctx, org); err != nil {
-		return Conversation{}, err
+		return Conversation{}, false, err
 	}
 	conv, err := s.Repo.Conversation(ctx, id, false)
 	switch {
 	case err != nil:
-		return Conversation{}, err
+		return Conversation{}, false, err
 	case conv.OrganizationID != org:
-		return Conversation{}, ErrNotFound
+		return Conversation{}, false, ErrNotFound
 	}
 	state, err := s.Consents.State(ctx, conv.PatientID, org)
 	switch {
 	case err != nil:
-		return Conversation{}, err
+		return Conversation{}, false, err
 	case !state.Active:
-		return Conversation{}, ErrNotFound
+		return Conversation{}, false, ErrNotFound
 	}
-	return conv, nil
+	return conv, state.Restricted, nil
 }
 
 // recordJob audits a read by the job agent for the clinic org: ref the resource, name and count the rows.

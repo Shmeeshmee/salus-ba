@@ -232,6 +232,11 @@ enum ErrorErrorEnum {
   invalidQuote._(r'invalid_quote'),
   invalidProfile._(r'invalid_profile'),
   notInPerson._(r'not_in_person'),
+  invalidDataRequest._(r'invalid_data_request'),
+  dataRequestClosed._(r'data_request_closed'),
+  alreadyExtended._(r'already_extended'),
+  requestOverdue._(r'request_overdue'),
+  exportInProgress._(r'export_in_progress'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -459,6 +464,16 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.invalidProfile;
         case r'not_in_person':
           return ErrorErrorEnum.notInPerson;
+        case r'invalid_data_request':
+          return ErrorErrorEnum.invalidDataRequest;
+        case r'data_request_closed':
+          return ErrorErrorEnum.dataRequestClosed;
+        case r'already_extended':
+          return ErrorErrorEnum.alreadyExtended;
+        case r'request_overdue':
+          return ErrorErrorEnum.requestOverdue;
+        case r'export_in_progress':
+          return ErrorErrorEnum.exportInProgress;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

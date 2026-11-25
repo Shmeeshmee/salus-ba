@@ -31,7 +31,7 @@ func (q *Queries) AcceptInvite(ctx context.Context, arg AcceptInviteParams) (int
 
 const accountByEmail = `-- name: AccountByEmail :one
 SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
-       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer, closed_at, erase_after, erased_at
 FROM account
 WHERE email = $1
 `
@@ -47,6 +47,9 @@ type AccountByEmailRow struct {
 	Language         NullLanguage
 	DetectedLanguage NullLanguage
 	TermReviewer     bool
+	ClosedAt         pgtype.Timestamptz
+	EraseAfter       pgtype.Timestamptz
+	ErasedAt         pgtype.Timestamptz
 }
 
 func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEmailRow, error) {
@@ -63,13 +66,16 @@ func (q *Queries) AccountByEmail(ctx context.Context, email string) (AccountByEm
 		&i.Language,
 		&i.DetectedLanguage,
 		&i.TermReviewer,
+		&i.ClosedAt,
+		&i.EraseAfter,
+		&i.ErasedAt,
 	)
 	return i, err
 }
 
 const accountByID = `-- name: AccountByID :one
 SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
-       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer, closed_at, erase_after, erased_at
 FROM account
 WHERE id = $1
 `
@@ -85,6 +91,9 @@ type AccountByIDRow struct {
 	Language         NullLanguage
 	DetectedLanguage NullLanguage
 	TermReviewer     bool
+	ClosedAt         pgtype.Timestamptz
+	EraseAfter       pgtype.Timestamptz
+	ErasedAt         pgtype.Timestamptz
 }
 
 func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDRow, error) {
@@ -101,13 +110,16 @@ func (q *Queries) AccountByID(ctx context.Context, id pgtype.UUID) (AccountByIDR
 		&i.Language,
 		&i.DetectedLanguage,
 		&i.TermReviewer,
+		&i.ClosedAt,
+		&i.EraseAfter,
+		&i.ErasedAt,
 	)
 	return i, err
 }
 
 const accountByPractitioner = `-- name: AccountByPractitioner :one
 SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
-       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer, closed_at, erase_after, erased_at
 FROM account
 WHERE practitioner_id = $1
 `
@@ -123,6 +135,9 @@ type AccountByPractitionerRow struct {
 	Language         NullLanguage
 	DetectedLanguage NullLanguage
 	TermReviewer     bool
+	ClosedAt         pgtype.Timestamptz
+	EraseAfter       pgtype.Timestamptz
+	ErasedAt         pgtype.Timestamptz
 }
 
 func (q *Queries) AccountByPractitioner(ctx context.Context, practitionerID pgtype.UUID) (AccountByPractitionerRow, error) {
@@ -139,8 +154,87 @@ func (q *Queries) AccountByPractitioner(ctx context.Context, practitionerID pgty
 		&i.Language,
 		&i.DetectedLanguage,
 		&i.TermReviewer,
+		&i.ClosedAt,
+		&i.EraseAfter,
+		&i.ErasedAt,
 	)
 	return i, err
+}
+
+const accountsDueForErasure = `-- name: AccountsDueForErasure :many
+SELECT id FROM account WHERE erase_after <= $1 AND erased_at IS NULL ORDER BY erase_after, id
+`
+
+func (q *Queries) AccountsDueForErasure(ctx context.Context, now pgtype.Timestamptz) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, accountsDueForErasure, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const clinicAdmins = `-- name: ClinicAdmins :many
+SELECT email, language, detected_language FROM account
+WHERE organization_id = $1 AND role = 'admin' AND closed_at IS NULL AND erased_at IS NULL
+ORDER BY email
+`
+
+type ClinicAdminsRow struct {
+	Email            string
+	Language         NullLanguage
+	DetectedLanguage NullLanguage
+}
+
+// The clinic's admins, for a job's message to them (a data request's deadline warning).
+func (q *Queries) ClinicAdmins(ctx context.Context, organizationID pgtype.UUID) ([]ClinicAdminsRow, error) {
+	rows, err := q.db.Query(ctx, clinicAdmins, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClinicAdminsRow
+	for rows.Next() {
+		var i ClinicAdminsRow
+		if err := rows.Scan(&i.Email, &i.Language, &i.DetectedLanguage); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const closeAccount = `-- name: CloseAccount :execrows
+UPDATE account SET closed_at = $1, erase_after = $2
+WHERE id = $3 AND role = 'patient' AND closed_at IS NULL
+`
+
+type CloseAccountParams struct {
+	ClosedAt   pgtype.Timestamptz
+	EraseAfter pgtype.Timestamptz
+	ID         pgtype.UUID
+}
+
+func (q *Queries) CloseAccount(ctx context.Context, arg CloseAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, closeAccount, arg.ClosedAt, arg.EraseAfter, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const confirmMFA = `-- name: ConfirmMFA :execrows
@@ -246,6 +340,28 @@ DELETE FROM session WHERE least(revoked_at, expires_at) < $1
 // skips a null revoked_at).
 func (q *Queries) DeleteSessionsEndedBefore(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteSessionsEndedBefore, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const eraseAccount = `-- name: EraseAccount :execrows
+UPDATE account
+SET email = id::text || '@erased.invalid', password_hash = '', totp_secret = NULL, totp_last_step = NULL,
+    mfa_enrolled_at = NULL, language = NULL, detected_language = NULL, erased_at = $1
+WHERE id = $2 AND erase_after <= $1 AND erased_at IS NULL
+`
+
+type EraseAccountParams struct {
+	Now pgtype.Timestamptz
+	ID  pgtype.UUID
+}
+
+// The e-mail is replaced by one derived from the opaque id: the column is the unique login and the row stays,
+// referenced by data requests, audit events and the clinics' records.
+func (q *Queries) EraseAccount(ctx context.Context, arg EraseAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, eraseAccount, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -439,6 +555,24 @@ func (q *Queries) PutInvite(ctx context.Context, arg PutInviteParams) (pgtype.UU
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const reopenAccount = `-- name: ReopenAccount :execrows
+UPDATE account SET closed_at = NULL, erase_after = NULL
+WHERE id = $1 AND erase_after > $2 AND erased_at IS NULL
+`
+
+type ReopenAccountParams struct {
+	ID  pgtype.UUID
+	Now pgtype.Timestamptz
+}
+
+func (q *Queries) ReopenAccount(ctx context.Context, arg ReopenAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reopenAccount, arg.ID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const resetMFA = `-- name: ResetMFA :execrows

@@ -81,3 +81,36 @@ func (s *Chat) recordDevice(ctx context.Context, c Caller, action auditevent.Act
 		EntityCount:     1,
 	})
 }
+
+// RemoveDevices deletes every push device of the account (its closure, docs/clinic-cms/WAVE5.md S5) and returns how
+// many, audited once on the account with that count; nothing is audited when it had none.
+func (s *Chat) RemoveDevices(ctx context.Context, accountID string) (int64, error) {
+	var n int64
+	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+		devices, err := s.Repo.Devices(ctx, accountID)
+		if err != nil || len(devices) == 0 {
+			return err
+		}
+		for _, d := range devices {
+			if err := s.Repo.UnregisterDevice(ctx, accountID, d.Token); err != nil {
+				return err
+			}
+		}
+		n = int64(len(devices))
+		return s.Audit.Record(ctx, auditevent.AuditEvent{
+			Type:            auditevent.Coding{System: auditevent.SystemAuditEventType, Code: auditevent.CodeRest},
+			Subtype:         auditevent.Coding{System: auditevent.SystemRestfulInteraction, Code: auditevent.CodeDelete},
+			Purpose:         auditevent.Coding{System: auditevent.SystemActReason, Code: auditevent.CodePATRQT},
+			Action:          auditevent.ActionDelete,
+			Outcome:         auditevent.OutcomeSuccess,
+			AgentAccountID:  accountID,
+			EntityReference: "Account/" + accountID,
+			EntityName:      "push_device",
+			EntityCount:     n,
+		})
+	})
+	if err != nil {
+		return 0, fmt.Errorf("notification: remove devices: %w", err)
+	}
+	return n, nil
+}

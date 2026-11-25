@@ -103,6 +103,22 @@ void main() {
       'cancelWindowHint',
       'whyCameraAndMicrophone',
       'whyCameraForFiles',
+      'privacyIntro',
+      'explainAccess',
+      'explainPortability',
+      'explainRectification',
+      'explainRestriction',
+      'explainObjection',
+      'explainErasure',
+      'dataRequestTargetHint',
+      'withdrawDataRequestBody',
+      'answerComplaint',
+      'closeAccountNow',
+      'closeAccountErased',
+      'closeAccountKept',
+      'closeAccountCopyFirst',
+      'accountClosed',
+      'accountClosedReopen',
     ]) {
       expect(legal(key), isTrue, reason: key);
     }

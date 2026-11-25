@@ -38,6 +38,7 @@ describe('Desk', () => {
     expect(rows[0]).toContain('09:00')
     expect(rows[0]).toContain('Ana Example')
     expect(rows[0]).toContain('2 March 1980')
+    expect(rows[0]).toContain('+387 61 000 001') // grouped as people write it (wave 4 walk, finding 6)
     expect(rows[0]).toContain('At the clinic')
     expect(rows[0]).toContain('Placeholder examination')
     expect(rows[0]).toContain('Booked')
@@ -205,6 +206,14 @@ describe('Desk', () => {
     renderDesk({ 'GET /clinic/patients': () => Response.json([]) })
     fireEvent.click(await screen.findByRole('button', { name: 'Walk-in' }))
     expect(await screen.findByRole('dialog', { name: 'Walk-in' })).toBeTruthy()
+  })
+
+  it("opens the search of the clinic's patients from the toolbar, for a patient who has no visit today (finding 5)", async () => {
+    renderDesk({ 'GET /clinic/patients': () => Response.json([]) }, reception)
+    fireEvent.click(await screen.findByRole('button', { name: 'Patients' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Patients' }))
+    fireEvent.click(dialog.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'Patients' })).toBeNull()
   })
 
   it('shows the desk in Bosnian', async () => {

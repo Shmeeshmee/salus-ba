@@ -46,8 +46,9 @@ func tableRules() []Rule {
 		},
 		{
 			Table: "account",
-			Basis: "Performance of the contract the user signed up for (GDPR Art. 6(1)(b)); closure and erasure come with the subject-rights feature",
-			Then:  ThenKeep,
+			Basis: "Performance of the contract (GDPR Art. 6(1)(b)) while open; a closed patient account is erased 21 days after " +
+				"closure, its row kept blank (docs/clinic-cms/WAVE5.md S5, S6, the account_erasure job)",
+			Then: ThenKeep,
 		},
 		{
 			Table: "session",
@@ -121,7 +122,7 @@ func tableRules() []Rule {
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules(), dataRequestRules(), dataRequestExportRules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -399,6 +400,38 @@ func clinicWave4Rules() []Rule {
 				"(docs/clinic-cms, M2)",
 			Keep: 7 * day, // after requested_at
 			Then: ThenDelete,
+		},
+	}
+}
+
+// dataRequestExportRules are the rules of the patient's own export (docs/clinic-cms/WAVE5.md D2, S4).
+func dataRequestExportRules() []Rule {
+	return []Rule{{
+		Table: "data_request_export",
+		Basis: "The patient's export for their access or portability request (GDPR Art. 15, Art. 20): the key of the " +
+			"encrypted archive of what they can read in the app. Downloadable for 7 days after it was ready; then the row " +
+			"and its archive are deleted, as is a failed one 7 days after it was asked for (docs/clinic-cms, D2)",
+		Keep: 7 * day, // after ready_at, or requested_at of a failed one
+		Then: ThenDelete,
+	}}
+}
+
+// dataRequestRules are the rules of the data subject's requests (docs/clinic-cms/WAVE5.md, 5.0). The periods need the
+// lawyer's decision before production.
+func dataRequestRules() []Rule {
+	request := "The data subject's request and how it was answered (GDPR Art. 12 to 21, the proof of compliance under " +
+		"Art. 5(2); Art. 6(1)(c)): who it is for, its target, kind, deadlines and answer code, and the history of its " +
+		"status. Never deleted, kept after the account's erasure as the record of what was erased and kept; needs a " +
+		"legal decision before production (docs/clinic-cms/WAVE5.md)"
+	return []Rule{
+		{Table: "data_request", Basis: request, Then: ThenKeep},
+		{Table: "data_request_change", Basis: request, Then: ThenKeep},
+		{
+			Table: "patient_restriction",
+			Basis: "The restriction of a patient's record at one clinic (GDPR Art. 18; Art. 17(3) for the record the " +
+				"medical-record retention keeps after erasure): kept as long as the record it restricts, deleted when " +
+				"the clinic lifts it (docs/clinic-cms/WAVE5.md, S6, S7)",
+			Then: ThenKeep,
 		},
 	}
 }

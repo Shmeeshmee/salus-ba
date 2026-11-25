@@ -3383,6 +3383,390 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Services and prices'**
   String get clinicServices;
+
+  /// Home button and screen title: the patient's data requests and account closure.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get privacy;
+
+  /// [legal] Privacy screen: what a request can ask and its deadline (GDPR Art. 12(3)).
+  ///
+  /// In en, this message translates to:
+  /// **'Ask Salus or one of your clinics what data they hold about you, or ask them to correct, limit or erase it. Each request is answered within one month. The time may be extended once, by up to two months, and you are told why.'**
+  String get privacyIntro;
+
+  /// Privacy screen, empty list.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not made a request yet.'**
+  String get noDataRequests;
+
+  /// Privacy screen button and the new request screen's title.
+  ///
+  /// In en, this message translates to:
+  /// **'Make a request'**
+  String get newDataRequest;
+
+  /// Privacy screen button, the closure screen's title and its confirming button.
+  ///
+  /// In en, this message translates to:
+  /// **'Close my account'**
+  String get closeMyAccount;
+
+  /// The kind of a data request: access (Art. 15).
+  ///
+  /// In en, this message translates to:
+  /// **'See my data'**
+  String get dataRequestAccess;
+
+  /// The kind of a data request: portability (Art. 20).
+  ///
+  /// In en, this message translates to:
+  /// **'Take my data elsewhere'**
+  String get dataRequestPortability;
+
+  /// The kind of a data request: rectification (Art. 16).
+  ///
+  /// In en, this message translates to:
+  /// **'Correct my data'**
+  String get dataRequestRectification;
+
+  /// The kind of a data request: restriction (Art. 18).
+  ///
+  /// In en, this message translates to:
+  /// **'Limit the use of my data'**
+  String get dataRequestRestriction;
+
+  /// The kind of a data request: objection (Art. 21).
+  ///
+  /// In en, this message translates to:
+  /// **'Object to the use of my data'**
+  String get dataRequestObjection;
+
+  /// The kind of a data request: erasure (Art. 17).
+  ///
+  /// In en, this message translates to:
+  /// **'Erase my data'**
+  String get dataRequestErasure;
+
+  /// [legal] New request screen: what an access request gives (S4).
+  ///
+  /// In en, this message translates to:
+  /// **'You receive a copy of the data held about you, as an archive you can download here for 7 days.'**
+  String get explainAccess;
+
+  /// [legal] New request screen: what a portability request gives (S4).
+  ///
+  /// In en, this message translates to:
+  /// **'You receive the same archive, in a standard format (FHIR) another provider can read.'**
+  String get explainPortability;
+
+  /// [legal] New request screen: how a correction is made (S8).
+  ///
+  /// In en, this message translates to:
+  /// **'Correct your profile yourself under My profile. For an entry in your clinical record, ask the clinic: it may add a correction that refers to the original. A signed document is never changed.'**
+  String get explainRectification;
+
+  /// [legal] New request screen: what a restriction does (Art. 18).
+  ///
+  /// In en, this message translates to:
+  /// **'Your data is kept but not used, apart from what the law requires, while a question about it is settled.'**
+  String get explainRestriction;
+
+  /// [legal] New request screen: what an objection does (S9).
+  ///
+  /// In en, this message translates to:
+  /// **'Your data is left out of anonymised statistics from now on. Statistics made earlier are not changed; no one can be identified in them.'**
+  String get explainObjection;
+
+  /// [legal] New request screen: what an erasure does and what stays (S6).
+  ///
+  /// In en, this message translates to:
+  /// **'Data that no law requires to be kept is erased. Your clinical record stays with each clinic for the period the medical-record law sets, restricted. To erase your Salus account, close it.'**
+  String get explainErasure;
+
+  /// New request screen: heading above the kinds.
+  ///
+  /// In en, this message translates to:
+  /// **'What you are asking for'**
+  String get dataRequestKind;
+
+  /// New request screen: sent without a kind.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose what you are asking for.'**
+  String get chooseDataRequestKind;
+
+  /// New request screen: heading above who answers.
+  ///
+  /// In en, this message translates to:
+  /// **'Who should answer'**
+  String get dataRequestTarget;
+
+  /// [legal] New request screen: who answers which request (S1).
+  ///
+  /// In en, this message translates to:
+  /// **'Salus answers for your account. Each clinic answers for the record it keeps about you.'**
+  String get dataRequestTargetHint;
+
+  /// New request screen: the account target.
+  ///
+  /// In en, this message translates to:
+  /// **'Salus, about my account'**
+  String get dataRequestToSalusOption;
+
+  /// Privacy screen: a request to the account target.
+  ///
+  /// In en, this message translates to:
+  /// **'To Salus, about your account'**
+  String get requestToSalus;
+
+  /// Privacy screen: a request to a clinic; the clinic's name.
+  ///
+  /// In en, this message translates to:
+  /// **'To {clinic}'**
+  String requestToClinic(String clinic);
+
+  /// New request screen: the send button.
+  ///
+  /// In en, this message translates to:
+  /// **'Send request'**
+  String get sendDataRequest;
+
+  /// Privacy screen after filing; the due date.
+  ///
+  /// In en, this message translates to:
+  /// **'Your request was received. The answer is due by {date}.'**
+  String dataRequestSent(String date);
+
+  /// Privacy screen: a request's state, received.
+  ///
+  /// In en, this message translates to:
+  /// **'Received'**
+  String get dataRequestReceived;
+
+  /// Privacy screen: a request's state, in progress.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get dataRequestInProgress;
+
+  /// Privacy screen: a request's state, answered.
+  ///
+  /// In en, this message translates to:
+  /// **'Answered'**
+  String get dataRequestFulfilled;
+
+  /// Privacy screen: a request's state, refused.
+  ///
+  /// In en, this message translates to:
+  /// **'Refused'**
+  String get dataRequestRefused;
+
+  /// Privacy screen: a request's state, withdrawn.
+  ///
+  /// In en, this message translates to:
+  /// **'Withdrawn'**
+  String get dataRequestWithdrawnStatus;
+
+  /// Privacy screen: when a request was received; a long date.
+  ///
+  /// In en, this message translates to:
+  /// **'Received on {date}'**
+  String dataRequestReceivedOn(String date);
+
+  /// Privacy screen: an open request's due date.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer due by {date}'**
+  String dataRequestDueBy(String date);
+
+  /// [legal] Privacy screen: an extended deadline and its reason (Art. 12(3)).
+  ///
+  /// In en, this message translates to:
+  /// **'Extended to {date}, as the request is complex.'**
+  String dataRequestExtendedComplex(String date);
+
+  /// [legal] Privacy screen: an extended deadline and its reason (Art. 12(3)).
+  ///
+  /// In en, this message translates to:
+  /// **'Extended to {date}, as many requests arrived at the same time.'**
+  String dataRequestExtendedMany(String date);
+
+  /// Privacy screen: the answer, done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done.'**
+  String get answerDone;
+
+  /// [legal] Privacy screen: the answer, done with the record the law keeps (S6).
+  ///
+  /// In en, this message translates to:
+  /// **'Done. What the medical-record law requires to be kept is kept, restricted.'**
+  String get answerDonePartlyKept;
+
+  /// [legal] Privacy screen: the answer, refused (Art. 12(6)).
+  ///
+  /// In en, this message translates to:
+  /// **'Refused: your identity could not be confirmed.'**
+  String get answerIdentityUnverified;
+
+  /// [legal] Privacy screen: the answer, refused (Art. 12(5)).
+  ///
+  /// In en, this message translates to:
+  /// **'Refused as clearly unfounded.'**
+  String get answerManifestlyUnfounded;
+
+  /// [legal] Privacy screen: the answer, refused (Art. 12(5)).
+  ///
+  /// In en, this message translates to:
+  /// **'Refused as excessive, for example because it repeats an earlier request.'**
+  String get answerExcessive;
+
+  /// [legal] Privacy screen: the answer, refused (Art. 17(3)).
+  ///
+  /// In en, this message translates to:
+  /// **'Refused: the law requires this data to be kept.'**
+  String get answerRetentionLaw;
+
+  /// Privacy screen: the answer, no data held.
+  ///
+  /// In en, this message translates to:
+  /// **'No data about you is held there.'**
+  String get answerNoData;
+
+  /// [legal] Privacy screen, under a refusal: the right to complain (Art. 12(4)).
+  ///
+  /// In en, this message translates to:
+  /// **'If you disagree with an answer, you can complain to the data protection authority.'**
+  String get answerComplaint;
+
+  /// Privacy screen: button under an open request, and the dialog's confirming button.
+  ///
+  /// In en, this message translates to:
+  /// **'Withdraw request'**
+  String get withdrawDataRequest;
+
+  /// Dialog title.
+  ///
+  /// In en, this message translates to:
+  /// **'Withdraw your request?'**
+  String get withdrawDataRequestTitle;
+
+  /// [legal] Dialog text: the effect of withdrawing a request.
+  ///
+  /// In en, this message translates to:
+  /// **'The request is closed without an answer and stays in your list. You can make a new request at any time.'**
+  String get withdrawDataRequestBody;
+
+  /// Dialog: keep the request.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep request'**
+  String get keepDataRequest;
+
+  /// Privacy screen after withdrawing.
+  ///
+  /// In en, this message translates to:
+  /// **'Your request was withdrawn.'**
+  String get dataRequestWithdrawn;
+
+  /// Privacy screen: the export is being built.
+  ///
+  /// In en, this message translates to:
+  /// **'Your data is being prepared. Look here again later.'**
+  String get exportPreparing;
+
+  /// Privacy screen: the export can be downloaded until a date.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to download until {date}.'**
+  String exportReadyUntil(String date);
+
+  /// Privacy screen: the button that downloads the export.
+  ///
+  /// In en, this message translates to:
+  /// **'Download my data'**
+  String get downloadExport;
+
+  /// Privacy screen: the export could not be built.
+  ///
+  /// In en, this message translates to:
+  /// **'The archive could not be prepared.'**
+  String get exportFailed;
+
+  /// Filing an access or portability request while the patient's export of an earlier one is still being prepared (export_in_progress).
+  ///
+  /// In en, this message translates to:
+  /// **'Your data from an earlier request is still being prepared. You can ask again once it is ready.'**
+  String get exportInProgress;
+
+  /// Privacy screen: the download window has passed.
+  ///
+  /// In en, this message translates to:
+  /// **'The download has expired. Make a new request for a fresh copy.'**
+  String get exportExpired;
+
+  /// Privacy screen: withdrawing a request already answered or withdrawn.
+  ///
+  /// In en, this message translates to:
+  /// **'This request is already closed.'**
+  String get dataRequestClosed;
+
+  /// New request screen: the clinic has no record of the patient.
+  ///
+  /// In en, this message translates to:
+  /// **'That clinic holds no record of you.'**
+  String get noRecordAtClinic;
+
+  /// Privacy screen: the request changed since it was read.
+  ///
+  /// In en, this message translates to:
+  /// **'This request has changed meanwhile. The list shows it as it is now.'**
+  String get dataRequestChanged;
+
+  /// [legal] Closure screen: what happens at once (S5).
+  ///
+  /// In en, this message translates to:
+  /// **'When you close your account, at once: you are signed out on every device and cannot sign in again, your future appointments are cancelled and the clinics are told, your places on waiting lists are given up and your consents are revoked. You cannot undo this yourself.'**
+  String get closeAccountNow;
+
+  /// [legal] Closure screen: the reopening window and what is erased after it (S5, S6; 21 days, owner 2026-11-24).
+  ///
+  /// In en, this message translates to:
+  /// **'If you change your mind, Salus can reopen the account within 21 days. After 21 days Salus erases your e-mail address, password and sign-in codes, your language choice, your devices, the record of the messages sent to you, questionnaire answers you did not send, and files you added to a chat but never sent.'**
+  String get closeAccountErased;
+
+  /// [legal] Closure screen: what stays after erasure (S6, S7).
+  ///
+  /// In en, this message translates to:
+  /// **'Your clinical record stays with each clinic for the period the medical-record law sets. It is hidden from the clinic\'s everyday work and opened only with a stated reason.'**
+  String get closeAccountKept;
+
+  /// [legal] Closure screen: download the data before closing.
+  ///
+  /// In en, this message translates to:
+  /// **'To keep a copy of your data, ask for it under Privacy before you close the account: once it is closed you cannot sign in to download it.'**
+  String get closeAccountCopyFirst;
+
+  /// Closure screen: under the password field.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your password to confirm.'**
+  String get closeAccountConfirm;
+
+  /// [legal] Closure screen after closing.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is closed and you are signed out.'**
+  String get accountClosed;
+
+  /// [legal] Closure screen after closing: where to ask Salus to reopen the account (the operator may, within 21 days). email is the support address set at build time (SUPPORT_EMAIL).
+  ///
+  /// In en, this message translates to:
+  /// **'To ask for your account to be reopened within 21 days, write to {email}.'**
+  String accountClosedReopen(String email);
 }
 
 class _AppLocalizationsDelegate

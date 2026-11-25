@@ -165,6 +165,30 @@ func (s *Service) Registered(ctx context.Context, c Caller) ([]string, error) {
 	return out, nil
 }
 
+// RestrictedRecords returns the ids of the patients whose record c's clinic restricts (S7), for the clinic's data
+// export's manifest: the clinic's admin only, in its scope, audited as one search for the export. ErrForbidden, audited,
+// to anyone else.
+func (s *Service) RestrictedRecords(ctx context.Context, c Caller) ([]string, error) {
+	if c.patient() || !c.Admin {
+		return nil, s.refuseRights(ctx, c, auditevent.CodeSearchType, PurposeExport, ErrForbidden)
+	}
+	var out []string
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetClinic(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		var err error
+		if out, err = s.repo.RestrictedAt(ctx, c.OrganizationID); err != nil {
+			return err
+		}
+		return s.audit.Record(ctx, s.event(c, auditevent.CodeSearchType, PurposeExport, "", auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("patient: restricted records: %w", err)
+	}
+	return out, nil
+}
+
 // registered scopes the transaction in ctx to c's clinic and returns the profile id, or ErrNotFound unless the profile id is one that clinic
 // registered (checked here, not on row-level security alone: the clinic's scope also shows patients with its consent).
 func (s *Service) registered(ctx context.Context, c Caller, id string) (Patient, error) {

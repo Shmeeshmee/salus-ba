@@ -162,6 +162,32 @@ func (r *postgresRepository) Matching(ctx context.Context, org string, in []Pati
 	return out, nil
 }
 
+func (r *postgresRepository) ObjectToAnalytics(ctx context.Context, id string, at time.Time) error {
+	var p pgtype.UUID
+	if p.Scan(id) != nil {
+		return ErrNotFound
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).ObjectToAnalytics(ctx, patientdb.ObjectToAnalyticsParams{
+		At: pgtype.Timestamptz{Time: at, Valid: true}, ID: p,
+	})
+}
+
+func (r *postgresRepository) RestrictedAt(ctx context.Context, org string) ([]string, error) {
+	var o pgtype.UUID
+	if o.Scan(org) != nil {
+		return nil, nil
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).RestrictedAtClinic(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, id := range rows {
+		out = append(out, id.String())
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) RegisteredBy(ctx context.Context, org string) ([]string, error) {
 	var o pgtype.UUID
 	if err := o.Scan(org); err != nil {
@@ -176,6 +202,43 @@ func (r *postgresRepository) RegisteredBy(ctx context.Context, org string) ([]st
 		out = append(out, id.String())
 	}
 	return out, nil
+}
+
+func (r *postgresRepository) Restrict(ctx context.Context, patientID, org, by, requestID string, at time.Time) error {
+	var p, o, b, req pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil || b.Scan(by) != nil || (requestID != "" && req.Scan(requestID) != nil) {
+		return ErrNotFound
+	}
+	q := patientdb.New(postgres.Conn(ctx, r.db))
+	n, err := q.RestrictPatient(ctx, patientdb.RestrictPatientParams{
+		RestrictedAt: pgtype.Timestamptz{Time: at, Valid: true}, PatientID: p, OrganizationID: o,
+		RestrictedByAccountID: b, DataRequestID: req,
+	})
+	if err != nil || n == 1 {
+		return err
+	}
+	// Nothing inserted: restricted already, or the request is not the clinic's and the patient's.
+	restricted, err := q.PatientRestricted(ctx, patientdb.PatientRestrictedParams{PatientID: p, OrganizationID: o})
+	if err == nil && !restricted {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (r *postgresRepository) Unrestrict(ctx context.Context, patientID, org string) error {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return nil
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).UnrestrictPatient(ctx, patientdb.UnrestrictPatientParams{PatientID: p, OrganizationID: o})
+}
+
+func (r *postgresRepository) Restricted(ctx context.Context, patientID, org string) (bool, error) {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return false, nil
+	}
+	return patientdb.New(postgres.Conn(ctx, r.db)).PatientRestricted(ctx, patientdb.PatientRestrictedParams{PatientID: p, OrganizationID: o})
 }
 
 // likePattern is %name%, with LIKE's wildcards and escape in name taken literally.
@@ -195,3 +258,18 @@ func pgDate(t time.Time) pgtype.Date { return pgtype.Date{Time: t, Valid: true} 
 
 // pgText is s, or NULL when it is empty.
 func pgText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+
+func (r *postgresRepository) RestrictForErasure(ctx context.Context, patientID, org string, at time.Time) error {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return ErrNotFound
+	}
+	q := patientdb.New(postgres.Conn(ctx, r.db))
+	// A staff restriction gives way to the job's, which the clinic cannot lift (00071's restrictive policy).
+	if err := q.UnrestrictPatient(ctx, patientdb.UnrestrictPatientParams{PatientID: p, OrganizationID: o}); err != nil {
+		return err
+	}
+	return q.RestrictForErasure(ctx, patientdb.RestrictForErasureParams{
+		RestrictedAt: pgtype.Timestamptz{Time: at, Valid: true}, PatientID: p, OrganizationID: o,
+	})
+}

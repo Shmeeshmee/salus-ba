@@ -374,6 +374,7 @@ func TestTranscribed_OnlyWhileTheCareAndTheTranscriptionConsentAreActive(t *test
 		{"care only", access.Consent{Active: true}, false},
 		{"transcription only", access.Consent{Transcription: true, RevokedAt: revoked}, false},
 		{"neither", access.Consent{}, false},
+		{"a restricted record (S7)", access.Consent{Active: true, Transcription: true, Restricted: true}, false},
 	} {
 		if got := access.Transcribed(tc.c); got != tc.want {
 			t.Errorf("%s: Transcribed = %v, want %v", tc.name, got, tc.want)
@@ -501,4 +502,29 @@ func TestGroupChat_OverEveryRoleConsentClinicAndParticipation(t *testing.T) {
 	if access.GuestChat(noRole, access.Facts{Patient: patientA, Clinic: clinicB, Consent: access.Consent{Active: true}}, true) {
 		t.Error("GuestChat for staff without a role: true, want false")
 	}
+}
+
+// ClinicRecord: the clinic's admin, for the record the clinic hands over or exports (docs/clinic-cms/WAVE5.md S11),
+// every appointment of the clinic: all of it with an active consent, the name, times and status otherwise, the
+// visits a withdrawal cancelled included; nobody else anything.
+func TestClinicRecord_OverEveryRoleConsentAppointmentAndClinic(t *testing.T) {
+	want := map[string]access.Level{}
+	for cn := range consents {
+		for an := range visits {
+			if an == "none" {
+				continue
+			}
+			level := access.Name
+			if cn == "active" {
+				level = access.Full
+			}
+			want[fmt.Sprintf("admin/%s/%s/match", cn, an)] = level
+		}
+	}
+	check(t, "ClinicRecord", want, func(_ string, v access.Viewer, f access.Facts) (access.Level, bool) {
+		if len(f.Visits) == 0 {
+			return access.None, false
+		}
+		return access.ClinicRecord(v, f, f.Visits[0]), true
+	})
 }

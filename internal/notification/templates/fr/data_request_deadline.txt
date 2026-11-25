@@ -1,0 +1,9 @@
+Une demande de personne concernée arrive à échéance dans {{if eq .Days 1}}1 jour{{else}}{{.Days}} jours{{end}}
+
+Le délai de réponse à une demande de personne concernée expire le {{.When}}, dans {{if eq .Days 1}}1 jour{{else}}{{.Days}} jours{{end}}.
+
+Type : {{if eq .Kind "access"}}Accès{{else if eq .Kind "portability"}}Portabilité{{else if eq .Kind "rectification"}}Rectification{{else if eq .Kind "restriction"}}Limitation{{else if eq .Kind "objection"}}Opposition{{else if eq .Kind "erasure"}}Effacement{{end}}
+Demande : {{.Request}}
+
+{{if .Link}}Pour la traiter, connectez-vous à Salus :
+{{.Link}}{{else}}Pour la traiter : salusctl datarequest show {{.Request}}{{end}}

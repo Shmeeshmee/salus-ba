@@ -1,0 +1,8 @@
+Subject: Une demande de personne concernée arrive à échéance dans 1 jour
+
+Le délai de réponse à une demande de personne concernée expire le jeudi 24 décembre 2026 à 23:59 (Europe/Sarajevo), dans 1 jour.
+
+Type : Effacement
+Demande : 00000000-0000-4000-8000-0000000000f1
+
+Pour la traiter : salusctl datarequest show 00000000-0000-4000-8000-0000000000f1

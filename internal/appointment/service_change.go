@@ -20,6 +20,7 @@ type view struct {
 	a      Appointment
 	facts  access.Facts
 	level  access.Level
+	named  bool // the patient's name goes with it whatever Profile allows (the clinic's record, S11)
 }
 
 // view reads the appointment id in the caller's scope, the patient's own or the clinic's, in the transaction

@@ -106,6 +106,16 @@ type attachment struct {
 }
 
 func (h *Handler) toFHIR(s Seen, v questionnaire.Questionnaire) resource {
+	return toFHIR(s, v, func(binaryID string) string { return h.api + "/binaries/" + binaryID + "/content" })
+}
+
+// FHIR is the response s, of the questionnaire version v, as an R4 QuestionnaireResponse as the FHIR API serves it,
+// each attachment's url given by file (the patient's export names the file in the archive, D7).
+func FHIR(s Seen, v questionnaire.Questionnaire, file func(binaryID string) string) any {
+	return toFHIR(s, v, file)
+}
+
+func toFHIR(s Seen, v questionnaire.Questionnaire, file func(binaryID string) string) resource {
 	r := s.Response
 	patient := fhir.Reference{Reference: "Patient/" + r.PatientID}
 	res := resource{
@@ -123,7 +133,7 @@ func (h *Handler) toFHIR(s Seen, v questionnaire.Questionnaire) resource {
 		}
 		for _, f := range r.Attachments { // in upload order, a pending one too: only the patient sees one
 			given[f.LinkID] = append(given[f.LinkID], answer{Attachment: &attachment{
-				ContentType: f.ContentType, URL: h.api + "/binaries/" + f.BinaryID + "/content", Size: f.Size, Hash: f.Hash, Title: f.Title,
+				ContentType: f.ContentType, URL: file(f.BinaryID), Size: f.Size, Hash: f.Hash, Title: f.Title,
 			}})
 		}
 		res.Item = nest(v.Items, given)

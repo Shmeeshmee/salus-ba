@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/notification"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/retention"
@@ -70,7 +71,8 @@ func newRetention(pool, retentionPool *pgxpool.Pool, store binary.Store, policy 
 		"waitlist_offer":           appointment.NewWaitlistOfferPurger(waitlist),
 		"appointment_reminder":     appointment.NewReminderPurger(appointment.NewPostgresReminderRepository(retentionPool)),
 		"notification_delivery":    notification.NewDeliveryPurger(notification.NewPostgresDeliveryRepository(retentionPool)),
-		"clinic_signup":            signup.NewPurger(signup.NewPostgresRepository(retentionPool)),                    // unverified ones (clinic-cms O1)
-		"clinic_export":            clinicexport.NewPurger(clinicexport.NewPostgresRepository(retentionPool), store), // and their archives (clinic-cms M2)
+		"clinic_signup":            signup.NewPurger(signup.NewPostgresRepository(retentionPool)),                      // unverified ones (clinic-cms O1)
+		"clinic_export":            clinicexport.NewPurger(clinicexport.NewPostgresRepository(retentionPool), store),   // and their archives (clinic-cms M2)
+		"data_request_export":      datarequest.NewExportPurger(datarequest.NewExportRepository(retentionPool), store), // and their archives (clinic-cms D2)
 	}, audit, clock.System{})
 }

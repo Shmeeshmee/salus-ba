@@ -1,0 +1,9 @@
+Bir ilgili kişi başvurusunun süresi {{if eq .Days 1}}1 gün{{else}}{{.Days}} gün{{end}} içinde doluyor
+
+Bir ilgili kişi başvurusunu yanıtlama süresi {{if eq .Days 1}}1 gün{{else}}{{.Days}} gün{{end}} sonra, {{.When}} tarihinde doluyor.
+
+Tür: {{if eq .Kind "access"}}Erişim{{else if eq .Kind "portability"}}Taşınabilirlik{{else if eq .Kind "rectification"}}Düzeltme{{else if eq .Kind "restriction"}}Kısıtlama{{else if eq .Kind "objection"}}İtiraz{{else if eq .Kind "erasure"}}Silme{{end}}
+Başvuru: {{.Request}}
+
+{{if .Link}}İşleme almak için Salus'a giriş yapın:
+{{.Link}}{{else}}İşleme almak için: salusctl datarequest show {{.Request}}{{end}}

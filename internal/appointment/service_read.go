@@ -52,7 +52,7 @@ func (s *Service) seen(ctx context.Context, c Caller, v view, interaction string
 	if err := s.record(ctx, c, interaction, "Appointment", v.a.ID, auditevent.OutcomeSuccess); err != nil {
 		return Seen{}, err
 	}
-	if access.Profile(v.viewer, v.facts) == access.None {
+	if !v.named && access.Profile(v.viewer, v.facts) == access.None {
 		return out, nil
 	}
 	p, err := s.Patients.Lookup(ctx, v.a.PatientID)
@@ -90,11 +90,33 @@ func minimal(a Appointment) Appointment {
 // clinic's. Each appointment returned is
 // audited, and each patient name given; a search that returns none writes one event without an entity.
 func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Seen, error) {
+	return s.find(ctx, c, f, false)
+}
+
+// ClinicRecord returns the clinic's appointments of the filter as the record the clinic hands over or exports holds
+// them (docs/clinic-cms/WAVE5.md S11, access.ClinicRecord): to the clinic's admin every one, the visits a withdrawal
+// cancelled included, each with the patient's name, each audited as Search audits. ErrForbidden, audited, to anyone
+// else. Only the hand-over and the export call it; every other screen searches through Search.
+func (s *Service) ClinicRecord(ctx context.Context, c Caller, f Filter) ([]Seen, error) {
+	if !c.Admin || c.OrganizationID == "" {
+		if err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
+			return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeMinorFailure)
+		}); err != nil {
+			return nil, fmt.Errorf("appointment: clinic record: %w", err)
+		}
+		return nil, ErrForbidden
+	}
+	return s.find(ctx, c, f, true)
+}
+
+// find is Search, or ClinicRecord when record: it runs the search in a transaction and audits a refusal or an
+// empty result with one event.
+func (s *Service) find(ctx context.Context, c Caller, f Filter, record bool) ([]Seen, error) {
 	var out []Seen
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		if out, refused, err = s.search(ctx, c, f); err != nil {
+		if out, refused, err = s.search(ctx, c, f, record); err != nil {
 			return err
 		}
 		if refused != nil {
@@ -115,20 +137,26 @@ func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Seen, error
 }
 
 // search runs the caller's search in the transaction in ctx and audits each result, or gives the refusal.
-func (s *Service) search(ctx context.Context, c Caller, f Filter) (out []Seen, refused, err error) {
+func (s *Service) search(ctx context.Context, c Caller, f Filter, record bool) (out []Seen, refused, err error) {
+	clinic := f.OrganizationID // a patient's own search may narrow to one clinic; staff's is set below
 	f.OrganizationID = ""
 	var viewer access.Viewer
 	switch {
 	case c.patient() && c.PatientID == "":
 		return nil, nil, nil
 	case c.patient():
-		f.PatientID = c.PatientID
+		f.PatientID, f.OrganizationID = c.PatientID, clinic
 		viewer = access.Viewer{Role: access.RolePatient, Patient: c.PatientID}
 		err = s.Repo.SetPatient(ctx, c.PatientID)
 	default:
 		var none bool
 		if f, none, refused, err = s.staffFilter(ctx, c, f); none || refused != nil || err != nil {
 			return nil, refused, err
+		}
+		if record {
+			if err := s.Repo.SetRecord(ctx); err != nil {
+				return nil, nil, err
+			}
 		}
 		viewer, err = s.staffViewer(ctx, c, f.PractitionerRoleID)
 		if err == nil && !c.Admin && (viewer.PractitionerRole == "" || viewer.PractitionerRole != f.PractitionerRoleID) {
@@ -144,7 +172,7 @@ func (s *Service) search(ctx context.Context, c Caller, f Filter) (out []Seen, r
 	}
 	facts, practitioners := map[string]access.Facts{}, map[string]string{}
 	for _, a := range all {
-		v, err := s.viewOf(ctx, c, viewer, facts, a)
+		v, err := s.viewOf(ctx, c, viewer, facts, a, record)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -192,7 +220,8 @@ func (s *Service) staffFilter(ctx context.Context, c Caller, f Filter) (out Filt
 
 // viewOf decides viewer's level for the appointment a of a search, with the facts of its patient (gathered
 // once per patient into facts).
-func (s *Service) viewOf(ctx context.Context, c Caller, viewer access.Viewer, facts map[string]access.Facts, a Appointment) (view, error) {
+// When record, the level is the clinic record's (access.ClinicRecord) and the patient's name goes with every one.
+func (s *Service) viewOf(ctx context.Context, c Caller, viewer access.Viewer, facts map[string]access.Facts, a Appointment, record bool) (view, error) {
 	if c.patient() {
 		f := access.Facts{Patient: a.PatientID, Clinic: a.OrganizationID}
 		return view{a: a, viewer: viewer, facts: f, level: access.Appointment(viewer, f, visit(a))}, nil
@@ -204,6 +233,9 @@ func (s *Service) viewOf(ctx context.Context, c Caller, viewer access.Viewer, fa
 			return view{}, err
 		}
 		facts[a.PatientID] = f
+	}
+	if record {
+		return view{a: a, viewer: viewer, facts: f, level: access.ClinicRecord(viewer, f, visit(a)), named: true}, nil
 	}
 	return view{a: a, viewer: viewer, facts: f, level: access.Appointment(viewer, f, visit(a))}, nil
 }

@@ -32,7 +32,8 @@ const maxNote = 2000
 // (POST /clinic/quotes). A quote is no receipt: it takes no number, is never reported and charges nothing. By the
 // clinic's admin and the practitioner of the visit. ErrInvalid for a draft that is no quote or a line the price list
 // does not price; ErrForbidden to anyone else; ErrNotFound for a visit the clinic does not have, a patient not the
-// visit's, or a patient without the clinic's active care consent. Audited, also when refused.
+// visit's, a patient without the clinic's active care consent, or one whose record the clinic restricts (S7). Audited,
+// also when refused.
 func (s *Service) SendQuote(ctx context.Context, c Caller, d QuoteDraft) (Quote, error) {
 	if !validQuote(d) {
 		return Quote{}, ErrInvalid
@@ -116,6 +117,8 @@ func (s *Service) quote(ctx context.Context, c Caller, d QuoteDraft) (Quote, err
 	case err != nil:
 		return Quote{}, err
 	case !state.Active: // the patient sees the quote: only while the clinic has their care consent
+		return Quote{}, ErrNotFound
+	case state.Restricted: // a quote is no legal obligation: none while the clinic restricts the record (S7)
 		return Quote{}, ErrNotFound
 	}
 	priced, err := s.p.Prices.Lines(ctx, c.OrganizationID, d.Picks)

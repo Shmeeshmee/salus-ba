@@ -180,7 +180,7 @@ func (s *Service) mayOffer(ctx context.Context, agent, org string, e WaitlistEnt
 		return candidate{}, time.Time{}, nil // not on row-level security alone
 	}
 	consent, err := s.Consents.State(ctx, e.PatientID, org)
-	if err != nil || !consent.Active {
+	if err != nil || !consent.Active || consent.Restricted { // S7: a restricted record gets no offer
 		return candidate{}, time.Time{}, err
 	}
 	p, err := s.Patients.Lookup(ctx, e.PatientID)

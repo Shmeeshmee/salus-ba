@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/clinicstats"
 	"github.com/Shmeeshmee/salus/internal/communication"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/subscription"
 	"github.com/Shmeeshmee/salus/pkg/clock"
@@ -41,6 +42,7 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 	addEmailWorkers(workers, nil, nil, nil)
 	addChatWorkers(workers, nil)
 	addReminderWorkers(workers, nil)
+	addDataRequestMailWorkers(workers, nil, nil, nil)
 	addWebhookWorkers(workers, nil)
 	addAgentWorkers(workers, nil, nil)
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
@@ -71,6 +73,14 @@ func newScheduler(pool *pgxpool.Pool, log *slog.Logger, retentionSchedule river.
 			river.NewPeriodicJob(dailyAt{hour: subscriptionHour}, func() (river.JobArgs, *river.InsertOpts) {
 				return subscription.MonthlyArgs{}, nil
 			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			// The data subject's requests' deadline warnings (clinic-cms D1); also when it starts leading, as the reminders.
+			river.NewPeriodicJob(river.PeriodicInterval(deadlinesInterval), func() (river.JobArgs, *river.InsertOpts) {
+				return datarequest.DeadlinesArgs{}, nil
+			}, &river.PeriodicJobOpts{RunOnStart: true}),
+			// The closed accounts' erasure (clinic-cms D3): daily, after the retention rules.
+			river.NewPeriodicJob(dailyAt{hour: erasureHour}, func() (river.JobArgs, *river.InsertOpts) {
+				return AccountErasureArgs{}, nil
+			}, nil),
 		}, trendsPeriodics(platform, clock.System{})...),
 		ReindexerIndexNames: []string{}, // as in workConfig: salus_app owns nothing
 		Workers:             workers,

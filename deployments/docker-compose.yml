@@ -165,6 +165,11 @@ services:
       PATIENT_APP_URL: ${PATIENT_APP_URL:-https://patient.salus.invalid}
       # The reminders' one-time links, <APPOINTMENT_LINK_URL>/a/<token>: the api's public origin (SAL-33).
       APPOINTMENT_LINK_URL: http://localhost:${SALUS_API_PORT:-8080}
+      # The data requests' deadline warnings for Salus's own (docs/clinic-cms/WAVE5.md D5) go to the operator: a
+      # synthetic address here, so they land in Mailpit. Outside SALUS_ENV=dev the notifier needs a real one.
+      SALUS_ENV: dev
+      SALUS_OPERATOR_EMAIL: operator@example.test
+      SALUS_OPERATOR_LANGUAGE: en
     depends_on:
       <<: *app-deps
       mailpit: {condition: service_healthy}

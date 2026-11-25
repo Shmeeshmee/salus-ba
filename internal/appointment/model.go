@@ -185,7 +185,7 @@ type Filter struct {
 	PractitionerID     string // the practitioner participant (FHIR practitioner)
 	PractitionerRoleID string
 	Status             Status
-	OrganizationID     string // set by the service, never by a caller
+	OrganizationID     string // set by the service for staff; a patient may narrow their own to one clinic
 }
 
 // Notice is what an e-mail job needs: the appointment and the account of its patient.

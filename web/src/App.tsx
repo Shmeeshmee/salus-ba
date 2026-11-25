@@ -12,6 +12,8 @@ import { CallHistory } from './History'
 import { consultSocket } from './live'
 import { ClinicSettings } from './ClinicSettings'
 import { ClinicReports } from './ClinicReports'
+import { DataRequestDetail } from './DataRequestDetail'
+import { DataRequests } from './DataRequests'
 import { Desk } from './Desk'
 import { OnlinePractice } from './OnlinePractice'
 import { PriceList } from './PriceList'
@@ -31,7 +33,7 @@ import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
-import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, QuoteIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
+import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, PrivacyIcon, QuoteIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -199,6 +201,12 @@ function Navigation({ admin, practitioner, desk, reviewer }: { admin: boolean; p
         </Link>
       )}
       {admin && (
+        <Link to="/data-requests">
+          <PrivacyIcon />
+          {t('privacy.nav')}
+        </Link>
+      )}
+      {admin && (
         <Link to="/clinic">
           <ClinicIcon />
           {t('shell.clinicSettings')}
@@ -234,6 +242,7 @@ const appointmentPath = /^\/appointments\/([^/]+)$/
 const callPath = /^\/appointments\/([^/]+)\/call$/
 const questionnairePath = /^\/questionnaires\/([^/]+)$/
 const chatPath = /^\/chats\/[^/]+$/
+const dataRequestPath = /^\/data-requests\/([^/]+)$/
 
 // Call is the call page with the consultation's live source and actions, built once for the page (live.ts).
 function Call({ api, fhir, id }: Clients & { id: string }) {
@@ -276,6 +285,9 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   if (path === '/quotes' && account.role === 'admin') return <Quotes api={api} fhir={fhir} account={account} /> // clinic-cms M4
   if (path === '/receipts/report' && account.role === 'admin') return <ClinicReports api={api} fhir={fhir} account={account} />
   if (path === '/receipts/practice' && account.role === 'admin') return <OnlinePractice api={api} fhir={fhir} account={account} /> // clinic-cms E
+  if (path === '/data-requests' && account.role === 'admin') return <DataRequests api={api} fhir={fhir} account={account} /> // clinic-cms D4
+  const dataRequest = account.role === 'admin' ? dataRequestPath.exec(path) : null
+  if (dataRequest) return <DataRequestDetail api={api} fhir={fhir} account={account} id={decodeURIComponent(dataRequest[1])} />
   if (path === '/membership' && account.role === 'admin') return <Subscription api={api} fhir={fhir} account={account} />
   if (path === '/clinic' && account.role === 'admin') {
     return (

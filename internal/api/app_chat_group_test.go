@@ -143,3 +143,39 @@ func TestNew_ServesTheGroupConsultAcrossClinicsUnderRowLevelSecurity(t *testing.
 		t.Error("the log holds a message's text")
 	}
 }
+
+// A guest practitioner of another clinic loses the conversation as soon as the treating clinic restricts the
+// patient's record (docs/clinic-cms/WAVE5.md S7), and has it again once the restriction is lifted; the patient keeps
+// it throughout.
+func TestNew_AGuestLosesTheConversationWhileTheTreatingClinicRestrictsTheRecord(t *testing.T) {
+	g := newGroupConsult(t)
+	d, guest, path := g.d, g.guest, g.path
+	rec := d.practitioner.do(http.MethodPost, path+"/participants",
+		`{"practitioner_role_id":"`+g.guestRole+`","organization_id":"`+otherClinic+`","reason":"second_opinion","history":"full"}`)
+	var invited struct{ ID string }
+	if rec.Code != http.StatusCreated || json.Unmarshal(rec.Body.Bytes(), &invited) != nil {
+		t.Fatalf("invite = %d %s", rec.Code, rec.Body)
+	}
+	if rec := d.patient.do(http.MethodPost, "/me/chat-invitations/"+invited.ID+"/decision", `{"decision":"grant"}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("grant = %d %s", rec.Code, rec.Body)
+	}
+	expectHTTP(t, guest, http.MethodGet, path+"/messages", http.StatusOK, "Synthetic placeholder question")
+	var profile string
+	if err := g.owner.QueryRow(t.Context(), `SELECT patient_id::text FROM conversation WHERE id = $1`, g.convID).Scan(&profile); err != nil {
+		t.Fatal(err)
+	}
+	if rec := d.admin.do(http.MethodPut, "/clinic/patients/"+profile+"/restriction", `{}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("restrict = %d %s", rec.Code, rec.Body)
+	}
+	for _, p := range []string{path, path + "/messages"} {
+		expectHTTP(t, guest, http.MethodGet, p, http.StatusNotFound)
+	}
+	if body := expectHTTP(t, guest, http.MethodGet, "/conversations", http.StatusOK); strings.Contains(body, g.convID) {
+		t.Errorf("the guest's list while restricted: %s", body)
+	}
+	expectHTTP(t, d.patient, http.MethodGet, path+"/messages", http.StatusOK, "Synthetic placeholder question")
+	if rec := d.admin.do(http.MethodDelete, "/clinic/patients/"+profile+"/restriction", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("lift = %d %s", rec.Code, rec.Body)
+	}
+	expectHTTP(t, guest, http.MethodGet, path+"/messages", http.StatusOK, "Synthetic placeholder question")
+}

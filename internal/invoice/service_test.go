@@ -45,6 +45,17 @@ func TestIssue_NumbersCopiesTheSellerAndTheLinesAndEnqueuesTheReport(t *testing.
 	}
 }
 
+// A receipt is still issued for a visit of a patient whose record the clinic restricts: the fiscal law obliges it
+// (docs/clinic-cms/WAVE5.md S7, Art. 18(2)).
+func TestIssue_AReceiptForARestrictedRecord(t *testing.T) {
+	f := newFixture(theSeller)
+	d := draft()
+	d.AppointmentID = restrictedVisit
+	if got, err := f.svc.Issue(t.Context(), adminC, d); err != nil || got.PatientID != "patient-restricted" {
+		t.Errorf("Issue() = %+v, %v; want the receipt", got, err)
+	}
+}
+
 // The seller on a receipt is the clinic's as it was at issue, also after the clinic changes its details.
 func TestIssue_KeepsTheSellerAsItWasAtIssue(t *testing.T) {
 	f := newFixture(theSeller)

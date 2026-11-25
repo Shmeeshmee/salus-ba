@@ -2109,4 +2109,236 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get clinicServices => 'Servizi e prezzi';
+
+  @override
+  String get privacy => 'Privacy';
+
+  @override
+  String get privacyIntro =>
+      'Chieda a Salus o a una delle Sue cliniche quali dati conservano su di Lei, oppure chieda di correggerli, limitarli o cancellarli. Ogni richiesta riceve risposta entro un mese. Il termine può essere prorogato una volta, al massimo di due mesi, e Le viene detto perché.';
+
+  @override
+  String get noDataRequests => 'Non ha ancora presentato alcuna richiesta.';
+
+  @override
+  String get newDataRequest => 'Presenta una richiesta';
+
+  @override
+  String get closeMyAccount => 'Chiudi il mio account';
+
+  @override
+  String get dataRequestAccess => 'Vedere i miei dati';
+
+  @override
+  String get dataRequestPortability => 'Portare i miei dati altrove';
+
+  @override
+  String get dataRequestRectification => 'Correggere i miei dati';
+
+  @override
+  String get dataRequestRestriction => 'Limitare l\'uso dei miei dati';
+
+  @override
+  String get dataRequestObjection => 'Oppormi all\'uso dei miei dati';
+
+  @override
+  String get dataRequestErasure => 'Cancellare i miei dati';
+
+  @override
+  String get explainAccess =>
+      'Riceve una copia dei dati conservati su di Lei, come archivio che può scaricare qui per 7 giorni.';
+
+  @override
+  String get explainPortability =>
+      'Riceve lo stesso archivio, in un formato standard (FHIR) leggibile da un altro fornitore.';
+
+  @override
+  String get explainRectification =>
+      'Il profilo lo corregge Lei stesso in Il mio profilo. Per una voce della Sua cartella clinica si rivolga alla clinica: può aggiungere una correzione che rimanda all\'originale. Un documento firmato non viene mai modificato.';
+
+  @override
+  String get explainRestriction =>
+      'I Suoi dati vengono conservati ma non usati, salvo quanto richiesto dalla legge, finché una questione che li riguarda viene risolta.';
+
+  @override
+  String get explainObjection =>
+      'Da ora i Suoi dati sono esclusi dalle statistiche anonimizzate. Le statistiche già elaborate non vengono modificate; in esse nessuno è identificabile.';
+
+  @override
+  String get explainErasure =>
+      'Viene cancellato ciò che nessuna legge impone di conservare. La Sua cartella clinica resta presso ogni clinica, limitata, per il periodo stabilito dalla legge sulla documentazione sanitaria. Per cancellare il Suo account Salus, lo chiuda.';
+
+  @override
+  String get dataRequestKind => 'Che cosa chiede';
+
+  @override
+  String get chooseDataRequestKind => 'Scelga che cosa chiede.';
+
+  @override
+  String get dataRequestTarget => 'Chi deve rispondere';
+
+  @override
+  String get dataRequestTargetHint =>
+      'Salus risponde per il Suo account. Ogni clinica risponde per la cartella che tiene su di Lei.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus, sul mio account';
+
+  @override
+  String get requestToSalus => 'A Salus, sul Suo account';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'A: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'Invia la richiesta';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'La Sua richiesta è stata ricevuta. La risposta è dovuta entro $date.';
+  }
+
+  @override
+  String get dataRequestReceived => 'Ricevuta';
+
+  @override
+  String get dataRequestInProgress => 'In corso';
+
+  @override
+  String get dataRequestFulfilled => 'Evasa';
+
+  @override
+  String get dataRequestRefused => 'Respinta';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'Ritirata';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'Ricevuta il $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'Risposta dovuta entro $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'Prorogata al $date, perché la richiesta è complessa.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'Prorogata al $date, perché sono arrivate molte richieste contemporaneamente.';
+  }
+
+  @override
+  String get answerDone => 'Eseguita.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'Eseguita. Ciò che la legge sulla documentazione sanitaria impone di conservare è conservato, limitato.';
+
+  @override
+  String get answerIdentityUnverified =>
+      'Respinta: non è stato possibile confermare la Sua identità.';
+
+  @override
+  String get answerManifestlyUnfounded =>
+      'Respinta perché manifestamente infondata.';
+
+  @override
+  String get answerExcessive =>
+      'Respinta perché eccessiva, ad esempio perché ripete una richiesta precedente.';
+
+  @override
+  String get answerRetentionLaw =>
+      'Respinta: la legge impone di conservare questi dati.';
+
+  @override
+  String get answerNoData => 'Lì non sono conservati dati su di Lei.';
+
+  @override
+  String get answerComplaint =>
+      'Se non è d\'accordo con una risposta, può presentare reclamo all\'autorità per la protezione dei dati.';
+
+  @override
+  String get withdrawDataRequest => 'Ritira la richiesta';
+
+  @override
+  String get withdrawDataRequestTitle => 'Ritirare la richiesta?';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'La richiesta viene chiusa senza risposta e resta nel Suo elenco. Può presentare una nuova richiesta in qualsiasi momento.';
+
+  @override
+  String get keepDataRequest => 'Mantieni la richiesta';
+
+  @override
+  String get dataRequestWithdrawn => 'La Sua richiesta è stata ritirata.';
+
+  @override
+  String get exportPreparing =>
+      'I Suoi dati sono in preparazione. Torni a guardare qui più tardi.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'Pronto da scaricare fino al $date.';
+  }
+
+  @override
+  String get downloadExport => 'Scarica i miei dati';
+
+  @override
+  String get exportFailed => 'Non è stato possibile preparare l\'archivio.';
+
+  @override
+  String get exportInProgress =>
+      'I Suoi dati di una richiesta precedente sono ancora in preparazione. Potrà chiederli di nuovo quando saranno pronti.';
+
+  @override
+  String get exportExpired =>
+      'Il download è scaduto. Per una nuova copia presenti una nuova richiesta.';
+
+  @override
+  String get dataRequestClosed => 'Questa richiesta è già chiusa.';
+
+  @override
+  String get noRecordAtClinic =>
+      'Quella clinica non ha alcuna cartella su di Lei.';
+
+  @override
+  String get dataRequestChanged =>
+      'Nel frattempo questa richiesta è cambiata. L\'elenco la mostra com\'è ora.';
+
+  @override
+  String get closeAccountNow =>
+      'Quando chiude il Suo account, subito: viene disconnesso da tutti i dispositivi e non può più accedere, i Suoi appuntamenti futuri vengono annullati e le cliniche avvisate, i Suoi posti nelle liste d\'attesa vengono lasciati e i Suoi consensi revocati. Non può annullare questa operazione da solo.';
+
+  @override
+  String get closeAccountErased =>
+      'Se cambia idea, Salus può riaprire l\'account entro 21 giorni. Dopo 21 giorni Salus cancella il Suo indirizzo e-mail, la password e i codici di accesso, la lingua scelta, i Suoi dispositivi, il registro dei messaggi inviati a Lei, le risposte ai questionari che non ha inviato e i file aggiunti a una chat ma mai inviati.';
+
+  @override
+  String get closeAccountKept =>
+      'La Sua cartella clinica resta presso ogni clinica per il periodo stabilito dalla legge sulla documentazione sanitaria. È nascosta dal lavoro quotidiano della clinica e viene aperta solo indicando un motivo.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'Per conservare una copia dei Suoi dati, la chieda in Privacy prima di chiudere l\'account: dopo la chiusura non potrà accedere per scaricarla.';
+
+  @override
+  String get closeAccountConfirm => 'Inserisca la password per confermare.';
+
+  @override
+  String get accountClosed => 'Il Suo account è chiuso ed è stato disconnesso.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a $email.';
+  }
 }

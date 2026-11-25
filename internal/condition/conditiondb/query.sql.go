@@ -132,8 +132,9 @@ func (q *Queries) InsertCondition(ctx context.Context, arg InsertConditionParams
 const listDiagnoses = `-- name: ListDiagnoses :many
 SELECT recorded_at, patient_id, practitioner_role_id, code
 FROM condition
-WHERE organization_id = $1 AND recorded_at >= $2 AND recorded_at < $3
+WHERE condition.organization_id = $1 AND recorded_at >= $2 AND recorded_at < $3
   AND verification_status = 'confirmed'
+  AND NOT analytics_left_out(condition.patient_id, condition.organization_id)
 ORDER BY recorded_at, code
 `
 
@@ -150,7 +151,8 @@ type ListDiagnosesRow struct {
 	Code               string
 }
 
-// A clinic's confirmed Conditions recorded in [from, to), oldest first: the columns salus_stats may read.
+// A clinic's confirmed Conditions recorded in [from, to), oldest first: the columns salus_stats may read. A patient
+// who objected to the analytics, or whose record is restricted at the clinic, is left out (docs/clinic-cms/WAVE5.md S7, S9).
 func (q *Queries) ListDiagnoses(ctx context.Context, arg ListDiagnosesParams) ([]ListDiagnosesRow, error) {
 	rows, err := q.db.Query(ctx, listDiagnoses, arg.OrganizationID, arg.FromAt, arg.ToAt)
 	if err != nil {

@@ -78,6 +78,8 @@ the stack with `make up`, and in `mobile/`:
 
 Add `--dart-define=PRIVACY_NOTICE_URL=https://…` for the privacy notice the consent screen links to; without
 it the link goes to a placeholder (`https://salus.invalid/privacy`) until the notice is published.
+Add `--dart-define=SUPPORT_EMAIL=…` for the address a patient who closed their account writes to, to ask for it to be
+reopened within 21 days; without it the closure screen shows `[SUPPORT EMAIL]` until the address is decided.
 
 Use your `SALUS_API_PORT` if you moved it. Android debug builds allow plain HTTP to the local API; on iOS,
 add an App Transport Security exception for local networking in your local `Info.plist` and do not commit it.

@@ -145,7 +145,8 @@ func (s *Service) ReminderNotice(ctx context.Context, agent, org, id string) (Re
 }
 
 // reminderNotice reads the appointment of r with its patient's account in the clinic's scope with the appointment
-// set, audited with the job as agent; ErrReminderGone when it no longer holds.
+// set, audited with the job as agent; ErrReminderGone when it no longer holds or the patient's record is restricted
+// at the clinic (never used for reminders, docs/clinic-cms/WAVE5.md S7).
 func (s *Service) reminderNotice(ctx context.Context, agent string, r Reminder) (ReminderNotice, error) {
 	if err := s.Repo.SetNotice(ctx, r.AppointmentID); err != nil {
 		return ReminderNotice{}, err
@@ -157,6 +158,12 @@ func (s *Service) reminderNotice(ctx context.Context, agent string, r Reminder) 
 	case err != nil:
 		return ReminderNotice{}, err
 	case a.Status != StatusBooked || !a.Start.Equal(r.StartAt) || !a.Start.After(s.Clock.Now()):
+		return ReminderNotice{}, ErrReminderGone
+	}
+	switch restricted, err := s.Patients.Restricted(ctx, a.PatientID, r.OrganizationID); {
+	case err != nil:
+		return ReminderNotice{}, err
+	case restricted:
 		return ReminderNotice{}, ErrReminderGone
 	}
 	p, err := s.Patients.Lookup(ctx, a.PatientID)

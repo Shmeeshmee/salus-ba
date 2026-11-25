@@ -66,7 +66,8 @@ func newRevocations(pool *pgxpool.Pool, jobs *river.Client[pgx.Tx], clk clock.Cl
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
 	// Only State is asked of the consent service: it needs no jobs.
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil)
-	slots := newSlots(pool, nil, clk) // holds and frees slots only: no hourly run, no list of clinics
+	consents = consents.WithRestrictions(patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, consents, nil)) // S7: no offer
+	slots := newSlots(pool, nil, clk)                                                                                            // holds and frees slots only: no hourly run, no list of clinics
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil)
 	rules := organization.NewAppointments(organization.AppointmentsPorts{Repo: organization.NewPostgresAppointmentsRepository(pool), Audit: audit, Tx: tx, Clock: clk})
 	offers := notification.NewService(notification.Ports{

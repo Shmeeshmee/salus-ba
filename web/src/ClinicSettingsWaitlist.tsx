@@ -22,7 +22,7 @@ export function ClinicSettingsWaitlist({ api }: { api: ApiClient }) {
     return res.data
   }, [api])
   return (
-    <section className="panel">
+    <section className="panel" id="clinic-waitlist">
       <h2>{t('waitlist.settingsTitle')}</h2>
       {state.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
       {state.name === 'failed' && <Alert message={t('waitlist.settingsLoadFailed')} />}

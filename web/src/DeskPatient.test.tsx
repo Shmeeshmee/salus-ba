@@ -46,6 +46,13 @@ describe('DeskPatient', () => {
     expect(await screen.findByRole('button', { name: 'Boris Sample' })).toBeTruthy()
   })
 
+  it('shows the stored phone grouped as people write it (wave 4 walk, finding 6)', async () => {
+    renderCard({}, admin, ida)
+    fireEvent.click(screen.getByRole('button', { name: 'Ida Import' }))
+    const card = within(await screen.findByRole('dialog', { name: 'Patient card' }))
+    expect((card.getByLabelText('Phone (optional)') as HTMLInputElement).value).toBe('+387 61 000 004')
+  })
+
   it('says when someone else changed the profile meanwhile', async () => {
     renderCard({ [`PUT /clinic/patients/${bo.id}`]: () => apiError(409, 'version_conflict') })
     const card = await openCard()

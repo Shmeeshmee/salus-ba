@@ -2159,4 +2159,231 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get clinicServices => 'الخدمات والأسعار';
+
+  @override
+  String get privacy => 'الخصوصية';
+
+  @override
+  String get privacyIntro =>
+      'اسأل Salus أو إحدى عياداتك عن البيانات التي تحتفظ بها عنك، أو اطلب تصحيحها أو تقييدها أو محوها. يُجاب عن كل طلب خلال شهر واحد. يمكن تمديد المهلة مرة واحدة لمدة أقصاها شهران، ويُبلَّغ إليك السبب.';
+
+  @override
+  String get noDataRequests => 'لم تقدّم أي طلب بعد.';
+
+  @override
+  String get newDataRequest => 'تقديم طلب';
+
+  @override
+  String get closeMyAccount => 'إغلاق حسابي';
+
+  @override
+  String get dataRequestAccess => 'الاطلاع على بياناتي';
+
+  @override
+  String get dataRequestPortability => 'نقل بياناتي إلى جهة أخرى';
+
+  @override
+  String get dataRequestRectification => 'تصحيح بياناتي';
+
+  @override
+  String get dataRequestRestriction => 'تقييد استخدام بياناتي';
+
+  @override
+  String get dataRequestObjection => 'الاعتراض على استخدام بياناتي';
+
+  @override
+  String get dataRequestErasure => 'محو بياناتي';
+
+  @override
+  String get explainAccess =>
+      'تحصل على نسخة من البيانات المحفوظة عنك في ملف مضغوط يمكنك تنزيله من هنا خلال 7 أيام.';
+
+  @override
+  String get explainPortability =>
+      'تحصل على الملف المضغوط نفسه بصيغة قياسية (FHIR) يستطيع مقدّم خدمة آخر قراءتها.';
+
+  @override
+  String get explainRectification =>
+      'صحّح ملفك الشخصي بنفسك من «ملفي الشخصي». أما لتصحيح قيد في سجلك الطبي فاطلب ذلك من العيادة: يمكنها إضافة تصحيح يشير إلى الأصل. لا يُعدَّل أي مستند موقَّع أبدًا.';
+
+  @override
+  String get explainRestriction =>
+      'تُحفظ بياناتك ولا تُستخدم، إلا فيما يفرضه القانون، إلى أن تُحسم المسألة المتعلقة بها.';
+
+  @override
+  String get explainObjection =>
+      'تُستبعد بياناتك من الإحصاءات مجهولة الهوية من الآن فصاعدًا. لا تُغيَّر الإحصاءات التي أُعدّت سابقًا، ولا يمكن التعرّف فيها على أي شخص.';
+
+  @override
+  String get explainErasure =>
+      'تُمحى البيانات التي لا يفرض أي قانون الاحتفاظ بها. يبقى سجلك الطبي لدى كل عيادة، مقيَّدًا، طوال المدة التي يحددها قانون السجلات الطبية. لمحو حسابك في Salus، أغلقه.';
+
+  @override
+  String get dataRequestKind => 'ما الذي تطلبه';
+
+  @override
+  String get chooseDataRequestKind => 'اختر ما الذي تطلبه.';
+
+  @override
+  String get dataRequestTarget => 'من يجب أن يجيب';
+
+  @override
+  String get dataRequestTargetHint =>
+      'يجيب Salus عن حسابك. وتجيب كل عيادة عن السجل الذي تحتفظ به عنك.';
+
+  @override
+  String get dataRequestToSalusOption => 'Salus، بخصوص حسابي';
+
+  @override
+  String get requestToSalus => 'إلى Salus، بخصوص حسابك';
+
+  @override
+  String requestToClinic(String clinic) {
+    return 'إلى: $clinic';
+  }
+
+  @override
+  String get sendDataRequest => 'إرسال الطلب';
+
+  @override
+  String dataRequestSent(String date) {
+    return 'تم استلام طلبك. موعد الرد: $date.';
+  }
+
+  @override
+  String get dataRequestReceived => 'مستلَم';
+
+  @override
+  String get dataRequestInProgress => 'قيد المعالجة';
+
+  @override
+  String get dataRequestFulfilled => 'تمت الإجابة';
+
+  @override
+  String get dataRequestRefused => 'مرفوض';
+
+  @override
+  String get dataRequestWithdrawnStatus => 'مسحوب';
+
+  @override
+  String dataRequestReceivedOn(String date) {
+    return 'تاريخ الاستلام: $date';
+  }
+
+  @override
+  String dataRequestDueBy(String date) {
+    return 'موعد الرد: $date';
+  }
+
+  @override
+  String dataRequestExtendedComplex(String date) {
+    return 'مُدّدت المهلة حتى $date لأن الطلب معقّد.';
+  }
+
+  @override
+  String dataRequestExtendedMany(String date) {
+    return 'مُدّدت المهلة حتى $date لوصول طلبات كثيرة في الوقت نفسه.';
+  }
+
+  @override
+  String get answerDone => 'تم التنفيذ.';
+
+  @override
+  String get answerDonePartlyKept =>
+      'تم التنفيذ. ما يفرض قانون السجلات الطبية الاحتفاظ به يُحتفظ به مقيَّدًا.';
+
+  @override
+  String get answerIdentityUnverified => 'مرفوض: تعذّر التحقق من هويتك.';
+
+  @override
+  String get answerManifestlyUnfounded => 'مرفوض لأنه بلا أساس بشكل واضح.';
+
+  @override
+  String get answerExcessive => 'مرفوض لأنه مفرط، كأن يكرّر طلبًا سابقًا.';
+
+  @override
+  String get answerRetentionLaw =>
+      'مرفوض: يفرض القانون الاحتفاظ بهذه البيانات.';
+
+  @override
+  String get answerNoData => 'لا توجد هناك أي بيانات عنك.';
+
+  @override
+  String get answerComplaint =>
+      'إذا لم توافق على الرد، يمكنك تقديم شكوى إلى سلطة حماية البيانات.';
+
+  @override
+  String get withdrawDataRequest => 'سحب الطلب';
+
+  @override
+  String get withdrawDataRequestTitle => 'هل تريد سحب طلبك؟';
+
+  @override
+  String get withdrawDataRequestBody =>
+      'يُغلق الطلب دون رد ويبقى في قائمتك. يمكنك تقديم طلب جديد في أي وقت.';
+
+  @override
+  String get keepDataRequest => 'الإبقاء على الطلب';
+
+  @override
+  String get dataRequestWithdrawn => 'تم سحب طلبك.';
+
+  @override
+  String get exportPreparing => 'يجري تجهيز بياناتك. عُد إلى هنا لاحقًا.';
+
+  @override
+  String exportReadyUntil(String date) {
+    return 'جاهز للتنزيل حتى $date.';
+  }
+
+  @override
+  String get downloadExport => 'تنزيل بياناتي';
+
+  @override
+  String get exportFailed => 'تعذّر تجهيز الملف المضغوط.';
+
+  @override
+  String get exportInProgress =>
+      'لا تزال بياناتك من طلب سابق قيد التجهيز. يمكنك الطلب مرة أخرى عندما تصبح جاهزة.';
+
+  @override
+  String get exportExpired =>
+      'انتهت مهلة التنزيل. قدّم طلبًا جديدًا للحصول على نسخة جديدة.';
+
+  @override
+  String get dataRequestClosed => 'هذا الطلب مغلق بالفعل.';
+
+  @override
+  String get noRecordAtClinic => 'لا تحتفظ تلك العيادة بأي سجل عنك.';
+
+  @override
+  String get dataRequestChanged =>
+      'تغيّر هذا الطلب في الأثناء. تعرضه القائمة كما هو الآن.';
+
+  @override
+  String get closeAccountNow =>
+      'عند إغلاق حسابك يحدث فورًا ما يلي: يُسجَّل خروجك من جميع الأجهزة ولا يمكنك تسجيل الدخول مجددًا، وتُلغى مواعيدك القادمة وتُبلَّغ العيادات بذلك، ويُتخلّى عن أماكنك في قوائم الانتظار، وتُسحب موافقاتك. لا يمكنك التراجع عن ذلك بنفسك.';
+
+  @override
+  String get closeAccountErased =>
+      'إذا غيّرت رأيك، يمكن لـ Salus إعادة فتح الحساب خلال 21 يومًا. بعد 21 يومًا يمحو Salus عنوان بريدك الإلكتروني وكلمة المرور ورموز تسجيل الدخول، واختيارك للغة، وأجهزتك، وسجلّ الرسائل المرسلة إليك، وإجابات الاستبيانات التي لم ترسلها، والملفات التي أضفتها إلى محادثة ولم ترسلها قط.';
+
+  @override
+  String get closeAccountKept =>
+      'يبقى سجلك الطبي لدى كل عيادة طوال المدة التي يحددها قانون السجلات الطبية. يكون مخفيًا عن العمل اليومي للعيادة ولا يُفتح إلا بسبب مذكور.';
+
+  @override
+  String get closeAccountCopyFirst =>
+      'للاحتفاظ بنسخة من بياناتك، اطلبها من «الخصوصية» قبل إغلاق الحساب: بعد إغلاقه لا يمكنك تسجيل الدخول لتنزيلها.';
+
+  @override
+  String get closeAccountConfirm => 'أدخل كلمة المرور للتأكيد.';
+
+  @override
+  String get accountClosed => 'تم إغلاق حسابك وتسجيل خروجك.';
+
+  @override
+  String accountClosedReopen(String email) {
+    return 'لطلب إعادة فتح حسابك خلال 21 يومًا، راسل $email.';
+  }
 }

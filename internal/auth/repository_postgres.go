@@ -66,6 +66,22 @@ func (r *postgresRepository) ByPractitioner(ctx context.Context, practitionerID 
 	return toAccount(authdb.AccountByEmailRow(row), err)
 }
 
+func (r *postgresRepository) ClinicAdmins(ctx context.Context, org string) ([]Contact, error) {
+	u, err := uuidOf(org)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.q(ctx).ClinicAdmins(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Contact, len(rows))
+	for i, row := range rows {
+		out[i] = Contact{Email: row.Email, Language: languageOf(Account{Language: string(row.Language.Language), DetectedLanguage: string(row.DetectedLanguage.Language)})}
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) SetPasswordHash(ctx context.Context, id, hash string) error {
 	u, err := uuidOf(id)
 	if err != nil {
@@ -125,6 +141,7 @@ func toAccount(row authdb.AccountByEmailRow, err error) (Account, error) {
 	if row.MfaEnrolledAt.Valid {
 		a.MFAEnrolledAt = row.MfaEnrolledAt.Time
 	}
+	a.ClosedAt, a.EraseAfter, a.ErasedAt = row.ClosedAt.Time, row.EraseAfter.Time, row.ErasedAt.Time
 	return a, nil
 }
 
@@ -406,4 +423,43 @@ func (r *postgresRepository) DeleteSessionsEndedBefore(ctx context.Context, befo
 
 func (r *postgresRepository) DeleteInvitesEndedBefore(ctx context.Context, before time.Time) (int64, error) {
 	return r.q(ctx).DeleteInvitesEndedBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+}
+
+func (r *postgresRepository) CloseAccount(ctx context.Context, id string, at, eraseAfter time.Time) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).CloseAccount(ctx, authdb.CloseAccountParams{ID: u, ClosedAt: timestamptz(at), EraseAfter: timestamptz(eraseAfter)})
+	return oneRow(n, err)
+}
+
+func (r *postgresRepository) ReopenAccount(ctx context.Context, id string, now time.Time) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).ReopenAccount(ctx, authdb.ReopenAccountParams{ID: u, Now: timestamptz(now)})
+	return oneRow(n, err)
+}
+
+func (r *postgresRepository) AccountsDueForErasure(ctx context.Context, now time.Time) ([]string, error) {
+	rows, err := r.q(ctx).AccountsDueForErasure(ctx, timestamptz(now))
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(rows))
+	for i, u := range rows {
+		ids[i] = u.String()
+	}
+	return ids, nil
+}
+
+func (r *postgresRepository) EraseAccount(ctx context.Context, id string, now time.Time) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return err
+	}
+	n, err := r.q(ctx).EraseAccount(ctx, authdb.EraseAccountParams{ID: u, Now: timestamptz(now)})
+	return oneRow(n, err)
 }

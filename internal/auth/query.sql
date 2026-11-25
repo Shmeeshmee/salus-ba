@@ -8,19 +8,19 @@ RETURNING id;
 
 -- name: AccountByEmail :one
 SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
-       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer, closed_at, erase_after, erased_at
 FROM account
 WHERE email = @email;
 
 -- name: AccountByID :one
 SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
-       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer, closed_at, erase_after, erased_at
 FROM account
 WHERE id = @id;
 
 -- name: AccountByPractitioner :one
 SELECT id, mfa_enrolled_at, organization_id, practitioner_id, role, email, password_hash, language, detected_language,
-       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer
+       EXISTS (SELECT FROM term_reviewer WHERE account_id = account.id) AS term_reviewer, closed_at, erase_after, erased_at
 FROM account
 WHERE practitioner_id = @practitioner_id;
 
@@ -126,3 +126,28 @@ INSERT INTO term_reviewer (account_id) VALUES (@account_id) ON CONFLICT (account
 
 -- name: RevokeTermReviewer :exec
 DELETE FROM term_reviewer WHERE account_id = @account_id;
+
+-- name: CloseAccount :execrows
+UPDATE account SET closed_at = @closed_at, erase_after = @erase_after
+WHERE id = @id AND role = 'patient' AND closed_at IS NULL;
+
+-- name: ReopenAccount :execrows
+UPDATE account SET closed_at = NULL, erase_after = NULL
+WHERE id = @id AND erase_after > @now AND erased_at IS NULL;
+
+-- name: AccountsDueForErasure :many
+SELECT id FROM account WHERE erase_after <= @now AND erased_at IS NULL ORDER BY erase_after, id;
+
+-- name: EraseAccount :execrows
+-- The e-mail is replaced by one derived from the opaque id: the column is the unique login and the row stays,
+-- referenced by data requests, audit events and the clinics' records.
+UPDATE account
+SET email = id::text || '@erased.invalid', password_hash = '', totp_secret = NULL, totp_last_step = NULL,
+    mfa_enrolled_at = NULL, language = NULL, detected_language = NULL, erased_at = @now
+WHERE id = @id AND erase_after <= @now AND erased_at IS NULL;
+
+-- name: ClinicAdmins :many
+-- The clinic's admins, for a job's message to them (a data request's deadline warning).
+SELECT email, language, detected_language FROM account
+WHERE organization_id = @organization_id AND role = 'admin' AND closed_at IS NULL AND erased_at IS NULL
+ORDER BY email;

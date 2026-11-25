@@ -164,6 +164,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/datarequest/query.sql
+    gen:
+      go:
+        package: datarequestdb
+        out: internal/datarequest/datarequestdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/encounter/query.sql
     gen:
       go:
@@ -225,6 +233,16 @@ sql:
       go:
         package: clinicexportdb
         out: internal/clinicexport/clinicexportdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    # The patient's export (docs/clinic-cms WAVE5.md D2): its own package beside D1's datarequestdb, read only by
+    # repository_export_postgres.go.
+    queries: internal/datarequest/query_export.sql
+    gen:
+      go:
+        package: datarequestexportdb
+        out: internal/datarequest/datarequestexportdb
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations

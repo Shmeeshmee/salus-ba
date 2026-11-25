@@ -210,6 +210,8 @@ class ApiClient {
           return Acceptance.fromJson(value);
         case 'Account':
           return Account.fromJson(value);
+        case 'AccountClosure':
+          return AccountClosure.fromJson(value);
         case 'AddParticipantRequest':
           return AddParticipantRequest.fromJson(value);
         case 'AllergyCategory':
@@ -356,6 +358,30 @@ class ApiClient {
           return Cursor.fromJson(value);
         case 'CursorMessage':
           return CursorMessage.fromJson(value);
+        case 'DataRequest':
+          return DataRequest.fromJson(value);
+        case 'DataRequestAnswer':
+          return DataRequestAnswer.fromJson(value);
+        case 'DataRequestAnswerCode':
+          return DataRequestAnswerCodeTypeTransformer().decode(value);
+        case 'DataRequestChange':
+          return DataRequestChange.fromJson(value);
+        case 'DataRequestExport':
+          return DataRequestExport.fromJson(value);
+        case 'DataRequestExportStatus':
+          return DataRequestExportStatusTypeTransformer().decode(value);
+        case 'DataRequestExtension':
+          return DataRequestExtension.fromJson(value);
+        case 'DataRequestExtensionReason':
+          return DataRequestExtensionReasonTypeTransformer().decode(value);
+        case 'DataRequestFiling':
+          return DataRequestFiling.fromJson(value);
+        case 'DataRequestKind':
+          return DataRequestKindTypeTransformer().decode(value);
+        case 'DataRequestStatus':
+          return DataRequestStatusTypeTransformer().decode(value);
+        case 'DataRequestTarget':
+          return DataRequestTargetTypeTransformer().decode(value);
         case 'DeskDay':
           return DeskDay.fromJson(value);
         case 'DeskReceipt':
@@ -414,6 +440,8 @@ class ApiClient {
           return ExplainedTerm.fromJson(value);
         case 'ExplainedTermList':
           return ExplainedTermList.fromJson(value);
+        case 'FileClinicPatientDataRequestRequest':
+          return FileClinicPatientDataRequestRequest.fromJson(value);
         case 'FiscalStatus':
           return FiscalStatusTypeTransformer().decode(value);
         case 'GenerateDraftRequest':
@@ -564,6 +592,8 @@ class ApiClient {
           return RequestQuestionnaireRequest.fromJson(value);
         case 'RescheduleAppointmentRequest':
           return RescheduleAppointmentRequest.fromJson(value);
+        case 'RestrictClinicPatientRequest':
+          return RestrictClinicPatientRequest.fromJson(value);
         case 'ReverseReceiptRequest':
           return ReverseReceiptRequest.fromJson(value);
         case 'Review':

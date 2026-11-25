@@ -1,0 +1,3 @@
+Package FX. Your specification is the "FX" section of docs/clinic-cms/WAVE5.md; read that file whole first, and
+docs/clinic-cms/walk/wave4/WALK.md ("Still open" and finding 9). Migration, only if needed: 00072.
+5.0 runs in parallel: do not touch api/openapi.yaml's new data-request routes or internal/datarequest.

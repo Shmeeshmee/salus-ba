@@ -17,6 +17,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/internal/videosession"
@@ -130,7 +131,7 @@ func TestScheduler_KnowsEveryKindTheWorkerTheNotifierAndTheAgentWork(t *testing.
 		videosession.WindowCloseArgs{}, appointment.QuestionnaireRequestArgs{}, appointment.QuestionnaireDiscardArgs{},
 		binary.ScanArgs{}, binary.DiscardArgs{}, videosession.AgentJoinArgs{}, composition.SignedEmailArgs{}, communication.PartitionsArgs{},
 		appointment.SlotFreedArgs{}, appointment.RescheduledEmailArgs{}, invoice.QuoteEmailArgs{},
-		clinicstats.RefreshArgs{}, clinicstats.NightlyArgs{},
+		clinicstats.RefreshArgs{}, clinicstats.NightlyArgs{}, datarequest.DeadlinesArgs{},
 		TrendsBuildArgs{Period: "2026-10"},
 	} {
 		var unknown *river.UnknownJobKindError

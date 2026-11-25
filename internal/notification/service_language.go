@@ -30,9 +30,14 @@ type letters struct {
 	months    []string // January first
 }
 
-// letter is what an e-mail's template is filled with: no id, no address of a person, nothing clinical.
+// letter is what an e-mail's template is filled with: no id but a data request's opaque one, no address of a person,
+// nothing clinical.
 type letter struct {
 	Clinic string
+	// The data request's deadline warning (docs/clinic-cms/WAVE5.md D5): its opaque id, its kind's code (the template
+	// names it) and the days left; When is its deadline.
+	Request string
+	Kind    string
 	// Address is where the patient comes for an in-person visit, the clinic's on one line ("" for a video visit and a
 	// clinic without one); InPerson is set for an in-person visit (docs/plans/clinic-cms.md, ADR 0016).
 	Address string
@@ -59,6 +64,7 @@ type letter struct {
 	MonthLocal string
 	TimeLocal  string
 	Year       int
+	Days       int
 	// Questionnaire adds COPY E1 (docs/questionnaire/COPY.md), never which questionnaire.
 	Questionnaire bool
 	InPerson      bool

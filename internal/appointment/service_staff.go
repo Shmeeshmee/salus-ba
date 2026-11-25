@@ -153,8 +153,11 @@ func (s *Service) bookFor(ctx context.Context, c Caller, b StaffBooking, sl slot
 		return Appointment{}, nil, err
 	}
 	consent, err := s.Consents.State(ctx, p.ID, c.OrganizationID)
-	if err != nil || !consent.Active {
+	switch {
+	case err != nil || !consent.Active:
 		return Appointment{}, ErrConsentRequired, err
+	case consent.Restricted: // S7: no new use of a restricted record
+		return Appointment{}, ErrNotFound, nil
 	}
 	held, err := s.Slots.Hold(ctx, c.OrganizationID, sl.ID)
 	if errors.Is(err, slot.ErrUnavailable) {
@@ -306,26 +309,31 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, e
 }
 
 // deskVisits pairs each appointment with its patient, read once each and audited as a read of Patient, and its booked
-// service's name.
+// service's name; a patient the scope hides or whose record is restricted at the clinic is left out.
 func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) ([]DeskVisit, error) {
 	names, err := s.serviceNames(ctx, c.OrganizationID, all)
 	if err != nil {
 		return nil, err
 	}
-	patients := map[string]patient.Patient{}
+	patients, hidden := map[string]patient.Patient{}, map[string]bool{}
 	out := make([]DeskVisit, 0, len(all))
 	for _, a := range all {
 		p, ok := patients[a.PatientID]
+		if hidden[a.PatientID] {
+			continue
+		}
 		if !ok {
-			var err error
-			p, err = s.Patients.Lookup(ctx, a.PatientID)
-			if errors.Is(err, patient.ErrNotFound) {
-				continue // the scope no longer shows them (a revocation): nothing of them reaches the desk
-			} else if err != nil {
-				return nil, err
-			}
 			state, err := s.Consents.State(ctx, a.PatientID, c.OrganizationID)
 			if err != nil {
+				return nil, err
+			}
+			p, err = s.Patients.Lookup(ctx, a.PatientID)
+			// The scope no longer shows them (a revocation), or their record is restricted at the clinic
+			// (docs/clinic-cms/WAVE5.md S7): nothing of them reaches the desk.
+			if errors.Is(err, patient.ErrNotFound) || (err == nil && state.Restricted) {
+				hidden[a.PatientID] = true
+				continue
+			} else if err != nil {
 				return nil, err
 			}
 			p.ConsentActive = state.Active

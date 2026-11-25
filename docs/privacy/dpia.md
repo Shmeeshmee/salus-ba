@@ -2791,3 +2791,242 @@ profiles; nothing new is kept.
 | A booking happens without the patient's consent | The booking still refuses without an active consent (`consent_required`); the screen asks for the consent first |
 | The handed-over file or the export shows another clinic's visits or receipts | The builder keeps only the clinic's own (checked against the clinic, not on row-level security alone); tested |
 | The export's file reveals more than the clinic may hand over | Clinical content is left out and the manifest says so; the lawyer's questions are in PROGRESS.md "Before production" |
+
+### Package 5.0: the wave 5 contract, data subject requests (migration 00071, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** None yet: 5.0 adds the tables, columns, policies and routes; the services refuse until packages
+D1 to D6 fill them, and each of those adds its own block here. What the contract prepares:
+
+- **Data subject requests** (`data_request`): who the request is for (the patient's account, their profile, or both),
+  its target (the patient's Salus account, answered by Salus as processor through the operator, or their record at
+  one clinic, answered by that clinic as controller; S1), the kind (access, portability, rectification, restriction,
+  objection, erasure), the dates (received, due one month later, extended once by at most two months with a coded
+  reason, answered) and the answer as a code, never free text about health. Lawful basis: the legal obligation to
+  answer (Art. 6(1)(c), Art. 12 to 21) and the proof of having answered (Art. 5(2)). Row-level security: the patient's
+  scope sees and files their own (filed by themselves, naming only their own profile) and may only withdraw; the
+  clinic's scope sees those targeting it and files only for a patient it registered, by its own staff (S10); the
+  operator reads those targeting the account as the table's owner from salusctl (D5). No role deletes a request; a
+  trigger lets it move forward only and be extended once. Kept (retention `data_request`), pending the lawyer.
+- **Their history** (`data_request_change`): each status change with who made it (an account, or none for a job or
+  the operator), with the request's current status. Append-only for every role, the owner included; seen where its
+  request is seen.
+- **Account closure** (`account.closed_at`, `account.erase_after`, both or neither, erasure after closure): set at
+  closure (S5), cleared when the operator reopens within 30 days; D3's erasure job erases what has no legal basis to
+  stay (S6) and records it on the erasure request.
+- **The analytics objection** (`patient.analytics_objected_at`, S9): from then on the patient's events are left out of
+  new aggregates (D4); existing k-anonymous aggregates are not recomputed.
+- **The restricted record** (`patient_restriction`, per patient and clinic, S6, S7): when and by whom (staff of that
+  clinic, or none for the erasure job), optionally for a request of that clinic. The clinic's scope only; lifting a
+  staff restriction deletes the row, audited; the erasure's is never lifted by the clinic. Kept as long as the record it restricts. D4 makes every everyday read of the clinic leave a restricted
+  patient out.
+
+**Risks the packages must close** (recorded so they are not lost): the deadline job reads open requests across clinics
+(D1 decides how, in its own migration if it needs a role or policy); the erasure job needs to blank the account's
+fields and delete what S6 lists as `salus_retention` (D3's migration); a request references the patient's profile and
+account, so erasure blanks rather than deletes the rows they name (D3).
+### Package FX: the desk's patient search and the visits a withdrawal cancelled (migration 00072, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** No new personal-data field and no new table.
+
+- **The record keeps the visits a withdrawal cancelled** (S11, walk finding 9). The handed-over record and the export
+  (`appointments.csv`, `patients/<id>.json`) read the clinic's appointments through `appointment.Service.ClinicRecord`:
+  the clinic's admin only, in the clinic scope with the record's setting (`app.clinic_record`, migration 00072: two
+  read-only policies, the clinic's own appointments and their patients whatever the consent). Everyday screens keep the
+  consent rule (`Search`): a withdrawn patient's visits after the withdrawal stay hidden from practitioners, the calendar
+  and the desk. The visits come at the name level (times, status, practitioner, patient's name), each read audited as a
+  search by the admin, as the record's appointment reads were before; the profile's read keeps its purpose (`PATRQT`
+  for a hand-over, `HOPERAT` for the export).
+- **The desk's patient search** (`DeskPatients.tsx`): the existing `GET /clinic/patients` (name and birth date, each
+  patient found audited), opened from the desk's toolbar, so a patient with no visit today, a withdrawn one included, can
+  have their card opened (correct the profile, record a consent, the admin hands over the record). Nothing new is read.
+
+| Risk | Measure |
+| --- | --- |
+| The record's scope reaches an everyday screen | Set only inside `ClinicRecord`, which refuses anyone but the clinic's admin (audited); only `clinicexport` calls it; the policies need the setting, the clinic and no patient setting; repository and service tests |
+| A withdrawn patient's cancelled visits reach a practitioner | Practitioners never get the scope; `Search` and its tests are unchanged |
+
+### Package D1: requests and deadlines (migration 00073, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** The requests of package 5.0's `data_request` are filed, listed, withdrawn, answered and
+extended; no new personal-data field. One new column, `data_request.deadline_warned_at` (when the deadline job last
+queued a warning: an instant, no personal data).
+
+- **The patient** files to their account or to a clinic where they gave a consent (active or revoked: that clinic holds
+  a record of them), lists their own and withdraws an open one; the patient's reads leave out their profile's id. The
+  check reads their profile and consents through the patient and consent services, each read audited there.
+- **The clinic's admin** lists, reads (with the history of status changes) and answers with a code, or extends once with
+  a coded reason; the receptionist and the admin file on behalf of a patient the clinic registered (S10), which
+  row-level security holds. Practitioners and the desk are refused the queue, audited.
+- **The deadline job** (`data_request_deadlines`, hourly) reads the open requests of every target in its own scope
+  (`app.data_request_deadlines = 'all'`: open requests only, and a trigger lets it change nothing but the mark) and
+  queues a warning job per request 7 days and 1 day before its deadline, with the request's id and the number of days
+  only. The warning's e-mail (to the clinic's admin or the operator, naming the request's kind and due date and never
+  the patient) is D5's.
+- **Audit.** Every filing, list, read, withdrawal, answer and extension writes an `AuditEvent` in its transaction
+  (entity `data_request` with the patient's `Patient/<id>` when the request names one; purpose `PATRQT` for the
+  patient's own, `HOPERAT` for the clinic's); each warning queued writes one as the job's (agent
+  `data_request_deadlines`).
+
+| Risk | Measure |
+| --- | --- |
+| A patient files to a clinic that holds nothing of theirs, which would tell the clinic they exist | The service requires a consent of the patient at that clinic; 404 otherwise; service test |
+| The job's scope reaches a closed request or changes a request | Its policies show open requests only; the trigger refuses any change but the mark; migration test |
+| A warning job carries personal data | Its arguments are the request's id and the number of days; River test |
+### Package D2: the patient's own export (migration 00074, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** The export that answers an access or portability request a patient filed in the app (S2, S4).
+
+- **What is read.** As the patient themselves, through the services they read in the app, each read audited by its
+  owning service with the patient's account as the agent: their profile, their consents, their appointments (the
+  visits a withdrawal cancelled included, S11) and the receipts issued to them, from every clinic for the account
+  target and from the one clinic for a clinic target; for the account target also their account (e-mail, language
+  choice, when two-step sign-in was set up; never the password hash, the MFA secret or sessions). Nothing is read in a
+  staff or clinic scope. Not yet in the archive (deferred, see `docs/clinic-cms/PROGRESS.md`): encounters, signed
+  documents, questionnaire answers and their files, which the patient reads in the app's history.
+- **Where it is kept** (`data_request_export`): the request it answers, the account, when it was asked for, ready and
+  expires, the archive's size and its data key wrapped by the key-encryption key. The archive (a zip of a FHIR R4
+  Bundle, `account.json` and a manifest) is encrypted with its own data key (`pkg/envelope`, bound to the request's id)
+  and stored in the object store under `datarequest/<request id>`; the object store never sees a plaintext byte.
+  Row-level security: the patient's own scope only, for an access or portability request of theirs; one export queued
+  per patient. Lawful basis: the legal obligation to answer (Art. 6(1)(c), Art. 15, Art. 20).
+- **Answering.** Once the archive is stored, the job answers the request `done` (fulfilled) through
+  `data_request_export_fulfil`, a SECURITY DEFINER function that answers only the scope's own open request whose
+  export is ready, with a history entry by the job. A failed build leaves the request open for its answerer.
+- **Download and retention.** The patient downloads it for 7 days after it is ready (status and download both
+  audited as the patient's reads, `Cache-Control: no-store`); the retention rule `data_request_export` then deletes
+  the archive and the row, and a failed export 7 days after it was asked for.
+- **Logs.** The job logs only the request's id on a failure; no byte of the archive, no name or e-mail.
+- **A patient the clinic registered** (no account) gets no export from Salus: the clinic's hand-over (wave 4) is
+  their copy, downloaded by the admin.
+
+### Package D3: closing the account and erasure (migration 00075, docs/clinic-cms/WAVE5.md S5, S6)
+
+**Processing added.** A patient closes their own Salus account in the app (`POST /me/account/close`, confirmed with
+the password). In one transaction: sign-in ends and every session is revoked, every active consent is revoked (the
+care consent's revocation cancels the future visits with that clinic and withdraws the waitlist entries there, with
+their notices, through the existing `consent_revoked` job), the push devices are deleted, and an account-target
+erasure request is filed and kept `in_progress`. 21 days later (owner, 2026-11-24: inside the one-month deadline of
+Art. 12(3)) the daily `account_erasure` job erases what has no legal basis to stay and fulfils the request. The
+operator may reopen the account before then (`datarequest.Closure.ReopenAccount`, salusctl in D5): the request is
+withdrawn; the revoked consents and cancelled visits stay so.
+
+**Erased** (Art. 17(1)): the account's e-mail (replaced by `<opaque id>@erased.invalid`, so the row stays unique and
+referenced), its password hash, its TOTP secret, last step and enrolment, its chosen and detected language; the push
+devices (also at closure). The account row itself is kept, blank, as data requests, audit events and the clinics'
+records reference it.
+
+**Kept, restricted** (Art. 17(3)(b), (c), Art. 18): at every clinic the patient ever gave a consent to, the clinic's
+record of the patient (profile, consents, visits and their history, the clinical entries, receipts, quotes, chat) stays
+under the medical-record retention, each table under its rule in `internal/retention/rules.go`, and is restricted
+there by the job (`patient_restriction` with no staff: the clinic never lifts it). The request is answered
+`done_partly_kept`; `done` when the patient had no record anywhere.
+
+**Kept as accountability** (Art. 5(2)): the erasure request and its history, and the audit events of the closure and
+the erasure (the job is their agent, `data_request_erasure`; opaque ids and counts only).
+
+**Not yet erased by this package** (DEFERRED in PROGRESS.md, each needs its owning domain's deleter): the notification
+delivery log and the notification preferences of the account (until then the 90-day rule and the account row keep
+them), unsubmitted questionnaire answers (until then their own rule deletes them once due), chat uploads never attached
+(their own 24-hour rule deletes them), and the profile of a patient with no record anywhere (blanking it needs its
+columns' constraints relaxed). Sessions are revoked at closure and deleted by their 30-day rule.
+
+**Risks and measures.** The erasure scope (`app.erasure`, 00075) reaches only the account-target erasure request of a
+closed account and the restriction of a due profile; set only by `datarequest`. A wrong password at closure is a 403;
+the password is never logged. Nothing personal goes into a job's arguments or a log line (account and request ids, the
+number of clinics that keep a record).
+
+### Package D4: the clinic's handling of requests and restricted records (migration 00076, docs/clinic-cms/WAVE5.md)
+
+**Processing added.** No new personal-data field and no new table: D4 writes and reads 5.0's `patient_restriction` and
+reads `patient.analytics_objected_at`.
+
+- **Restricting a record** (`PUT`, `DELETE /clinic/patients/{id}/restriction`, S7): the clinic's admin only, for a
+  patient of the clinic (registered by it, with a consent there, active or withdrawn, or a visit), optionally naming the
+  request it answers; each restriction and lifting is audited as an update of the Patient at the patient's request
+  (`PATRQT`), refusals too. The erasure's restriction (by nobody) is not the clinic's to lift (403).
+- **What a restriction hides.** The consent state every domain reads (`consent.Service.State`) carries whether the
+  record is restricted at the clinic (read in the caller's clinic scope; a patient's scope sees no restriction), and
+  `access` then refuses every rule of the care record and of the chat to the clinic's staff (`access.Restricted`): the
+  practitioner's FHIR reads and searches, the profile, the chat, history and entries. The desk's day and the clinic's
+  patient search leave the patient out; their reminders are skipped when due. Only the admin's hand-over of the record
+  (`ClinicRecord`, read with its purpose and audited) still opens it. The patient keeps every read of their own record.
+- **The analytics leave out** a patient who objected (S9), at every clinic, and a patient whose record is restricted at a
+  clinic, at that clinic: the aggregate builds' source queries (appointments, confirmed Conditions) ask
+  `analytics_left_out(patient, clinic)`, a SECURITY DEFINER function (00076) that answers the one question, so
+  `salus_stats` still reads no patient table. Aggregates built before stay; the builds' own window (35 days) is
+  recomputed without the patient.
+
+| Risk | Measure |
+| --- | --- |
+| A screen bypasses access and shows a restricted patient | The route test (`internal/api/restricted_routes_test.go`): every GET route of the contract and every FHIR read and search as the practitioner, the admin and the receptionist, none returns the patient's data once restricted (nine did before), and all of them again once lifted |
+| A reminder or message reaches a restricted patient from the clinic | The reminder dispatch skips it; staff cannot write in the chat (`WritesChat` refuses) |
+| The analytics count an objecting or restricted patient | Equality test: the figures with the patient's appointments and diagnoses equal those without them, and differ once lifted (`internal/worker/clinicstats_objection_test.go`) |
+| The stats role reads more of the patient than the flag | No grant on `patient` or `patient_restriction`; the function returns a boolean; migration test |
+
+### Package D6: the patient's privacy screens (docs/clinic-cms/WAVE5.md)
+
+**Processing added.** None: the app shows the patient their own requests through the routes of 5.0 (served by D1 to
+D3) and keeps nothing on the device. The export's archive goes through a temporary copy to the share sheet and is
+deleted after it, as the receipts' PDFs are (`files.dart`). The password that confirms a closure is sent once and
+cleared from the field; it is never stored or logged.
+
+| Risk | Measure |
+| --- | --- |
+| A patient closes the account without knowing what it does | The closure screen says what happens at once, what is erased after 21 days, what stays and how to keep a copy first, all tagged legal; the password confirms |
+| A patient misreads what a kind of request does | Each kind carries its plain explanation (S6, S8, S9), tagged legal |
+| The closed session lingers on the device | After closure the app signs out and forgets the token whatever the API answers; a token it could not drop is refused and dropped at the next start |
+
+### Package D5: the operator and the deadline warnings (no migration, docs/clinic-cms/WAVE5.md D5, S1, S3, S12)
+
+**Processing added.** No new table or column. Two uses of what D1 stores:
+
+- **The deadline warnings.** The notifier sends each warning the deadline job queued (`data_request_deadline_warning`,
+  the request's opaque id and the days left) by e-mail to the request's answerer: each admin of the clinic for a clinic
+  target, in the admin's language, with the link to the request in the web app; the operator for the account target, at
+  `SALUS_OPERATOR_EMAIL` in `SALUS_OPERATOR_LANGUAGE`, pointing at salusctl. The e-mail names the request's kind, its
+  deadline in the answerer's time zone, the days left and the request's opaque id; never the patient (no name, account,
+  profile or contact). The request is read in the deadline job's scope (open requests only: one answered or withdrawn
+  since completes the job without a send), audited as the warning's read (agent `data_request_deadline_warning`, the
+  request's `Patient/<id>`); the clinic's admins' addresses are read through `auth` and audited as one read with the
+  same agent. The e-mail goes the way of the notifier's other e-mails (`SMTP_*`, `docs/privacy/processors.md`); no new processor.
+  Without an operator address the notifier refuses to start, except in dev, where it logs the warning's request id and
+  days only.
+- **The operator's handling** of the requests to the account (S1: Salus answers them): `salusctl datarequest list |
+  show | answer | extend | reopen-account` on the owner's connection, which row-level security does not hold; the
+  service refuses any request with a clinic as `not found`. List, read (with the history), answer, extension (once,
+  refused once overdue, S12) and reopening (the closure's withdrawal of the erasure request while the account is before
+  its erasure date) each write an `AuditEvent` in their transaction, agent `salusctl`, entity `data_request` and the
+  patient's `Patient/<id>` when the request names one; the account's reopening is audited by `auth` as well. salusctl
+  prints opaque ids, codes and dates only, never an e-mail or a name.
+
+| Risk | Measure |
+| --- | --- |
+| A warning tells its reader who the patient is | The template has the kind, the deadline, the days and the request's opaque id only; worker test checks the patient's name and e-mail are in no e-mail |
+| A warning about a clinic's request reaches another clinic or the operator | The recipients follow the request's target: the clinic's own admins, or the operator for the account only; service and worker tests |
+| The operator's connection reaches a clinic's request | Every operator method refuses a request with a clinic (`not found`); service and salusctl tests |
+| The operator extends an overdue request (Art. 12(3)) | Refused with `request_overdue` (S12); service and salusctl tests |
+| The operator's address is missing in production, so account requests go unwarned | The notifier refuses to start outside dev without one; the `.env.example` placeholder counts as none; config and notifier tests |
+
+### Package D7: the export's clinical content (migration 00077, docs/clinic-cms/WAVE5.md S4)
+
+**Processing changed.** The patient's own export (Package D2) now holds, for each clinic (the one clinic of a clinic
+target), what the patient reads in the app there, and nothing they cannot.
+
+- **What is read, as the patient** (the services the app's routes call, each auditing the read with the patient's
+  account as the agent and the purpose PATRQT): the profile (`patient.Me`), consents (`consent.Mine`), appointments
+  (`appointment.Search`, the visits a withdrawal cancelled included, S11; narrowed to the clinic for a clinic target),
+  each visit's encounters (`encounter.Search`), the encounters' signed documents and their PDFs (`composition.Signed`,
+  `composition.PDF`: never a draft), each visit's submitted questionnaire answers (`questionnaireresponse.Search`,
+  status completed: never an unsubmitted one) with the version they answer (`questionnaire.Read`) and their uploaded
+  files that are clean (`binary.Download`, `binary.Content`: a file still scanned or quarantined is left out, as the
+  app cannot open it), receipts (`invoice.Mine`) and quotes (`invoice.MyQuotes`). A record the clinic restricted (D4,
+  S7) is in it: the restriction limits the clinic's staff, not the patient's own access. Chat messages and their
+  attachments are not in it yet (recorded in `docs/clinic-cms/PROGRESS.md`).
+- **Audit.** Every audit event the build writes, its own and those of the services it reads through, carries the
+  data request as its request id (`data_request/<id>`), so the reads of one export are found by the request.
+- **Archive.** `clinics/<organization id>/record.json` (a FHIR R4 Bundle), `quotes.json` and `files/<id>.<ext>`, files
+  named by opaque ids (Composition, Binary); for the account target also `account.json` and `patient.json`. The
+  whole archive stays encrypted with its own data key; each build attempt stores it under a key of its own
+  (`data_request_export.object_key`, `datarequest/<request id>/<attempt>`), so two overlapping attempts never write one
+  object, the losing attempt deletes its own object, and the retention rule deletes the object the row names.
+- **Retention and logs.** Unchanged: 7 days from ready (S13), then deleted; the job logs the request's id only.

@@ -40,6 +40,7 @@ const webhookKeyLen = 32
 // the transaction and the clock.
 func noticeChats(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clk clock.Clock) *communication.Service {
 	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil)
+	consents = consents.WithRestrictions(patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk, consents, nil)) // S7
 	return communication.NewService(communication.Ports{Repo: communication.NewPostgresRepository(pool), Consents: consents, ChatConsents: consents, Audit: audit, Tx: tx, Clock: clk})
 }
 

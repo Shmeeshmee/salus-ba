@@ -42,6 +42,7 @@ export function DeskMove({ api, fhir, staff, zone, now, visit, onMoved, onClose 
   const { appointment: a, patient: p } = visit
   const [roleId, setRoleId] = useState(staff.some((m) => m.roleId === a.practitionerRoleId) ? a.practitionerRoleId : (staff[0]?.roleId ?? ''))
   const [slotId, setSlotId] = useState('')
+  const [dayKey, setDayKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const slots = useLoad(() => freeTimes(fhir, roleId, a, now(), zone), [fhir, roleId, zone])
@@ -91,6 +92,7 @@ export function DeskMove({ api, fhir, staff, zone, now, visit, onMoved, onClose 
             onChange={(e) => {
               setRoleId(e.target.value)
               setSlotId('')
+              setDayKey('')
             }}
           >
             {staff.map((m) => (
@@ -104,21 +106,7 @@ export function DeskMove({ api, fhir, staff, zone, now, visit, onMoved, onClose 
         {slots.state.name === 'failed' && <Alert message={t('desk.walkIn.slotsFailed')} />}
         {slots.state.name === 'loaded' && slots.state.value.length === 0 && <p className="muted">{t('desk.move.noSlots')}</p>}
         {slots.state.name === 'loaded' && slots.state.value.length > 0 && (
-          <div className="field">
-            <label htmlFor={`${id}-s`}>{t('desk.move.time')}</label>
-            <select id={`${id}-s`} value={slotId} onChange={(e) => setSlotId(e.target.value)}>
-              <option value="">{t('desk.walkIn.chooseTime')}</option>
-              {byDay(slots.state.value, zone).map(([day, times]) => (
-                <optgroup key={day} label={f.date(new Date(times[0].start), zone, 'long')}>
-                  {times.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {f.time(new Date(s.start), zone)}–{f.time(new Date(s.end), zone)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          <DayTimes days={byDay(slots.state.value, zone)} dayKey={dayKey} slotId={slotId} zone={zone} onDay={(k) => { setDayKey(k); setSlotId('') }} onTime={setSlotId} />
         )}
         <Alert message={error} />
         <Submit busy={busy} disabled={slotId === ''} label={t('desk.move.submit')} busyLabel={t('desk.move.moving')} />
@@ -129,6 +117,42 @@ export function DeskMove({ api, fhir, staff, zone, now, visit, onMoved, onClose 
         </button>
       </div>
     </Dialog>
+  )
+}
+
+type DayTimesProps = { days: [string, Slot[]][]; dayKey: string; slotId: string; zone: string; onDay: (key: string) => void; onTime: (id: string) => void }
+
+// DayTimes picks a day with free times, the first by default, then one of that day's times (wave 4 walk, finding 7):
+// two short lists instead of one of every time in 15 days.
+function DayTimes({ days, dayKey, slotId, zone, onDay, onTime }: DayTimesProps) {
+  const t = useT()
+  const f = useFormat()
+  const id = useId()
+  const [key, times] = days.find(([k]) => k === dayKey) ?? days[0]
+  return (
+    <>
+      <div className="field">
+        <label htmlFor={`${id}-d`}>{t('desk.move.day')}</label>
+        <select id={`${id}-d`} value={key} onChange={(e) => onDay(e.target.value)}>
+          {days.map(([k, day]) => (
+            <option key={k} value={k}>
+              {f.date(new Date(day[0].start), zone, 'long')}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={`${id}-s`}>{t('desk.move.time')}</label>
+        <select id={`${id}-s`} value={slotId} onChange={(e) => onTime(e.target.value)}>
+          <option value="">{t('desk.walkIn.chooseTime')}</option>
+          {times.map((s) => (
+            <option key={s.id} value={s.id}>
+              {f.time(new Date(s.start), zone)}–{f.time(new Date(s.end), zone)}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
   )
 }
 
