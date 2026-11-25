@@ -222,7 +222,9 @@ func manifest(patients int, restricted []string) string {
 		"Patients' records in this archive: " + strconv.Itoa(patients) + "\n\n" +
 		"Not in this archive: clinical documents, questionnaire answers and the patient's history. Who may hand\n" +
 		"them over is not decided yet. A patient with their own Salus account has no file in patients/; their\n" +
-		"appointments, receipts and quotes at the clinic are in the CSV files.\n\n" +
+		"appointments, receipts and quotes at the clinic are in the CSV files.\n" +
+		"Lab results (DiagnosticReport), their values and their PDFs are clinical documents too: they are not\n" +
+		"part of the hand-over.\n\n" +
 		"After a patient withdraws their consent, the clinic's screens show only their visits from before the\n" +
 		"withdrawal; this archive holds every visit at the clinic: the visits a withdrawal of consent cancelled are in it too,\n" +
 		"in appointments.csv and in the patient's record, with the status cancelled.\n" +

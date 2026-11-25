@@ -17,7 +17,7 @@ tables:
   appointment_change: {owner: appointment, personal_data: true} # an appointment's history (00054, SAL-32)
   appointment_reminder: {owner: appointment, personal_data: true} # when each reminder is due and whether it went (00055, SAL-33)
   audit_event: {owner: auditevent, personal_data: true}
-  binary: {owner: binary, personal_data: true}
+  binary: {owner: binary, personal_data: true} # questionnaire answers', chat and lab result files (00027, 00045, 00084)
   care_plan: {owner: careplan, personal_data: true} # a patient's treatment plan (00080, 6.0)
   care_plan_activity: {owner: careplan, personal_data: true} # a treatment plan's steps and their visits (00080, 6.0)
   charge_item_definition: {owner: chargeitemdefinition, personal_data: false} # the clinic's price list (00059)

@@ -66,7 +66,7 @@ func (t fakeTransactor) WithTx(ctx context.Context, fn func(ctx context.Context)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	events, files, attached, jobs := len(f.audit.events), maps.Clone(f.repo.files), slices.Clone(f.holder.attached), len(f.jobs.scans)
-	f.repo.patient, f.repo.clinic, f.repo.job, f.repo.conversation, f.repo.chatJob = "", "", "", "", ""
+	f.repo.patient, f.repo.clinic, f.repo.job, f.repo.conversation, f.repo.chatJob, f.repo.reportJob = "", "", "", "", "", ""
 	f.txs++
 	err := fn(context.WithValue(ctx, txKey{}, true))
 	if err != nil {
@@ -103,13 +103,24 @@ type fakeRepository struct {
 	job          string // the job scope's response; clinic is its clinic
 	conversation string // app.conversation_id, as communication sets it for a chat file
 	chatJob      string // the chat job scope's conversation; clinic is its clinic
+	reportJob    string // the report job scope's lab result; clinic is its clinic
 	locked       []string
 	shared       bool
+	released     bool // the lab result of a report file is released: its patient sees the file
 }
 
 // visible reports whether the scope shows b; shared stands for another clinic's visit shared with the clinic, whose
 // clean files the clinic's scope shows.
 func (r *fakeRepository) visible(b binary.Binary) bool {
+	if b.DiagnosticReportID != "" {
+		switch {
+		case r.reportJob != "":
+			return b.DiagnosticReportID == r.reportJob && b.OrganizationID == r.clinic
+		case r.patient != "":
+			return b.PatientID == r.patient && r.released
+		}
+		return r.clinic != "" && b.OrganizationID == r.clinic
+	}
 	if b.ConversationID != "" {
 		switch {
 		case r.chatJob != "":
@@ -158,7 +169,9 @@ func (r *fakeRepository) Insert(ctx context.Context, b binary.Binary, at time.Ti
 	switch {
 	case b.ConversationID != "" && r.conversation != b.ConversationID:
 		return binary.Binary{}, errors.New("row-level security: a chat file goes into the conversation set")
-	case b.ConversationID == "" && (r.patient == "" || b.PatientID != r.patient):
+	case b.DiagnosticReportID != "" && (r.clinic != b.OrganizationID || r.patient != "" || r.released):
+		return binary.Binary{}, errors.New("row-level security: a report's file goes into its clinic's preliminary report")
+	case b.DiagnosticReportID == "" && b.ConversationID == "" && (r.patient == "" || b.PatientID != r.patient):
 		return binary.Binary{}, errors.New("row-level security: the patient inserts only for themselves")
 	}
 	b.Status, b.CreatedAt, b.UpdatedAt = binary.StatusQuarantined, at, at
@@ -222,7 +235,8 @@ func (r *fakeRepository) Delete(ctx context.Context, id string) (bool, error) {
 		return false, err
 	}
 	b, ok := r.files[id]
-	if !ok || (r.patient == "" && r.job == "") || !r.visible(b) {
+	if !ok || (r.patient == "" && r.job == "" && b.DiagnosticReportID == "") || !r.visible(b) ||
+		(b.DiagnosticReportID != "" && (r.patient != "" || r.released)) {
 		return false, nil
 	}
 	delete(r.files, id)
@@ -237,7 +251,7 @@ func (r *fakeRepository) MarkScanned(ctx context.Context, id string, status bina
 		return false, r.err
 	}
 	b, ok := r.files[id]
-	if !ok || (r.job == "" && r.chatJob == "") || !r.visible(b) || b.Status != binary.StatusQuarantined {
+	if !ok || (r.job == "" && r.chatJob == "" && r.reportJob == "") || !r.visible(b) || b.Status != binary.StatusQuarantined {
 		return false, nil
 	}
 	b.Status, b.ScannedAt, b.UpdatedAt = status, at, at
@@ -330,6 +344,25 @@ func (r *fakeRepository) SetThumbnail(ctx context.Context, id string, t binary.T
 	b.Thumbnail, b.UpdatedAt = t, at
 	r.files[id] = b
 	return true, nil
+}
+
+func (r *fakeRepository) SetReportJob(ctx context.Context, reportID, org string) error {
+	r.reportJob, r.clinic = reportID, org
+	return inTx(ctx)
+}
+
+func (r *fakeRepository) OfReports(ctx context.Context, reportIDs []string) ([]binary.Binary, error) {
+	if err := inTx(ctx); err != nil {
+		return nil, err
+	}
+	var out []binary.Binary
+	for _, b := range r.files {
+		if r.visible(b) && b.DiagnosticReportID != "" && slices.Contains(reportIDs, b.DiagnosticReportID) {
+			out = append(out, b)
+		}
+	}
+	slices.SortFunc(out, func(a, b binary.Binary) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	return out, r.err
 }
 
 func (r *fakeRepository) DeleteUnattachedBefore(context.Context, time.Time) (int64, error) {

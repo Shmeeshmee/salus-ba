@@ -180,13 +180,10 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /clinic/care-plans/{id}/cancel": refused, "GET /me/care-plans": stranger,
 }
 
-// notServedYet are the routes in the contract that are not mounted: wave 6's, declared by its contract (6.0) and
-// served by LB1 and TP1 (LC1 serves the locations, RM1 the rooms and devices). A route declared before it is built goes here and answers the router's own 404;
-// when it is mounted, the test fails until it is taken off this list, and the route is then held to its class above.
-var notServedYet = []string{
-	"GET /clinic/diagnostic-reports/{id}/pdf", "PUT /clinic/diagnostic-reports/{id}/pdf",
-	"GET /me/diagnostic-reports/{id}/pdf",
-}
+// notServedYet are the routes in the contract that are not mounted (none today: wave 6's last, the lab results' PDFs,
+// are served). A route declared before it is built goes here and answers the router's own 404; when it is mounted,
+// the test fails until it is taken off this list, and the route is then held to its class above.
+var notServedYet = []string{}
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.
 func contractOperations(t *testing.T) map[string]bool {

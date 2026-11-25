@@ -208,6 +208,7 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 	}
 	checkPatientFile(t, files["patients/pt1.json"])
 	checkManifest(t, files["manifest.txt"])
+	checkNoLabResults(t, files)
 	if len(files) != len(want)+2 {
 		t.Errorf("archive holds %d files, want %d (the CSVs, one patient's record and the manifest)", len(files), len(want)+2)
 	}
@@ -368,12 +369,24 @@ func checkReadAsTheAdmin(t *testing.T, f *fakeSources) {
 	}
 }
 
-// checkManifest checks the manifest of the clinic's export: one patient's record, what is not in it, the cancelled
-// visits (S11) and the records the clinic restricts (S7).
+// checkNoLabResults: the hand-over's files carry no lab result (U5); only the manifest names them, as left out.
+func checkNoLabResults(t *testing.T, files map[string]string) {
+	t.Helper()
+	for name, body := range files {
+		if strings.Contains(body, "DiagnosticReport") && name != "manifest.txt" {
+			t.Errorf("%s carries a lab result: the hand-over leaves them out", name)
+		}
+	}
+}
+
+// checkManifest checks the manifest of the clinic's export: one patient's record, what is not in it (the lab results
+// among the clinical documents, U5), the cancelled visits (S11) and the records the clinic restricts (S7).
 func checkManifest(t *testing.T, m string) {
 	t.Helper()
 	if !strings.Contains(m, "Patients' records in this archive: 1\n") ||
 		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") ||
+		!strings.Contains(m, "Lab results (DiagnosticReport), their values and their PDFs are clinical documents too: they are not\n"+
+			"part of the hand-over.") ||
 		!strings.Contains(m, "the visits a withdrawal of consent cancelled are in it too") || strings.Contains(m, "in neither") ||
 		!strings.Contains(m, "Restricted records (GDPR Art. 18), by patient id:\npt1\npt9\n") {
 		t.Errorf("manifest.txt =\n%s", m)

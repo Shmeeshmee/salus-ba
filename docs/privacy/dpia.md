@@ -3169,3 +3169,31 @@ values only; the lab's PDF waits for its storage (see "Left" below), so no file 
   reach.
 - **The erasure's answer** writes its own `data_request` AuditEvent (the erasure job as the agent, about the patient),
   beside the account, device and restriction events it wrote before.
+
+### Lab result PDFs (migration 00084, docs/clinic-cms/WAVE6.md U5, the follow-up of LB1)
+
+**Processing added.** The lab's PDF of a result is stored, a third kind of parent of `binary` beside the questionnaire
+answers and the chat (`binary.diagnostic_report_id`; no new table).
+
+- **What is stored.** One PDF per result (a new upload before the release replaces the one there: its row is deleted in
+  the upload's transaction, its object after it), with its file name as uploaded (personal data, never logged), its
+  size, SHA-1 and detected type. The type is read from the bytes and only a PDF is taken, at most 20 MB.
+- **Encryption and scan.** As every Binary (ADR 0010, docs/attachments): envelope encryption under a data key of its
+  own, wrapped by the key-encryption key; streamed sealed into the EU object store outside any transaction; quarantined
+  until the ClamAV scan says it is clean, and served to nobody before. A flagged file is rejected, its key cleared and
+  its object deleted. The scan job's arguments carry opaque ids only (the file, the report, the clinic).
+- **Who reads it.** The clinic's admin and the visit's practitioner (the result's own read rule); the patient only once
+  the result is released, in the app and in their own export (`files/<DiagnosticReport id>.pdf`, a file the export
+  cannot open named in its manifest). Row-level security holds the same: the clinic's scope sees its results' files,
+  the patient's sees a file only of their released result. A receptionist and another clinic are refused, audited. A
+  preliminary result and its PDF reach the patient by no route, the export included (a test on the real stack proves
+  it). The clinic's record hand-over and its data export carry no lab result, and the export's manifest says so.
+- **Who writes it.** The clinic's admin or the visit's practitioner, on a preliminary result, at its version (the
+  result moves to its next version). Once released the file is frozen: row-level security and a trigger (for every role,
+  the owner too) refuse adding or deleting one; only the scan may still mark it.
+- **Audit.** Every upload and read of the PDF writes an `AuditEvent` naming `DiagnosticReport/<id>` in its transaction,
+  every refusal (forbidden, not found, released, version conflict, not a PDF, too large, a body short of its length) one
+  of its own; the scan job audits its result on `Binary/<id>`.
+- **Retention.** Kept with the result, as the clinical record (pending the lawyer, as the result's own rule); a replaced
+  file is deleted at once, a rejected one 24 h after its scan, an object left without a row 24 h after it was written
+  (binary's purger).

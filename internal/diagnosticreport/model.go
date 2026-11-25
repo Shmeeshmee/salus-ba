@@ -3,7 +3,10 @@
 // is audited, and the patient sees a report only once a practitioner released it.
 package diagnosticreport
 
-import "time"
+import (
+	"io"
+	"time"
+)
 
 // Status is a report's DiagnosticReport.status (http://hl7.org/fhir/diagnostic-report-status).
 type Status string
@@ -68,6 +71,15 @@ type Draft struct {
 	LOINC         string
 	Results       []Result
 	Version       int // 0 when attaching
+}
+
+// PDFUpload is the lab's PDF staff attach to a preliminary report at its version: exactly Size bytes of Body (-1 when
+// the request gave no length) and the name it had (personal data, never logged).
+type PDFUpload struct {
+	Body    io.Reader
+	Title   string
+	Size    int64
+	Version int
 }
 
 // Staff is the caller of the clinic's routes: its admin or a practitioner; a receptionist is refused (no clinical

@@ -18,6 +18,11 @@ SET title = @title, loinc_code = sqlc.narg(loinc_code), effective_date = sqlc.na
     version_id = version_id + 1, updated_at = now()
 WHERE id = @id AND version_id = @version_id AND status = 'preliminary';
 
+-- name: TouchReport :execrows
+-- The report's PDF changed: its next version.
+UPDATE diagnostic_report SET version_id = version_id + 1, updated_at = now()
+WHERE id = @id AND version_id = @version_id AND status = 'preliminary';
+
 -- name: ReleaseReport :execrows
 UPDATE diagnostic_report
 SET status = 'final', released_at = @released_at, released_by_account_id = @released_by_account_id,

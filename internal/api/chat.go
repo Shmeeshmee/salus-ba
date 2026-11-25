@@ -129,9 +129,10 @@ func (f languageFunc) Language(ctx context.Context, accountID string) (string, e
 	return f(ctx, accountID)
 }
 
-// newChatFiles is binary for the chat's files (SAL-30): the questionnaire files' object store, key-encryption key
-// and scan queue, with a conversation as the files' parent; no holder (the chat decides and audits each call).
-func newChatFiles(pool *pgxpool.Pool, files config.ObjectStore, kek *envelope.KEK, jobs *river.Client[pgx.Tx], tx *postgres.Transactor) *binary.Service {
+// newParentFiles is binary for the files whose parent decides and audits each call itself, the chat's (SAL-30, a
+// conversation) and the lab results' PDFs (clinic-cms U5, a report): the questionnaire files' object store,
+// key-encryption key and scan queue; no holder.
+func newParentFiles(pool *pgxpool.Pool, files config.ObjectStore, kek *envelope.KEK, jobs *river.Client[pgx.Tx], tx *postgres.Transactor) *binary.Service {
 	store := binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID,
 		files.SecretAccessKey, s3PageSize)
 	return binary.NewService(binary.Ports{

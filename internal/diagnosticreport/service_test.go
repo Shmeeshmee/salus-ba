@@ -18,12 +18,14 @@ type world struct {
 	repo   *fakeRepo
 	visits *fakeVisits
 	audit  *fakeAudit
+	files  *fakeFiles
 }
 
 func newWorld() world {
 	w := world{repo: newFakeRepo(), visits: &fakeVisits{consent: true}, audit: &fakeAudit{}}
+	w.files = newFakeFiles(fakeTx{audit: w.audit})
 	w.svc = diagnosticreport.NewService(diagnosticreport.Ports{
-		Repo: w.repo, Visits: w.visits, Audit: w.audit, Tx: fakeTx{audit: w.audit}, Clock: clock.Fixed{T: now},
+		Repo: w.repo, Visits: w.visits, Audit: w.audit, Tx: fakeTx{audit: w.audit}, Clock: clock.Fixed{T: now}, Files: w.files,
 	})
 	return w
 }
@@ -233,22 +235,6 @@ func TestReads_StaffAndPatient(t *testing.T) {
 	}
 	if none, err := w.svc.Mine(t.Context(), diagnosticreport.Patient{AccountID: thePatient.AccountID}); err != nil || len(none) != 0 {
 		t.Fatalf("no profile: %v %d", err, len(none))
-	}
-}
-
-// The PDF waits for its storage (a follow-up of LB1): every PDF method still refuses.
-func TestPDF_NotBuiltYet(t *testing.T) {
-	t.Parallel()
-	w := newWorld()
-	ctx := t.Context()
-	if _, err := w.svc.AttachPDF(ctx, thePractitioner, visitID, strings.NewReader("%PDF-"), 5); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("AttachPDF: %v", err)
-	}
-	if _, _, err := w.svc.PDF(ctx, thePractitioner, visitID); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("PDF: %v", err)
-	}
-	if _, _, err := w.svc.MyPDF(ctx, thePatient, visitID); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("MyPDF: %v", err)
 	}
 }
 

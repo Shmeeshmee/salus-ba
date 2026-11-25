@@ -16,7 +16,7 @@ UPDATE "binary"
 SET communication_id = $1, communication_sent_at = $2, updated_at = $3
 WHERE id = ANY($4::uuid[]) AND conversation_id = $5 AND conversation_participant_id = $6
   AND communication_id IS NULL AND status <> 'rejected'
-RETURNING id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key
+RETURNING id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id
 `
 
 type AttachChatBinariesParams struct {
@@ -71,6 +71,7 @@ func (q *Queries) AttachChatBinaries(ctx context.Context, arg AttachChatBinaries
 			&i.ThumbnailID,
 			&i.ThumbnailSize,
 			&i.ThumbnailWrappedKey,
+			&i.DiagnosticReportID,
 		); err != nil {
 			return nil, err
 		}
@@ -83,7 +84,7 @@ func (q *Queries) AttachChatBinaries(ctx context.Context, arg AttachChatBinaries
 }
 
 const binariesOfItem = `-- name: BinariesOfItem :many
-SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key FROM "binary"
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id FROM "binary"
 WHERE questionnaire_response_id = $1 AND link_id = $2 AND status <> 'rejected'
 ORDER BY created_at, id
 `
@@ -128,6 +129,58 @@ func (q *Queries) BinariesOfItem(ctx context.Context, arg BinariesOfItemParams) 
 			&i.ThumbnailID,
 			&i.ThumbnailSize,
 			&i.ThumbnailWrappedKey,
+			&i.DiagnosticReportID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const binariesOfReports = `-- name: BinariesOfReports :many
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id FROM "binary" WHERE diagnostic_report_id = ANY($1::uuid[]) ORDER BY created_at, id
+`
+
+// The lab results' PDFs, whatever their status, as the scope shows them, oldest first.
+func (q *Queries) BinariesOfReports(ctx context.Context, diagnosticReportIds []pgtype.UUID) ([]Binary, error) {
+	rows, err := q.db.Query(ctx, binariesOfReports, diagnosticReportIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Binary
+	for rows.Next() {
+		var i Binary
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ScannedAt,
+			&i.OrganizationID,
+			&i.PatientID,
+			&i.AppointmentID,
+			&i.QuestionnaireResponseID,
+			&i.Size,
+			&i.SegmentSize,
+			&i.LinkID,
+			&i.ContentType,
+			&i.Title,
+			&i.Status,
+			&i.KekID,
+			&i.Sha1,
+			&i.WrappedKey,
+			&i.ConversationID,
+			&i.ConversationParticipantID,
+			&i.CommunicationID,
+			&i.CommunicationSentAt,
+			&i.ThumbnailID,
+			&i.ThumbnailSize,
+			&i.ThumbnailWrappedKey,
+			&i.DiagnosticReportID,
 		); err != nil {
 			return nil, err
 		}
@@ -140,7 +193,7 @@ func (q *Queries) BinariesOfItem(ctx context.Context, arg BinariesOfItemParams) 
 }
 
 const binariesOfResponse = `-- name: BinariesOfResponse :many
-SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key FROM "binary" WHERE questionnaire_response_id = $1 ORDER BY created_at, id
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id FROM "binary" WHERE questionnaire_response_id = $1 ORDER BY created_at, id
 `
 
 // Every file of a response, for the discard job.
@@ -178,6 +231,7 @@ func (q *Queries) BinariesOfResponse(ctx context.Context, questionnaireResponseI
 			&i.ThumbnailID,
 			&i.ThumbnailSize,
 			&i.ThumbnailWrappedKey,
+			&i.DiagnosticReportID,
 		); err != nil {
 			return nil, err
 		}
@@ -190,7 +244,7 @@ func (q *Queries) BinariesOfResponse(ctx context.Context, questionnaireResponseI
 }
 
 const binaryByID = `-- name: BinaryByID :one
-SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key FROM "binary" WHERE id = $1
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id FROM "binary" WHERE id = $1
 `
 
 func (q *Queries) BinaryByID(ctx context.Context, id pgtype.UUID) (Binary, error) {
@@ -221,12 +275,13 @@ func (q *Queries) BinaryByID(ctx context.Context, id pgtype.UUID) (Binary, error
 		&i.ThumbnailID,
 		&i.ThumbnailSize,
 		&i.ThumbnailWrappedKey,
+		&i.DiagnosticReportID,
 	)
 	return i, err
 }
 
 const chatBinariesOfMessages = `-- name: ChatBinariesOfMessages :many
-SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key FROM "binary"
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id FROM "binary"
 WHERE conversation_id = ANY($1::uuid[]) AND communication_id = ANY($2::uuid[])
 ORDER BY created_at, id
 `
@@ -271,6 +326,7 @@ func (q *Queries) ChatBinariesOfMessages(ctx context.Context, arg ChatBinariesOf
 			&i.ThumbnailID,
 			&i.ThumbnailSize,
 			&i.ThumbnailWrappedKey,
+			&i.DiagnosticReportID,
 		); err != nil {
 			return nil, err
 		}
@@ -283,7 +339,7 @@ func (q *Queries) ChatBinariesOfMessages(ctx context.Context, arg ChatBinariesOf
 }
 
 const cleanBinaries = `-- name: CleanBinaries :many
-SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key FROM "binary" WHERE id = ANY($1::uuid[]) AND status = 'clean' ORDER BY id
+SELECT id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id FROM "binary" WHERE id = ANY($1::uuid[]) AND status = 'clean' ORDER BY id
 `
 
 // The clean files among ids that the scope shows: the patient's timeline (SAL-39).
@@ -321,6 +377,7 @@ func (q *Queries) CleanBinaries(ctx context.Context, ids []pgtype.UUID) ([]Binar
 			&i.ThumbnailID,
 			&i.ThumbnailSize,
 			&i.ThumbnailWrappedKey,
+			&i.DiagnosticReportID,
 		); err != nil {
 			return nil, err
 		}
@@ -400,12 +457,12 @@ func (q *Queries) ExistingBinaries(ctx context.Context, ids []pgtype.UUID) ([]pg
 const insertBinary = `-- name: InsertBinary :one
 
 INSERT INTO "binary" (id, organization_id, patient_id, appointment_id, questionnaire_response_id, link_id, conversation_id,
-                      conversation_participant_id, content_type, size, title, sha1, kek_id, wrapped_key, segment_size, status,
-                      created_at, updated_at)
+                      conversation_participant_id, diagnostic_report_id, content_type, size, title, sha1, kek_id, wrapped_key,
+                      segment_size, status, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10, $11, $12, $13,
-        $14, $15, 'quarantined', $16, $16)
-RETURNING id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key
+        $7, $8, $9, $10, $11,
+        $12, $13, $14, $15, $16, 'quarantined', $17, $17)
+RETURNING id, created_at, updated_at, scanned_at, organization_id, patient_id, appointment_id, questionnaire_response_id, size, segment_size, link_id, content_type, title, status, kek_id, sha1, wrapped_key, conversation_id, conversation_participant_id, communication_id, communication_sent_at, thumbnail_id, thumbnail_size, thumbnail_wrapped_key, diagnostic_report_id
 `
 
 type InsertBinaryParams struct {
@@ -417,6 +474,7 @@ type InsertBinaryParams struct {
 	LinkID                    pgtype.Text
 	ConversationID            pgtype.UUID
 	ConversationParticipantID pgtype.UUID
+	DiagnosticReportID        pgtype.UUID
 	ContentType               string
 	Size                      int64
 	Title                     string
@@ -430,7 +488,8 @@ type InsertBinaryParams struct {
 // "binary" is a reserved word in Postgres and is quoted in every statement (SPEC.md §3 O15).
 // An upload, quarantined: a questionnaire file in the patient's scope, whose insert policy checks the copied clinic,
 // patient and appointment are the response's; or a chat file in its conversation's scope, whose policy checks the
-// clinic, the patient and the uploading participant are the conversation's.
+// clinic, the patient and the uploading participant are the conversation's; or a lab result's PDF in the clinic's scope,
+// whose policy checks the clinic and the patient are the preliminary report's.
 func (q *Queries) InsertBinary(ctx context.Context, arg InsertBinaryParams) (Binary, error) {
 	row := q.db.QueryRow(ctx, insertBinary,
 		arg.ID,
@@ -441,6 +500,7 @@ func (q *Queries) InsertBinary(ctx context.Context, arg InsertBinaryParams) (Bin
 		arg.LinkID,
 		arg.ConversationID,
 		arg.ConversationParticipantID,
+		arg.DiagnosticReportID,
 		arg.ContentType,
 		arg.Size,
 		arg.Title,
@@ -476,6 +536,7 @@ func (q *Queries) InsertBinary(ctx context.Context, arg InsertBinaryParams) (Bin
 		&i.ThumbnailID,
 		&i.ThumbnailSize,
 		&i.ThumbnailWrappedKey,
+		&i.DiagnosticReportID,
 	)
 	return i, err
 }

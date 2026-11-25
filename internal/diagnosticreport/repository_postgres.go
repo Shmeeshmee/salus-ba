@@ -97,6 +97,20 @@ func (r *postgresRepository) Release(ctx context.Context, id, releasedBy string,
 	return n == 1, err
 }
 
+func (r *postgresRepository) Touch(ctx context.Context, id string, version int) (bool, error) {
+	u, ok := parse(id)
+	if !ok {
+		return false, nil
+	}
+	n, err := r.q(ctx).TouchReport(ctx, diagnosticreportdb.TouchReportParams{
+		ID: u, VersionID: int32(version), //nolint:gosec // a version is small
+	})
+	if refusedByPolicy(err) {
+		return false, ErrForbidden // as Update's
+	}
+	return n == 1, err
+}
+
 // refusedByPolicy reports whether err is row-level security's refusal of a write (42501).
 func refusedByPolicy(err error) bool {
 	var pgErr *pgconn.PgError

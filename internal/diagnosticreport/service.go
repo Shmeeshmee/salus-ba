@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"time"
 
@@ -36,6 +35,7 @@ type Ports struct {
 	Visits Visits
 	Audit  Auditor
 	Tx     Transactor
+	Files  Files // the PDFs (binary.Service)
 	Clock  clock.Clock
 }
 
@@ -114,12 +114,6 @@ func (s *Service) Change(ctx context.Context, c Staff, id string, d Draft) (Repo
 	return out, nil
 }
 
-// AttachPDF stores the lab's PDF of a preliminary report. Not built yet: the PDF's storage is a follow-up of LB1
-// (PROGRESS.md).
-func (s *Service) AttachPDF(_ context.Context, _ Staff, _ string, _ io.Reader, _ int64) (Report, error) {
-	return Report{}, errors.ErrUnsupported
-}
-
 // Release releases a report at its version: the practitioner's review, after which the patient sees it. ErrForbidden
 // to anyone but a practitioner who may see the visit's results; a revocation since the report was written does not
 // hold it up.
@@ -168,6 +162,9 @@ func (s *Service) ForVisit(ctx context.Context, c Staff, appointmentID string) (
 		if err != nil {
 			return fmt.Errorf("diagnosticreport: for visit: %w", err)
 		}
+		if err := s.withPDFs(ctx, list); err != nil {
+			return err
+		}
 		out = list
 		return s.matches(ctx, list, func(id string) auditevent.AuditEvent {
 			return staffEvent(c, auditevent.CodeSearchType, id, auditevent.OutcomeSuccess)
@@ -196,11 +193,6 @@ func (s *Service) Read(ctx context.Context, c Staff, id string) (Report, error) 
 	return out, nil
 }
 
-// PDF opens the PDF of a report of the staff's clinic. Not built yet (AttachPDF).
-func (s *Service) PDF(_ context.Context, _ Staff, _ string) (io.ReadCloser, int64, error) {
-	return nil, 0, errors.ErrUnsupported
-}
-
 // Mine returns the patient's released reports, newest first, each audited as a search's match (none found once). A
 // patient without a profile has none.
 func (s *Service) Mine(ctx context.Context, c Patient) ([]Report, error) {
@@ -224,6 +216,9 @@ func (s *Service) MineAt(ctx context.Context, c Patient, org string) ([]Report, 
 		}
 		if org != "" {
 			list = slices.DeleteFunc(list, func(r Report) bool { return r.OrganizationID != org })
+		}
+		if err := s.withPDFs(ctx, list); err != nil {
+			return err
 		}
 		out = list
 		return s.matches(ctx, list, func(id string) auditevent.AuditEvent {
@@ -250,18 +245,17 @@ func (s *Service) MyReport(ctx context.Context, c Patient, id string) (Report, e
 		if err != nil {
 			return err
 		}
-		out = r
+		one := []Report{r}
+		if err := s.withPDFs(ctx, one); err != nil {
+			return err
+		}
+		out = one[0]
 		return s.p.Audit.Record(ctx, patientEvent(c, auditevent.CodeRead, id, auditevent.OutcomeSuccess))
 	})
 	if errors.Is(err, ErrNotFound) {
 		return Report{}, s.refused(ctx, c.AccountID, "", auditevent.CodeRead, id, err)
 	}
 	return out, err
-}
-
-// MyPDF opens the PDF of one of the patient's released reports. Not built yet (AttachPDF).
-func (s *Service) MyPDF(_ context.Context, _ Patient, _ string) (io.ReadCloser, int64, error) {
-	return nil, 0, errors.ErrUnsupported
 }
 
 // visit is the staff's attendance of the visit in the clinic's scope, set here: ErrForbidden for a receptionist or an
@@ -302,7 +296,11 @@ func (s *Service) report(ctx context.Context, c Staff, id string) (Report, error
 	if _, err := s.visit(ctx, c, r.AppointmentID); err != nil {
 		return Report{}, err
 	}
-	return r, nil
+	one := []Report{r}
+	if err := s.withPDFs(ctx, one); err != nil {
+		return Report{}, err
+	}
+	return one[0], nil
 }
 
 // matches audits each report of list with event, or one event without an entity when there is none.
@@ -318,11 +316,13 @@ func (s *Service) matches(ctx context.Context, list []Report, event func(id stri
 	return nil
 }
 
-// refused audits a refusal (ErrForbidden, ErrNotFound, ErrReleased, ErrVersionConflict) in a transaction of its own,
-// since the call's rolled back, and returns err; any other error is returned as it is.
+// refusals are the errors refused audits.
+var refusals = []error{ErrForbidden, ErrNotFound, ErrReleased, ErrVersionConflict, ErrInvalid, ErrTooLarge, ErrBadBody}
+
+// refused audits a refusal (one of refusals: a draft that does not fit is refused before, unaudited) in a transaction
+// of its own, since the call's rolled back, and returns err; any other error is returned as it is.
 func (s *Service) refused(ctx context.Context, account, org, interaction, id string, err error) error {
-	if !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrReleased) &&
-		!errors.Is(err, ErrVersionConflict) {
+	if !slices.ContainsFunc(refusals, func(r error) bool { return errors.Is(err, r) }) {
 		return err
 	}
 	e := event(account, org, interaction, id, auditevent.OutcomeMinorFailure)

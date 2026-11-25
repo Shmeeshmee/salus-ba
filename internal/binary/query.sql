@@ -3,13 +3,14 @@
 -- name: InsertBinary :one
 -- An upload, quarantined: a questionnaire file in the patient's scope, whose insert policy checks the copied clinic,
 -- patient and appointment are the response's; or a chat file in its conversation's scope, whose policy checks the
--- clinic, the patient and the uploading participant are the conversation's.
+-- clinic, the patient and the uploading participant are the conversation's; or a lab result's PDF in the clinic's scope,
+-- whose policy checks the clinic and the patient are the preliminary report's.
 INSERT INTO "binary" (id, organization_id, patient_id, appointment_id, questionnaire_response_id, link_id, conversation_id,
-                      conversation_participant_id, content_type, size, title, sha1, kek_id, wrapped_key, segment_size, status,
-                      created_at, updated_at)
+                      conversation_participant_id, diagnostic_report_id, content_type, size, title, sha1, kek_id, wrapped_key,
+                      segment_size, status, created_at, updated_at)
 VALUES (@id, @organization_id, @patient_id, sqlc.narg(appointment_id), sqlc.narg(questionnaire_response_id), sqlc.narg(link_id),
-        sqlc.narg(conversation_id), sqlc.narg(conversation_participant_id), @content_type, @size, @title, @sha1, @kek_id,
-        @wrapped_key, @segment_size, 'quarantined', @at, @at)
+        sqlc.narg(conversation_id), sqlc.narg(conversation_participant_id), sqlc.narg(diagnostic_report_id), @content_type, @size,
+        @title, @sha1, @kek_id, @wrapped_key, @segment_size, 'quarantined', @at, @at)
 RETURNING *;
 
 -- name: BinaryByID :one
@@ -93,3 +94,7 @@ WHERE id = @id AND status = 'clean' AND thumbnail_id IS NULL;
 -- name: DeleteUnattachedChatBinariesBefore :execrows
 -- The purger, as salus_retention: chat files never attached to a message, 24 h after their upload.
 DELETE FROM "binary" WHERE conversation_id IS NOT NULL AND communication_id IS NULL AND created_at < @before;
+
+-- name: BinariesOfReports :many
+-- The lab results' PDFs, whatever their status, as the scope shows them, oldest first.
+SELECT * FROM "binary" WHERE diagnostic_report_id = ANY(@diagnostic_report_ids::uuid[]) ORDER BY created_at, id;

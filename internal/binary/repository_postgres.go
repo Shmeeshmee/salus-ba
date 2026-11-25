@@ -52,7 +52,8 @@ func (r *postgresRepository) Insert(ctx context.Context, b Binary, at time.Time)
 	}
 	if p.ID.Scan(b.ID) != nil || p.OrganizationID.Scan(b.OrganizationID) != nil || p.PatientID.Scan(b.PatientID) != nil ||
 		optional(&p.AppointmentID, b.AppointmentID) != nil || optional(&p.QuestionnaireResponseID, b.ResponseID) != nil ||
-		optional(&p.ConversationID, b.ConversationID) != nil || optional(&p.ConversationParticipantID, b.ParticipantID) != nil {
+		optional(&p.ConversationID, b.ConversationID) != nil || optional(&p.ConversationParticipantID, b.ParticipantID) != nil ||
+		optional(&p.DiagnosticReportID, b.DiagnosticReportID) != nil {
 		return Binary{}, errors.New("binary: an id is not a UUID")
 	}
 	row, err := r.q(ctx).InsertBinary(ctx, p)
@@ -235,6 +236,25 @@ func (r *postgresRepository) DeleteUnattachedBefore(ctx context.Context, before 
 	return r.q(ctx).DeleteUnattachedChatBinariesBefore(ctx, pgtype.Timestamptz{Time: before, Valid: true})
 }
 
+func (r *postgresRepository) SetReportJob(ctx context.Context, reportID, org string) error {
+	if err := postgres.SetLocal(ctx, "app.binary_diagnostic_report_id", reportID); err != nil {
+		return err
+	}
+	return postgres.SetLocal(ctx, "app.organization_id", org)
+}
+
+func (r *postgresRepository) OfReports(ctx context.Context, reportIDs []string) ([]Binary, error) {
+	ids := uuids(reportIDs)
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.q(ctx).BinariesOfReports(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return toBinaries(rows), nil
+}
+
 // optional scans the id into u, leaving it null for "".
 func optional(u *pgtype.UUID, id string) error {
 	if id == "" {
@@ -270,7 +290,8 @@ func toBinary(row binarydb.Binary) Binary {
 		ID: row.ID.String(), OrganizationID: row.OrganizationID.String(), PatientID: row.PatientID.String(),
 		AppointmentID: idOf(row.AppointmentID), ResponseID: idOf(row.QuestionnaireResponseID), LinkID: row.LinkID.String,
 		ConversationID: idOf(row.ConversationID), ParticipantID: idOf(row.ConversationParticipantID), MessageID: idOf(row.CommunicationID),
-		ContentType: row.ContentType, Title: row.Title, KEKID: row.KekID, Status: Status(row.Status), SHA1: row.Sha1,
+		DiagnosticReportID: idOf(row.DiagnosticReportID),
+		ContentType:        row.ContentType, Title: row.Title, KEKID: row.KekID, Status: Status(row.Status), SHA1: row.Sha1,
 		WrappedKey: row.WrappedKey, Size: row.Size, SegmentSize: row.SegmentSize,
 	}
 	if row.ThumbnailID.Valid {

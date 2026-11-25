@@ -16,6 +16,9 @@ type Repository interface {
 	Insert(ctx context.Context, r Report, createdBy string) (Report, error)
 	// Update stores r's title, code, date and results if its version is still r.VersionID-1; false when it moved on.
 	Update(ctx context.Context, r Report) (bool, error)
+	// Touch moves the preliminary report to its next version if it is still at version (its PDF changed); false when
+	// it moved on or was released.
+	Touch(ctx context.Context, id string, version int) (bool, error)
 	// Release marks the report final by the practitioner at its version, at the time at; false when it moved on.
 	Release(ctx context.Context, id, releasedBy string, version int, at time.Time) (bool, error)
 	// ByID returns the report visible in the scope, with its results, or ErrNotFound.
