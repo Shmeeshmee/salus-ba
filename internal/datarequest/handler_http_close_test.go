@@ -3,12 +3,15 @@ package datarequest_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/datarequest"
 )
 
@@ -56,5 +59,20 @@ func TestCloseHandler_ClosesTheSignedInAccount(t *testing.T) {
 				t.Errorf("closed %+v with %q", svc.patient, svc.password)
 			}
 		})
+	}
+}
+
+func TestCloseHandler_OverTheLimitIs429WithRetryAfter(t *testing.T) {
+	t.Parallel()
+	svc := &stubCloser{err: fmt.Errorf("datarequest: close account: %w", &auth.RateLimitedError{RetryAfter: 90 * time.Second})}
+	h := datarequest.NewCloseHandler(svc, func(context.Context) (datarequest.Patient, bool, error) {
+		return datarequest.Patient{AccountID: accountID}, true, nil
+	}, slog.New(slog.DiscardHandler))
+	mux := http.NewServeMux()
+	h.Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/me/account/close", strings.NewReader(`{"password":"x"}`)))
+	if rec.Code != http.StatusTooManyRequests || !strings.Contains(rec.Body.String(), `"rate_limited"`) || rec.Header().Get("Retry-After") != "90" {
+		t.Errorf("%d %s Retry-After %q, want 429 rate_limited 90", rec.Code, rec.Body, rec.Header().Get("Retry-After"))
 	}
 }

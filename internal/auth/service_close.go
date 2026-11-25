@@ -15,7 +15,9 @@ const ErasureAgent = "data_request_erasure"
 // Close closes the patient's account once password confirms it (docs/clinic-cms/WAVE5.md S5): from the commit no
 // sign-in succeeds, every open session is revoked, and the account is erased eraseAfter later unless the operator
 // reopens it first. Audited as an update of the account, in the transaction in ctx when there is one (the closure's,
-// datarequest). ErrWrongCredentials for a wrong password, ErrNotFound for staff or an account closed already.
+// datarequest). ErrWrongCredentials for a wrong password, ErrNotFound for staff or an account closed already. After
+// maxFailuresPerEmail wrong passwords in a loginWindow it returns a RateLimitedError without checking the password
+// (docs/clinic-cms/WAVE6.md PX).
 func (s *Service) Close(ctx context.Context, accountID, password string, eraseAfter time.Duration) error {
 	a, err := s.repo.ByID(ctx, accountID)
 	if err != nil {
@@ -24,11 +26,22 @@ func (s *Service) Close(ctx context.Context, accountID, password string, eraseAf
 	if a.Role != RolePatient || !a.ClosedAt.IsZero() {
 		return ErrNotFound
 	}
+	key := s.counterKey("close:account:", accountID)
+	n, left, err := s.counters.Get(ctx, key)
+	if err != nil {
+		return fmt.Errorf("auth: close: rate limit: %w", err)
+	}
+	if n >= maxFailuresPerEmail {
+		return &RateLimitedError{RetryAfter: left}
+	}
 	ok, _, err := s.hasher.Verify(ctx, password, a.PasswordHash)
 	if err != nil {
 		return fmt.Errorf("auth: close: %w", err)
 	}
 	if !ok {
+		if _, _, err := s.counters.Incr(ctx, key, loginWindow); err != nil {
+			return fmt.Errorf("auth: close: count the failure: %w", err)
+		}
 		return ErrWrongCredentials
 	}
 	at := s.clock.Now()

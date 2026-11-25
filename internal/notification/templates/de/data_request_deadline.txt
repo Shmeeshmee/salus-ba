@@ -5,5 +5,5 @@ Die Frist für die Antwort auf eine Betroffenenanfrage endet am {{.When}}, in {{
 Art: {{if eq .Kind "access"}}Auskunft{{else if eq .Kind "portability"}}Datenübertragbarkeit{{else if eq .Kind "rectification"}}Berichtigung{{else if eq .Kind "restriction"}}Einschränkung{{else if eq .Kind "objection"}}Widerspruch{{else if eq .Kind "erasure"}}Löschung{{end}}
 Anfrage: {{.Request}}
 
-{{if .Link}}Zur Bearbeitung melden Sie sich bei Salus an:
+{{if .NoAdminClinic}}Die Klinik {{.NoAdminClinic}} hat keinen Administrator, der die Anfrage beantworten kann: Bitten Sie die Klinik, vor Ablauf der Frist einen zu benennen.{{else if .Link}}Zur Bearbeitung melden Sie sich bei Salus an:
 {{.Link}}{{else}}Zur Bearbeitung: salusctl datarequest show {{.Request}}{{end}}

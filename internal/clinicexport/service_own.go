@@ -1,6 +1,7 @@
 package clinicexport
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,9 +27,9 @@ type OwnProfile interface {
 	Me(ctx context.Context, c patient.Caller) (patient.Patient, error)
 }
 
-// OwnConsents reads the calling patient's own consents, audited (consent.Service).
+// OwnConsents reads the calling patient's own consents, of every clinic or one, audited (consent.Service).
 type OwnConsents interface {
-	Mine(ctx context.Context, c consent.Caller) ([]consent.Consent, error)
+	MineAt(ctx context.Context, c consent.Caller, org string) ([]consent.Consent, error)
 }
 
 // OwnAppointments reads the calling patient's own appointments, every one of theirs or one clinic's, each audited
@@ -37,14 +38,18 @@ type OwnAppointments interface {
 	Search(ctx context.Context, c appointment.Caller, f appointment.Filter) ([]appointment.Seen, error)
 }
 
-// OwnReceipts reads the receipts issued to the calling patient, audited (invoice.Service).
+// OwnReceipts reads the receipts issued to the calling patient, of every clinic or one, and each one's PDF, audited
+// (invoice.Service).
 type OwnReceipts interface {
-	Mine(ctx context.Context, c invoice.Caller) ([]invoice.Invoice, error)
+	MineAt(ctx context.Context, c invoice.Caller, org string) ([]invoice.Invoice, error)
+	PDF(ctx context.Context, c invoice.Caller, id string) ([]byte, error)
 }
 
-// OwnQuotes reads the quotes sent to the calling patient, audited (invoice.Service).
+// OwnQuotes reads the quotes sent to the calling patient, of every clinic or one, and each one's PDF, audited
+// (invoice.Service).
 type OwnQuotes interface {
-	MyQuotes(ctx context.Context, c invoice.Caller) ([]invoice.Quote, error)
+	MyQuotesAt(ctx context.Context, c invoice.Caller, org string) ([]invoice.Quote, error)
+	QuotePDF(ctx context.Context, c invoice.Caller, id string) ([]byte, error)
 }
 
 // OwnEncounters reads the calling patient's encounters of an appointment, each audited (encounter.Service).
@@ -121,12 +126,15 @@ type OwnFile struct {
 // OwnPart is what the patient reads in the app of one clinic: record.json (a FHIR Bundle of type collection: the
 // profile, consents, appointments, encounters, signed Compositions, submitted QuestionnaireResponses and receipts),
 // quotes.json when there are quotes, chat.json when there are conversations, and files/<id>.<ext>, the signed
-// documents' PDFs (by their Composition's id), the answers' uploaded files (by Binary id) and the chat's files (by
-// attachment id). Holds says what it holds, a line each, for the manifest.
+// documents' PDFs (by their Composition's id), the answers' uploaded files (by Binary id), the chat's files (by
+// attachment id) and the receipts' and quotes' PDFs (by Invoice and quote id). Holds says what it holds, a line each,
+// for the manifest; Unreadable names the files the build could not open (a rotated key, a missing object), which are
+// not in it.
 type OwnPart struct {
 	OrganizationID string
 	Files          []OwnFile
 	Holds          []string
+	Unreadable     []string
 }
 
 // OwnExport is the patient's own export: their profile as a Bundle of the Patient alone, and a part per clinic.
@@ -167,7 +175,9 @@ func (o *OwnRecords) Export(ctx context.Context, account, org string) (*OwnExpor
 // own is everything read of the patient, of every clinic or one; the files by clinic.
 type own struct {
 	files      map[string][]OwnFile
-	chatFiles  map[string]int // how many of files are the chat's, by clinic
+	unreadable map[string][]string // the files that could not be opened, by clinic
+	uploads    map[string]int      // how many of files are the answers' uploads, by clinic
+	chatFiles  map[string]int      // how many of files are the chat's, by clinic
 	chats      []conversation
 	consents   []consent.Consent
 	visits     []appointment.Seen
@@ -184,12 +194,12 @@ type answered struct {
 	seen    questionnaireresponse.Seen
 }
 
-// read reads, as the patient c, their consents, the visits of org (every clinic's when empty) with their encounters,
-// signed documents and PDFs, submitted answers and their clean files, and their receipts and quotes.
+// read reads, as the patient c, of org (every clinic when empty): their consents, the visits with their encounters,
+// signed documents and PDFs, submitted answers and their clean files, and their receipts and quotes with their PDFs.
 func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string) (own, error) {
-	out := own{files: map[string][]OwnFile{}, chatFiles: map[string]int{}}
+	out := own{files: map[string][]OwnFile{}, unreadable: map[string][]string{}, uploads: map[string]int{}, chatFiles: map[string]int{}}
 	var err error
-	if out.consents, err = o.p.Consents.Mine(ctx, consent.Caller{AccountID: c.AccountID, PatientID: c.PatientID}); err != nil {
+	if out.consents, err = o.p.Consents.MineAt(ctx, consent.Caller{AccountID: c.AccountID, PatientID: c.PatientID}, org); err != nil {
 		return own{}, err
 	}
 	if out.visits, err = o.p.Appointments.Search(ctx, c, appointment.Filter{PatientID: c.PatientID, OrganizationID: org}); err != nil {
@@ -200,17 +210,38 @@ func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string)
 			return own{}, err
 		}
 	}
-	ic := invoice.Caller{AccountID: c.AccountID, PatientID: c.PatientID}
-	if out.receipts, err = o.p.Receipts.Mine(ctx, ic); err != nil {
-		return own{}, err
-	}
-	if out.quotes, err = o.p.Quotes.MyQuotes(ctx, ic); err != nil {
+	if err := o.invoices(ctx, c, org, &out); err != nil {
 		return own{}, err
 	}
 	if err := o.chat(ctx, c, org, &out); err != nil {
 		return own{}, err
 	}
 	return out, nil
+}
+
+// invoices reads the patient c's receipts and quotes of org (every clinic's when empty) and each one's PDF into out.
+func (o *OwnRecords) invoices(ctx context.Context, c appointment.Caller, org string, out *own) error {
+	ic := invoice.Caller{AccountID: c.AccountID, PatientID: c.PatientID}
+	var err error
+	if out.receipts, err = o.p.Receipts.MineAt(ctx, ic, org); err != nil {
+		return err
+	}
+	for _, i := range out.receipts {
+		r, err := bytesOf(o.p.Receipts.PDF(ctx, ic, i.ID))
+		if _, err := out.open(ctx, i.OrganizationID, "files/"+i.ID+".pdf", r, err); err != nil {
+			return err
+		}
+	}
+	if out.quotes, err = o.p.Quotes.MyQuotesAt(ctx, ic, org); err != nil {
+		return err
+	}
+	for _, q := range out.quotes {
+		r, err := bytesOf(o.p.Quotes.QuotePDF(ctx, ic, q.ID))
+		if _, err := out.open(ctx, q.OrganizationID, "files/"+q.ID+".pdf", r, err); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // visit reads the visit a's encounters with their signed documents and PDFs, and its submitted answers with their
@@ -228,12 +259,10 @@ func (o *OwnRecords) visit(ctx context.Context, c appointment.Caller, a appointm
 		}
 		for _, d := range docs {
 			r, _, err := o.p.Documents.PDF(ctx, c, d.Draft.DocumentReferenceID)
-			body, err := readAll(r, err)
-			if err != nil {
+			if _, err := out.open(ctx, e.OrganizationID, "files/"+d.Draft.ID+".pdf", r, err); err != nil {
 				return err
 			}
 			out.documents = append(out.documents, d)
-			out.add(e.OrganizationID, OwnFile{Name: "files/" + d.Draft.ID + ".pdf", Body: body})
 		}
 	}
 	seen, err := o.p.Answers.Search(ctx, c, questionnaireresponse.Filter{AppointmentID: a.ID, Status: questionnaireresponse.StatusCompleted})
@@ -255,7 +284,8 @@ func (o *OwnRecords) visit(ctx context.Context, c appointment.Caller, a appointm
 }
 
 // files reads the clean files of the response r into out and returns its attachments that are in it: one the app
-// cannot open (still being scanned, quarantined, gone) is left out of both.
+// cannot open (still being scanned, quarantined, gone) is left out of both; one the build cannot read stays an
+// attachment and is named unreadable.
 func (o *OwnRecords) files(ctx context.Context, c appointment.Caller, r questionnaireresponse.Response, out *own) ([]binary.Attachment, error) {
 	var kept []binary.Attachment
 	for _, a := range r.Attachments {
@@ -265,17 +295,44 @@ func (o *OwnRecords) files(ctx context.Context, c appointment.Caller, r question
 		} else if err != nil {
 			return nil, err
 		}
-		body, err := readAll(o.p.Files.Content(ctx, f, 0, f.Size-1))
+		content, err := o.p.Files.Content(ctx, f, 0, f.Size-1)
+		in, err := out.open(ctx, r.OrganizationID, fileName(a.BinaryID, a.ContentType), content, err)
 		if err != nil {
 			return nil, err
 		}
+		if in {
+			out.uploads[r.OrganizationID]++
+		}
 		kept = append(kept, a)
-		out.add(r.OrganizationID, OwnFile{Name: fileName(a.BinaryID, a.ContentType), Body: body})
 	}
 	return kept, nil
 }
 
 func (x *own) add(org string, f OwnFile) { x.files[org] = append(x.files[org], f) }
+
+// open reads what a service opened (r, or its err) as the file name of the clinic org's part into x, and says whether
+// it is in: one that cannot be opened (a rotated key, a missing object) is left out and named unreadable, so the rest
+// of the export is still built; only a done ctx fails it.
+func (x *own) open(ctx context.Context, org, name string, r io.ReadCloser, err error) (bool, error) {
+	body, err := readAll(r, err)
+	if err != nil {
+		if ctx.Err() != nil {
+			return false, err
+		}
+		x.unreadable[org] = append(x.unreadable[org], name)
+		return false, nil
+	}
+	x.add(org, OwnFile{Name: name, Body: body})
+	return true, nil
+}
+
+// bytesOf is a rendered document as what a service opened.
+func bytesOf(b []byte, err error) (io.ReadCloser, error) {
+	if err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(b)), nil
+}
 
 // clinics are the clinics the patient has anything at, in order; org alone when it is set.
 func (x own) clinics(org string) []string {
@@ -317,7 +374,7 @@ func (x own) part(me patient.Patient, org string) (OwnPart, error) {
 	if err != nil {
 		return OwnPart{}, err
 	}
-	out := OwnPart{OrganizationID: org, Files: []OwnFile{{Name: "record.json", Body: body}}}
+	out := OwnPart{OrganizationID: org, Files: []OwnFile{{Name: "record.json", Body: body}}, Unreadable: x.unreadable[org]}
 	if len(quotes) > 0 {
 		q, err := json.MarshalIndent(quotes, "", "  ")
 		if err != nil {
@@ -334,7 +391,7 @@ func (x own) part(me patient.Patient, org string) (OwnPart, error) {
 	}
 	out.Files = append(out.Files, x.files[org]...)
 	out.Holds = holds([]int{len(rec.Patient.Consents), len(rec.Visits), len(b.encounters), len(b.documents), len(b.answers),
-		len(x.files[org]) - len(b.documents) - x.chatFiles[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org]})
+		x.uploads[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org]})
 	return out, nil
 }
 
@@ -385,7 +442,8 @@ type clinical struct {
 // holdsOf names the counts holds takes, in its order.
 var holdsOf = []string{
 	"consent", "appointment (the cancelled ones too)", "visit record (Encounter)", "signed document (its PDF in files/)",
-	"submitted questionnaire answer", "file you uploaded with your answers (in files/)", "receipt", "quote (quotes.json)",
+	"submitted questionnaire answer", "file you uploaded with your answers (in files/)", "receipt (its PDF in files/)",
+	"quote (quotes.json, its PDF in files/)",
 	"chat conversation (chat.json)", "file of the chat (in files/)",
 }
 

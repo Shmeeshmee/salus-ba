@@ -428,6 +428,15 @@ func TestMine_ListsTheCallingPatientsConsentsAndAuditsEach(t *testing.T) {
 		event(me, auditevent.CodeSearchType, consentAB, auditevent.OutcomeSuccess))
 }
 
+func TestMineAt_NarrowsToTheClinicAndAuditsOnlyItsConsents(t *testing.T) {
+	f := newFixture()
+	got, err := f.svc.MineAt(t.Context(), me, clinicB)
+	if err != nil || len(got) != 1 || got[0].ID != consentAB {
+		t.Fatalf("MineAt(clinic B) = %+v, %v; want consent A-B alone", got, err)
+	}
+	checkEvents(t, "MineAt", f.audit, event(me, auditevent.CodeSearchType, consentAB, auditevent.OutcomeSuccess))
+}
+
 func TestMine_IsEmptyWithoutConsentsOrAProfileAndAuditsOneEvent(t *testing.T) {
 	for _, c := range []consent.Caller{other, noProf} {
 		f := newFixture()

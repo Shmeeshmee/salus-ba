@@ -5,5 +5,5 @@
 النوع: {{if eq .Kind "access"}}الوصول{{else if eq .Kind "portability"}}قابلية النقل{{else if eq .Kind "rectification"}}التصحيح{{else if eq .Kind "restriction"}}التقييد{{else if eq .Kind "objection"}}الاعتراض{{else if eq .Kind "erasure"}}المحو{{end}}
 الطلب: {{.Request}}
 
-{{if .Link}}لمعالجته، سجّل الدخول إلى Salus:
+{{if .NoAdminClinic}}لا يوجد لدى العيادة {{.NoAdminClinic}} مسؤول للرد على الطلب: اطلب من العيادة تعيين مسؤول قبل الموعد النهائي.{{else if .Link}}لمعالجته، سجّل الدخول إلى Salus:
 {{.Link}}{{else}}لمعالجته: salusctl datarequest show {{.Request}}{{end}}

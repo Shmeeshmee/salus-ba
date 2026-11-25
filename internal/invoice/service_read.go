@@ -123,6 +123,11 @@ func (s *Service) OfClinicPatient(ctx context.Context, c Caller, patientID strin
 // Mine returns a patient's own receipts, from every clinic, newest first (GET /me/receipts). ErrForbidden, audited,
 // to staff and to an account without a patient profile.
 func (s *Service) Mine(ctx context.Context, c Caller) ([]Invoice, error) {
+	return s.MineAt(ctx, c, "")
+}
+
+// MineAt is Mine narrowed to the clinic org when org is set (a clinic-target export, docs/clinic-cms/WAVE6.md PX).
+func (s *Service) MineAt(ctx context.Context, c Caller, org string) ([]Invoice, error) {
 	if c.OrganizationID != "" || c.PatientID == "" {
 		return nil, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
 	}
@@ -131,9 +136,14 @@ func (s *Service) Mine(ctx context.Context, c Caller) ([]Invoice, error) {
 		if err := s.p.Repo.SetPatient(ctx, c.PatientID); err != nil {
 			return err
 		}
-		var err error
-		if out, err = s.p.Repo.OfPatient(ctx, c.PatientID); err != nil {
+		all, err := s.p.Repo.OfPatient(ctx, c.PatientID)
+		if err != nil {
 			return err
+		}
+		for _, i := range all {
+			if org == "" || i.OrganizationID == org {
+				out = append(out, i)
+			}
 		}
 		return s.p.Audit.Record(ctx, event(c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess))
 	})

@@ -1,0 +1,8 @@
+Subject: A data subject request is due in 7 days
+
+A data subject request is due on Thursday 24 December 2026, 23:59 (Europe/Sarajevo), in 7 days.
+
+Kind: Erasure
+Request: 00000000-0000-4000-8000-0000000000f1
+
+The clinic c0000000-0000-4000-8000-0000000000ff has no admin to answer it: ask the clinic to name one before the due date.

@@ -38,6 +38,9 @@ type letter struct {
 	// names it) and the days left; When is its deadline.
 	Request string
 	Kind    string
+	// NoAdminClinic is the opaque id of the clinic whose request the operator is warned of because it has no admin
+	// (docs/clinic-cms/WAVE6.md PX).
+	NoAdminClinic string
 	// Address is where the patient comes for an in-person visit, the clinic's on one line ("" for a video visit and a
 	// clinic without one); InPerson is set for an in-person visit (docs/plans/clinic-cms.md, ADR 0016).
 	Address string

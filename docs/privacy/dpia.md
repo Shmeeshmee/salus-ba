@@ -3062,3 +3062,24 @@ consents.
 | The widened scope shows more than the requests' patients | The policy holds only with the setting on and only for a patient a request targeting the scope's clinic names; tested against another clinic and with the setting off and off again (`TestRequestSubject_TheClinicsScopeWidenedToItsRequests`) |
 | `data_request_names_patient` as a probe | It answers one yes or no about two opaque ids to the server's own role (as 00076 and 00078) |
 | A restricted patient's name on the admin's queue | Intended (S7, owner 2026-11-25): listed in `restrictedOpenings` of the restriction route test; every other route still returns nothing of a restricted patient |
+
+### Package PX: privacy follow-ups (no migration, docs/clinic-cms/WAVE6.md PX)
+
+**Processing changed.** Four follow-ups of the data subject rights (wave 5), no new personal-data field.
+
+- **The export's receipts and quotes as PDFs.** Each part of the patient's export now holds the PDF of each receipt and
+  quote (`files/<Invoice id>.pdf`, `files/<quote id>.pdf`), rendered by `invoice.PDF` and `invoice.QuotePDF` as the
+  patient, each audited as a read with the request's id, the same documents the app downloads. The worker's invoice
+  service reads the clinic's letterhead (`organization.Clinic`: name, time zone, language; no personal data).
+- **A clinic target reads that clinic only.** `consent.MineAt`, `invoice.MineAt` and `invoice.MyQuotesAt` narrow the
+  patient's own consents, receipts and quotes to the target clinic in the service, so the other clinics' rows are
+  neither returned nor (for consents, audited one by one) audited as read for that export.
+- **A file the build cannot open** (a rotated key, a missing object) is left out and named in `manifest.txt` by its
+  archive path (an opaque id), and the rest of the archive is built: the patient gets their other data and knows what
+  is missing, instead of a failed export. Nothing about the file but its path is written.
+- **The closure's password** is limited as the login is: 5 wrong passwords per account in 15 minutes, then 429
+  `rate_limited` without checking it. The counter is a Redis key named by the HMAC of the account's opaque id
+  (`close:account:`), with the window as its TTL.
+- **A clinic with no admin.** A deadline warning (D5) for a clinic target whose clinic has no admin goes to the operator
+  instead, naming the clinic and the request by their opaque ids, the kind, the due date and the days left: never the
+  patient. Without an operator address nobody is warned, and the worker logs the ids, as before.

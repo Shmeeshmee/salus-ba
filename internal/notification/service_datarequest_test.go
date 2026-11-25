@@ -155,3 +155,30 @@ func TestSendDataRequestDeadline_InEveryLanguage(t *testing.T) {
 	}
 	golden(t, "hr/data_request_deadline_clinic.txt", mail(sender.sent[0]))
 }
+
+// A clinic target whose clinic has no admin goes to the operator instead, in the operator's language, naming the
+// clinic by its opaque id (docs/clinic-cms/WAVE6.md PX); without an operator address nobody is warned, as before.
+func TestSendDataRequestDeadline_AClinicWithoutAnAdminWarnsTheOperator(t *testing.T) {
+	const orphan = "c0000000-0000-4000-8000-0000000000ff"
+	for _, lang := range languages {
+		sender := &fakeSender{}
+		svc := notification.NewService(notification.Ports{Sender: sender, Admins: &fakeAdmins{}, WebBaseURL: "https://app.example.test",
+			OperatorEmail: "operator@example.test", OperatorLanguage: lang})
+		n, err := svc.SendDataRequestDeadline(t.Context(), deadlineWarning(t, orphan, 7))
+		if n != 1 || err != nil || len(sender.sent) != 1 || sender.sent[0].To != "operator@example.test" {
+			t.Fatalf("%s: sent %d (%v) to %+v, want the operator", lang, n, err, sender.sent)
+		}
+		m := sender.sent[0]
+		if !strings.Contains(m.Body, orphan) || strings.Contains(m.Body, "salusctl datarequest show") ||
+			strings.Contains(m.Body, "https://app.example.test") || strings.Contains(m.Subject+m.Body, "<no value>") {
+			t.Errorf("%s: the operator's e-mail does not name the clinic alone:\n%s", lang, mail(m))
+		}
+		if lang == "en" {
+			golden(t, "en/data_request_deadline_no_admin.txt", mail(m))
+		}
+	}
+	svc := notification.NewService(notification.Ports{Sender: &fakeSender{}, Admins: &fakeAdmins{}})
+	if n, err := svc.SendDataRequestDeadline(t.Context(), deadlineWarning(t, orphan, 7)); n != 0 || err != nil {
+		t.Errorf("no operator address: %d, %v; want none sent, no error", n, err)
+	}
+}
