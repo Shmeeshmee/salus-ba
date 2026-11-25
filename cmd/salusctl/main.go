@@ -14,6 +14,7 @@
 //	salusctl subscription plan|start-trial|mark-paid|status ...   the clinics' membership (subscription.go)
 //	salusctl signup list|approve <organization-id>                the clinics that signed themselves up (signup.go)
 //	salusctl datarequest list|show|answer|extend|reopen-account ... the data requests to the account (datarequest.go)
+//	salusctl demo-seed [-api <url>]                               the demo clinic on a fresh development stack (demo.go)
 //
 // It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
@@ -28,6 +29,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
@@ -45,7 +50,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
-const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status | signup list|approve | datarequest list|show|answer|extend|reopen-account"
+const usage = "usage: salusctl create-clinic -name <name> -admin-email <e-mail> | reset-mfa <account-id> | term-reviewer grant|revoke <account-id> | terminology import|export | document-templates seed | conditions unconfirmed | trends build <period> | subscription plan|start-trial|mark-paid|status | signup list|approve | datarequest list|show|answer|extend|reopen-account | demo-seed"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -69,6 +74,8 @@ type services struct {
 	members    *subscription.Service
 	signups    *signup.Service // create-clinic's one path, and the signups' approval
 	operator   *datarequest.Operator
+	pool       *pgxpool.Pool         // the owner's, for demo-seed (demo.go)
+	jobs       *river.Client[pgx.Tx] // the job inserter, for demo-seed
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
@@ -91,7 +98,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	s := services{
-		tx:      tx,
+		tx: tx, pool: pool, jobs: jobs,
 		clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil),
 		accounts: auth.NewService(auth.Ports{
 			Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Jobs: auth.NewRiverJobs(jobs),
@@ -133,6 +140,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return s.signupCommand(ctx, args[1:], stdout)
 	case "datarequest":
 		return s.dataRequestCommand(ctx, args[1:], stdout)
+	case "demo-seed":
+		return s.demoSeedCommand(ctx, args[1:], stdout)
 	case "term-reviewer":
 		return s.termReviewer(ctx, args[1:], stdout)
 	case "reset-mfa":

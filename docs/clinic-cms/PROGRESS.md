@@ -4271,7 +4271,72 @@ Planned 2026-11-25 (`WAVE7.md`).
 
 ## RD5: the demo
 
-Planned 2026-11-25 (`WAVE7.md`).
+Done 2026-11-25 in the worktree `wt/cms/RD5` (compose project `salus-cms-rd5`, `SALUS_IMAGE_TAG=cms-rd5`), from
+`WAVE7.md` RD5. No Jira, no migration, no new user-facing string in any app.
+
+**Built:**
+
+- **`make demo-seed`** (`Makefile`): `make up`, then `salusctl demo-seed` in the tools container with `SALUS_ENV=dev`.
+  About 30 s on a fresh stack. It fills "Poliklinika Primjer (demo)": two locations (Sarajevo, three rooms and an ECG
+  device; Tuzla, two rooms), four practitioners with specialties and weekly hours at a location and room (three with
+  evening video hours; every weekday has someone's hours), a receptionist, nine services (one inactive), sixty patients
+  (five app accounts with profile and consent, fifty-five registered at the desk with consent in person), about 490
+  visits over eight weeks in every state (fulfilled, no-show, cancelled by patient and by clinic, booked, one arrived
+  today), about 170 receipts and one reversal, two quotes, a released blood count, a booked three-step treatment plan, a
+  published questionnaire with branching (one response submitted on the branch, one waiting), a chat, two data requests
+  (an access request that Salus fulfils itself, a rectification left open), chat hours, the setup marked done, and the
+  membership past its trial with this month's invoice. The patients who own each item are fixed (SCRIPT.md names them).
+- **How it writes:** through the running api as its users do (`cmd/salusctl/demo_http.go`: bearer tokens, the patient
+  app's way), so every guard, trigger, audit record and receipt rule applies. Staff accept their invites and confirm a
+  TOTP code; patients register, log in, save their profile and consent. On the owner's connection, through services as
+  the other salusctl commands do: the default plan when none exists (`PutPlan`, placeholder price 2.00 BAM, name
+  "Demo (placeholder price)"), the clinic (`signup.CreateClinic`, as create-clinic), invite tokens
+  (`auth.IssueInviteToken`, retried for up to a minute because the invite e-mail's job issues its own token and replaces
+  the earlier one), slot generation (`slot.Service.Generate`, retried in case it races the worker) and the invoice
+  (`subscription.IssueMonthly`, as the monthly job). Plain SQL (`demo_sql.go`) is used only where nothing else works:
+  reading whether the database is fresh, reading role, schedule and free-slot ids, moving a booked visit four weeks back
+  (the api books only ahead; the owner's connection is the only one appointment_guard_change lets move a visit), and
+  ending the trial before this month (a new clinic is in its trial, and IssueMonthly invoices only after it).
+- **Refused outside development:** `config.IsDev` (new file `internal/config/config_demo.go`: `SALUS_ENV` exactly `dev`,
+  which compose sets and production's env file does not) and a database with no clinic but the demo clinic. Every
+  production or staging database has clinics, so it is refused whatever `SALUS_ENV` says. A partial demo clinic (no
+  invoice yet, the seed's last write) is refused with "stopped partway". On its own complete clinic it prints "nothing
+  changed" and the sign-in sheet without TOTP secrets.
+- **`docs/demo/SCRIPT.md`**: the fifteen-minute walkthrough (front desk, a visit, the receipt, online hours, the patient
+  app, the numbers), a sign-in per step, thirteen screenshots at 1280 px (`docs/demo/screenshots/`, Bosnian UI), and
+  three questions for the clinic. The patient-app step has no screenshots; it is shown live on an emulator.
+  `docs/demo/screenshots.sh` with `screenshots.spec.ts` and `playwright.config.ts` retakes them in the playwright container.
+
+**Tests** (`cmd/salusctl/demo_test.go`, `internal/config/config_demo_test.go`): refused outside dev (three values, no row
+written); refused on a database with another clinic, with a partial demo clinic, and with the demo clinic and another
+one; the full seed against `api.New` on a throwaway database with row-level security (salus_app) behind
+`httptest.Server`, checking 29 counts (every item above), then a second run that leaves the row counts and the audit
+trail unchanged; a refused call's error names only the route and the api's code, never the query or the body; the
+arrival choice (next one ahead, the last one that began late in the day, a spare slot, none); rune padding of the sheet.
+`cmd/salusctl` coverage 83 %.
+
+**Readings and decisions:**
+
+- Test first was not kept for the seed: the code was written ahead of `TestDemoSeed_FillsAFreshStackOnce` and the guard
+  tests, then driven to green against them; `TestIsDev`, the refusal-message test and the arrival test came first.
+- The seed prints the TOTP secrets of the accounts it made (synthetic, dev only) because the owner must sign in. It
+  breaks salusctl's "opaque ids only" convention, on purpose and only for this command.
+- Receipts carry the seed's own time: fiscal receipts are append-only and numbered at issue, so they are not backdated.
+  The desk's arrival time is the time of the seed. A seed late in the day shows an earlier visit as arrived at that time;
+  SCRIPT.md says to seed on the morning of the demo.
+- Staff accounts use Bosnian (`bs`); demo data is in Bosnian, with "(primjer)" on clinical wording.
+- The quote is sent by the visit's practitioner: the api refuses quotes from the desk and quotes without a visit.
+- Seen on the walk, outside this package: on the price list, the "Nije u ponudi" badge of an inactive service is drawn
+  as a tall pill (`0-price-list.png`); for RD3 or RD6.
+
+**Checks:** fast layer passed (`cmd/*`, `internal/api`, `internal/config` tests); golangci-lint on the changed packages
+0 issues; `make demo-seed` twice on this stack (counts and audit trail the same after the second run); screenshots
+taken with `docs/demo/screenshots.sh`. Full check set (`runner.sh full web`: sets go and web, `make gen-clients` no
+diff, lint, test, archcheck, cover, i18n-check, web-lint, web-typecheck, web-test): passed on the first run. Afterwards
+only the seed test's check that the second run prints no secret was tightened (test-only), and passed in the fast layer.
+
+**Deferred:** document templates are not seeded (`make document-templates-seed clinic=<id>` adds them); the seed does
+not run a video consultation (no transcript or recording in the demo).
 
 ## RD6: wave 6 leftovers
 
