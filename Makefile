@@ -13,7 +13,6 @@ TOOL    := go tool -modfile=tools/go.mod
 NODE    := $(COMPOSE) run --rm -T node
 FLUTTER := $(COMPOSE) run --rm -T flutter
 LANDING := $(COMPOSE) run --rm -T -w /src/landing node
-E2E     := $(COMPOSE) run --rm -T playwright
 
 # The services the Go tests reach (the tools service's depends_on), and the tests themselves.
 TEST_SERVICES := postgres redis mailpit mailpit-starttls mailpit-tls livekit objectstore clamd
@@ -25,11 +24,17 @@ TEST_PACKAGES ?= 8
 GO_TEST        = go test -p $(TEST_PACKAGES) $(TESTFLAGS) ./... && go -C tools test -p $(TEST_PACKAGES) $(TESTFLAGS) ./...
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
-.PHONY: test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-reminders bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate arch-gate-stack arch-gate-checks e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
+.PHONY: check test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-reminders bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate arch-gate-stack arch-gate-checks e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
 	terminology-fetch terminology-import terminology-export document-templates-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
 	deploy-check
+
+## check [BASE=<rev>] [SETS=e2e,...]: exactly the plans' check sets (go, web, mobile, landing, e2e) that the files
+## changed since BASE (default: the merge base with origin/main; uncommitted and untracked files included) select,
+## plus the sets SETS names (scripts/check.sh; `bash scripts/check.sh --dry-run` prints them without running)
+check:
+	bash scripts/check.sh $(if $(BASE),--base $(BASE)) $(if $(SETS),--sets $(SETS))
 
 ## test: Go tests of both modules against the compose Postgres and Redis (TESTFLAGS="-run X -count=1")
 test: tools-image
@@ -193,34 +198,30 @@ arch-gate-checks:
 	$(GO_NODEPS) go vet ./...
 	$(GO_NODEPS) sh -c '$(GO_TEST)'
 
-## e2e: start the stack and run the end-to-end tests against it in the playwright service, on the compose network:
-## the Go journeys (the API, Mailpit's API, salusctl built here on the owner's DATABASE_URL, LiveKit), the web
-## journey in Chromium that the consultation journey starts (test/e2e/web), then the check that LiveKit's log
-## holds none of the run's synthetic names, e-mails and ids. Each run first clears the login rate-limit counters
-## (ratelimit:*) in the compose Redis, and each Go journey clears them again before it signs in (clearLoginLimits):
-## every sign-in comes from one IP, and a run signs in more often than the production limit of 30 per 15 minutes
-## allows. The limit itself is unchanged.
-## The stack runs with deployments/docker-compose.e2e.yml on top: the fake engines play the scripted conversations
-## of test/testdata/consult (SAL-10), and the consultation pipeline's latency report is written to
-## /e2e/consult-latency.md (make e2e-report prints it). A later `make up` puts the plain fakes back.
-e2e: e2e-up web-install e2e-install
-	$(COMPOSE) exec -T redis sh -c "redis-cli --scan --pattern 'ratelimit:*' | xargs -r redis-cli del >/dev/null"
-	$(E2E) sh -c 'rm -f /e2e/livekit-check.tsv /e2e/consult-latency.md && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
-	$(COMPOSE) logs --no-color --no-log-prefix livekit | $(E2E) bash scripts/e2e-livekit-log.sh /e2e/livekit-check.tsv
-	$(E2E) cat /e2e/consult-latency.md
+## e2e: the end-to-end tests in the playwright service, on a fresh compose project of their own
+## (<project>-e2e, scripts/e2e.sh): the Go journeys (the API, Mailpit's API, salusctl built here on the owner's
+## DATABASE_URL, LiveKit), the web journey in Chromium that the consultation journey starts (test/e2e/web), then the
+## check that LiveKit's log holds none of the run's synthetic names, e-mails and ids. The project's Postgres and
+## object store volumes are removed before and after the run; the dev stack and its data are never touched, and its
+## ports stay free (the e2e project publishes none). The fake engines play the scripted conversations of
+## test/testdata/consult (deployments/docker-compose.e2e.yml, SAL-10), and the consultation pipeline's latency report
+## is written to /e2e/consult-latency.md (make e2e-report prints it).
+e2e: web-install e2e-install
+	bash scripts/e2e.sh
 
 ## e2e-up: the stack as make e2e runs it (make up with the scripted fake engines)
 e2e-up:
 	$(COMPOSE) -f deployments/docker-compose.e2e.yml up -d --build --wait --remove-orphans
 
-## e2e-report: print the last make e2e's latency report of the consultation pipeline (Markdown)
+## e2e-report: print the last make e2e's latency report of the consultation pipeline (Markdown), from the e2e
+## project's e2e volume
 e2e-report:
-	$(E2E) cat /e2e/consult-latency.md
+	bash scripts/e2e.sh report
 
 ## e2e-install: the e2e image, and npm ci in test/e2e/web, only when package.json or the lockfile changed
 e2e-install: e2e-image test/e2e/web/node_modules/.package-lock.json
 test/e2e/web/node_modules/.package-lock.json: test/e2e/web/package.json test/e2e/web/package-lock.json
-	$(COMPOSE) run --rm -T -w /src/test/e2e/web playwright npm ci
+	$(COMPOSE) run --rm --no-deps -T -w /src/test/e2e/web playwright npm ci
 
 ## e2e-image: build the end-to-end runner image, Playwright with the Go toolchain (cached)
 e2e-image:

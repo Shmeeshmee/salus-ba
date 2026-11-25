@@ -3103,3 +3103,48 @@ was not captured; the full `make test` before it passed). `web`: `make web-lint`
 `desk.patient.born`, `desk.patient.phone`, `desk.patient.noPhone`, `desk.patient.consentActive`,
 `desk.patient.consentNone`, `desk.patient.requestTitle`, `desk.patient.requestHint` [legal], `desk.patient.requestKind`,
 `desk.patient.fileRequest`, `desk.patient.requestFiled`, `desk.patient.requestFailed`.
+
+## BG3: tooling (wave 6, 2026-11-25)
+
+Done 2026-11-25 on `wt/cms/BG3` from `fa77c488`. Nothing under `internal/`, `web/` or `mobile/`; no migration.
+
+**Built.**
+
+- **Ports per worktree** (R3's report: `runner.sh start` gave cms-R3 the ports of cms-R1). The cause: a new worktree
+  skipped only the ports listening on the host, so a worktree whose stack was down lost its slot to the next one whose
+  name hashed to it. `runner.sh env` now also skips every port named in another checkout's `deployments/.env`
+  (`git worktree list`, the main checkout included), whether or not that stack runs; a worktree whose ports another
+  checkout already names (written before this fix) moves to a free slot, and the other keeps its own. UDP listeners
+  count too (LiveKit's media port). `runner.sh start` refuses to begin while one of the worktree's ports is held by
+  anything but its own compose project's containers, and names the port. Tested by `scripts/runner.test.sh` (two
+  names of one slot, a stack that is down, a rerun, a legacy duplicate, a taken port, the refusal and its own stack).
+- **`make e2e` on its own project** (`scripts/e2e.sh`): `<project>-e2e` (`salus-e2e` in the main checkout), with
+  `deployments/docker-compose.e2e-run.yml` on top, which publishes no host ports, so it runs beside the dev stack. Its
+  Postgres and object store volumes are removed before the run and after it, pass or fail; on a failure the stack's
+  last 200 log lines are printed first. Two volumes stay: `clamav` (the signatures, a cache, no personal data: a fresh
+  one downloads them again on every run) and `e2e` (the run's output, which `make e2e-report` now reads with
+  `scripts/e2e.sh report`). `e2e-install` runs `npm ci` with `--no-deps`, so it no longer starts the dev project's
+  services. Tested by `scripts/e2e.test.sh` (fake docker: every call on the e2e project, the volumes removed before
+  and after, only those, also when a journey fails).
+- **`make check`** (`scripts/check.sh`): exactly the plan's check sets that the change's files select (`go` by the
+  paths of `.github/workflows/go.yml`, `web`, `mobile`, `landing`, `e2e` for `test/e2e/`), from `BASE` (default the
+  merge base with `origin/main`) with uncommitted and untracked files, plus `SETS=`; `--dry-run` prints the plan.
+  The `go` set checks that `make gen-clients` leaves the generated clients as they were, and adds `fhir-validate`
+  when a golden FHIR file changed. `runner.sh full [sets]` runs it from the session's start commit, so every package
+  runs the same thing; this drops `web-build` from the runner's full layer (not in the plan's `web` set) and adds
+  `cover`, `i18n-check` and the clients' diff. Documented in CLAUDE.md "Checks" and the package-runner's "Full".
+  Tested by `scripts/check.test.sh`. `scripts/lint.sh` runs the three new tests.
+
+**Readings.** CLAUDE.md has no "Commands" section; `make check` is documented in "Checks", where the other targets
+are. The e2e set is selected by `test/e2e/` only; a package whose row names `e2e` passes `SETS=e2e` (`runner.sh full
+e2e`). CI's e2e job still prints `docker compose logs` of the default project on failure, which is now empty: the
+script prints the e2e project's logs itself (`.github/` is outside this package).
+
+**Test first.** Red before green: `runner.test.sh` (two worktrees of one slot shared 21980; a legacy duplicate kept;
+`start` ran with a port held), `e2e.test.sh` and `check.test.sh` (no script yet).
+
+**Checks.** `go`, through the new `make check` itself (`runner.sh full`): `make gen-clients` left the clients as they
+were, `make lint` (0 issues, the four shell tests ok), `make test`, `make archcheck`, `make cover` (90.0% total, every
+package at 80% or more), `make i18n-check`: passed. `make e2e` on its own project `salus-cms-bg3-e2e`, run beside the
+worktree's test stack: passed, its containers, network and data volumes removed afterwards; `make e2e-report` read
+the report from the kept `e2e` volume. shellcheck over the new scripts: two info notes, no warnings.

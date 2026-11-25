@@ -11,7 +11,7 @@
 #   runner.sh wait <name> [min]        wait for a bg command (default 10 min); on timeout kill it, exit 124
 #   runner.sh check <name> [min] -- cmd   run a check in the foreground with a timeout; one rerun at most per tree
 #   runner.sh fast                     the fast layer: only what the package's diff touches
-#   runner.sh full                     the full check set, once, at the end of the package
+#   runner.sh full [sets]              make check (the plan's check sets for the diff, plus sets), once, at the end
 #   runner.sh cleanup                  kill what the session started, stop the stack services it started
 #   runner.sh report                   the TIMINGS, FLAKY and CLEANUP lines for the report
 #   runner.sh gate                     the Stop hook: scripts/stop-gate.sh (exit 2 only on a failing check), unless this tree already passed
@@ -33,27 +33,52 @@ session_id() { echo "${RUNNER_SESSION:-${CLAUDE_CODE_SESSION_ID:-manual}}"; }
 cmd_string() { if [ $# -eq 1 ]; then printf '%s' "$1"; else printf '%q ' "$@"; fi; }
 
 # A worktree gets its own compose project and ports; the main checkout keeps `salus` and the defaults.
-# Ports: 20000 + slot*20 + offset, the slot (10..99) from the worktree's name. Keys already set in
-# deployments/.env outside the managed block win.
+# Ports: 20000 + slot*20 + offset, eight of them, the slot (10..99) from the worktree's name. Two worktrees never
+# share one: a slot is skipped when any of its ports is named in another checkout's deployments/.env (whether or not
+# that stack is running) or is listening on the host. Keys already set in deployments/.env outside the managed block
+# win.
+port_offsets=(0 1 2 3 4 5 6 7)
+# The ports the other checkouts of this repository (the main one included) have in their deployments/.env.
+reserved_ports() {
+  local wt
+  git worktree list --porcelain | sed -n 's/^worktree //p' | while read -r wt; do
+    [ "$wt" = "$root" ] && continue
+    sed -n 's/^SALUS_[A-Z_]*_PORT=\([0-9][0-9]*\).*/\1/p' "$wt/deployments/.env" 2>/dev/null || true
+  done | sort -u
+}
+listening_ports() { { ss -Htln; ss -Huln; } 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u; }
+# slot_taken <base> <ports>: whether any of the slot's eight ports is in the list.
+slot_taken() {
+  local o
+  for o in "${port_offsets[@]}"; do grep -qx "$(( $1 + o ))" <<<"$2" && return 0; done
+  return 1
+}
+
 cmd_env() {
   local envf=deployments/.env begin="# >>> runner.sh env (generated; do not edit)" end="# <<< runner.sh env"
   if [ "$(git rev-parse --path-format=absolute --git-dir)" = "$GIT_COMMON_DIR" ]; then
     echo "main checkout: compose project salus, default ports"; return
   fi
-  local name slot base project
+  local name slot base project reserved
   name=$(basename "$root")
   project=$(tr '[:upper:]' '[:lower:]' <<<"$name" | tr -c 'a-z0-9_\n-' '-')
-  # Ports already given to this worktree stay; a new worktree takes the first slot from its name's hash whose
-  # eight ports are free on the host.
+  reserved=$(reserved_ports)
+  # Ports already given to this worktree stay, unless another checkout names one of them (two worktrees given the
+  # same slot before reserved_ports existed): then this one moves.
   base=$( [ -f "$envf" ] && awk -v b="$begin" -v e="$end" '$0 == b { s = 1; next } $0 == e { s = 0 } s' "$envf" |
     sed -n 's/^SALUS_API_PORT=//p' || true)
+  if [ -n "$base" ] && slot_taken "$base" "$reserved"; then
+    echo "runner: ports $base-$((base + 7)) are also another worktree's; moving this worktree" >&2
+    base=""
+  fi
   if [ -z "$base" ]; then
     local used i
-    used=$(ss -Htln 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -u)
+    used=$(sort -u <<<"$reserved"$'\n'"$(listening_ports)")
     slot=$(( $(cksum <<<"$name" | cut -d' ' -f1) % 90 ))
     for i in $(seq 0 89); do
       base=$(( 20000 + ((slot + i) % 90 + 10) * 20 ))
-      grep -qxE "$base|$((base + 1))|$((base + 2))|$((base + 3))|$((base + 4))|$((base + 5))|$((base + 6))|$((base + 7))" <<<"$used" || break
+      slot_taken "$base" "$used" || break
+      [ "$i" -lt 89 ] || die "no free slot of eight ports in 20200-21999"
     done
   fi
   local -a kv=("COMPOSE_PROJECT_NAME=$project" "SALUS_API_PORT=$base" "SALUS_LIVEKIT_PORT=$((base + 1))"
@@ -73,6 +98,22 @@ cmd_env() {
   echo "worktree: $(awk -v b="$begin" -v e="$end" '$0 == b { s = 1; next } $0 == e { s = 0 } s' "$envf" | paste -sd' ')"
 }
 
+# ports_free: a worktree does not start while one of its ports (deployments/.env) is held by anything but its own
+# compose project's containers: its stack would fail to start, or its checks would reach another stack.
+ports_free() {
+  [ "$(git rev-parse --path-format=absolute --git-dir)" = "$GIT_COMMON_DIR" ] && return 0
+  local project mine held p
+  project=$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' deployments/.env | tail -n 1)
+  mine=$(docker ps --filter "label=com.docker.compose.project=$project" --format '{{.Ports}}' 2>/dev/null |
+    grep -oE ':[0-9]+->' | sed 's/[^0-9]//g' | sort -u || true)
+  held=$(listening_ports)
+  for p in $(sed -n 's/^SALUS_[A-Z_]*_PORT=\([0-9][0-9]*\).*/\1/p' deployments/.env); do
+    if grep -qx "$p" <<<"$held" && ! grep -qx "$p" <<<"$mine"; then
+      die "port $p (deployments/.env) is in use by something other than this worktree's stack ($project); free it or set another SALUS_*_PORT in deployments/.env outside the managed block"
+    fi
+  done
+}
+
 running_services() { { "${compose[@]}" ps --status running --services 2>/dev/null || true; } | grep -v '^$' | sort || true; }
 
 cmd_start() {
@@ -80,12 +121,13 @@ cmd_start() {
   if [ -f "$state/key" ] && [ "$(cat "$state/key")" = "$key" ]; then
     echo "session $id already started $(minutes "$(cat "$state/start")" "$(now)") min ago"; return
   fi
+  cmd_env
+  ports_free
   rm -rf "$state"; mkdir -p "$state"
   echo "$id" > "$state/session"
   echo "$key" > "$state/key"
   now > "$state/start"
   git rev-parse HEAD > "$state/head"
-  cmd_env
   running_services > "$state/services.before"
   : > "$state/checks"
   echo "$(now) start" > "$state/phases"
@@ -232,18 +274,13 @@ cmd_fast() {
   return "$worst"
 }
 
-# The full set, once: the Go checks always, the apps' checks when the package touched them. The plan's own check
-# set, when it names more, is run with `check` by name.
+# The full set, once: make check (scripts/check.sh), the plan's check sets that the package's files select, measured
+# from the commit the session started on; `full e2e` adds a set the package's row names.
 cmd_full() {
   need_state
-  local files targets="lint test archcheck"
-  files=$(changed_files)
-  grep -q '^web/' <<<"$files" && targets="$targets web-lint web-typecheck web-test web-build"
-  grep -q '^landing/' <<<"$files" && targets="$targets landing-lint landing-typecheck landing-test landing-build"
-  grep -q '^mobile/' <<<"$files" && targets="$targets mobile-analyze mobile-test"
-  grep -q '^api/openapi.yaml' <<<"$files" && targets="gen-clients $targets"
-  echo "full: make $targets"
-  cmd_check full 20 -- "make $targets"
+  local sets=${1:-}
+  bash scripts/check.sh --dry-run --base "$(cat "$state/head")" ${sets:+--sets "$sets"}
+  cmd_check full 20 -- bash scripts/check.sh --base "$(cat "$state/head")" ${sets:+--sets "$sets"}
 }
 
 # Processes of this session: the session id in their environment (RUNNER_SESSION, set by run-feature.sh and bg,
@@ -338,7 +375,7 @@ case "$sub" in
   wait) cmd_wait "$@" ;;
   check) cmd_check "$@" ;;
   fast) cmd_fast ;;
-  full) cmd_full ;;
+  full) cmd_full "$@" ;;
   cleanup) cmd_cleanup ;;
   report) cmd_report ;;
   gate) cmd_gate ;;
