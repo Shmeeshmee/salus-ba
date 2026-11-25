@@ -3767,6 +3767,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'To ask for your account to be reopened within 21 days, write to {email}.'**
   String accountClosedReopen(String email);
+
+  /// Clinic system, package LB2: home button and screen title of the patient's released lab results.
+  ///
+  /// In en, this message translates to:
+  /// **'My lab results'**
+  String get myLabResults;
+
+  /// Clinic system, package LB2: above the patient's lab results; only results a practitioner released are shown. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Lab results your practitioner reviewed and released to you. Ask your practitioner what they mean for you.'**
+  String get labResultsIntro;
+
+  /// Clinic system, package LB2: the patient has no released lab results.
+  ///
+  /// In en, this message translates to:
+  /// **'You have no lab results yet.'**
+  String get noLabResults;
+
+  /// Clinic system, package LB2: the day the lab's sample was taken; a long date.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample taken on {date}'**
+  String labResultSampleDate(String date);
+
+  /// Clinic system, package LB2: the day a practitioner released the result to the patient; a long date.
+  ///
+  /// In en, this message translates to:
+  /// **'Released on {date}'**
+  String labResultReleasedOn(String date);
+
+  /// Clinic system, package LB2: one typed-in value; the test's name as the lab prints it, and the value (a number with its UCUM unit, or a text).
+  ///
+  /// In en, this message translates to:
+  /// **'{test}: {value}'**
+  String labResultValue(String test, String value);
+
+  /// Clinic system, package LB2: the value's reference range as the lab printed it.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference range {range}'**
+  String labResultRange(String range);
+
+  /// Clinic system, package LB2: the lab's flag on a value (v3-ObservationInterpretation N, L, H, LL, HH, A).
+  ///
+  /// In en, this message translates to:
+  /// **'{flag, select, N{Normal} L{Low} H{High} LL{Critically low} HH{Critically high} A{Abnormal} other{}}'**
+  String labResultFlag(String flag);
 }
 
 class _AppLocalizationsDelegate

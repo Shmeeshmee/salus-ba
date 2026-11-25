@@ -54,7 +54,7 @@ writes under its own heading here.
 | LB1 | not started (wave 6, second half, after 6.0) | |
 | TP1 | not started (wave 6, second half, after 6.0) | |
 | LC2 | not started (wave 6, second half, after 6.0) | |
-| LB2 | not started (wave 6, second half, after 6.0) | |
+| LB2 | done 2026-11-25 (wave 6, second half) | lab results on the visit page and in the patient app |
 | TP2 | not started (wave 6, second half, after 6.0) | |
 | LC3 | not started (wave 6, second half, after 6.0) | |
 | BG4 | not started (wave 6, second half, after the first half) | |
@@ -3523,7 +3523,55 @@ Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
 
 ## LB2: lab results on the web and in the app
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/LB2`, one commit `cms(LB2)`. No Jira export: built from `WAVE6.md` (U5) and 6.0's
+contract. No Go, no migration: built against 6.0's generated clients with fake APIs in the tests; LB1 serves the routes.
+
+**Built.**
+
+- **Web, the visit page** (`LabResults.tsx`, `LabResultForm.tsx`, `labResultApi.ts`, catalog area `labResults` in the
+  five staff languages). The visit's own practitioner and the clinic's admin see a "Lab results" section (never another
+  practitioner, nor a receptionist: the list is not even read, since the server audits it). Each result shows its title,
+  the sample's day, whether the patient sees it ("Not released" or the day it was released), its values in a table
+  (test, value with its UCUM unit or the text, reference range, flag) and a link to its PDF. "Add a lab result" opens a
+  form: title, sample day, any number of values (up to 100), an optional PDF sent after the result at its new version.
+  A value that reads as a number (comma or point) is sent as `value` with its unit, anything else as `valueText`; a unit
+  with a text value and a half-filled row are refused before the server is asked. A result not yet released takes or
+  replaces its PDF; only the visit's practitioner releases it, after a confirmation that says the patient then sees it
+  and it never changes (tagged `legal`). `version_conflict` and `report_released` reread the list. On a cancelled or
+  no-show visit the results are shown but none is added (as receipts and quotes). At 390 px the values stack one card
+  per row, as the membership invoices do.
+- **Mobile** (`lab_results_screen.dart`, `Booking.labResults`, `labResultPdf`, a "My lab results" button on home,
+  eight strings in all ten languages). The patient's released results from every clinic, each with its sample day,
+  release day, values, range and flag as the lab printed them, and "Save or share the PDF" when there is one. Nothing
+  interprets a value: the flag is the lab's.
+
+**Decisions and readings.** Release is offered to the visit's own practitioner only ("a practitioner who may see the
+visit"; the admin attaches but does not release, as the contract's 403 says). Changing a result's values before release
+(`PUT /clinic/diagnostic-reports/{id}`) has no screen yet: deferred; a mistaken result is fixed before release only
+through the API. The PDF upload passes `Content-Length` as the contract asks; a browser drops the header from script and
+sets it from the file itself.
+
+**Test first.** `LabResults.test.tsx` (12), the new case in `AppointmentDetail.test.tsx`, and
+`mobile/test/lab_results_test.dart` (4) were written first and run red (missing module, missing button). Two existing
+tests changed on purpose: the fulfilled visit's button list in `AppointmentDetail.test.tsx` now starts with "Add a lab
+result"; `NoShows.test.tsx` and `catalog.test.ts` gained the new route's fake and the new area.
+
+**Walk.** No browser tool in this session and LB1's routes not served on this branch: the section was rendered in
+Chromium (Playwright) from a temporary harness page with the fake API, at 1280 and 390 px, in English and Bosnian
+(list, form with two values, release confirmation). First pass: the values table scrolled sideways inside its card at
+390 px; fixed by stacking. No page overflow at either width after it. The harness was removed.
+
+**Checks** (`salus-cms-lb2`): `runner.sh full` (sets web, mobile from the session's start): mobile-analyze, mobile-test
+(705) and web-lint, web-typecheck passed; web-test failed on three existing tests that needed the new fake route and
+catalog area; after the fix `make web-test` 1359 passed. i18n-check passed (inside mobile-analyze).
+
+**Strings for the owner.** Web `labResults.*` (40 keys, five languages; `releaseEffect` legal); mobile `myLabResults`,
+`labResultsIntro` (draft), `noLabResults`, `labResultSampleDate`, `labResultReleasedOn`, `labResultValue`,
+`labResultRange`, `labResultFlag` (ten languages).
+
+**For the integration** (against LB1's server): the list, attach, PDF upload (bytes, `Content-Type`, If-Match, the size
+limit, `invalid_diagnostic_report` for a non-PDF), release and its 403 for an admin; the Vite proxy's `/clinic/` covers
+the routes; the `/me/diagnostic-reports` list hides unreleased results; the PDF link opens with the session cookie.
 
 ## TP2: treatment plans on the web and in the app
 

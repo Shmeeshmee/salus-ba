@@ -265,6 +265,30 @@ class Booking {
     return response.bodyBytes;
   }
 
+  /// The patient's own lab results from every clinic, newest first: only those a practitioner released (docs/clinic-cms,
+  /// package LB2, U5).
+  Future<List<api.DiagnosticReport>> labResults() async {
+    final list = await apiCall(() => api.LabResultsApi(_client).listMyDiagnosticReports());
+    return list ?? const <api.DiagnosticReport>[];
+  }
+
+  /// The lab's PDF of the patient's own released result [id].
+  Future<Uint8List> labResultPdf(String id) async {
+    final response = await apiCall(
+      () => _client.invokeAPI(
+        '/me/diagnostic-reports/${Uri.encodeComponent(id)}/pdf',
+        'GET',
+        const [],
+        null,
+        {'Accept': 'application/pdf'},
+        {},
+        null,
+      ),
+    );
+    if (response.statusCode >= HttpStatus.badRequest) throw ApiFailure.fromBody(response.statusCode, response.body);
+    return response.bodyBytes;
+  }
+
   /// The patient's own treatment quotes from every clinic, newest first (docs/clinic-cms, package X1). Never charged.
   Future<List<api.Quote>> quotes() async {
     final list = await apiCall(() => api.BillingApi(_client).listMyQuotes());

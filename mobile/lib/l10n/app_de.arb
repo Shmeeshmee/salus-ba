@@ -608,5 +608,13 @@
   "closeAccountCopyFirst": "Wenn Sie eine Kopie Ihrer Daten behalten möchten, fordern Sie sie unter Datenschutz an, bevor Sie das Konto schließen: Danach können Sie sich nicht mehr anmelden, um sie herunterzuladen.",
   "closeAccountConfirm": "Geben Sie zur Bestätigung Ihr Passwort ein.",
   "accountClosed": "Ihr Konto ist geschlossen und Sie sind abgemeldet.",
-  "accountClosedReopen": "Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an {email}."
+  "accountClosedReopen": "Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an {email}.",
+  "myLabResults": "Meine Laborbefunde",
+  "labResultsIntro": "Laborbefunde, die Ihre Ärztin oder Ihr Arzt geprüft und für Sie freigegeben hat. Fragen Sie in der Praxis, was sie für Sie bedeuten.",
+  "noLabResults": "Sie haben noch keine Laborbefunde.",
+  "labResultSampleDate": "Probe entnommen am {date}",
+  "labResultReleasedOn": "Freigegeben am {date}",
+  "labResultValue": "{test}: {value}",
+  "labResultRange": "Referenzbereich {range}",
+  "labResultFlag": "{flag, select, N{Normal} L{Niedrig} H{Hoch} LL{Kritisch niedrig} HH{Kritisch hoch} A{Auffällig} other{}}"
 }

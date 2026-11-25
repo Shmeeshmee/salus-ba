@@ -2352,4 +2352,48 @@ class AppLocalizationsFr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Pour demander la réouverture de votre compte dans un délai de 21 jours, écrivez à $email.';
   }
+
+  @override
+  String get myLabResults => 'Mes résultats d’analyses';
+
+  @override
+  String get labResultsIntro =>
+      'Les résultats d’analyses que votre médecin a examinés et mis à votre disposition. Demandez à votre médecin ce qu’ils signifient pour vous.';
+
+  @override
+  String get noLabResults => 'Vous n’avez pas encore de résultats d’analyses.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Prélèvement du $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Mis à disposition le $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test : $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Valeurs de référence $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normal',
+      'L': 'Bas',
+      'H': 'Élevé',
+      'LL': 'Critiquement bas',
+      'HH': 'Critiquement élevé',
+      'A': 'Anormal',
+      'other': '',
+    });
+    return '$_temp0';
+  }
 }

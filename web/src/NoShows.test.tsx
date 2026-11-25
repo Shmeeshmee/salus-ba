@@ -31,6 +31,7 @@ function renderDetail(account: Account, routes: Record<string, Route>, now = () 
     [`GET /appointments/${id}/consultation`]: () => apiError(404, 'not_found'),
     'GET /fhir/R4/QuestionnaireResponse': () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
     [flags]: () => Response.json({ flags: [] }),
+    [`GET /clinic/appointments/${id}/diagnostic-reports`]: () => Response.json([]), // the visit's lab results (LB2)
     ...routes,
   })
   renderInLanguage(<AppointmentDetail api={newApiClient(fake.fetch)} fhir={newFhirClient(fake.fetch)} account={account} id={id} now={now} />, language)

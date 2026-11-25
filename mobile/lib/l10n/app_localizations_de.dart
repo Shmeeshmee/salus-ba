@@ -2354,4 +2354,48 @@ class AppLocalizationsDe extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an $email.';
   }
+
+  @override
+  String get myLabResults => 'Meine Laborbefunde';
+
+  @override
+  String get labResultsIntro =>
+      'Laborbefunde, die Ihre Ärztin oder Ihr Arzt geprüft und für Sie freigegeben hat. Fragen Sie in der Praxis, was sie für Sie bedeuten.';
+
+  @override
+  String get noLabResults => 'Sie haben noch keine Laborbefunde.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Probe entnommen am $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Freigegeben am $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Referenzbereich $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normal',
+      'L': 'Niedrig',
+      'H': 'Hoch',
+      'LL': 'Kritisch niedrig',
+      'HH': 'Kritisch hoch',
+      'A': 'Auffällig',
+      'other': '',
+    });
+    return '$_temp0';
+  }
 }

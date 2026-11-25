@@ -2353,4 +2353,48 @@ class AppLocalizationsHr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Ako želite da Salus ponovno otvori račun u roku od 21 dana, pišite na $email.';
   }
+
+  @override
+  String get myLabResults => 'Moji laboratorijski nalazi';
+
+  @override
+  String get labResultsIntro =>
+      'Laboratorijski nalazi koje je vaš liječnik pregledao i objavio vama. Pitajte svog liječnika što za vas znače.';
+
+  @override
+  String get noLabResults => 'Još nemate laboratorijskih nalaza.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Uzorak uzet $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Objavljeno $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Referentni raspon $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Uredno',
+      'L': 'Nisko',
+      'H': 'Visoko',
+      'LL': 'Kritično nisko',
+      'HH': 'Kritično visoko',
+      'A': 'Odstupa',
+      'other': '',
+    });
+    return '$_temp0';
+  }
 }

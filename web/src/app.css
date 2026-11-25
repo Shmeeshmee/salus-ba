@@ -625,7 +625,7 @@ p.hint.join { margin-bottom: 20px; }
 .membership-invoices { min-width: 0; }
 @media (max-width: 480px) {
   .plain-table { display: block; overflow-x: auto; }
-  /* The membership invoices stack as one card per invoice, each cell under its column's name: no sideways scroll. */
+  /* The membership invoices (and a visit's lab values, LB2) stack as one card per row, each cell under its column's name: no sideways scroll. */
   .plain-table.membership-table { display: table; width: 100%; overflow: visible; }
   .membership-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .membership-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
@@ -702,3 +702,12 @@ p.hint.join { margin-bottom: 20px; }
 .settings-nav a { font-size: 0.875rem; }
 [id^='clinic-'], #reschedule-settings, #noshow-settings { scroll-margin-top: 16px; }
 [id^='clinic-']:focus, #reschedule-settings:focus, #noshow-settings:focus { outline: none; }
+/* A visit's lab results (LabResults.tsx, clinic-cms LB2): one card per result, its values in a plain table. */
+.lab-results { margin: 0 0 20px; display: grid; gap: 12px; }
+.lab-results h2 { font-size: 15px; margin: 0; }
+.lab-result, .lab-result-form { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px; display: grid; gap: 8px; min-width: 0; }
+.lab-result h3, .lab-result-form h3 { font-size: 15px; margin: 0; }
+.lab-result .when { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.lab-result .actions, .lab-result-form .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.lab-result-form .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.lab-value { border: 1px solid var(--color-border); border-radius: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 12px; align-items: end; min-width: 0; }

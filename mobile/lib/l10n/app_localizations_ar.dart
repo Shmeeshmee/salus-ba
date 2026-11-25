@@ -2386,4 +2386,48 @@ class AppLocalizationsAr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'لطلب إعادة فتح حسابك خلال 21 يومًا، راسل $email.';
   }
+
+  @override
+  String get myLabResults => 'نتائج تحاليلي';
+
+  @override
+  String get labResultsIntro =>
+      'نتائج التحاليل التي راجعها طبيبك وأتاحها لك. اسأل طبيبك عمّا تعنيه بالنسبة لك.';
+
+  @override
+  String get noLabResults => 'لا توجد لديك نتائج تحاليل بعد.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'أُخذت العينة في $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'أُتيحت في $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'المدى المرجعي $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'طبيعي',
+      'L': 'منخفض',
+      'H': 'مرتفع',
+      'LL': 'منخفض بشكل حرج',
+      'HH': 'مرتفع بشكل حرج',
+      'A': 'غير طبيعي',
+      'other': '',
+    });
+    return '$_temp0';
+  }
 }
