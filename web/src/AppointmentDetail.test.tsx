@@ -62,13 +62,13 @@ describe('AppointmentDetail', () => {
     expect(screen.getByText('Booked')).toBeTruthy()
   })
 
-  it('shows the patient profile behind a disclosure when the Patient read answers', async () => {
+  it('shows the patient profile behind a disclosure when the Patient read answers, its phone grouped', async () => {
     renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => fhirJSON(patient) })
 
     expect(await screen.findByText('Patient details')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Ada Example' })).toBeTruthy()
     expect(screen.getByText('1 January 1990')).toBeTruthy()
-    expect(screen.getByText('+38760000001')).toBeTruthy()
+    expect(screen.getByText('+387 60 000 001')).toBeTruthy() // grouped as on the desk (wave 6, BG2)
   })
 
   it('hides the profile on a 404 and shows the name the appointment gives', async () => {

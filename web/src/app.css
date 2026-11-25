@@ -677,9 +677,10 @@ p.hint.join { margin-bottom: 20px; }
 .patient-register { display: grid; gap: 12px; margin: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); }
 .patient-picker { display: grid; gap: 12px; }
 .patient-picker .toolbar { margin-bottom: 0; }
-/* The search fills the dialog as the new patient form below it does (docs/clinic-cms/walk/wave3, findings 5, 6). */
-.patient-picker form[role='search'] { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 14px; }
-.patient-picker form[role='search'] > * { width: 100%; }
+/* A desk dialog's search (the walk-in's and the patient search's) fills the dialog as the new patient form below it
+   does (docs/clinic-cms/walk/wave3, findings 5, 6; walk/wave6-polish). */
+.desk-dialog form[role='search'] { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 14px; }
+.desk-dialog form[role='search'] > * { width: 100%; }
 .desk-dialog { display: grid; gap: 14px; align-content: start; }
 .desk-dialog h2 { margin: 0; }
 /* An app patient's card is read-only (wave 5 walk, finding 6): its facts as label and value rows. */
@@ -687,8 +688,9 @@ p.hint.join { margin-bottom: 20px; }
 .desk-facts div { display: grid; grid-template-columns: minmax(8rem, max-content) 1fr; gap: 4px 16px; }
 .desk-facts dt { color: var(--color-text-muted); }
 .desk-facts dd { margin: 0; overflow-wrap: anywhere; }
-/* A patient's name on a desk row opens their card (clinic-cms R2): a button that reads as the name. */
-.desk-name { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+/* A patient's name on a desk row opens their card (clinic-cms R2): a button that reads as the name, on the left also
+   where it is stacked above the birth date, as in the patient search (walk/wave6-polish). */
+.desk-name { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; justify-self: start; text-align: left; }
 .desk-name:hover { color: var(--color-brand-hover); }
 .desk-dialog section { display: grid; gap: 8px; justify-items: start; }
 .desk-dialog section h3 { margin: 0; font-size: 15px; }

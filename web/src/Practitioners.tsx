@@ -7,7 +7,7 @@ import type { components } from './api/schema'
 import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
 import { loadStaff, type Member } from './staff'
-import { Alert, Field, Notice, Submit } from './ui'
+import { Alert, Confirm, Field, Notice, Submit } from './ui'
 import { useSubmit } from './useSubmit'
 
 type Invite = components['schemas']['Invite']
@@ -156,13 +156,17 @@ function Invites({ api }: { api: ApiClient }) {
     })
   }
 
+  function removed(id: string) {
+    setInvites((prev) => (prev.name === 'loaded' ? { name: 'loaded', value: prev.value.filter((i) => i.id !== id) } : prev))
+  }
+
   return (
     <>
       <section className="panel">
         <h2>{t('admin.openInvites')}</h2>
         {invites.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
         {invites.name === 'failed' && <Alert message={t('admin.invitesLoadFailed')} />}
-        {invites.name === 'loaded' && <InviteList invites={invites.value} />}
+        {invites.name === 'loaded' && <InviteList api={api} invites={invites.value} onGone={removed} />}
       </section>
       <section className="panel">
         <h2>{t('admin.inviteSomeone')}</h2>
@@ -172,22 +176,87 @@ function Invites({ api }: { api: ApiClient }) {
   )
 }
 
-function InviteList({ invites }: { invites: Invite[] }) {
+function InviteList({ api, invites, onGone }: { api: ApiClient; invites: Invite[]; onGone: (id: string) => void }) {
+  const t = useT()
+  const [left, setLeft] = useState<Left>()
+  const gone = (id: string, why: Left) => {
+    setLeft(why)
+    onGone(id)
+  }
+  return (
+    <>
+      {left === 'withdrawn' && <Notice message={t('admin.inviteWithdrawn')} />}
+      {left === 'gone' && <Alert message={t('admin.inviteGone')} />}
+      {invites.length === 0 ? (
+        <p className="muted">{t('admin.noInvites')}</p>
+      ) : (
+        <ul className="rows" aria-label={t('admin.openInvites')}>
+          {invites.map((i) => (
+            <InviteRow key={i.id} api={api} invite={i} onGone={gone} />
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+// InviteRow is an open invite with "Withdraw" (wave 6, U7): asked first, then DELETE /invites/{id}. An invite that
+// is no longer open (404: accepted, replaced or expired since the list was read) leaves the list too, with a line
+// saying so.
+type Left = 'withdrawn' | 'gone'
+
+function InviteRow({ api, invite, onGone }: { api: ApiClient; invite: Invite; onGone: (id: string, why: Left) => void }) {
   const t = useT()
   const f = useFormat()
-  if (invites.length === 0) return <p className="muted">{t('admin.noInvites')}</p>
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+
+  async function withdraw() {
+    setConfirming(false)
+    setBusy(true)
+    setError(undefined)
+    const res = await withdrawInvite(api, invite.id)
+    setBusy(false)
+    if (res.ok) onGone(invite.id, 'withdrawn')
+    else if (res.response?.status === 404) onGone(invite.id, 'gone')
+    else setError(t('admin.withdrawFailed'))
+  }
+
   return (
-    <ul className="rows" aria-label={t('admin.openInvites')}>
-      {invites.map((i) => (
-        <li key={i.id}>
-          <span className="stack">
-            <span>{i.email}</span>
-            <span className="muted small">{inviteLine(t, i, f.dateTime(new Date(i.expiresAt), browserZone))}</span>
-          </span>
-        </li>
-      ))}
-    </ul>
+    <li>
+      <span className="stack">
+        <span>{invite.email}</span>
+        <span className="muted small">{inviteLine(t, invite, f.dateTime(new Date(invite.expiresAt), browserZone))}</span>
+      </span>
+      <span className="actions">
+        <button type="button" disabled={busy} aria-label={t('admin.withdrawInviteFor', { email: invite.email })} onClick={() => setConfirming(true)}>
+          {t('admin.withdrawInvite')}
+        </button>
+      </span>
+      <Alert message={error} />
+      {confirming && (
+        <Confirm
+          question={t('admin.withdrawQuestion', { email: invite.email })}
+          lines={[t('admin.withdrawEffect')]}
+          confirm={t('admin.withdrawInvite')}
+          cancel={t('admin.keepInvite')}
+          danger
+          busy={busy}
+          onConfirm={() => void withdraw()}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </li>
   )
+}
+
+// withdrawInvite calls DELETE /invites/{id}, BG1's route of wave 6, through the same client (and its CSRF header).
+// The generated client gains the route when the wave is integrated; until then the call is typed here by hand.
+function withdrawInvite(api: ApiClient, id: string) {
+  type Delete = (path: string, init: { params: { path: { id: string } } }) => Promise<{ data?: undefined; error?: unknown; response: Response }>
+  const del = api.DELETE as unknown as Delete
+  return attempt(del('/invites/{id}', { params: { path: { id } } }))
 }
 
 // An invite's expiry is shown in the admin's own time zone, as the browser keeps it.

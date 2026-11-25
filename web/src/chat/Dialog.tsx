@@ -1,7 +1,8 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 
 // Dialog is a modal over the page, named by its label: it takes the focus, keeps Tab inside, closes on Escape and
-// gives the focus back to what had it.
+// gives the focus back to what had it. Escape closes only the innermost dialog: a dialog opened from another (the patient
+// card from the desk's patient search) stops the key there.
 export function Dialog({ label, className, onClose, children }: { label: string; className?: string; onClose: () => void; children: ReactNode }) {
   const dialog = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -15,6 +16,7 @@ export function Dialog({ label, className, onClose, children }: { label: string;
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault()
+      e.stopPropagation()
       onClose()
       return
     }

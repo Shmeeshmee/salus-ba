@@ -1,4 +1,5 @@
-import type { DiagnosisGroup, Dimension, Place } from './data'
+import type { Bar } from './BarChart'
+import type { DiagnosisGroup, Dimension, Place, Row } from './data'
 
 // The drill-down of the analytics filters: what the diagnosis bars break down by, and the platform filter of a
 // place.
@@ -31,3 +32,9 @@ export function geoFilter(geo: Geo, places: Place[]): Partial<Record<Dimension, 
   return {}
 }
 
+// diagnosisBar is a row of a diagnosis breakdown as a bar: a code by its code, a group by its name, and the
+// diagnoses outside every subgroup (key "") as No subgroup, which has nothing to open.
+export function diagnosisBar(r: Row, by: 'group' | 'subgroup' | 'code', groupName: (code: string) => string, noSubgroup: string): Bar {
+  if (by === 'subgroup' && r.key === '') return { key: r.key, label: noSubgroup, count: r.count, fixed: true }
+  return { key: r.key, label: by === 'code' ? r.key : groupName(r.key), count: r.count }
+}
