@@ -184,10 +184,8 @@ var receptionRoutes = map[string]receptionClass{
 // served by LB1 and TP1 (LC1 serves the locations, RM1 the rooms and devices). A route declared before it is built goes here and answers the router's own 404;
 // when it is mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{
-	"GET /clinic/appointments/{id}/diagnostic-reports", "POST /clinic/appointments/{id}/diagnostic-reports",
-	"GET /clinic/diagnostic-reports/{id}", "PUT /clinic/diagnostic-reports/{id}", "GET /clinic/diagnostic-reports/{id}/pdf",
-	"PUT /clinic/diagnostic-reports/{id}/pdf", "POST /clinic/diagnostic-reports/{id}/release", "GET /me/diagnostic-reports",
-	"GET /me/diagnostic-reports/{id}", "GET /me/diagnostic-reports/{id}/pdf", "POST /clinic/care-plans",
+	"GET /clinic/diagnostic-reports/{id}/pdf", "PUT /clinic/diagnostic-reports/{id}/pdf",
+	"GET /me/diagnostic-reports/{id}/pdf", "POST /clinic/care-plans",
 	"GET /clinic/patients/{id}/care-plans", "GET /clinic/care-plans/{id}", "PUT /clinic/care-plans/{id}",
 	"POST /clinic/care-plans/{id}/book", "POST /clinic/care-plans/{id}/cancel", "GET /me/care-plans",
 }

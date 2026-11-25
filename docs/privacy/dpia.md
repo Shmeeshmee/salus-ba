@@ -3108,3 +3108,27 @@ LB1 and TP1 fill them, and each of those adds its own block here. What the contr
 - **A clinic with no admin.** A deadline warning (D5) for a clinic target whose clinic has no admin goes to the operator
   instead, naming the clinic and the request by their opaque ids, the kind, the due date and the days left: never the
   patient. Without an operator address nobody is warned, and the worker logs the ids, as before.
+
+### Package LB1: lab results on the server (no migration, docs/clinic-cms/WAVE6.md U5)
+
+**Processing added.** The lab results 6.0 prepared are now written and read (`internal/diagnosticreport`), the typed-in
+values only; the lab's PDF waits for its storage (see "Left" below), so no file of a result is stored yet.
+
+- **Who.** The clinic's admin and the visit's practitioner attach and change a visit's results, with the patient's
+  active care consent to attach (`access.Appointment` at full; the database's restrictive policy is the backstop); after
+  a revocation they still read and change what was written for a past visit (the care record, Art. 9(2)(h)). Only a
+  practitioner releases a result, also after a revocation. A receptionist is refused every route, audited. The patient
+  reads their own results once released, in the app and in their export.
+- **Audit.** Every attach, change, release and read writes an `AuditEvent` naming `DiagnosticReport/<id>` in the same
+  transaction (purpose TREAT for staff, PATRQT for the patient; a list audits each result, or one event when there is
+  none); every refusal (forbidden, not found, released, version conflict) an event of its own that commits although
+  the call fails.
+- **The patient's export.** Each clinic's `record.json` now holds the patient's released results as FHIR
+  DiagnosticReports with their values as contained Observations (LOINC and UCUM codings where typed in), read through
+  `diagnosticreport.MineAt` as the patient and narrowed to the target clinic before anything is audited; the manifest
+  counts them. Unreleased results are in no export.
+- **Minimisation.** No new field. The API's error codes and the logs carry ids and codes only; no value, title or
+  range of a result reaches a log line, a metric or a job argument.
+- **Left.** The record hand-over (`GET /clinic/patients/{id}/record`) still leaves out every clinical item, results
+  included, as the wave 4 integration decided until the owner and a lawyer say who may hand them over. The PDF (its
+  storage, scan and download) is a follow-up.

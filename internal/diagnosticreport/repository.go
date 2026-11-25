@@ -1,9 +1,12 @@
 package diagnosticreport
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-// Repository stores reports and their results (diagnostic_report, diagnostic_report_result). Package LB1 implements it
-// in repository_postgres.go, and decides where the PDF is stored.
+// Repository stores reports and their results (diagnostic_report, diagnostic_report_result). Implemented in
+// repository_postgres.go.
 type Repository interface {
 	// SetOrganization sets the clinic's scope on the transaction in ctx.
 	SetOrganization(ctx context.Context, organizationID string) error
@@ -13,8 +16,8 @@ type Repository interface {
 	Insert(ctx context.Context, r Report, createdBy string) (Report, error)
 	// Update stores r's title, code, date and results if its version is still r.VersionID-1; false when it moved on.
 	Update(ctx context.Context, r Report) (bool, error)
-	// Release marks the report final by the practitioner at its version; false when it moved on.
-	Release(ctx context.Context, id, releasedBy string, version int) (bool, error)
+	// Release marks the report final by the practitioner at its version, at the time at; false when it moved on.
+	Release(ctx context.Context, id, releasedBy string, version int, at time.Time) (bool, error)
 	// ByID returns the report visible in the scope, with its results, or ErrNotFound.
 	ByID(ctx context.Context, id string) (Report, error)
 	// ForAppointment returns the visit's reports visible in the scope, oldest first.

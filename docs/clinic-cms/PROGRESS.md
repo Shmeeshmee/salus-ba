@@ -51,7 +51,7 @@ writes under its own heading here.
 | PX | done 2026-11-25, integrated 2026-11-25 (no migration) | `cms(PX)`, merged into `feat/cms` with `cms(wave 6)` |
 | LC1 | done 2026-11-25 (migration `00081`); the visit's location in the API, desk, receipts and e-mails deferred | `cms(LC1)` |
 | RM1 | done 2026-11-25 (migration `00082`, to renumber at the integration) | `cms(RM1)` |
-| LB1 | not started (wave 6, second half, after 6.0) | |
+| LB1 | done 2026-11-25 (no migration); values, release, the patient's read and export; the PDF and the hand-over left | `cms(LB1)` |
 | TP1 | not started (wave 6, second half, after 6.0) | |
 | LC2 | not started (wave 6, second half, after 6.0) | |
 | LB2 | not started (wave 6, second half, after 6.0) | |
@@ -3665,7 +3665,80 @@ into it); each fixed and rerun alone, then `make check` once more (its result in
 
 ## LB1: lab results on the server
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done 2026-11-25 on `wt/cms/LB1`, one commit `cms(LB1)`, with two parts left (below). No migration (none was
+needed: the reserved `00085` is unused). No Jira export for this run: built from `WAVE6.md` and 6.0's record.
+
+**Decisions applied:** U5 as WAVE6.md states it, with 6.0's contract changes (the admin and practitioners, never a
+receptionist).
+
+**Built.**
+
+- **`internal/diagnosticreport`.** The service (`Attach`, `Change`, `Release`, `ForVisit`, `Read`, `Mine`, `MineAt`,
+  `MyReport`), the Postgres repository on its sqlc package `diagnosticreportdb` (new `sqlc.yaml` entry), the JSON
+  handler and the FHIR form. Who: the staff's attendance of the visit (`appointment.Service.Attendance`, no change to
+  `appointment`) decides; attaching needs `access.Appointment` at full (the clinic's admin or the visit's practitioner
+  with an active care consent: else `not_found`, as the contract says); changing and reading need any level, so a past
+  visit's results stay readable and changeable after a revocation (as the database allows: its consent policy is on
+  insert only); releasing needs a practitioner (`forbidden` for the admin, as the database's policy), also after a
+  revocation. A receptionist gets `forbidden` on writes and `not_found` on reads (the contract lists no 403 there),
+  each audited. Values: a title of up to 200 characters, an optional LOINC code, the sample's day, at most 100 values,
+  each a number with an optional UCUM unit or a text, a printed range and an optional flag; checked in the service
+  (`invalid_diagnostic_report`) before the database's checks. Versions: `If-Match` on change and release, `ETag`
+  `W/"<versionId>"` on every write; a released report answers `report_released` (409), a stale version
+  `version_conflict` (412). A change replaces the values (delete and insert in the transaction).
+- **Audit.** Every write and read records an AuditEvent `DiagnosticReport/<id>` in its transaction (TREAT for staff with
+  the clinic, PATRQT for the patient); a list one per result, or one without an entity when empty; every refusal one
+  of its own transaction (outcome 4), so it stays when the call rolls back.
+- **Routes** (`internal/api/diagnosticreport.go`, one line in `app.go`): the five clinic routes and `GET
+  /me/diagnostic-reports`, `/{id}`; taken off `notServedYet` and held to their receptionist class by
+  `TestReceptionRoutes`. The session is `deskCaller`'s, so the service sees, refuses and audits the receptionist.
+- **The patient's export** (`clinicexport.OwnRecords`, the worker's `datarequestexport.go`): each clinic's `record.json`
+  holds the patient's released results as FHIR R4 DiagnosticReports (`diagnosticreport.FHIR`: code text with its LOINC
+  coding, subject, `effectiveDateTime` the sample's day, `issued` the release, the clinic as performer, the values as
+  contained Observations with `valueQuantity` in UCUM or `valueString`, the interpretation and the printed range),
+  read through `MineAt` as the patient and narrowed to a clinic target before anything is audited (as PX's); the
+  manifest counts "released lab result (DiagnosticReport)".
+- **Docs.** The DPIA's "Package LB1" block; this record.
+
+**Left** (for a follow-up package; nothing half-built is served):
+
+- **The PDF.** `AttachPDF`, `PDF`, `MyPDF` still refuse with `errors.ErrUnsupported` and their three routes stay in
+  `notServedYet` (`HasPDF` is always false). The contract says "scanned and encrypted as every Binary": the simplest
+  sound way is a third parent of `binary` (a `diagnostic_report_id` beside the response and the conversation, its RLS
+  through the report, its scan job's scope), a migration and a change across `binary`'s upload, scan and download, which
+  did not fit this session with its checks. A stored PDF must also freeze at release (6.0's review item 11).
+- **The record hand-over.** `GET /clinic/patients/{id}/record` leaves out every clinical item (the wave 4 integration:
+  until the owner and a lawyer decide who may hand them over); a lab result is clinical, so it is not added here
+  although WAVE6.md's row names the hand-over. For the owner: may the hand-over carry the patient's released results?
+- **A mistaken report** (FHIR `entered-in-error`, not in the contract) and the FHIR read routes (`DiagnosticReport` is
+  not in the CapabilityStatement; it is written only inside the export).
+
+**Test first.** Each layer's test was written before its code (the service tests with fakes for the repository, the
+visit's attendance, the audit and the transaction, which drops a failed transaction's events; the repository test on
+`pgtest`; the handler and FHIR tests), but each was first run together with its code under the time budget, so
+none was seen red on its own (a gap against the TDD rule, recorded here). The repository test first failed on its own seed (two visits of one practitioner at the same time). The FHIR
+test's expected key order was corrected to the struct's (fieldalignment puts the pointer first).
+
+**Review** (a fresh subagent over the diff; Copilot is out of quota until 2026-12-01): nothing serious; three low
+findings. **Fixed:** (1) the release answered the clock's nanoseconds while Postgres keeps microseconds (truncated);
+(2) the clinic's policy re-checks the report's author on every update (migration 00080), so a report whose author is no
+longer the clinic's admin or practitioner could be neither changed nor released and answered a 500: the repository now
+maps that refusal (42501) to `forbidden`, with a test. Whether such a report should stay changeable (a later migration
+checking the author on insert only) is for the owner. **Left:** (3) a typed unit is written as a UCUM code unchecked;
+a unit that is no valid UCUM would fail the HL7 validator once one reaches a golden file (no golden file holds a result
+yet).
+
+**Checks** (this worktree's compose project `salus-cms-lb1`): the fast layer twice (every changed package and its
+importers: `api`, `cmd/*`, `internal/api`, `clinicexport`, `datarequest`, `diagnosticreport`, `worker`): pass. A first
+full set stopped at lint (fieldalignment of three structs, a test's complexity, `httptest.NewRequest`), fixed; then the
+full set once: `make check` from the session's start (set go: `make gen-clients` with no diff, `lint` 0 issues,
+`test` pass (`internal/api` 585 s), `archcheck` pass, `i18n-check` pass); its `cover` step failed on a missing
+`coverage.raw`, which the first, stopped full run's still-running `make cover` in the same worktree had removed (not a
+test failure: every package passed under coverage), so `make cover` was rerun once alone: pass, 90.0% total,
+`diagnosticreport` 88.4%, `clinicexport` 85.1%, `internal/api` 93.8%. Not run: `make e2e` (not in LB1's sets; no
+journey changed), `make fhir-validate` (no golden FHIR file changed; the DiagnosticReport form is tested inline).
+
+**Dev stack:** this worktree's own compose project; nothing added to the dev database (no migration, no seed).
 
 ## TP1: treatment plans on the server
 
