@@ -49,15 +49,15 @@ writes under its own heading here.
 | BG2 | done 2026-11-25, integrated 2026-11-25; the withdraw call on the generated client at the integration | `cms(BG2)`, merged into `feat/cms` with `cms(wave 6)` |
 | BG3 | done 2026-11-25, integrated 2026-11-25; CI's e2e failure logs at the integration | `cms(BG3)`, merged into `feat/cms` with `cms(wave 6)` |
 | PX | done 2026-11-25, integrated 2026-11-25 (no migration) | `cms(PX)`, merged into `feat/cms` with `cms(wave 6)` |
-| LC1 | done 2026-11-25 (migration `00081`); the visit's location in the API, desk, receipts and e-mails deferred | `cms(LC1)` |
-| RM1 | done 2026-11-25 (migration `00082`, to renumber at the integration) | `cms(RM1)` |
-| LB1 | done 2026-11-25 (no migration); values, release, the patient's read and export; the PDF and the hand-over left | `cms(LB1)` |
-| TP1 | done 2026-11-25 (no migration) | `cms(TP1)` on `wt/cms/TP1` |
-| LC2 | done 2026-11-25 (web only, against a fake API; no migration) | `cms(LC2)` |
-| LB2 | done 2026-11-25 (wave 6, second half) | lab results on the visit page and in the patient app |
-| TP2 | done 2026-11-25 (no migration; against 6.0's client with a fake API) | `cms(TP2)` |
-| LC3 | done 2026-11-25 (mobile only, against 6.0's client; the FHIR form of the slot's location to check at the integration) | `cms(LC3)` |
-| BG4 | done 2026-11-25 (migration `00085`, the next free after LC1, RM1, LB1, TP1; the integration renumbers) | `cms(BG4)` |
+| LC1 | done 2026-11-25, integrated 2026-11-25 (migration `00081`); the visit's location in JSON, FHIR, the desk, messages and receipts joined at the integration | `cms(LC1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| RM1 | stopped at its budget 2026-11-25; its patch checked and committed by the integration as `wt/cms/RM1b`, integrated 2026-11-25 (migration `00082`) | `cms(RM1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LB1 | done 2026-11-25, integrated 2026-11-25 (no migration); the PDF joined at the integration (`00084`) | `cms(LB1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| TP1 | done 2026-11-25, integrated 2026-11-25 (no migration); its deferred items joined at the integration (`00085`) | `cms(TP1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LC2 | done 2026-11-25, integrated 2026-11-25; the device picker and the desk's location names joined at the integration | `cms(LC2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LB2 | done 2026-11-25, integrated 2026-11-25 | `cms(LB2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| TP2 | done 2026-11-25, integrated 2026-11-25; a step's service name and visit time joined at the integration | `cms(TP2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LC3 | done 2026-11-25, integrated 2026-11-25; the slot-location extension and the Location participant served at the integration | `cms(LC3)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| BG4 | done 2026-11-25, integrated 2026-11-25 (migration `00083`, `00085` in its worktree) | `cms(BG4)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 
 ## A: visit modes
 
@@ -4110,3 +4110,139 @@ project (`salus-cms-bg4-e2e`, removed after). Not run: `make fhir-validate` (no 
 - List and refusal audit events without an entity (BG1's open point for the owner): unchanged; the new refusals follow
   it.
 - The probe covers path ids and bodies, not query parameters; the routes' query parsing was not probed.
+
+## Wave 6, second half
+
+Done 2026-11-25 on `feat/cms` (from `b6bec6d0`, the first half): `wt/cms/LC1`, `RM1b`, `LB1`, `TP1`, `BG4`, `LC2`, `LB2`,
+`TP2`, `LC3` merged with `--no-ff` in that order; then the joins below, each test first, three of them built by agents
+in worktrees of their own (`wt/cms/W6LB`, `W6TP`, `W6RM`, merged with `--no-ff`); then the integration's commit
+`cms(wave 6): integrate the second half`.
+
+**Decisions of the owner** (2026-11-25, with the integration's request): a receipt of an in-person visit gets a "place
+of service" line with the visit location's name and address, while the seller stays the clinic's registered details
+(the seller's address is a fiscal matter). Only the visit's practitioner releases a lab result. Released results are in
+the patient's own export; lab results stay out of the admin's record hand-over, like other clinical documents, and its
+manifest says so. A practitioner works with the treatment plans of patients they have or had a visit with; the admin
+with any patient of the clinic.
+
+**Before the merges: `internal/api`'s tests.** 68 of its 97 tests ran one after another: 90 of the package's 104 s alone
+(`go test -json`, the compose stack otherwise idle), and 180, 294, 302 and once 603 s in full runs, past `go test`'s
+10-minute package limit (it cut RM1's and LC1's checks short). Every test builds its own App on its own database and
+Redis database, so all now start with `t.Parallel()`, and `TestEveryTestRunsInParallel` (a parse of the package's test
+files, build-tagged load tests aside) keeps it so; the merges' new tests (LB1, TP1, BG4, the joins) were made parallel
+by it. After: 38 s alone, 88 s in a full `make test` (249 s for the suite), 65 to 135 s in later runs with three agents'
+checks on the same machine. No timeout raised. Postgres stayed within its connections (no 53300). The same run caught a
+four-character log check in `internal/patient` (`"1990"` in a log line's digits); it now checks the whole birth date.
+
+**RM1.** Its run stopped at its budget with the work in `RM1.wip.patch` (which also held a 25,000-line `coverage.raw`,
+left out). Applied on `wt/cms/RM1b` from `feat/cms`, `scripts/check.sh --base b6bec6d0` (sets go and web) passed: lint 0
+issues, tests, archcheck, cover 90.0%, web 96 files. Committed `cms(RM1): rooms and devices`; the worktree
+`../salus-cms-RM1` and `wt/cms/RM1` removed.
+
+**Merges.** LC1 and RM1 met in 19 files. `location/repository_postgres.go` keeps LC1's location methods and RM1's rooms
+and devices (each side's stubs of the other dropped); the location service keeps one `Transactor`, `Auditor`, `refused`
+and `event` (both had them); the two packages' "refuses until built" tests went, the repository tests split into
+`repository_postgres_test.go` (LC1) and `repository_postgres_room_test.go` (RM1). A rule carries `LocationID` and
+`RoomID` (handler, JSON row, model in one field order); `SaveAvailability` places the rule (LC1) and then checks its rooms
+(RM1). Slot generation keys a slot on its location and its room; a rule from before LC1 that names a room but no location
+takes the room's location, on insert and in the delete's comparison (found by RM1's test: a re-run replaced every slot).
+`locationdb`'s two sqlc entries are one. The records, `dpia.md`, `sqlc.yaml`, the catalog area test, `app.css`, the ARB
+catalogs (a JSON union, checked to round-trip) and `notServedYet` were joined; generated code was never hand-merged:
+`make sqlc`, `make gen-clients` and `flutter gen-l10n` after the merges. BG4's probe of the staff routes, now reaching
+TP1's routes, found three 500s on a NUL or invalid UTF-8 plan id (22021): mapped to not found, test first. Migrations:
+`00080` 6.0, `00081` LC1, `00082` RM1, `00083` BG4 (`00085` in its worktree), `00084` lab result PDFs, `00085` the plan's
+guard, `00086` the receipt's place of service: no gap, no test file names a number that changed.
+
+**Joins** (test first; who built it):
+
+- *The visit's location and room* (integration). `Appointment.locationId` and `roomId` in JSON; the FHIR Appointment's
+  `Location/<id>` participant; the FHIR Slot's `slot-location` extension (`api/fhir/StructureDefinition-slot-location.json`),
+  which LC3 reads; the slot reads carry the location. LC1's trigger already sets a visit's location from its slot on any
+  change; now tested through the repository (a direct change of `location_id` is set back). The desk's day filters by
+  `locationId` in the service (its patients read and audited are that location's and the video visits'), a malformed id
+  answers 400; the web desk names each in-person visit's location while every location is shown.
+- *Addresses* (integration). Reminders (e-mail and SMS), the booking, reschedule and reminder e-mails of an in-person
+  visit give its location's address (`location.Service.Address`, the city's name from terminology's places, as a
+  clinic's address), the clinic's registered one when the location has none. A receipt copies a place of service at
+  issue (`invoice.place_of_service`, `00086`, frozen by the existing guard, printed under the payment, kept by a
+  reversal); the seller is unchanged.
+- *Devices and rooms* (agent, `W6RM`). A device picker on the price list's service form (the devices in use by
+  location; the current device always sent back); a service cannot be saved with an unknown, another clinic's or inactive
+  device (held `FOR SHARE` for the save); an inactive role's rules hold no room; a rule's room must be of the rule's
+  location. Staff reads of locations, rooms and devices were already open to every staff member of the clinic.
+- *Lab result PDFs* (agent, `W6LB`, `00084`). The report is a third parent of `binary`: PDF only, 20 MB, envelope
+  encrypted, scanned by ClamAV, served only once clean; uploads on a preliminary report at its version, frozen at release
+  by a trigger that holds every role; the three routes are served and `notServedYet` is empty. The staff download follows
+  the report's read rule, the patient's only a final report of their own. Released results' PDFs are in the patient's
+  export (`files/`); the hand-over's `manifest.txt` says lab results are not part of it.
+- *Treatment plans* (agent, `W6TP`, `00085`). `resource_busy` on a plan's booking (it was a 500); an unknown patient 404;
+  the missing 403 codes in the contract; a guard for forward-only status and booked steps; the care relationship
+  (`access.CarePlan`: a practitioner with a visit with the patient, the admin with any patient of the clinic; a
+  restricted record refuses every staff role), tested at the service and through the API; each step names its service and
+  its visit's start (web and app date a moved step right); booked plans in the patient's export as FHIR `CarePlan`.
+- *BG4's deferred*: the chat test's marker is `QZX-MARK`, which no hex id can hold.
+
+**Integration notes checked against the real server.** LC2: rooms and devices shapes, If-Match and ETag, `resource_busy`
+on availability (in the contract), practitioner and receptionist reads, `/locations` not proxied: match. LC3: the slot
+extension and the Location participant now served; `GET /organizations/{id}/locations` is public; a reschedule to another
+location is allowed (the visit takes the new slot's location) and the app never offers one. LB2: the routes and codes as
+built (a quarantined PDF answers 404 until clean). TP2: all match but `resource_busy` (fixed) and a moved step's day
+(fixed with `visitStart`).
+
+**e2e journeys** (`test/e2e/locations_test.go`, `lab_plans_test.go`, on fresh compose projects):
+`TestLocations_HoursRoomsDevicesAndTheVisitsAddress` (the annex with Room 1 and an ultrasound, hours at the annex in the
+room, a second practitioner refused the room at the same time with `resource_busy` and working there without it, a
+patient's in-person booking at the annex whose confirmation gives the annex's address and not the clinic's, a second
+booking needing the device at the same time refused with `resource_busy` and accepted without the device);
+`TestLabResults_ReleasedToThePatientAndNeverToTheDesk` (values and a PDF attached, nothing for the patient before
+release, released, the values and the scanned PDF read by the patient, every lab route refused to a receptionist);
+`TestCarePlans_BookedWholeMovedAndCancelled` (three steps booked in one go, one visit moved and shown last at its new
+time, the plan cancelled with its visits; a plan whose second step's time another patient took books nothing and frees
+its other slots). All pass. The plan journey's first run failed on the journey itself (the staff move needs the visit's
+If-Match); fixed in the test.
+
+**Walk**: `docs/clinic-cms/walk/wave6/WALK.md`, on the real stack at 1280 and 390 px, with BG2's deferred pass over every
+staff screen with real rows. Three findings fixed (the analytics filter's width at 1280 px, a booked step's time, empty
+lab cells at 390 px), five listed there.
+
+**Review** (a fresh subagent over `git diff origin/main...959d22c5`; Copilot's quota is out until 2026-12-01). On the
+three questions: a receptionist is refused every lab result and plan route by the services before any read (row-level
+security scopes those tables by clinic only, so the services are the guard for the role); another clinic's staff see
+nothing (the clinic scope); the generic file routes answer 404 for a lab PDF. An unreleased result or its PDF reaches the
+patient by no route: `/me`, the export (`MineAt` and `MyPDF` in the patient's scope), the hand-over (none) and the
+notifications (none); the release, the upload and the freeze trigger lock the same row. Two visits in one room or on one
+device: no path, as every appointment write takes its room from its slot (triggers) and the exclusion constraints and the
+device's advisory lock hold under READ COMMITTED; a deadlock of two plans taking two devices in opposite order is a
+refusal (`slot_unavailable`), not a double booking. **Fixed**: a NUL in a lab result's, plan's or location's, room's or
+device's text gave a 500 (or a 404 for a plan) instead of `invalid_*`: refused at validation, test first; careplan's
+comment on 22021 corrected. **Declined, for the owner**: (a) slots are generated in the clinic's time zone, not a
+location's own (LC1's open question; a location in another zone gets its slots at the clinic's wall times); (b) a role
+re-activated with a room another role took meanwhile is not re-checked: no double booking is possible (the slots'
+exclusion constraint), the second schedule's clashing slots are not generated and nobody is told; (c) list and refusal
+audit events name no entity (BG1's open question); (d) after a consent revocation staff still read and release a past
+visit's lab results (6.0's rule, as for other clinical records).
+
+**Open** (for the owner, or a later wave): copy of the new strings (below); the patient app shows a plan step's day
+without its time and a service in the clinic's language; a device taken out of use stays on the services that name it
+until their next save; an unscannable PDF stays quarantined (after release, for good); the plan in the hand-over and as a
+FHIR read (CapabilityStatement); a golden file and the HL7 validator for the `CarePlan` and `DiagnosticReport` FHIR forms
+(both are checked by exact-JSON unit tests only); a plan whose author left the clinic cannot be changed (TP1's note);
+the time zone picker for a location (LC2).
+
+**New user-facing strings at the integration**: web `prices.device` "Device (optional)", `prices.deviceNone` "None",
+`prices.deviceHint` "Two visits at the clinic that need the same device cannot overlap.", `prices.deviceInactive`
+"{name} (not in use)", in bs, hr, sr-Latn, sr-Cyrl and en; the receipt PDF's `place_of_service` "Place of service" (bs,
+hr, sr-Latn "Mjesto pružanja usluge", sr-Cyrl "Мјесто пружања услуге"); the patient export's manifest line "lab result
+PDF (in files/)" and the hand-over manifest's "Lab results (DiagnosticReport), their values and their PDFs are clinical
+documents too: they are not part of the hand-over." (English, as the manifests are). The packages' own strings are in
+their records (LC2 46, LB2, TP2 63 + 8, LC3 1).
+
+**Checks** (the main checkout's compose project `salus`): `make check BASE=origin/main SETS=landing,e2e` (every set: `make
+gen-clients` with no diff, `make lint` 0 issues with i18n-check, migrations and caddy routes, `test`, `archcheck`, `cover`
+89.9% total and every package at 80% or more, `fhir-validate` over 133 golden files with the new slot and appointment
+forms, `web-lint`, `web-typecheck`, `web-test` 100 files, `mobile-analyze`, `mobile-test` 718, the landing set, `make
+e2e` 468 s on `salus-e2e`, which it removed): passed, 853 s. Its first run, before the review's fix, failed only on
+`make lint` (two `time.Now` and two field layouts in the new e2e file); every other set passed. The joins' agents each
+ran `scripts/check.sh --base af1079c0` in their worktrees: W6LB and W6TP passed on their first run; W6RM's failed on two
+timing tests outside its diff (`TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks` under `make cover`,
+`CallScreen.test.tsx` "no sound for 5 seconds"), each passed on its one rerun, and both passed in the integration's runs.
