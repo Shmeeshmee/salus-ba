@@ -133,6 +133,13 @@ Class | Method | HTTP request | Description
 *BillingApi* | [**sendQuote**](doc//BillingApi.md#sendquote) | **POST** /clinic/quotes | Send a patient a treatment quote
 *BillingApi* | [**setBillingDetails**](doc//BillingApi.md#setbillingdetails) | **PUT** /clinic/billing-details | Replace the clinic's billing details
 *BillingApi* | [**updateClinicService**](doc//BillingApi.md#updateclinicservice) | **PUT** /clinic/services/{id} | Change a service of the clinic's price list
+*CarePlansApi* | [**bookCarePlan**](doc//CarePlansApi.md#bookcareplan) | **POST** /clinic/care-plans/{id}/book | Book every step of a treatment plan
+*CarePlansApi* | [**cancelCarePlan**](doc//CarePlansApi.md#cancelcareplan) | **POST** /clinic/care-plans/{id}/cancel | Cancel a treatment plan
+*CarePlansApi* | [**getClinicCarePlan**](doc//CarePlansApi.md#getcliniccareplan) | **GET** /clinic/care-plans/{id} | A treatment plan of the clinic
+*CarePlansApi* | [**listClinicPatientCarePlans**](doc//CarePlansApi.md#listclinicpatientcareplans) | **GET** /clinic/patients/{id}/care-plans | A patient's treatment plans at the clinic
+*CarePlansApi* | [**listMyCarePlans**](doc//CarePlansApi.md#listmycareplans) | **GET** /me/care-plans | The patient's own treatment plans
+*CarePlansApi* | [**updateClinicCarePlan**](doc//CarePlansApi.md#updatecliniccareplan) | **PUT** /clinic/care-plans/{id} | Change a draft treatment plan
+*CarePlansApi* | [**writeCarePlan**](doc//CarePlansApi.md#writecareplan) | **POST** /clinic/care-plans | Lay out a treatment plan
 *ChatApi* | [**addConversationParticipant**](doc//ChatApi.md#addconversationparticipant) | **POST** /conversations/{id}/participants | Add a practitioner of the clinic, or invite one of another clinic (SAL-28)
 *ChatApi* | [**createWebhook**](doc//ChatApi.md#createwebhook) | **POST** /clinic/webhooks | Add a webhook endpoint; its secret is shown in this answer only
 *ChatApi* | [**decideChatInvitation**](doc//ChatApi.md#decidechatinvitation) | **POST** /me/chat-invitations/{id}/decision | Grant or decline an invitation (SAL-28)
@@ -212,6 +219,26 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
+*LabResultsApi* | [**attachDiagnosticReport**](doc//LabResultsApi.md#attachdiagnosticreport) | **POST** /clinic/appointments/{id}/diagnostic-reports | Attach a lab result to a visit
+*LabResultsApi* | [**getClinicDiagnosticReport**](doc//LabResultsApi.md#getclinicdiagnosticreport) | **GET** /clinic/diagnostic-reports/{id} | A lab result of the clinic
+*LabResultsApi* | [**getClinicDiagnosticReportPdf**](doc//LabResultsApi.md#getclinicdiagnosticreportpdf) | **GET** /clinic/diagnostic-reports/{id}/pdf | A lab result's PDF
+*LabResultsApi* | [**getMyDiagnosticReport**](doc//LabResultsApi.md#getmydiagnosticreport) | **GET** /me/diagnostic-reports/{id} | One of the patient's own lab results
+*LabResultsApi* | [**getMyDiagnosticReportPdf**](doc//LabResultsApi.md#getmydiagnosticreportpdf) | **GET** /me/diagnostic-reports/{id}/pdf | The PDF of one of the patient's own lab results
+*LabResultsApi* | [**listMyDiagnosticReports**](doc//LabResultsApi.md#listmydiagnosticreports) | **GET** /me/diagnostic-reports | The patient's own lab results
+*LabResultsApi* | [**listVisitDiagnosticReports**](doc//LabResultsApi.md#listvisitdiagnosticreports) | **GET** /clinic/appointments/{id}/diagnostic-reports | A visit's lab results
+*LabResultsApi* | [**putClinicDiagnosticReportPdf**](doc//LabResultsApi.md#putclinicdiagnosticreportpdf) | **PUT** /clinic/diagnostic-reports/{id}/pdf | Attach the lab's PDF to a result
+*LabResultsApi* | [**releaseDiagnosticReport**](doc//LabResultsApi.md#releasediagnosticreport) | **POST** /clinic/diagnostic-reports/{id}/release | Release a lab result to the patient
+*LabResultsApi* | [**updateClinicDiagnosticReport**](doc//LabResultsApi.md#updateclinicdiagnosticreport) | **PUT** /clinic/diagnostic-reports/{id} | Change a lab result before its release
+*LocationsApi* | [**addClinicLocation**](doc//LocationsApi.md#addcliniclocation) | **POST** /clinic/locations | Add a location to the clinic
+*LocationsApi* | [**addClinicLocationDevice**](doc//LocationsApi.md#addcliniclocationdevice) | **POST** /clinic/locations/{id}/devices | Add a device to a location
+*LocationsApi* | [**addClinicLocationRoom**](doc//LocationsApi.md#addcliniclocationroom) | **POST** /clinic/locations/{id}/rooms | Add a room to a location
+*LocationsApi* | [**listClinicLocationDevices**](doc//LocationsApi.md#listcliniclocationdevices) | **GET** /clinic/locations/{id}/devices | A location's devices
+*LocationsApi* | [**listClinicLocationRooms**](doc//LocationsApi.md#listcliniclocationrooms) | **GET** /clinic/locations/{id}/rooms | A location's rooms
+*LocationsApi* | [**listClinicLocations**](doc//LocationsApi.md#listcliniclocations) | **GET** /clinic/locations | The clinic's locations
+*LocationsApi* | [**listOrganizationLocations**](doc//LocationsApi.md#listorganizationlocations) | **GET** /organizations/{id}/locations | A listed clinic's locations
+*LocationsApi* | [**updateClinicDevice**](doc//LocationsApi.md#updateclinicdevice) | **PUT** /clinic/devices/{id} | Change a device
+*LocationsApi* | [**updateClinicLocation**](doc//LocationsApi.md#updatecliniclocation) | **PUT** /clinic/locations/{id} | Change a location of the clinic
+*LocationsApi* | [**updateClinicRoom**](doc//LocationsApi.md#updateclinicroom) | **PUT** /clinic/rooms/{id} | Change a room
 *NotificationsApi* | [**getNotificationSettings**](doc//NotificationsApi.md#getnotificationsettings) | **GET** /me/notification-settings | The patient's reminder channels, quiet hours and time zone
 *NotificationsApi* | [**getSmsUsage**](doc//NotificationsApi.md#getsmsusage) | **GET** /clinic/sms-usage | The admin's clinic's SMS usage per month
 *NotificationsApi* | [**setNotificationSettings**](doc//NotificationsApi.md#setnotificationsettings) | **PUT** /me/notification-settings | Replace the patient's reminder channels, quiet hours and time zone
@@ -305,6 +332,10 @@ Class | Method | HTTP request | Description
  - [BillingDetails](doc//BillingDetails.md)
  - [Binary](doc//Binary.md)
  - [BookAppointmentRequest](doc//BookAppointmentRequest.md)
+ - [BookCarePlanRequest](doc//BookCarePlanRequest.md)
+ - [CarePlan](doc//CarePlan.md)
+ - [CarePlanStatus](doc//CarePlanStatus.md)
+ - [CarePlanStep](doc//CarePlanStep.md)
  - [ChatAttachment](doc//ChatAttachment.md)
  - [ChatCommand](doc//ChatCommand.md)
  - [ChatCommandError](doc//ChatCommandError.md)
@@ -375,10 +406,14 @@ Class | Method | HTTP request | Description
  - [DeskDay](doc//DeskDay.md)
  - [DeskReceipt](doc//DeskReceipt.md)
  - [DeskVisit](doc//DeskVisit.md)
+ - [Device](doc//Device.md)
  - [DiagnosisGroup](doc//DiagnosisGroup.md)
  - [DiagnosisGroupList](doc//DiagnosisGroupList.md)
  - [DiagnosisGroupName](doc//DiagnosisGroupName.md)
  - [DiagnosisGroupNameList](doc//DiagnosisGroupNameList.md)
+ - [DiagnosticReport](doc//DiagnosticReport.md)
+ - [DiagnosticReportResult](doc//DiagnosticReportResult.md)
+ - [DiagnosticReportStatus](doc//DiagnosticReportStatus.md)
  - [DocumentFieldTexts](doc//DocumentFieldTexts.md)
  - [DocumentTemplate](doc//DocumentTemplate.md)
  - [DocumentTemplateField](doc//DocumentTemplateField.md)
@@ -421,6 +456,7 @@ Class | Method | HTTP request | Description
  - [KeyedError](doc//KeyedError.md)
  - [Language](doc//Language.md)
  - [LiveKitWebhookEvent](doc//LiveKitWebhookEvent.md)
+ - [Location](doc//Location.md)
  - [LoginRequest](doc//LoginRequest.md)
  - [LoginResponse](doc//LoginResponse.md)
  - [MedicationStatementInput](doc//MedicationStatementInput.md)
@@ -434,6 +470,7 @@ Class | Method | HTTP request | Description
  - [NoShowFlagsFlagsInner](doc//NoShowFlagsFlagsInner.md)
  - [NotificationChannels](doc//NotificationChannels.md)
  - [NotificationSettings](doc//NotificationSettings.md)
+ - [ObservationInterpretation](doc//ObservationInterpretation.md)
  - [OfferedService](doc//OfferedService.md)
  - [OpenConversationRequest](doc//OpenConversationRequest.md)
  - [OpenItem](doc//OpenItem.md)
@@ -484,11 +521,18 @@ Class | Method | HTTP request | Description
  - [ReviewDecision](doc//ReviewDecision.md)
  - [ReviewStatus](doc//ReviewStatus.md)
  - [RoleSpecialty](doc//RoleSpecialty.md)
+ - [Room](doc//Room.md)
  - [SaveAnswersRequest](doc//SaveAnswersRequest.md)
  - [SaveAvailabilityRequest](doc//SaveAvailabilityRequest.md)
+ - [SaveCarePlanRequest](doc//SaveCarePlanRequest.md)
+ - [SaveCarePlanRequestStepsInner](doc//SaveCarePlanRequestStepsInner.md)
+ - [SaveDeviceRequest](doc//SaveDeviceRequest.md)
+ - [SaveDiagnosticReportRequest](doc//SaveDiagnosticReportRequest.md)
  - [SaveDocumentTemplateRequest](doc//SaveDocumentTemplateRequest.md)
+ - [SaveLocationRequest](doc//SaveLocationRequest.md)
  - [SavePatientRequest](doc//SavePatientRequest.md)
  - [SaveQuestionnaireRequest](doc//SaveQuestionnaireRequest.md)
+ - [SaveRoomRequest](doc//SaveRoomRequest.md)
  - [SaveServiceRequest](doc//SaveServiceRequest.md)
  - [SendAck](doc//SendAck.md)
  - [SendAckFrame](doc//SendAckFrame.md)

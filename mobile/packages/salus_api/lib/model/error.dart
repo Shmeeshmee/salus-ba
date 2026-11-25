@@ -237,6 +237,13 @@ enum ErrorErrorEnum {
   alreadyExtended._(r'already_extended'),
   requestOverdue._(r'request_overdue'),
   exportInProgress._(r'export_in_progress'),
+  invalidLocation._(r'invalid_location'),
+  resourceBusy._(r'resource_busy'),
+  invalidDiagnosticReport._(r'invalid_diagnostic_report'),
+  reportReleased._(r'report_released'),
+  invalidCarePlan._(r'invalid_care_plan'),
+  carePlanNotDraft._(r'care_plan_not_draft'),
+  carePlanEnded._(r'care_plan_ended'),
   ;
 
   /// Instantiate a new enum with the provided value.
@@ -474,6 +481,20 @@ class ErrorErrorEnumTypeTransformer {
           return ErrorErrorEnum.requestOverdue;
         case r'export_in_progress':
           return ErrorErrorEnum.exportInProgress;
+        case r'invalid_location':
+          return ErrorErrorEnum.invalidLocation;
+        case r'resource_busy':
+          return ErrorErrorEnum.resourceBusy;
+        case r'invalid_diagnostic_report':
+          return ErrorErrorEnum.invalidDiagnosticReport;
+        case r'report_released':
+          return ErrorErrorEnum.reportReleased;
+        case r'invalid_care_plan':
+          return ErrorErrorEnum.invalidCarePlan;
+        case r'care_plan_not_draft':
+          return ErrorErrorEnum.carePlanNotDraft;
+        case r'care_plan_ended':
+          return ErrorErrorEnum.carePlanEnded;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

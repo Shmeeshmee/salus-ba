@@ -438,3 +438,22 @@ func TestRules_DeleteDataRequestExports(t *testing.T) {
 	}
 	t.Error("no rule for data_request_export")
 }
+
+// A lab result and a treatment plan are part of the clinical record and follow its policy: kept, pending the lawyer
+// (docs/clinic-cms/WAVE6.md, 6.0).
+func TestRules_LabResultsAndTreatmentPlansFollowTheClinicalRecord(t *testing.T) {
+	want := map[string]bool{"diagnostic_report": true, "diagnostic_report_result": true, "care_plan": true, "care_plan_activity": true}
+	policy := retention.DefaultPolicy()
+	policy.ClinicalData = retention.ThenRestrict
+	for _, r := range retention.Rules(policy) {
+		if want[r.Table] {
+			if r.Then != retention.ThenRestrict {
+				t.Errorf("%s then %q, want the clinical record's %q", r.Table, r.Then, retention.ThenRestrict)
+			}
+			delete(want, r.Table)
+		}
+	}
+	if len(want) != 0 {
+		t.Errorf("no rule for %v", want)
+	}
+}
