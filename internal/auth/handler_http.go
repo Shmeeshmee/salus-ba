@@ -30,6 +30,7 @@ type AccountService interface {
 	Authenticate(ctx context.Context, token string) (Session, error)
 	Invite(ctx context.Context, sess Session, in Invite) (Invite, error)
 	ListInvites(ctx context.Context, sess Session) ([]Invite, error)
+	WithdrawInvite(ctx context.Context, sess Session, id string) error
 	AcceptInvite(ctx context.Context, token, password, language, detected string) (Acceptance, error)
 }
 
@@ -68,6 +69,7 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/logout", h.logout)
 	mux.HandleFunc("POST /invites", h.invite)
 	mux.HandleFunc("GET /invites", h.listInvites)
+	mux.HandleFunc("DELETE /invites/{id}", h.withdrawInvite)
 	mux.HandleFunc("POST /invites/accept", h.acceptInvite)
 }
 

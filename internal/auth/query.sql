@@ -151,3 +151,13 @@ WHERE id = @id AND erase_after <= @now AND erased_at IS NULL;
 SELECT email, language, detected_language FROM account
 WHERE organization_id = @organization_id AND role = 'admin' AND closed_at IS NULL AND erased_at IS NULL
 ORDER BY email;
+
+-- name: WithdrawInvite :execrows
+-- The admin withdraws an open invite (U7 of docs/clinic-cms/WAVE6.md): it ends now, and its e-mailed link with it.
+-- The row stays until retention removes it, as an expired invite's does.
+UPDATE invite SET expires_at = @now, token_hash = NULL
+WHERE id = @id AND accepted_at IS NULL AND expires_at > @now;
+
+-- name: LockInvites :exec
+-- Serialises the invites of one clinic until the transaction ends, so its open-invite limit holds (U7).
+SELECT pg_advisory_xact_lock(hashtextextended('invite:' || @organization_id::text, 0));

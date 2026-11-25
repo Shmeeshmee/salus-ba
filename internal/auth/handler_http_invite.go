@@ -64,6 +64,19 @@ func (h *Handler) listInvites(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, body)
 }
 
+func (h *Handler) withdrawInvite(w http.ResponseWriter, r *http.Request) {
+	sess, ok := SessionFrom(r.Context())
+	if !ok {
+		writeCode(w, http.StatusUnauthorized, "unauthenticated")
+		return
+	}
+	if err := h.svc.WithdrawInvite(r.Context(), sess, r.PathValue("id")); err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		languagesJSON

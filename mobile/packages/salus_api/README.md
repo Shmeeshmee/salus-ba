@@ -212,6 +212,7 @@ Class | Method | HTTP request | Description
 *InvitesApi* | [**acceptInvite**](doc//InvitesApi.md#acceptinvite) | **POST** /invites/accept | Accept an invite
 *InvitesApi* | [**createInvite**](doc//InvitesApi.md#createinvite) | **POST** /invites | Invite a practitioner or an admin to the clinic
 *InvitesApi* | [**listInvites**](doc//InvitesApi.md#listinvites) | **GET** /invites | The clinic's open invites
+*InvitesApi* | [**withdrawInvite**](doc//InvitesApi.md#withdrawinvite) | **DELETE** /invites/{id} | Withdraw an open invite
 *NotificationsApi* | [**getNotificationSettings**](doc//NotificationsApi.md#getnotificationsettings) | **GET** /me/notification-settings | The patient's reminder channels, quiet hours and time zone
 *NotificationsApi* | [**getSmsUsage**](doc//NotificationsApi.md#getsmsusage) | **GET** /clinic/sms-usage | The admin's clinic's SMS usage per month
 *NotificationsApi* | [**setNotificationSettings**](doc//NotificationsApi.md#setnotificationsettings) | **PUT** /me/notification-settings | Replace the patient's reminder channels, quiet hours and time zone

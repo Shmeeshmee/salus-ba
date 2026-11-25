@@ -392,6 +392,22 @@ func (r *postgresRepository) AcceptInvite(ctx context.Context, id string, at tim
 	return err
 }
 
+func (r *postgresRepository) WithdrawInvite(ctx context.Context, id string, now time.Time) error {
+	u, err := uuidOf(id)
+	if err != nil {
+		return ErrInvalidInvite
+	}
+	n, err := r.q(ctx).WithdrawInvite(ctx, authdb.WithdrawInviteParams{ID: u, Now: timestamptz(now)})
+	if err == nil && n == 0 {
+		return ErrInvalidInvite
+	}
+	return err
+}
+
+func (r *postgresRepository) LockInvites(ctx context.Context, org string) error {
+	return r.q(ctx).LockInvites(ctx, org)
+}
+
 func oneInvite(row authdb.InviteByIDRow, err error) (Invite, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Invite{}, ErrInvalidInvite

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
@@ -44,6 +45,11 @@ func (s *Service) Build(ctx context.Context, args BuildArgs) error {
 	case x.Status != StatusQueued:
 		return nil
 	}
+	if ok, err := s.p.Admins.IsClinicAdmin(ctx, auth.Session{AccountID: x.RequestedBy, OrganizationID: x.OrganizationID}); err != nil {
+		return fmt.Errorf("clinicexport: build: %w", err)
+	} else if !ok {
+		return s.refuseBuild(ctx, x)
+	}
 	archive, err := s.archive(ctx, x)
 	if err != nil {
 		return fmt.Errorf("clinicexport: build: %w", err)
@@ -61,6 +67,25 @@ func (s *Service) Build(ctx context.Context, args BuildArgs) error {
 			return err
 		}
 		return s.p.Audit.Record(ctx, jobEvent(x.OrganizationID, auditevent.CodeUpdate, auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return fmt.Errorf("clinicexport: build: %w", err)
+	}
+	return nil
+}
+
+// refuseBuild marks the export x failed without reading anything of the clinic: the admin who asked is no longer its
+// admin. Audited as the job's refused write.
+func (s *Service) refuseBuild(ctx context.Context, x Export) error {
+	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.p.Repo.SetOrganization(ctx, x.OrganizationID); err != nil {
+			return err
+		}
+		ok, err := s.p.Repo.MarkFailed(ctx, x.ID)
+		if err != nil || !ok {
+			return err
+		}
+		return s.p.Audit.Record(ctx, jobEvent(x.OrganizationID, auditevent.CodeUpdate, auditevent.OutcomeMinorFailure))
 	})
 	if err != nil {
 		return fmt.Errorf("clinicexport: build: %w", err)

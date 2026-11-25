@@ -44,6 +44,7 @@ writes under its own heading here.
 | D5 | done 2026-11-24 on its rerun after D1 to D4 (no migration), integrated 2026-11-24 | `cms(D5)`, merged into `feat/cms` with `cms(wave 5)` |
 | D6 | done 2026-11-24, integrated 2026-11-24; the support address joined at the integration | `cms(D6)`, merged into `feat/cms` with `cms(wave 5)` |
 | D7 | done 2026-11-24, integrated 2026-11-24 (migration `00077`, renumbered from `00078`); the chat joined at the integration | `cms(D7)`, merged into `feat/cms` with `cms(wave 5)` |
+| BG1 | done 2026-11-25 (no migration); U8 and three audit items deferred, listed in its entry | `cms(BG1)` |
 
 ## A: visit modes
 
@@ -3103,3 +3104,77 @@ was not captured; the full `make test` before it passed). `web`: `make web-lint`
 `desk.patient.born`, `desk.patient.phone`, `desk.patient.noPhone`, `desk.patient.consentActive`,
 `desk.patient.consentNone`, `desk.patient.requestTitle`, `desk.patient.requestHint` [legal], `desk.patient.requestKind`,
 `desk.patient.fileRequest`, `desk.patient.requestFiled`, `desk.patient.requestFailed`.
+
+## BG1: backend hardening (wave 6)
+
+Done 2026-11-25 in the worktree `wt/cms/BG1` (compose project `salus-cms-bg1`), from `docs/clinic-cms/WAVE6.md` BG1
+and the "Deferred", "Declined" and "Open" paragraphs of this file from "Wave 3 integration" on. No migration.
+
+**Decisions applied** (WAVE6.md, agent's defaults 2026-11-25, owner to confirm): U7 (an admin may withdraw an open
+invite; the limit of 50 is enforced under a lock) built here; U8 deferred (below). U1 to U6 are the second half's.
+
+**Built** (each with its failing test first):
+
+- **Invite limit under a lock (U7).** `inviteLimitReached` takes `LockInvites` (a transaction-scoped advisory lock
+  per clinic, `pg_advisory_xact_lock(hashtextextended('invite:' || org, 0))`) before counting, so two invites at 49
+  count one after the other. Tests: the repository's second transaction of a clinic waits for the first, another
+  clinic's does not; the service counts only under the lock (fake).
+- **Withdrawing an open invite (U7).** `DELETE /invites/{id}` (`x-salus-package: BG1`, clients regenerated),
+  `auth.Service.WithdrawInvite`: the admin only; the invite's `expires_at` becomes now and its token hash is cleared,
+  so the e-mailed link dies and the row is removed by retention as an expired one (no DELETE grant, no migration).
+  Audited as a delete, also when refused (forbidden, or no open invite: 404 `invalid_invite`). The receptionist is
+  refused (`reception_routes_test.go`). **The screen is BG2's: this package adds the API only.**
+- **The clinic export job re-checks its requester.** `clinicexport.Ports.Admins` (`auth.Service.IsClinicAdmin`,
+  wired in `internal/worker/clinicexport.go`): an export whose admin is no longer the clinic's admin when the job runs
+  is marked failed without reading anything of the clinic, audited as the job's refused update; no retry.
+- **Another clinic's export id is audited.** `Get` and `Download` audit an id the clinic does not have (and, for
+  `Download`, one not ready) as a refused read in a transaction of its own.
+- **Staff on `/me/data-requests`.** The handler no longer refuses staff itself: `datarequest.Patient` carries the
+  staff account's clinic and `File`, `Mine` and `Withdraw` refuse it, audited in its clinic (403 as before).
+- **The 500 when a profile disappears as a consent is recorded.** `consent`'s `GrantInPerson` runs its guarded
+  insert in a savepoint of the caller's transaction, so `consent_guard_in_person`'s refusal no longer aborts it;
+  `patient.RecordConsent` maps `consent.ErrNotFound` to its own 404 with the profile read audited. The repository test
+  failed first with `25P02` (transaction aborted).
+- **A Postgres race test of two staff bookings of one slot** (F2 had it on a fake):
+  `internal/api/reception_concurrency_test.go`, two desks through the API at once: one 201, one 409
+  `slot_unavailable`, one appointment in the slot. It passed on the first run (with `-race`): the slot hold and the
+  exclusion constraint already hold it; the test was what was missing.
+- **The flaky `internal/worker` test, captured and fixed.** The package's test binary run in a loop
+  (`-test.count=1 -test.parallel=16`, alongside this package's own test runs) failed on run 3: the four
+  `TestBinaryScan_*` tests, "the binary_scan job did not finish within 15s". clamd's log at the same minute:
+  `SelfCheck: Database modification detected. Forcing reload` at 12:26:31, `Database correctly reloaded` at 12:27:08.
+  With `ConcurrentDatabaseReload no` (ADR 0010, kept) clamd answers nothing while it reloads (37 s here, after
+  freshclam's update of `daily.cld`), and the scan tests started inside that window. A forced `RELOAD` showed a `PING`
+  waits for the reload's end (9 s). Fix: `testFiles` waits for clamd's `PING` (`scannerReady`, a 3-minute ceiling)
+  before a scan test starts, so it starts on an idle scanner; the job's own timing is unchanged. Rerun: the scan tests
+  in a loop of 100 runs with a forced `RELOAD` in the middle (see Checks).
+
+**Checks** (compose project `salus-cms-bg1`). The fast layer after each change (its Go step reached the 10-minute
+ceiling, as `internal/auth`'s importers are most of the suite; in it `cmd/agent`'s `TestRun_StartsWithTheFakeEngine…`
+timed out on River's `StartWorkContext` under the parallel load of the flaky loop: load, as `cmd/scheduler`'s before;
+it passed in the full run). The full set once more after lint fixes: `make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test` passed (lint's first run stopped on fieldalignment in
+three test stubs and one staticcheck inference, fixed; `web-lint` has the one known warning in
+`analytics/ClinicView.tsx`; `mobile-test` 701). `e2e`: `make e2e` passed (438 s; on the tree before the lint fixes,
+which moved test struct fields and one type declaration only). The flaky loop: the whole `internal/worker` package
+failed on run 3 of the loop before the fix (above); after it, `-test.run BinaryScan` 63 runs (stopped there for the
+full set), a forced clamd `RELOAD` during run 20, no failure. Not run: `make cover`, `make fhir-validate` (no FHIR
+response changed).
+
+**Deferred** (with reasons):
+
+- **U8 (signup link and the verified row's e-mail).** Both halves need a migration (when the latest verification
+  e-mail went out, and a nullable or blanked e-mail) and a hook from `auth.AcceptInvite` into `signup` that the
+  construction order in `internal/api/app.go` does not give today (signup builds on auth). Left for a package of its
+  own, after 6.0's migration number; nothing about it changed here.
+- **Refusals that row-level security turns into a rollback, generally.** Fixed here for the in-person consent (the
+  savepoint); other guarded inserts were not surveyed one by one in this package's time. The savepoint in
+  `consent/repository_postgres.go` is the pattern for the next one found.
+- **List and refusal audit events without an entity.** A refused create and an empty list name no entity because
+  nothing was reached (FHIR `AuditEvent.entity` is 0..*); the new refusals here follow that. Naming the clinic as the
+  entity would be a change across every domain's audit, not a defect fix: for the owner.
+- **The table-driven probe of the staff routes with malformed ids and bodies** for other 500s: not run in this
+  package's time.
+- **The erasure's answer without a `data_request` audit event of its own** (wave 5 integration, declined there):
+  untouched.
+- **A River worker test of `clinicExportWorker`'s last attempt** (M2's deferral): untouched.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -71,6 +72,12 @@ type Patients interface {
 	ClinicRecord(ctx context.Context, c patient.Caller, id, purpose string) (patient.ClinicRecord, error)
 }
 
+// Admins tells whether an account is still an admin of a clinic, read from the account (auth.Service): the build job
+// re-checks the admin who asked before it reads anything of the clinic.
+type Admins interface {
+	IsClinicAdmin(ctx context.Context, sess auth.Session) (bool, error)
+}
+
 // Ports are what the Service works with.
 type Ports struct {
 	Repo          Repository
@@ -87,6 +94,7 @@ type Ports struct {
 	Receipts      Receipts
 	Quotes        Quotes
 	Patients      Patients
+	Admins        Admins
 }
 
 // Service holds the export's rules: only the clinic's admin asks for, reads and downloads its exports; one is queued
@@ -136,8 +144,8 @@ func (s *Service) Request(ctx context.Context, c Caller) (Export, error) {
 	return out, nil
 }
 
-// Get returns the export id of the admin's clinic as it stands now. Not audited: it holds no personal data.
-// ErrForbidden to anyone but the clinic's admin; ErrNotFound for another clinic's.
+// Get returns the export id of the admin's clinic as it stands now. Not audited when found: it holds no personal data.
+// ErrForbidden to anyone but the clinic's admin; ErrNotFound, audited as a refused read, for another clinic's.
 func (s *Service) Get(ctx context.Context, c Caller, id string) (Export, error) {
 	if !c.admin() {
 		return Export{}, ErrForbidden
@@ -152,8 +160,8 @@ func (s *Service) Get(ctx context.Context, c Caller, id string) (Export, error) 
 		return err
 	})
 	switch {
-	case errors.Is(err, ErrNotFound):
-		return Export{}, ErrNotFound
+	case errors.Is(err, ErrNotFound): // another clinic's id, or none: a probe, audited
+		return Export{}, s.refuseWith(ctx, c, auditevent.CodeRead, ErrNotFound)
 	case err != nil:
 		return Export{}, fmt.Errorf("clinicexport: get: %w", err)
 	}
@@ -161,8 +169,8 @@ func (s *Service) Get(ctx context.Context, c Caller, id string) (Export, error) 
 }
 
 // Download returns the plaintext archive of the ready export id and its size, decrypted as it is read, audited as the
-// admin's read. ErrForbidden, audited, to anyone but the clinic's admin; ErrNotFound for another clinic's export, one
-// not ready, or one expired. The caller closes the reader.
+// admin's read. ErrForbidden, audited, to anyone but the clinic's admin; ErrNotFound, audited, for another clinic's
+// export, one not ready, or one expired. The caller closes the reader.
 func (s *Service) Download(ctx context.Context, c Caller, id string) (io.ReadCloser, int64, error) {
 	if !c.admin() {
 		return nil, 0, s.refuse(ctx, c, auditevent.CodeRead)
@@ -182,8 +190,8 @@ func (s *Service) Download(ctx context.Context, c Caller, id string) (io.ReadClo
 		return s.p.Audit.Record(ctx, event(c.AccountID, c.OrganizationID, auditevent.CodeRead, auditevent.OutcomeSuccess))
 	})
 	switch {
-	case errors.Is(err, ErrNotFound):
-		return nil, 0, ErrNotFound
+	case errors.Is(err, ErrNotFound): // another clinic's id, none, or not ready: refused, audited
+		return nil, 0, s.refuseWith(ctx, c, auditevent.CodeRead, ErrNotFound)
 	case err != nil:
 		return nil, 0, fmt.Errorf("clinicexport: download: %w", err)
 	}
@@ -239,13 +247,19 @@ func (c Caller) admin() bool { return c.Admin && c.OrganizationID != "" && c.Acc
 
 // refuse audits c's refused interaction and returns ErrForbidden.
 func (s *Service) refuse(ctx context.Context, c Caller, interaction string) error {
+	return s.refuseWith(ctx, c, interaction, ErrForbidden)
+}
+
+// refuseWith audits c's refused interaction in a transaction of its own (the one that found nothing has ended) and
+// returns refusal.
+func (s *Service) refuseWith(ctx context.Context, c Caller, interaction string, refusal error) error {
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		return s.p.Audit.Record(ctx, event(c.AccountID, c.OrganizationID, interaction, auditevent.OutcomeMinorFailure))
 	})
 	if err != nil {
 		return fmt.Errorf("clinicexport: refuse: %w", err)
 	}
-	return ErrForbidden
+	return refusal
 }
 
 // event is the audit event of an account's interaction with an export: the table, as an export is no FHIR resource.

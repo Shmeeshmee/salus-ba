@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -50,6 +51,7 @@ func newClinicExports(pool *pgxpool.Pool, files Files, appointments *appointment
 		Roles:         practitionerrole.NewService(practitionerrole.Ports{Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Practitioners: practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx),
 		Appointments:  appointments, Receipts: receipts, Quotes: receipts,
+		Admins: auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 		Patients: patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clk,
 			consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clk, nil), nil),
 	})

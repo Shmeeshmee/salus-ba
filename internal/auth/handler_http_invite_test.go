@@ -20,7 +20,13 @@ type stubInvites struct {
 	acceptance auth.Acceptance
 	gotInvite  auth.Invite
 	acceptWith [2]string     // token, password
+	withdrawn  string        // the id WithdrawInvite got
 	invites    []auth.Invite // returned by ListInvites
+}
+
+func (s *stubService) WithdrawInvite(_ context.Context, sess auth.Session, id string) error {
+	s.gotSession, s.withdrawn = sess, id
+	return s.err
 }
 
 func (s *stubService) Invite(_ context.Context, sess auth.Session, in auth.Invite) (auth.Invite, error) {
@@ -81,6 +87,7 @@ func TestInviteHandlers_NeedASession(t *testing.T) {
 	for _, r := range []*http.Request{
 		post(t, "/invites", `{"email":"cy@example.test","role":"admin"}`),
 		httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/invites", nil),
+		httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/invites/1a000000-0000-4000-8000-000000000001", nil),
 	} {
 		if rec := serve(t, &stubService{}, discard(), r); rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s %s without a session = %d, want 401", r.Method, r.URL.Path, rec.Code)
@@ -150,6 +157,31 @@ func TestInviteHandlers_LogNoEmailNameTokenOrPassword(t *testing.T) {
 	for _, secret := range []string{"example.test", "Example", token, password} {
 		if strings.Contains(logs.String(), secret) {
 			t.Errorf("the log holds %q:\n%s", secret, logs.String())
+		}
+	}
+}
+
+func TestWithdrawInviteHandler_WithdrawsAsTheSignedInAdminAndMapsTheRefusals(t *testing.T) {
+	tests := []struct {
+		err  error
+		body string
+		code int
+	}{
+		{code: http.StatusNoContent},
+		{err: auth.ErrForbidden, code: http.StatusForbidden, body: `{"error":"forbidden"}`},
+		{err: auth.ErrInvalidInvite, code: http.StatusNotFound, body: `{"error":"invalid_invite"}`},
+	}
+	for _, tt := range tests {
+		svc := &stubService{err: tt.err}
+		r := signedIn(httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/invites/1a000000-0000-4000-8000-000000000001", nil), adminSession())
+
+		rec := serve(t, svc, discard(), r)
+
+		if rec.Code != tt.code || strings.TrimSpace(rec.Body.String()) != tt.body {
+			t.Errorf("DELETE /invites/{id} with %v = %d %s, want %d %s", tt.err, rec.Code, rec.Body, tt.code, tt.body)
+		}
+		if svc.withdrawn != "1a000000-0000-4000-8000-000000000001" || svc.gotSession != adminSession() {
+			t.Errorf("WithdrawInvite() got %q %+v", svc.withdrawn, svc.gotSession)
 		}
 	}
 }

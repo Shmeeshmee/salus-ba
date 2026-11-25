@@ -402,6 +402,44 @@ paths:
               schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
+  /invites/{id}:
+    delete:
+      operationId: withdrawInvite
+      summary: Withdraw an open invite
+      description: >-
+        An admin of the clinic withdraws one of its open invites (U7 of docs/clinic-cms/WAVE6.md, package BG1): it
+        ends now and its e-mailed link no longer works. Audited, also when refused.
+      tags: [invites]
+      x-salus-package: BG1
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CSRF"
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "204":
+          description: The invite is withdrawn.
+        "401":
+          description: "`unauthenticated`: no valid session."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: "`forbidden`: not an admin of the clinic; or `csrf`."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "404":
+          description: "`invalid_invite`: no open invite of the clinic with this id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
   /invites/accept:
     post:
       operationId: acceptInvite

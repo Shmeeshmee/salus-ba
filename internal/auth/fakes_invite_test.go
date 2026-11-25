@@ -19,6 +19,25 @@ type fakeInvites struct {
 	links   map[string]string // account id -> practitioner id
 	hashes  map[string][]byte // invite id -> token hash
 	clinic  string            // set by SetOrganization
+	locks   []string          // the clinics LockInvites held, in order
+	counted []bool            // per OpenInvites call: whether LockInvites had held its clinic
+}
+
+func (r *fakeRepository) LockInvites(ctx context.Context, org string) error {
+	r.seen(ctx, "LockInvites")
+	r.locks = append(r.locks, org)
+	return r.err
+}
+
+func (r *fakeRepository) WithdrawInvite(ctx context.Context, id string, at time.Time) error {
+	r.seen(ctx, "WithdrawInvite")
+	inv, err := r.visibleInvite(id)
+	if err != nil || !inv.AcceptedAt.IsZero() || !inv.ExpiresAt.After(at) {
+		return auth.ErrInvalidInvite
+	}
+	inv.ExpiresAt = at
+	delete(r.hashes, id)
+	return r.err
 }
 
 func (r *fakeRepository) SetOrganization(ctx context.Context, id string) error {
@@ -57,6 +76,7 @@ func (r *fakeRepository) visibleInvite(id string) (*auth.Invite, error) {
 
 func (r *fakeRepository) OpenInvites(ctx context.Context, org string, at time.Time) ([]auth.Invite, error) {
 	r.seen(ctx, "OpenInvites")
+	r.counted = append(r.counted, slices.Contains(r.locks, org))
 	var open []auth.Invite
 	for _, id := range slices.Sorted(maps.Keys(r.invites)) {
 		inv := r.invites[id]

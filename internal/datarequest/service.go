@@ -83,8 +83,8 @@ func NewService(p Ports) *Service {
 // target, ErrNotFound for a clinic where they have no record, ErrExportInProgress (nothing filed) while an export of
 // theirs is still queued, ErrForbidden, audited, without an account. Audited as the patient's own request.
 func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error) {
-	if p.AccountID == "" {
-		return Request{}, s.refuse(ctx, p.AccountID, "", auditevent.CodeCreate, auditevent.CodePATRQT)
+	if p.refused() {
+		return Request{}, s.refuse(ctx, p.AccountID, p.OrganizationID, auditevent.CodeCreate, auditevent.CodePATRQT)
 	}
 	if !f.Kind.valid() || !f.valid() {
 		return Request{}, ErrInvalid
@@ -171,8 +171,8 @@ func (s *Service) hasRecord(ctx context.Context, accountID, patientID, org strin
 
 // Mine returns the patient's requests, newest first, audited as one search. ErrForbidden, audited, without an account.
 func (s *Service) Mine(ctx context.Context, p Patient) ([]Request, error) {
-	if p.AccountID == "" {
-		return nil, s.refuse(ctx, p.AccountID, "", auditevent.CodeSearchType, auditevent.CodePATRQT)
+	if p.refused() {
+		return nil, s.refuse(ctx, p.AccountID, p.OrganizationID, auditevent.CodeSearchType, auditevent.CodePATRQT)
 	}
 	out := []Request{}
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -195,8 +195,8 @@ func (s *Service) Mine(ctx context.Context, p Patient) ([]Request, error) {
 // Withdraw withdraws the patient's open request id at version; it keeps its history. ErrNotFound for none of theirs,
 // ErrClosed once answered or withdrawn, ErrVersionConflict for another version. Audited.
 func (s *Service) Withdraw(ctx context.Context, p Patient, id string, version int) (Request, error) {
-	if p.AccountID == "" {
-		return Request{}, s.refuse(ctx, p.AccountID, "", auditevent.CodeUpdate, auditevent.CodePATRQT)
+	if p.refused() {
+		return Request{}, s.refuse(ctx, p.AccountID, p.OrganizationID, auditevent.CodeUpdate, auditevent.CodePATRQT)
 	}
 	var out Request
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
