@@ -53,10 +53,12 @@ type OwnQuotes interface {
 	QuotePDF(ctx context.Context, c invoice.Caller, id string) ([]byte, error)
 }
 
-// OwnLabResults reads the calling patient's released lab results, of every clinic or one, each audited
-// (diagnosticreport.Service).
+// OwnLabResults reads the calling patient's released lab results, of every clinic or one, and each one's PDF, audited
+// (diagnosticreport.Service): a preliminary one is not the patient's to read by any route.
 type OwnLabResults interface {
 	MineAt(ctx context.Context, c diagnosticreport.Patient, org string) ([]diagnosticreport.Report, error)
+	MyPDF(ctx context.Context, c diagnosticreport.Patient, id string) (binary.File, error)
+	Content(ctx context.Context, f binary.File, from, to int64) (io.ReadCloser, error)
 }
 
 // OwnEncounters reads the calling patient's encounters of an appointment, each audited (encounter.Service).
@@ -135,7 +137,8 @@ type OwnFile struct {
 // profile, consents, appointments, encounters, signed Compositions, submitted QuestionnaireResponses and receipts),
 // quotes.json when there are quotes, chat.json when there are conversations, and files/<id>.<ext>, the signed
 // documents' PDFs (by their Composition's id), the answers' uploaded files (by Binary id), the chat's files (by
-// attachment id) and the receipts' and quotes' PDFs (by Invoice and quote id). Holds says what it holds, a line each,
+// attachment id), the receipts' and quotes' PDFs (by Invoice and quote id) and the released lab results' PDFs (by
+// DiagnosticReport id). Holds says what it holds, a line each,
 // for the manifest; Unreadable names the files the build could not open (a rotated key, a missing object), which are
 // not in it.
 type OwnPart struct {
@@ -186,6 +189,7 @@ type own struct {
 	unreadable map[string][]string // the files that could not be opened, by clinic
 	uploads    map[string]int      // how many of files are the answers' uploads, by clinic
 	chatFiles  map[string]int      // how many of files are the chat's, by clinic
+	labFiles   map[string]int      // how many of files are the lab results' PDFs, by clinic
 	chats      []conversation
 	consents   []consent.Consent
 	visits     []appointment.Seen
@@ -206,7 +210,10 @@ type answered struct {
 // read reads, as the patient c, of org (every clinic when empty): their consents, the visits with their encounters,
 // signed documents and PDFs, submitted answers and their clean files, and their receipts and quotes with their PDFs.
 func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string) (own, error) {
-	out := own{files: map[string][]OwnFile{}, unreadable: map[string][]string{}, uploads: map[string]int{}, chatFiles: map[string]int{}}
+	out := own{
+		files: map[string][]OwnFile{}, unreadable: map[string][]string{}, uploads: map[string]int{}, chatFiles: map[string]int{},
+		labFiles: map[string]int{},
+	}
 	var err error
 	if out.consents, err = o.p.Consents.MineAt(ctx, consent.Caller{AccountID: c.AccountID, PatientID: c.PatientID}, org); err != nil {
 		return own{}, err
@@ -225,10 +232,38 @@ func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string)
 	if err := o.chat(ctx, c, org, &out); err != nil {
 		return own{}, err
 	}
-	if out.labResults, err = o.p.LabResults.MineAt(ctx, diagnosticreport.Patient{AccountID: c.AccountID, PatientID: c.PatientID}, org); err != nil {
+	if err := o.labResults(ctx, c, org, &out); err != nil {
 		return own{}, err
 	}
 	return out, nil
+}
+
+// labResults reads the patient c's released lab results of org (every clinic's when empty) and each one's PDF into out:
+// one the build cannot open (not clean yet, a rotated key) is left out and named unreadable.
+func (o *OwnRecords) labResults(ctx context.Context, c appointment.Caller, org string, out *own) error {
+	lc := diagnosticreport.Patient{AccountID: c.AccountID, PatientID: c.PatientID}
+	var err error
+	if out.labResults, err = o.p.LabResults.MineAt(ctx, lc, org); err != nil {
+		return err
+	}
+	for _, r := range out.labResults {
+		if !r.HasPDF {
+			continue
+		}
+		var content io.ReadCloser
+		f, err := o.p.LabResults.MyPDF(ctx, lc, r.ID)
+		if err == nil {
+			content, err = o.p.LabResults.Content(ctx, f, 0, f.Size-1)
+		}
+		in, err := out.open(ctx, r.OrganizationID, "files/"+r.ID+".pdf", content, err)
+		if err != nil {
+			return err
+		}
+		if in {
+			out.labFiles[r.OrganizationID]++
+		}
+	}
+	return nil
 }
 
 // invoices reads the patient c's receipts and quotes of org (every clinic's when empty) and each one's PDF into out.
@@ -406,7 +441,7 @@ func (x own) part(me patient.Patient, org string) (OwnPart, error) {
 	}
 	out.Files = append(out.Files, x.files[org]...)
 	out.Holds = holds([]int{len(rec.Patient.Consents), len(rec.Visits), len(b.encounters), len(b.documents), len(b.answers),
-		x.uploads[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org], len(b.labResults)})
+		x.uploads[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org], len(b.labResults), x.labFiles[org]})
 	return out, nil
 }
 
@@ -466,6 +501,7 @@ var holdsOf = []string{
 	"submitted questionnaire answer", "file you uploaded with your answers (in files/)", "receipt (its PDF in files/)",
 	"quote (quotes.json, its PDF in files/)",
 	"chat conversation (chat.json)", "file of the chat (in files/)", "released lab result (DiagnosticReport)",
+	"lab result PDF (in files/)",
 }
 
 // holds are the manifest's lines of a part: what it holds, by count in holdsOf's order, leaving out what it has none

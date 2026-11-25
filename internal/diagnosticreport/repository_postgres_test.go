@@ -198,3 +198,35 @@ func TestRepository_AReportOfAnAuthorWhoLeftTheRoleIsRefusedNotAFault(t *testing
 		t.Errorf("Update() = %v, want ErrForbidden", err)
 	}
 }
+
+// A new PDF moves a preliminary report to its next version, at its version only; a released one never moves.
+func TestRepository_TouchMovesAPreliminaryReportOn(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seed(t, owner)
+	repo := diagnosticreport.NewPostgresRepository(app)
+	if err := in(t, app, repo, s.clinic, "", func(ctx context.Context) error {
+		r, err := repo.Insert(ctx, draftReport(blood(), s.clinic, s.patient, s.visit), s.doctor)
+		if err != nil {
+			return err
+		}
+		if ok, err := repo.Touch(ctx, r.ID, 1); err != nil || !ok {
+			t.Errorf("Touch() = %v, %v", ok, err)
+		}
+		if ok, err := repo.Touch(ctx, r.ID, 1); err != nil || ok {
+			t.Errorf("Touch() at a stale version = %v, %v", ok, err)
+		}
+		if got, err := repo.ByID(ctx, r.ID); err != nil || got.VersionID != 2 {
+			t.Errorf("ByID() = %+v, %v", got, err)
+		}
+		if ok, err := repo.Release(ctx, r.ID, s.doctor, 2, now); err != nil || !ok {
+			t.Fatalf("Release() = %v, %v", ok, err)
+		}
+		if ok, err := repo.Touch(ctx, r.ID, 3); err != nil || ok {
+			t.Errorf("Touch() of a released report = %v, %v", ok, err)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}

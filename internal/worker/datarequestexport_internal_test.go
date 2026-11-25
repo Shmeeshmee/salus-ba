@@ -22,6 +22,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/datarequest"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/envelope"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
@@ -63,6 +64,7 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 	}
 	receipt := seedExportReceipt(t, owner, org, patient, account)
 	clk := clock.Fixed{T: time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)}
+	released, preliminary := seedExportLabResults(t, owner, app, Files{Store: store, KEK: kek}, org, appt, clk)
 	svc := newDataRequestExports(app, Files{Store: store, KEK: kek}, newRevocations(app, nil, clk), newReceipts(app, clk), clk)
 	w := &dataRequestExportWorker{exports: svc, log: slog.New(slog.DiscardHandler)}
 	args := datarequest.ExportArgs{RequestID: request, AccountID: account}
@@ -74,7 +76,6 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Delete(context.Background(), key) })
-
 	var status, code string
 	if err := owner.QueryRow(ctx, `SELECT status, answer_code FROM data_request WHERE id = $1`, request).Scan(&status, &code); err != nil ||
 		status != "fulfilled" || code != "done" {
@@ -101,6 +102,7 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 		!strings.HasPrefix(names["clinics/"+org+"/files/"+receipt+".pdf"], "%PDF-") { // the receipt's PDF (WAVE6.md PX)
 		t.Errorf("archive %v, want the patient's profile, account, receipt PDF and manifest", slices.Collect(maps.Keys(names)))
 	}
+	checkExportLabResults(t, names, org, released, preliminary)
 	var named int
 	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_event WHERE agent_account_id = $1 AND request_id = $2`, account,
 		datarequest.AuditRequestID(request)).Scan(&named); err != nil || named < 8 {
@@ -110,6 +112,68 @@ func TestDataRequestExportWorker_BuildsThePatientsArchiveAndFulfilsTheRequest(t 
 	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_event WHERE agent_account_id = $1`, account).Scan(&reads); err != nil || reads < 4 {
 		t.Errorf("%d audit events as the patient (%v), want the profile, consents, visits, receipts and account reads", reads, err)
 	}
+}
+
+// checkExportLabResults: the released lab result and its PDF are in the patient's archive; the preliminary one, and
+// its PDF, never reach them (U5).
+func checkExportLabResults(t *testing.T, names map[string]string, org, released, preliminary string) {
+	t.Helper()
+	if !strings.Contains(names["clinics/"+org+"/record.json"], released) || !strings.HasPrefix(names["clinics/"+org+"/files/"+released+".pdf"], "%PDF-") {
+		t.Errorf("the released lab result or its PDF is missing: %v", slices.Collect(maps.Keys(names)))
+	}
+	for name, body := range names {
+		if strings.Contains(name, preliminary) || strings.Contains(body, preliminary) {
+			t.Errorf("%s carries the preliminary lab result", name)
+		}
+	}
+}
+
+// noScans enqueues no scan: the test marks the files clean itself.
+type noScans struct{}
+
+func (noScans) EnqueueScan(context.Context, binary.ScanArgs) error { return nil }
+
+// seedExportLabResults seeds two lab results on the visit appt, each with its PDF stored through binary's pipeline and
+// marked clean, and releases the first: the export holds that one and its PDF, never the other (docs/clinic-cms U5).
+func seedExportLabResults(t *testing.T, owner, app *pgxpool.Pool, files Files, org, appt string, clk clock.Clock) (released, preliminary string) {
+	t.Helper()
+	ctx := t.Context()
+	var doctor string
+	if err := owner.QueryRow(ctx, `INSERT INTO account (email, password_hash, role, organization_id)
+		VALUES (gen_random_uuid()::text || '@example.test', 'h', 'practitioner', $1) RETURNING id`, org).Scan(&doctor); err != nil {
+		t.Fatal(err)
+	}
+	pdfs := binary.NewService(binary.Ports{
+		Repo: binary.NewPostgresRepository(app), Store: files.Store, Tx: postgres.NewTransactor(app), Jobs: noScans{}, Clock: clk, KEK: files.KEK,
+	})
+	report := func() string {
+		var id, patient string
+		if err := owner.QueryRow(ctx, `INSERT INTO diagnostic_report (organization_id, patient_id, appointment_id, created_by_account_id, title)
+			SELECT organization_id, patient_id, id, $2, 'Placeholder blood count' FROM appointment WHERE id = $1
+			RETURNING id::text, patient_id::text`, appt, doctor).Scan(&id, &patient); err != nil {
+			t.Fatal(err)
+		}
+		body := []byte("%PDF-1.4\n% placeholder lab report\n%%EOF\n")
+		b, err := pdfs.UploadReport(ctx, binary.ReportUpload{
+			Body: bytes.NewReader(body), ReportID: id, OrganizationID: org, PatientID: patient, Size: int64(len(body)),
+		}, func(ctx context.Context, _ binary.Binary) error {
+			return postgres.SetLocal(ctx, "app.organization_id", org)
+		})
+		if err != nil {
+			t.Fatalf("UploadReport() = %v", err)
+		}
+		t.Cleanup(func() { _ = files.Store.Delete(context.Background(), b.ID) })
+		if _, err := owner.Exec(ctx, `UPDATE "binary" SET status = 'clean', scanned_at = now() WHERE id = $1`, b.ID); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	released, preliminary = report(), report()
+	if _, err := owner.Exec(ctx, `UPDATE diagnostic_report SET status = 'final', released_at = now(), released_by_account_id = $2,
+		version_id = version_id + 1 WHERE id = $1`, released, doctor); err != nil {
+		t.Fatal(err)
+	}
+	return released, preliminary
 }
 
 // seedExportReceipt seeds, as the owner, a receipt of the clinic org to the patient: the export renders its PDF on the

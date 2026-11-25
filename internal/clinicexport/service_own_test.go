@@ -69,6 +69,20 @@ func (l ownLabs) MineAt(_ context.Context, c diagnosticreport.Patient, org strin
 	return out, nil
 }
 
+func (l ownLabs) MyPDF(_ context.Context, c diagnosticreport.Patient, id string) (binary.File, error) {
+	l.o.call("lab pdf " + id)
+	for _, r := range l.o.labs {
+		if r.ID == id && r.HasPDF && c.PatientID == r.PatientID && r.Status == diagnosticreport.StatusFinal {
+			return binary.File{Binary: binary.Binary{ID: id, Size: int64(len("%PDF lab " + id))}}, nil
+		}
+	}
+	return binary.File{}, diagnosticreport.ErrNotFound
+}
+
+func (l ownLabs) Content(_ context.Context, f binary.File, from, to int64) (io.ReadCloser, error) {
+	return l.o.opened(("%PDF lab " + f.ID)[from:to+1], f.ID)
+}
+
 // ofClinic is whether id is org's, or org is empty.
 func ofClinic(id, org string) bool { return org == "" || id == org }
 
@@ -225,7 +239,7 @@ func newOwn() (*ownSources, *clinicexport.OwnRecords) {
 		receipts: []invoice.Invoice{{ID: "i1", PatientID: "pt1", OrganizationID: clinicA}, {ID: "i2", PatientID: "pt1", OrganizationID: clinicB}},
 		quotes:   []invoice.Quote{{ID: "q2", PatientID: "pt1", OrganizationID: clinicB}},
 		labs: []diagnosticreport.Report{{ID: "l2", PatientID: "pt1", OrganizationID: clinicB, AppointmentID: "a2", Title: "Synthetic panel",
-			Status: diagnosticreport.StatusFinal, ReleasedAt: &released, VersionID: 2,
+			Status: diagnosticreport.StatusFinal, ReleasedAt: &released, VersionID: 2, HasPDF: true,
 			Results: []diagnosticreport.Result{{Test: "Synthetic marker", ValueText: "negative"}}}},
 		encs: []encounter.Encounter{{ID: "e2", AppointmentID: "a2", PatientID: "pt1", OrganizationID: clinicB}},
 		docs: []composition.Document{{
@@ -322,8 +336,11 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 	if want := []string{"record.json", "files/i1.pdf"}; !slices.Equal(names(a), want) {
 		t.Errorf("clinic A's files %v, want %v", names(a), want)
 	}
-	if want := []string{"record.json", "quotes.json", "files/d2.pdf", "files/b2.png", "files/i2.pdf", "files/q2.pdf"}; !slices.Equal(names(b), want) {
+	if want := []string{"record.json", "quotes.json", "files/d2.pdf", "files/b2.png", "files/i2.pdf", "files/q2.pdf", "files/l2.pdf"}; !slices.Equal(names(b), want) {
 		t.Errorf("clinic B's files %v, want %v", names(b), want)
+	}
+	if !bytes.Equal(file(t, b, "files/l2.pdf"), []byte("%PDF lab l2")) {
+		t.Error("the lab result's PDF is not its own")
 	}
 	if !bytes.Equal(file(t, b, "files/d2.pdf"), []byte("%PDF dr2")) || !bytes.Equal(file(t, b, "files/b2.png"), []byte("png bytes")) {
 		t.Error("the files' bytes are not the documents' and uploads'")
@@ -339,7 +356,7 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 	}
 	if want := []string{"1 consent", "1 appointment (the cancelled ones too)", "1 visit record (Encounter)",
 		"1 signed document (its PDF in files/)", "1 submitted questionnaire answer", "1 file you uploaded with your answers (in files/)",
-		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)", "1 released lab result (DiagnosticReport)"}; !slices.Equal(b.Holds, want) {
+		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)", "1 released lab result (DiagnosticReport)", "1 lab result PDF (in files/)"}; !slices.Equal(b.Holds, want) {
 		t.Errorf("clinic B holds %q", b.Holds)
 	}
 	if !slices.Contains(o.calls, "answers a2 completed") || !slices.Contains(o.calls, "file b3") {
@@ -377,7 +394,7 @@ func TestOwnRecords_AClinicTargetReadsThatClinic(t *testing.T) {
 func TestOwnRecords_AFileThatCannotBeOpenedIsNamedNotFatal(t *testing.T) {
 	t.Parallel()
 	o, own := newOwn()
-	o.unreadable = map[string]bool{"dr2": true, "b2": true, "q2": true}
+	o.unreadable = map[string]bool{"dr2": true, "b2": true, "q2": true, "l2": true}
 	x, err := own.Export(t.Context(), "acc1", "")
 	if err != nil {
 		t.Fatalf("Export: %v", err)
@@ -386,7 +403,7 @@ func TestOwnRecords_AFileThatCannotBeOpenedIsNamedNotFatal(t *testing.T) {
 	if want := []string{"record.json", "quotes.json", "files/i2.pdf"}; !slices.Equal(names(b), want) {
 		t.Errorf("clinic B's files %v, want %v", names(b), want)
 	}
-	if want := []string{"files/d2.pdf", "files/b2.png", "files/q2.pdf"}; !slices.Equal(b.Unreadable, want) {
+	if want := []string{"files/d2.pdf", "files/b2.png", "files/q2.pdf", "files/l2.pdf"}; !slices.Equal(b.Unreadable, want) {
 		t.Errorf("unreadable %v, want %v", b.Unreadable, want)
 	}
 	if got := entries(t, file(t, b, "record.json")); !slices.Contains(got, "urn:uuid:d2") {

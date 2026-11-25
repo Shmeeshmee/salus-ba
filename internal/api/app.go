@@ -137,7 +137,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
 	}, fhirBase, log)
-	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
+	labAPI, labStream := labResultRoutes(labResultPorts{pool: pool, audit: audit, tx: tx, appointments: appointments, accounts: accounts, patients: patients, files: newParentFiles(pool, files, kek, jobs, tx)}, log) // lab results and their PDFs (clinic-cms LB1, U5)
+	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newParentFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
 		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active, summarizer: summarizer}, log)
 	entries := newProfileEntries(profilePorts{pool, audit, tx, consents, appointmentRepo, roles, encounters, accounts, patients}, fhirBase, log)
 	h := router.New(router.Config{
@@ -175,10 +176,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			[]func(*http.ServeMux){signupRoutes(signupPorts{pool: pool, jobs: jobs, counters: auth.NewRedisCounters(rdb), audit: audit, tx: tx,
 				clinics: clinics, accounts: accounts, rateLimitKey: cfg.RateLimitKey, trustedProxies: cfg.TrustedProxies}, log)}, // self-signup (clinic-cms O1)
 			[]func(*http.ServeMux){clinicExportRoutes(clinicExportPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, files: files, patients: patients, appointments: appointments}, log), dataRequestRoutes(dataRequestPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, patients: patients, consents: consents, clinics: clinics, files: files}, log)}, // clinic-cms M2, D1 to D3
-			[]func(*http.ServeMux){roomRoutes(sites, accounts, log)},                                        // rooms and devices (clinic-cms RM1)
-			[]func(*http.ServeMux){labResultRoutes(pool, audit, tx, appointments, accounts, patients, log)}, // lab results (clinic-cms LB1)
+			[]func(*http.ServeMux){roomRoutes(sites, accounts, log)}, // rooms and devices (clinic-cms RM1)
+			[]func(*http.ServeMux){labAPI},                           // lab results (clinic-cms LB1)
 			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
-		Streams: append(streams, consultStream, chatStream),
+		Streams: append(streams, consultStream, chatStream, labStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})
 	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil

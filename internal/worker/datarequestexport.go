@@ -57,8 +57,9 @@ func (w *dataRequestExportWorker) Work(ctx context.Context, job *river.Job[datar
 
 // newDataRequestExports builds the export's service on pool (salus_app) for its build job: what the patient reads in
 // the app, through the services the app reads (profile, consents, appointments, encounters, signed documents and their
-// PDFs, submitted answers, their questionnaires and files, receipts and quotes), and their account, each read audited
-// by its own service as the patient's, and the object store and key-encryption key of the binary jobs.
+// PDFs, submitted answers, their questionnaires and files, receipts and quotes, released lab results and their PDFs),
+// and their account, each read audited by its own service as the patient's, and the object store and key-encryption key
+// of the binary jobs.
 func newDataRequestExports(pool *pgxpool.Pool, files Files, appointments *appointment.Service, receipts *invoice.Service, clk clock.Clock) *datarequest.Service {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
@@ -87,8 +88,9 @@ func newDataRequestExports(pool *pgxpool.Pool, files Files, appointments *appoin
 				Roles: roles, Directory: roles, Encounters: encounters, Audit: audit, Tx: tx, Clock: clk,
 				Files: binary.NewService(binary.Ports{Repo: binary.NewPostgresRepository(pool), Store: files.Store, Audit: audit, Tx: tx, Clock: clk, KEK: files.KEK}),
 			}),
-			LabResults: diagnosticreport.NewService(diagnosticreport.Ports{ // the patient's released results, read as in the app (LB1)
+			LabResults: diagnosticreport.NewService(diagnosticreport.Ports{ // the patient's released results and PDFs, read as in the app (LB1, U5)
 				Repo: diagnosticreport.NewPostgresRepository(pool), Visits: appointments, Audit: audit, Tx: tx, Clock: clk,
+				Files: binary.NewService(binary.Ports{Repo: binary.NewPostgresRepository(pool), Store: files.Store, Audit: audit, Tx: tx, Clock: clk, KEK: files.KEK}),
 			}),
 		}),
 		Accounts: auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),

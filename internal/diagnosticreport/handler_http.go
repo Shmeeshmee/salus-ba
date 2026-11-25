@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
@@ -30,6 +32,10 @@ type Reports interface {
 	Read(ctx context.Context, c Staff, id string) (Report, error)
 	Mine(ctx context.Context, c Patient) ([]Report, error)
 	MyReport(ctx context.Context, c Patient, id string) (Report, error)
+	AttachPDF(ctx context.Context, c Staff, id string, in PDFUpload) (Report, error)
+	PDF(ctx context.Context, c Staff, id string) (binary.File, error)
+	MyPDF(ctx context.Context, c Patient, id string) (binary.File, error)
+	Content(ctx context.Context, f binary.File, from, to int64) (io.ReadCloser, error)
 }
 
 // Session is who is signed in: staff of a clinic (OrganizationID set) or a patient account.
@@ -42,15 +48,24 @@ type Session struct {
 type HTTPHandler struct {
 	svc     Reports
 	session func(ctx context.Context) (Session, bool, error)
+	clock   clock.Clock // for the PDF routes' deadlines
 	log     *slog.Logger
 }
 
 // NewHTTPHandler returns the HTTPHandler; session gives who is signed in, false for nobody.
-func NewHTTPHandler(svc Reports, session func(ctx context.Context) (Session, bool, error), log *slog.Logger) *HTTPHandler {
-	return &HTTPHandler{svc: svc, session: session, log: log}
+func NewHTTPHandler(svc Reports, session func(ctx context.Context) (Session, bool, error), clk clock.Clock, log *slog.Logger) *HTTPHandler {
+	return &HTTPHandler{svc: svc, session: session, clock: clk, log: log}
 }
 
-// Routes declares the lab results' routes on mux. The PDF's routes are not served yet (PROGRESS.md, LB1).
+// StreamRoutes declares the PDF's routes on mux. They stream, set their own read and write deadlines (as binary's), and
+// are mounted without the request timeout or a body limit (internal/api/router).
+func (h *HTTPHandler) StreamRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("PUT /clinic/diagnostic-reports/{id}/pdf", h.staff(h.attachPDF))
+	mux.HandleFunc("GET /clinic/diagnostic-reports/{id}/pdf", h.staff(h.pdf))
+	mux.HandleFunc("GET /me/diagnostic-reports/{id}/pdf", h.myPDF)
+}
+
+// Routes declares the lab results' routes on mux but the PDF's (StreamRoutes).
 func (h *HTTPHandler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /clinic/appointments/{id}/diagnostic-reports", h.staff(h.forVisit))
 	mux.HandleFunc("POST /clinic/appointments/{id}/diagnostic-reports", h.staff(h.attach))
@@ -214,6 +229,63 @@ func (h *HTTPHandler) myReport(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, toJSON(out))
 }
 
+// attachPDF reads the raw body, exactly Content-Length bytes (none given is -1), at If-Match; the file's name is the
+// Content-Disposition's, never anything from the URL.
+func (h *HTTPHandler) attachPDF(w http.ResponseWriter, r *http.Request, c Staff) {
+	binary.Deadlines(w, h.clock.Now().Add(binary.UploadDeadline))
+	version, ok := ifMatch(w, r)
+	if !ok {
+		return
+	}
+	out, err := h.svc.AttachPDF(r.Context(), c, r.PathValue("id"), PDFUpload{
+		Body: r.Body, Title: binary.TitleOf(r.Header.Get("Content-Disposition")), Size: r.ContentLength, Version: version,
+	})
+	h.stored(w, r, http.StatusOK, out, err)
+}
+
+func (h *HTTPHandler) pdf(w http.ResponseWriter, r *http.Request, c Staff) {
+	if headRefused(w, r) {
+		return
+	}
+	binary.Deadlines(w, h.clock.Now().Add(binary.ContentDeadline))
+	f, err := h.svc.PDF(r.Context(), c, r.PathValue("id"))
+	if h.failed(w, r, hidden(err)) {
+		return
+	}
+	binary.ServeContent(w, r, h.svc, f, h.log)
+}
+
+func (h *HTTPHandler) myPDF(w http.ResponseWriter, r *http.Request) {
+	if headRefused(w, r) {
+		return
+	}
+	binary.Deadlines(w, h.clock.Now().Add(binary.ContentDeadline))
+	s, ok := h.signedIn(w, r)
+	if !ok {
+		return
+	}
+	if !uuidText.MatchString(r.PathValue("id")) {
+		writeCode(w, http.StatusNotFound, "not_found")
+		return
+	}
+	f, err := h.svc.MyPDF(r.Context(), s.Patient, r.PathValue("id"))
+	if h.failed(w, r, err) {
+		return
+	}
+	binary.ServeContent(w, r, h.svc, f, h.log)
+}
+
+// headRefused answers HEAD on a PDF's route 405, as binary's content route: it would open and audit the PDF for no
+// byte.
+func headRefused(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodHead {
+		return false
+	}
+	w.Header().Set("Allow", http.MethodGet)
+	writeCode(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	return true
+}
+
 // stored answers a write with the report and its ETag, or err.
 func (h *HTTPHandler) stored(w http.ResponseWriter, r *http.Request, status int, out Report, err error) {
 	if h.failed(w, r, err) {
@@ -289,6 +361,8 @@ var errorCodes = []struct {
 	{ErrNotFound, "not_found", http.StatusNotFound},
 	{ErrReleased, "report_released", http.StatusConflict},
 	{ErrVersionConflict, "version_conflict", http.StatusPreconditionFailed},
+	{ErrTooLarge, "too_large", http.StatusRequestEntityTooLarge},
+	{ErrBadBody, "invalid_request", http.StatusBadRequest},
 }
 
 func (h *HTTPHandler) failed(w http.ResponseWriter, r *http.Request, err error) bool {

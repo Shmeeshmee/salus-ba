@@ -387,6 +387,7 @@ type Binary struct {
 	ThumbnailID               pgtype.UUID
 	ThumbnailSize             pgtype.Int8
 	ThumbnailWrappedKey       []byte
+	DiagnosticReportID        pgtype.UUID
 }
 
 type CarePlan struct {

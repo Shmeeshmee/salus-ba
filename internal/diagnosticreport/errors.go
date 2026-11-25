@@ -15,4 +15,8 @@ var (
 	ErrReleased = errors.New("diagnosticreport: released")
 	// ErrVersionConflict is returned when the report changed since the caller read it.
 	ErrVersionConflict = errors.New("diagnosticreport: version conflict")
+	// ErrTooLarge is returned for a PDF past binary.MaxDocumentSize.
+	ErrTooLarge = errors.New("diagnosticreport: too large")
+	// ErrBadBody is returned for a PDF upload without a length, or whose body does not match it.
+	ErrBadBody = errors.New("diagnosticreport: body does not match its length")
 )

@@ -75,6 +75,12 @@ type Repository interface {
 	OfMessages(ctx context.Context, conversationIDs, messageIDs []string) ([]Binary, error)
 	// SetThumbnail stores the thumbnail of the clean file id that has none, at at, and reports whether it did.
 	SetThumbnail(ctx context.Context, id string, t Thumbnail, at time.Time) (bool, error)
+	// SetReportJob scopes the rest of the transaction in ctx to the file of the lab result reportID of the clinic org,
+	// for the scan job of its PDF. The report's other scopes are set by diagnosticreport (the clinic's, the patient's),
+	// in the transaction binary joins.
+	SetReportJob(ctx context.Context, reportID, org string) error
+	// OfReports returns the files of the lab results, whatever their status, as the scope shows them, oldest first.
+	OfReports(ctx context.Context, reportIDs []string) ([]Binary, error)
 	// DeleteUnattachedBefore deletes the chat files uploaded before before and never attached to a message, in every
 	// clinic, and counts them (the retention role's purger).
 	DeleteUnattachedBefore(ctx context.Context, before time.Time) (int64, error)

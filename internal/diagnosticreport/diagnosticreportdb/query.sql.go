@@ -266,6 +266,25 @@ func (q *Queries) ResultsOf(ctx context.Context, ids []pgtype.UUID) ([]Diagnosti
 	return items, nil
 }
 
+const touchReport = `-- name: TouchReport :execrows
+UPDATE diagnostic_report SET version_id = version_id + 1, updated_at = now()
+WHERE id = $1 AND version_id = $2 AND status = 'preliminary'
+`
+
+type TouchReportParams struct {
+	ID        pgtype.UUID
+	VersionID int32
+}
+
+// The report's PDF changed: its next version.
+func (q *Queries) TouchReport(ctx context.Context, arg TouchReportParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchReport, arg.ID, arg.VersionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateReport = `-- name: UpdateReport :execrows
 UPDATE diagnostic_report
 SET title = $1, loinc_code = $2, effective_date = $3,
