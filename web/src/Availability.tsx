@@ -4,6 +4,7 @@ import type { Bundle, FhirClient, Questionnaire } from './api/fhir'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { ModeSelect } from './AvailabilityModes'
+import { PlaceSelects, type Places } from './AvailabilityPlaces'
 import { useT } from './i18n/useT'
 import { CrossIcon } from './icons'
 import { useLoad } from './load'
@@ -79,16 +80,40 @@ function Editor({ api, roleId }: { api: ApiClient; roleId: string }) {
     if (!res.ok) throw new Error('availability')
     return res.data
   }, [api, roleId])
+  const places = usePlaces(api)
 
-  if (state.name === 'loading') return <p className="muted">{t('common.loading')}</p>
+  if (state.name === 'loading' || places === undefined) return <p className="muted">{t('common.loading')}</p>
   if (state.name === 'failed') return <Alert message={t('calendar.hoursLoadFailed')} />
-  return <HoursForm api={api} saved={state.value} onSaved={set} onReload={reload} />
+  return <HoursForm api={api} saved={state.value} places={places} onSaved={set} onReload={reload} />
+}
+
+// usePlaces reads the clinic's locations and the rooms of each; undefined while loading. A read that fails leaves
+// the rows without a location to pick, and the server says what is missing when they are saved.
+function usePlaces(api: ApiClient): Places | undefined {
+  const { state } = useLoad(async (): Promise<Places> => {
+    const res = await attempt(api.GET('/clinic/locations'))
+    const locations = res.ok ? res.data : []
+    const rooms = await Promise.all(
+      locations.map(async (l) => {
+        const r = await attempt(api.GET('/clinic/locations/{id}/rooms', { params: { path: { id: l.id } } }))
+        return [l.id, r.ok ? r.data : []] as const
+      }),
+    )
+    return { locations, rooms: Object.fromEntries(rooms) }
+  }, [api])
+  return state.name === 'loaded' ? state.value : state.name === 'failed' ? { locations: [], rooms: {} } : undefined
 }
 
 type Row = Rule & { key: number }
-type FormProps = { api: ApiClient; saved: Saved; onSaved: (s: Saved) => void; onReload: () => void }
+type FormProps = { api: ApiClient; saved: Saved; places: Places; onSaved: (s: Saved) => void; onReload: () => void }
 
-function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
+// where is what a row sends of its location and room: an in-person row's, none for a video row (U2, U3).
+function where({ mode, locationId, roomId }: Rule): Pick<Rule, 'locationId' | 'roomId'> {
+  if (mode !== 'in-person') return {}
+  return { ...(locationId ? { locationId } : {}), ...(roomId ? { roomId } : {}) }
+}
+
+function HoursForm({ api, saved, places, onSaved, onReload }: FormProps) {
   const t = useT()
   const [slotMinutes, setSlotMinutes] = useState(String(saved.slotMinutes ?? 30))
   const [rows, setRows] = useState<Row[]>(saved.availability.map((r, key) => ({ ...r, key })))
@@ -104,7 +129,7 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
     const res = await attempt(
       api.PUT('/practitioner-roles/{id}/availability', {
         params: { path: { id: saved.practitionerRoleId }, header: { 'If-Match': `W/"${saved.versionId}"` } },
-        body: { slotMinutes: minutes, availability: rows.map(({ day, start, end, mode }) => ({ day, start, end, mode: mode ?? 'video' })) },
+        body: { slotMinutes: minutes, availability: rows.map((r) => ({ day: r.day, start: r.start, end: r.end, mode: r.mode ?? 'video', ...where(r) })) },
       }),
     )
     if (res.ok) {
@@ -117,13 +142,20 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
   })
 
   function change(key: number, next: Partial<Rule>) {
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...next } : r)))
+    setRows((rs) => rs.map((r) => (r.key === key ? placed({ ...r, ...next }) : r)))
     setDone(false)
+  }
+
+  // placed gives an in-person row without a location the first one in use (U2).
+  function placed(r: Row): Row {
+    if (r.mode !== 'in-person' || r.locationId) return r
+    return { ...r, locationId: places.locations.find((l) => l.active)?.id, roomId: undefined }
   }
 
   function add() {
     const last = rows.at(-1)
-    setRows((rs) => [...rs, { key: nextKey, day: last ? Math.min(last.day + 1, 7) : 1, start: '09:00', end: '17:00', mode: last?.mode ?? 'video' }])
+    const next = { key: nextKey, day: last ? Math.min(last.day + 1, 7) : 1, start: '09:00', end: '17:00', mode: last?.mode ?? 'video', ...(last ? where(last) : {}) }
+    setRows((rs) => [...rs, placed(next)])
     setNextKey((k) => k + 1)
     setDone(false)
   }
@@ -157,6 +189,9 @@ function HoursForm({ api, saved, onSaved, onReload }: FormProps) {
                 ))}
               </select>
               <ModeSelect label={t('calendar.modeN', { n: i + 1 })} value={r.mode ?? 'video'} onChange={(mode) => change(r.key, { mode })} />
+              {r.mode === 'in-person' && (
+                <PlaceSelects places={places} n={i + 1} locationId={r.locationId} roomId={r.roomId} onChange={(next) => change(r.key, next)} />
+              )}
               <ClockField label={t('calendar.fromN', { n: i + 1 })} value={r.start} onChange={(start) => change(r.key, { start })} />
               <span className="muted" aria-hidden="true">
                 {t('calendar.to')}
@@ -255,6 +290,7 @@ function DefaultQuestionnaire({ api, fhir, roleId }: { api: ApiClient; fhir: Fhi
 function saveMessage(t: T, code?: string): string {
   if (code === 'invalid_slot_minutes') return t('calendar.invalidSlotMinutes')
   if (code === 'invalid_availability') return t('calendar.invalidAvailability')
+  if (code === 'resource_busy') return t('locations.busy')
   if (code === 'version_conflict') return t('calendar.hoursConflict')
   if (code === 'forbidden') return t('calendar.hoursForbidden')
   return t('common.somethingWrong')

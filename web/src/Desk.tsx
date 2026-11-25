@@ -20,6 +20,7 @@ import { Alert, Notice } from './ui'
 
 type DeskDay = components['schemas']['DeskDay']
 type DeskVisit = components['schemas']['DeskVisit']
+type Location = components['schemas']['Location']
 
 type Props = { api: ApiClient; fhir: FhirClient; account: Account; now?: () => Date }
 
@@ -30,27 +31,29 @@ export function Desk({ api, fhir, account, now = () => new Date() }: Props) {
   const t = useT()
   const organizationId = account.organizationId ?? ''
   const { state } = useLoad(async () => {
-    const [zone, staff] = await Promise.all([loadTimeZone(fhir, organizationId), loadStaff(fhir, organizationId)])
-    return { zone, staff }
-  }, [fhir, organizationId])
+    const [zone, staff, locations] = await Promise.all([loadTimeZone(fhir, organizationId), loadStaff(fhir, organizationId), attempt(api.GET('/clinic/locations'))])
+    // The filter by location is offered only with two locations in use (LC2); without them, the desk is the day's.
+    return { zone, staff, locations: locations.ok ? locations.data.filter((l) => l.active) : [] }
+  }, [api, fhir, organizationId])
   if (state.name === 'loading') return <p className="panel muted">{t('common.loading')}</p>
   if (state.name === 'failed') return <Alert message={t('desk.loadFailed')} />
-  return <Day api={api} fhir={fhir} zone={state.value.zone} staff={state.value.staff} now={now} />
+  return <Day api={api} fhir={fhir} zone={state.value.zone} staff={state.value.staff} locations={state.value.locations} now={now} />
 }
 
-type DayProps = { api: ApiClient; fhir: FhirClient; zone: string; staff: Member[]; now: () => Date }
+type DayProps = { api: ApiClient; fhir: FhirClient; zone: string; staff: Member[]; locations: Location[]; now: () => Date }
 
-function Day({ api, fhir, zone, staff, now }: DayProps) {
+function Day({ api, fhir, zone, staff, locations, now }: DayProps) {
   const t = useT()
   const f = useFormat()
   const [walkIn, setWalkIn] = useState(false)
   const [patients, setPatients] = useState(false)
   const [notice, setNotice] = useState<string>()
+  const [locationId, setLocationId] = useState('') // '' for every location
   const { state, reload, set } = useLoad(async () => {
-    const res = await attempt(api.GET('/clinic/desk/today'))
+    const res = await attempt(api.GET('/clinic/desk/today', { params: { query: locationId ? { locationId } : {} } }))
     if (!res.ok) throw new Error('desk')
     return res.data
-  }, [api])
+  }, [api, locationId])
   const names = new Map(staff.map((m) => [m.roleId, m.name]))
   const day = state.name === 'loaded' ? state.value : undefined
 
@@ -62,6 +65,16 @@ function Day({ api, fhir, zone, staff, now }: DayProps) {
       <h1>{t('desk.title')}</h1>
       <div className="toolbar">
         {day && <h2>{f.date(startOfDay(calendarDay(day.date), zone), zone, 'long')}</h2>}
+        {locations.length > 1 && (
+          <select className="desk-location" aria-label={t('locations.filter')} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            <option value="">{t('locations.allLocations')}</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        )}
         <span className="actions">
           <button type="button" onClick={() => setPatients(true)}>
             {t('desk.patients.title')}

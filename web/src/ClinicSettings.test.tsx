@@ -87,6 +87,7 @@ describe('ClinicSettings', () => {
     renderSettings({ [`GET ${path}`]: () => new Promise<Response>(() => {}) })
 
     expect(screen.getByRole('link', { name: 'Price list' }).getAttribute('href')).toBe('/price-list')
+    expect(screen.getByRole('link', { name: 'Locations' }).getAttribute('href')).toBe('/locations')
   })
 
   // A screen path, not under /clinic/: the dev proxy and the production Caddyfile send /clinic/* to the API.

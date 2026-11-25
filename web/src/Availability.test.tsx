@@ -343,3 +343,80 @@ describe('Availability in a language', () => {
     expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
   })
 })
+
+// Placeholder sites and rooms of the clinic (U2, U3 of docs/clinic-cms/WAVE6.md).
+const site = { id: 'f1000000-0000-4000-8000-000000000001', organizationId: 'org', name: 'Placeholder main site', timeZone: 'Europe/Sarajevo', active: true, versionId: 1 }
+const annex = { ...site, id: 'f1000000-0000-4000-8000-000000000002', name: 'Placeholder annex' }
+const closed = { ...site, id: 'f1000000-0000-4000-8000-000000000003', name: 'Placeholder closed site', active: false }
+const room1 = { id: 'f2000000-0000-4000-8000-000000000001', locationId: annex.id, name: 'Room 1', active: true, versionId: 1 }
+const shut = { ...room1, id: 'f2000000-0000-4000-8000-000000000002', name: 'Old room', active: false }
+const locationRoutes = {
+  'GET /clinic/locations': () => Response.json([site, annex, closed]),
+  [`GET /clinic/locations/${site.id}/rooms`]: () => Response.json([]),
+  [`GET /clinic/locations/${annex.id}/rooms`]: () => Response.json([room1, shut]),
+}
+
+describe('Availability at a location', () => {
+  const atClinic = { ...saved, availability: [{ day: 1, start: '09:00', end: '12:00', mode: 'in-person', locationId: annex.id, roomId: room1.id }] }
+
+  it("shows an in-person row's location and room, from the ones in use", async () => {
+    renderEditor(practitioner, { ...locationRoutes, [`GET ${path(cy.roleId)}`]: () => Response.json(atClinic) })
+    const where = (await screen.findByLabelText('Location of row 1')) as HTMLSelectElement
+    expect(where.value).toBe(annex.id)
+    expect([...where.options].map((o) => o.textContent)).toEqual(['Placeholder main site', 'Placeholder annex'])
+    const room = screen.getByLabelText('Room of row 1') as HTMLSelectElement
+    expect(room.value).toBe(room1.id)
+    expect([...room.options].map((o) => o.textContent)).toEqual(['No room', 'Room 1'])
+  })
+
+  it('asks for no location on a video row, and none for a room where the location has none', async () => {
+    renderEditor(practitioner, { ...locationRoutes, [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
+    await screen.findByLabelText('Visit type 1')
+    expect(screen.queryByLabelText('Location of row 1')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Visit type 1'), { target: { value: 'in-person' } })
+    expect(((await screen.findByLabelText('Location of row 1')) as HTMLSelectElement).value).toBe(site.id)
+    expect(screen.queryByLabelText('Room of row 1')).toBeNull()
+  })
+
+  it('saves the location and room of an in-person row and drops them from a row turned video', async () => {
+    const { requests } = renderEditor(practitioner, {
+      ...locationRoutes,
+      [`GET ${path(cy.roleId)}`]: () => Response.json(atClinic),
+      [`PUT ${path(cy.roleId)}`]: async (r) => Response.json({ ...atClinic, ...((await r.json()) as typeof atClinic), versionId: 3 }),
+    })
+    await screen.findByLabelText('Location of row 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Add hours' }))
+    expect((screen.getByLabelText('Location of row 2') as HTMLSelectElement).value).toBe(annex.id)
+    fireEvent.change(screen.getByLabelText('Room of row 2'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Location of row 1'), { target: { value: site.id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add hours' }))
+    fireEvent.change(screen.getByLabelText('Visit type 3'), { target: { value: 'video' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByRole('status')
+    expect(await requests.find((r) => r.method === 'PUT')!.json()).toEqual({
+      slotMinutes: 30,
+      availability: [
+        { day: 1, start: '09:00', end: '12:00', mode: 'in-person', locationId: site.id },
+        { day: 2, start: '09:00', end: '17:00', mode: 'in-person', locationId: annex.id },
+        { day: 3, start: '09:00', end: '17:00', mode: 'video' },
+      ],
+    })
+  })
+
+  it('says why hours were refused when a room is taken', async () => {
+    renderEditor(practitioner, {
+      ...locationRoutes,
+      [`GET ${path(cy.roleId)}`]: () => Response.json(atClinic),
+      [`PUT ${path(cy.roleId)}`]: () => apiError(409, 'resource_busy'),
+    })
+    await screen.findByLabelText('Location of row 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Another practitioner already works in this room at that time.')).toBeTruthy()
+  })
+
+  it('says so when an in-person row has no location in use to name', async () => {
+    renderEditor(practitioner, { 'GET /clinic/locations': () => Response.json([closed]), [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
+    fireEvent.change(await screen.findByLabelText('Visit type 1'), { target: { value: 'in-person' } })
+    expect(await screen.findByText('The clinic has no location in use. Add one under Locations before adding hours at the clinic.')).toBeTruthy()
+  })
+})

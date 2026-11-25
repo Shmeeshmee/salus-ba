@@ -702,3 +702,21 @@ p.hint.join { margin-bottom: 20px; }
 .settings-nav a { font-size: 0.875rem; }
 [id^='clinic-'], #reschedule-settings, #noshow-settings { scroll-margin-top: 16px; }
 [id^='clinic-']:focus, #reschedule-settings:focus, #noshow-settings:focus { outline: none; }
+
+/* The clinic's locations (LC2): a location's rooms and devices open below its row, in two columns on a wide screen. */
+.links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.locations > .rows { margin: 12px 0; }
+.locations .rows li.location { flex-wrap: wrap; }
+.locations .rows li.location > form { flex: 1 1 100%; }
+.location-resources { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 24px; padding: 12px 16px; border-radius: var(--radius-control); background: var(--color-page); }
+.location-resource h3 { margin: 0 0 4px; font-size: 15px; }
+.locations .actions .tag { align-self: center; }
+.location-resource .rows { margin: 8px 0; }
+.location-resource .rows li { padding: 8px 0; }
+.location-resource .rows li > form { flex: 1 1 100%; }
+/* An in-person row's location and room (LC2): a line of their own below the row's day, type and times. */
+.hours-rows .hours-place { order: 1; flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.hours-rows .hours-place select { max-width: min(100%, 320px); text-overflow: ellipsis; }
+@media (max-width: 520px) { .hours-rows .hours-place { grid-column: 1 / -1; display: grid; } .hours-rows .hours-place select { max-width: 100%; } }
+.desk .toolbar .desk-location { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+@media (max-width: 520px) { .desk .toolbar .desk-location { flex: 1 1 100%; width: 100%; } }

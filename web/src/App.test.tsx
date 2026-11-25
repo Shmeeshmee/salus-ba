@@ -131,6 +131,14 @@ describe('App', () => {
     expect(await screen.findByText('This page does not exist.')).toBeTruthy()
   })
 
+  it('gives an admin the locations from the clinic settings, and a practitioner none (clinic-cms LC2)', async () => {
+    renderAt('/locations', { ...staff(admin), 'GET /clinic/locations': () => Response.json([]), 'GET /places': () => Response.json({ places: [] }) })
+    expect(await screen.findByRole('heading', { name: 'Locations' })).toBeTruthy()
+    cleanup()
+    renderAt('/locations', staff({ ...admin, role: 'practitioner' }))
+    expect(await screen.findByText('This page does not exist.')).toBeTruthy()
+  })
+
   it('gives the admin and the receptionist the front desk, and a practitioner none (clinic-cms F3)', async () => {
     const desk = { 'GET /clinic/desk/today': () => Response.json({ date: '2026-11-23', visits: [] }) }
     renderAt('/', { ...staff(admin), ...desk })
@@ -201,7 +209,7 @@ describe('App', () => {
 
   it('gives a receptionist no clinical screen and no link to one (clinic-cms F1)', async () => {
     const reception: Account = { ...admin, role: 'reception' }
-    for (const path of ['/availability', '/practitioners', '/questionnaires', '/waitlist', '/analytics', '/receipts', '/quotes', '/clinic', '/price-list', '/appointments/x']) {
+    for (const path of ['/availability', '/practitioners', '/questionnaires', '/waitlist', '/analytics', '/receipts', '/quotes', '/clinic', '/price-list', '/locations', '/appointments/x']) {
       const { requests } = renderAt(path, staff(reception))
       expect(await screen.findByText('This page does not exist.')).toBeTruthy()
       expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
