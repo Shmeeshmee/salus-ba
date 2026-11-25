@@ -35,6 +35,8 @@ type Auditor interface {
 // (consent.Service).
 type Consents interface {
 	State(ctx context.Context, patientID, organizationID string) (access.Consent, error)
+	// States is State for several patients in one read (a page of visits), by patient id.
+	States(ctx context.Context, patientIDs []string, organizationID string) (map[string]access.Consent, error)
 }
 
 // Slots resolves the slot to book in the directory, and holds and releases it in the appointment's
@@ -51,6 +53,8 @@ type Slots interface {
 // in the caller's transaction and scope, unaudited (patient.Service).
 type Patients interface {
 	Lookup(ctx context.Context, id string) (patient.Patient, error)
+	// LookupAll is Lookup for several profiles in one read, by id; those the scope does not show are left out.
+	LookupAll(ctx context.Context, ids []string) (map[string]patient.Patient, error)
 	Restricted(ctx context.Context, id, org string) (bool, error)
 }
 
@@ -301,6 +305,11 @@ func (s *Service) refuse(ctx context.Context, c Caller, interaction string, refu
 // record audits interaction by c on resource/id ("" when none was disclosed: no id from the request is
 // stored). The purpose is the patient's own request for a patient and treatment for staff.
 func (s *Service) record(ctx context.Context, c Caller, interaction, resource, id string, outcome auditevent.Outcome) error {
+	return s.Audit.Record(ctx, s.event(c, interaction, resource, id, outcome))
+}
+
+// event is the audit event record writes.
+func (s *Service) event(c Caller, interaction, resource, id string, outcome auditevent.Outcome) auditevent.AuditEvent {
 	purpose := auditevent.CodePATRQT
 	if !c.patient() {
 		purpose = auditevent.CodeTREAT
@@ -310,7 +319,7 @@ func (s *Service) record(ctx context.Context, c Caller, interaction, resource, i
 	if c.Via == ViaLink { // the patient's account, through a reminder's one-time link (ADR 0015 "Binding")
 		e.AgentName = agentActionLink
 	}
-	return s.Audit.Record(ctx, e)
+	return e
 }
 
 // recordJob audits interaction on resource/id by the job agent (its kind) in the clinic org, for operations.

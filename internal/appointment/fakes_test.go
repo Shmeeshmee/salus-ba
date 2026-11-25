@@ -215,6 +215,21 @@ func (r *fakeRepository) Search(ctx context.Context, f appointment.Filter) ([]ap
 	return out, nil
 }
 
+func (r *fakeRepository) VisitsOf(ctx context.Context, org string, patientIDs []string) ([]appointment.Appointment, error) {
+	r.seen(ctx, "VisitsOf")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []appointment.Appointment
+	for _, a := range r.appts {
+		if r.visible(a) && a.OrganizationID == org && slices.Contains(patientIDs, a.PatientID) {
+			out = append(out, a)
+		}
+	}
+	slices.SortFunc(out, func(x, y appointment.Appointment) int { return x.Start.Compare(y.Start) })
+	return out, nil
+}
+
 func (r *fakeRepository) change(ctx context.Context, call, id string, fn func(*appointment.Appointment)) (appointment.Appointment, error) {
 	r.seen(ctx, call)
 	if r.err != nil {
@@ -362,14 +377,24 @@ func (t *fakeTokens) DeleteTokensExpiredBefore(_ context.Context, before time.Ti
 
 // fakeConsents gives the consent state per patient and clinic.
 type fakeConsents struct {
-	err   error
-	state map[string]access.Consent // by patient id + clinic id
-	asked int
+	err     error
+	state   map[string]access.Consent // by patient id + clinic id
+	asked   int
+	batches int // States calls
 }
 
 func (c *fakeConsents) State(_ context.Context, patientID, org string) (access.Consent, error) {
 	c.asked++
 	return c.state[patientID+org], c.err
+}
+
+func (c *fakeConsents) States(_ context.Context, patientIDs []string, org string) (map[string]access.Consent, error) {
+	c.batches++
+	out := map[string]access.Consent{}
+	for _, p := range patientIDs {
+		out[p] = c.state[p+org]
+	}
+	return out, c.err
 }
 
 // fakeSlots holds the bookable slots and records holds and releases.
@@ -437,6 +462,24 @@ type fakePatients struct {
 	repo       *fakeRepository
 	restricted string // the patient and clinic, joined, whose record is restricted
 	lookup     []string
+	batches    int // LookupAll calls
+}
+
+// LookupAll is Lookup of each id in one call; the ids Lookup does not find are left out.
+func (p *fakePatients) LookupAll(ctx context.Context, ids []string) (map[string]patient.Patient, error) {
+	p.batches++
+	out := map[string]patient.Patient{}
+	for _, id := range ids {
+		got, err := p.Lookup(ctx, id)
+		if errors.Is(err, patient.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out[id] = got
+	}
+	return out, nil
 }
 
 func (p *fakePatients) Restricted(ctx context.Context, id, org string) (bool, error) {
@@ -603,6 +646,7 @@ func (q *fakeStatsQueue) EnqueueStatsRefresh(ctx context.Context, org string, da
 type fakeAuditor struct {
 	err    error
 	events []auditevent.AuditEvent
+	writes int // Record and RecordAll calls that wrote
 }
 
 func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error {
@@ -612,6 +656,7 @@ func (a *fakeAuditor) Record(ctx context.Context, e auditevent.AuditEvent) error
 	if a.err != nil {
 		return a.err
 	}
+	a.writes++
 	a.events = append(a.events, e)
 	return nil
 }

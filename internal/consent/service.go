@@ -52,6 +52,7 @@ type Service struct {
 // caller's transaction and scope (patient.Service).
 type Restrictions interface {
 	Restricted(ctx context.Context, patientID, organizationID string) (bool, error)
+	RestrictedAll(ctx context.Context, patientIDs []string, organizationID string) (map[string]bool, error)
 }
 
 // WithRestrictions returns a copy of s whose State tells a restricted record from r: the patients are built after
@@ -340,6 +341,28 @@ func (s *Service) State(ctx context.Context, patientID, organizationID string) (
 		}
 	}
 	return st, nil
+}
+
+// States is State for several patients of the clinic in one read of the consents and one of the restrictions (a page
+// of the clinic's visits, docs/clinic-cms/load/REPORT.md), by patient id; a patient without any consent there has the
+// zero state. In the caller's transaction and scope, not audited.
+func (s *Service) States(ctx context.Context, patientIDs []string, organizationID string) (map[string]access.Consent, error) {
+	out, err := s.repo.States(ctx, patientIDs, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("consent: states: %w", err)
+	}
+	if s.restrictions == nil {
+		return out, nil
+	}
+	restricted, err := s.restrictions.RestrictedAll(ctx, patientIDs, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("consent: states: %w", err)
+	}
+	for id, st := range out {
+		st.Restricted = restricted[id]
+		out[id] = st
+	}
+	return out, nil
 }
 
 // ownPatient scopes the transaction to the calling patient and returns their id; errNoProfile when they have

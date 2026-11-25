@@ -150,6 +150,20 @@ bench-suggest: tools-image
 bench-terminology: tools-image
 	$(GO) go test -run '^$$' -bench 'BenchmarkSearch' -benchtime=2000x -count=3 ./internal/terminology
 
+## load: the busy year (50 clinics, 500 practitioners, 200,000 patients, about 1,000,000 visits) seeded on a compose
+## project of its own and every hot path driven through the api and the workers, with p50/p95/p99 and pg_stat_statements'
+## slowest statements (scripts/load.sh, docs/clinic-cms/load/REPORT.md). Refused without LOAD_CONFIRM=synthetic-busy-year.
+load: tools-image
+	LOAD_CONFIRM=$(LOAD_CONFIRM) bash scripts/load.sh
+
+## load-down: stop the load project and remove its volumes
+load-down:
+	bash scripts/load.sh down
+
+## load-budget: the hot paths' budgets on a small seed, on a throwaway database (test/load TestBudgets; in CI)
+load-budget: tools-image
+	$(GO) go test -tags loadtest -count=1 -v -run '^TestBudgets$$' ./test/load/
+
 ## turn-check: a call through the compose LiveKit with UDP and its ICE/TCP port blocked: it does not connect
 ## without TURN, and does through TURN over TLS on 443 (docs/consultation/PROGRESS.md, package 10). Not part of make test.
 turn-check: tools-image

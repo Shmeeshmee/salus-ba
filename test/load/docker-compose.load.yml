@@ -1,0 +1,37 @@
+# make load only (scripts/load.sh), on top of docker-compose.yml, on a compose project of its own
+# (<this checkout's project>-load): the synthetic busy year of test/load and the load driver. Nothing here changes the
+# shared services for any other stack.
+#
+# Postgres keeps production's settings (deployments/production: the image's defaults, so 128 MB of shared buffers)
+# and adds what the readings need: pg_stat_statements, I/O timing, a larger WAL for the bulk seed (it changes no
+# query's plan), and cluster_name=salus-load, which the seeder and the driver check before they write or read
+# anything (test/load/guard_test.go): no other server carries that name. No host ports are published.
+services:
+  postgres:
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - pg_stat_statements.max=5000
+      - -c
+      - track_io_timing=on
+      - -c
+      - max_wal_size=8GB
+      - -c
+      - cluster_name=salus-load
+    mem_limit: 4g
+  tools:
+    environment:
+      SALUS_ENV: dev
+      LOAD_DATABASE_URL: postgres://salus:salus@postgres:5432/salus?sslmode=disable
+      LOAD_APP_DATABASE_URL: postgres://salus_app:local-app-password@postgres:5432/salus?sslmode=disable
+      LOAD_STATS_DATABASE_URL: postgres://salus_stats:local-stats-password@postgres:5432/salus?sslmode=disable
+      LOAD_REDIS_URL: redis://redis:6379/0
+    depends_on: !reset
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}

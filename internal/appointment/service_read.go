@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 )
 
@@ -45,22 +47,34 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (Seen, error) {
 // seen gives v as the caller sees it, with the patient's name where Profile allows it, and audits the
 // interaction on the appointment and, when the name is given, on the patient.
 func (s *Service) seen(ctx context.Context, c Caller, v view, interaction string) (Seen, error) {
+	out, events, err := s.shown(ctx, c, v, interaction, map[string]patient.Patient{})
+	if err != nil {
+		return Seen{}, err
+	}
+	return out, s.Audit.RecordAll(ctx, events)
+}
+
+// shown is seen without the writing: it returns the events that audit it. A profile is read once per patient, kept in
+// profiles.
+func (s *Service) shown(ctx context.Context, c Caller, v view, interaction string, profiles map[string]patient.Patient) (Seen, []auditevent.AuditEvent, error) {
 	out := Seen{Appointment: v.a, Level: v.level}
 	if v.level == access.Name {
 		out.Appointment = minimal(v.a)
 	}
-	if err := s.record(ctx, c, interaction, "Appointment", v.a.ID, auditevent.OutcomeSuccess); err != nil {
-		return Seen{}, err
-	}
+	events := []auditevent.AuditEvent{s.event(c, interaction, "Appointment", v.a.ID, auditevent.OutcomeSuccess)}
 	if !v.named && access.Profile(v.viewer, v.facts) == access.None {
-		return out, nil
+		return out, events, nil
 	}
-	p, err := s.Patients.Lookup(ctx, v.a.PatientID)
-	if err != nil {
-		return Seen{}, err
+	p, ok := profiles[v.a.PatientID]
+	if !ok {
+		var err error
+		if p, err = s.Patients.Lookup(ctx, v.a.PatientID); err != nil {
+			return Seen{}, nil, err
+		}
+		profiles[v.a.PatientID] = p
 	}
 	out.Patient = Name{Given: p.GivenName, Family: p.FamilyName}
-	return out, s.record(ctx, c, interaction, "Patient", p.ID, auditevent.OutcomeSuccess)
+	return out, append(events, s.event(c, interaction, "Patient", p.ID, auditevent.OutcomeSuccess)), nil
 }
 
 // practitionerOf returns the practitioner of a's role, looked up in a's clinic once per role (kept in known).
@@ -170,30 +184,110 @@ func (s *Service) search(ctx context.Context, c Caller, f Filter, record bool) (
 	if err != nil {
 		return nil, nil, err
 	}
-	facts, practitioners := map[string]access.Facts{}, map[string]string{}
+	views, err := s.views(ctx, c, viewer, f, all, record)
+	if err != nil {
+		return nil, nil, err
+	}
+	out, err = s.showAll(ctx, c, views)
+	return out, nil, err
+}
+
+// shownView is a view of a search's result with the practitioner of its role.
+type shownView struct {
+	practitionerID string
+	v              view
+}
+
+// views decides viewer's view of each appointment of all, with every patient's facts read at once, and leaves out
+// those the viewer may not see and, for a search by practitioner, those of another.
+func (s *Service) views(ctx context.Context, c Caller, viewer access.Viewer, f Filter, all []Appointment, record bool) ([]shownView, error) {
+	facts, err := s.factsOf(ctx, c, all)
+	if err != nil {
+		return nil, err
+	}
+	practitioners := map[string]string{}
+	out := make([]shownView, 0, len(all))
 	for _, a := range all {
 		v, err := s.viewOf(ctx, c, viewer, facts, a, record)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if v.level == access.None {
 			continue
 		}
 		practitionerID, err := s.practitionerOf(ctx, practitioners, a)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if f.PractitionerID != "" && practitionerID != f.PractitionerID { // a patient's search by practitioner
 			continue
 		}
-		seen, err := s.seen(ctx, c, v, auditevent.CodeSearchType)
-		if err != nil {
-			return nil, nil, err
-		}
-		seen.PractitionerID = practitionerID
-		out = append(out, seen)
+		out = append(out, shownView{practitionerID: practitionerID, v: v})
 	}
-	return out, nil, nil
+	return out, nil
+}
+
+// showAll gives each view as the caller sees it, with the profiles shown read at once, and audits them all in one
+// statement (docs/clinic-cms/load/REPORT.md).
+func (s *Service) showAll(ctx context.Context, c Caller, views []shownView) ([]Seen, error) {
+	var named []string
+	for _, sv := range views {
+		if (sv.v.named || access.Profile(sv.v.viewer, sv.v.facts) != access.None) && !slices.Contains(named, sv.v.a.PatientID) {
+			named = append(named, sv.v.a.PatientID)
+		}
+	}
+	profiles := map[string]patient.Patient{}
+	if len(named) > 0 {
+		var err error
+		if profiles, err = s.Patients.LookupAll(ctx, named); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]Seen, 0, len(views))
+	var events []auditevent.AuditEvent
+	for _, sv := range views {
+		seen, shown, err := s.shown(ctx, c, sv.v, auditevent.CodeSearchType, profiles)
+		if err != nil {
+			return nil, err
+		}
+		seen.PractitionerID = sv.practitionerID
+		out, events = append(out, seen), append(events, shown...)
+	}
+	if len(events) == 0 {
+		return out, nil
+	}
+	return out, s.Audit.RecordAll(ctx, events)
+}
+
+// factsOf gives access's facts of each staff search's patient of all at the caller's clinic, read in one go: their
+// consent states and their visits there. None for a patient's own search, which needs none.
+func (s *Service) factsOf(ctx context.Context, c Caller, all []Appointment) (map[string]access.Facts, error) {
+	out := map[string]access.Facts{}
+	if c.patient() || len(all) == 0 {
+		return out, nil
+	}
+	var ids []string
+	for _, a := range all {
+		if !slices.Contains(ids, a.PatientID) {
+			ids = append(ids, a.PatientID)
+		}
+	}
+	states, err := s.Consents.States(ctx, ids, c.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	seen, err := s.Repo.VisitsOf(ctx, c.OrganizationID, ids)
+	if err != nil {
+		return nil, err
+	}
+	byPatient := map[string][]Appointment{}
+	for _, a := range seen {
+		byPatient[a.PatientID] = append(byPatient[a.PatientID], a)
+	}
+	for _, id := range ids {
+		out[id] = access.Facts{Patient: id, Clinic: c.OrganizationID, Consent: states[id], Visits: visits(byPatient[id])}
+	}
+	return out, nil
 }
 
 // staffFilter scopes the transaction in ctx to the staff caller's clinic and gives f for it, with the role of

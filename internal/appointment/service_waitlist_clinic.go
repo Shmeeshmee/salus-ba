@@ -103,7 +103,7 @@ func (s *Service) named(ctx context.Context, c Caller, entries []WaitlistEntry) 
 	out := make([]ClinicEntry, 0, len(entries))
 	events := make([]auditevent.AuditEvent, 0, 2*len(entries))
 	for _, e := range entries {
-		events = append(events, s.event(c, auditevent.CodeSearchType, "Appointment", e.ID))
+		events = append(events, s.event(c, auditevent.CodeSearchType, "Appointment", e.ID, auditevent.OutcomeSuccess))
 		name, seen := names[e.PatientID]
 		if !seen {
 			if name, err = s.nameOf(ctx, c, viewer, e.PatientID, visits[e.PatientID]); err != nil {
@@ -111,7 +111,7 @@ func (s *Service) named(ctx context.Context, c Caller, entries []WaitlistEntry) 
 			}
 			names[e.PatientID] = name
 			if name != nil {
-				events = append(events, s.event(c, auditevent.CodeSearchType, "Patient", e.PatientID))
+				events = append(events, s.event(c, auditevent.CodeSearchType, "Patient", e.PatientID, auditevent.OutcomeSuccess))
 			}
 		}
 		ce := ClinicEntry{Entry: e}
@@ -139,13 +139,6 @@ func (s *Service) nameOf(ctx context.Context, c Caller, viewer access.Viewer, pa
 		return nil, err
 	}
 	return &Name{Given: p.GivenName, Family: p.FamilyName}, nil
-}
-
-// event is the audit event of interaction by staff caller c on resource/id.
-func (s *Service) event(c Caller, interaction, resource, id string) auditevent.AuditEvent {
-	e := entry(interaction, resource, id, auditevent.OutcomeSuccess, auditevent.CodeTREAT)
-	e.AgentAccountID, e.OrganizationID = c.AccountID, c.OrganizationID
-	return e
 }
 
 // ownViewer is staff caller c as access sees them, with their own role in the clinic for a practitioner.

@@ -4259,7 +4259,67 @@ Planned 2026-11-25 (`WAVE7.md`).
 
 ## RD2: load and slow queries
 
-Planned 2026-11-25 (`WAVE7.md`).
+Done 2026-11-26 on `wt/cms/RD2` (from `13db9fbc`), unattended. The readings, the fixes and the indexes are in
+`docs/clinic-cms/load/REPORT.md`.
+
+**Built.** `test/load/` (build tag `loadtest`, stdlib only, in the `tools` container): the busy year's seeder (50 clinics,
+500 practitioners, 200,000 patients, 1,044,000 visits with their slots, 687,600 receipts, 890,500 reminders, encounters
+and diagnoses, the clinic statistics of 18,250 clinic-days; 9 minutes, 4.4 GB) and the driver: the api as `api.New`
+builds it behind a real HTTP server, signed in by seeded sessions (a token derived from the account id, its SHA-256 the
+row's `token_hash`), every hot path of WAVE7.md 500 times 8 at a time, the hourly slot generation through the slot
+service as the worker builds it, and the reminders through the sweep and the notifier's own River client
+(`worker.NewNotifier` with fake senders, `worker.NewScheduler` as River's leader). Each path's p50/p95/p99, its
+pg_stat_statements calls and database time a request, and the slowest statements. `make load` runs it on
+`<project>-load` (`scripts/load.sh`, `test/load/docker-compose.load.yml`: Postgres with production's settings plus
+pg_stat_statements, `track_io_timing`, a larger WAL for the seed and `cluster_name=salus-load`; no host ports; the
+shared service definitions are untouched), `make load-down` removes it with its volumes. `make load-budget` (a step of
+the Go workflow's test job) is `TestBudgets`: the small seed on a `pgtest` database, each path's median within its
+budget, 25 to 35 s.
+
+**Refusal.** The seeder and the driver refuse unless `LOAD_CONFIRM=synthetic-busy-year` is given, `SALUS_ENV` is `dev`,
+the server's `cluster_name` is `salus-load` and the database holds no clinic but the seed's (`test/load/guard_test.go`);
+`make load` passes `LOAD_CONFIRM` only from its caller. The budget test seeds only a throwaway database of `pgtest`.
+
+**Fixes** (each test first; the failing run is quoted in the report):
+
+- `00087_start_at.sql`: `appointment.start_at` and `slot.start_at`, generated from `lower(period)`, with the indexes
+  `appointment_organization_start_at` and `slot_schedule_start_at`. A condition on `lower(period)` is not leakproof, so
+  under row-level security the desk's day read the clinic's whole year (132 ms to 1.2 ms in `EXPLAIN ANALYZE` on the
+  seed). `DeskAppointments`, `SearchAppointments`, `ClinicVisits`, `SearchFreeSlots` and `DeleteFreeSlotsExcept` compare
+  `start_at`. Tests: `TestStaffRangeReads_ReadOnlyTheRangesRows`, `TestSlotReads_TouchOnlyTheRangesRows`, on the plan of
+  the statement the repository sent (`pgtest.LastQuery`, `pgtest.TracedPool`, `pgtest.Explain`, tested in pgtest).
+- The appointment search (the calendar, the patient's visits) and the desk's day read their page's consent states,
+  restrictions, visits and profiles in one statement each (`consent.Service.States`, `patient.Service.RestrictedAll`,
+  `VisitsOfPatients`, `patient.Service.LookupAll`) and write the page's AuditEvents in one insert (`RecordAll`), the same
+  events in the same order. A clinic's week went from 3,133 statements to 792 (most of what is left are the two inside
+  `patient_record_restricted`, which `track = all` counts), the desk's day from 478 to 155.
+- `InsertSlots` leaves out a period the schedule has a slot of already, so an hourly re-run sends none to the exclusion
+  constraint's conflict check (480 conflicts to 0 in the test; the run of 500 schedules 14.6 s to 9.3 s with the index).
+
+**Readings** (busy year, p50 before / after, ms; the report has p95, p99 and the statements): the desk's day 133.5 /
+23.8, a practitioner's week 84.5 / 34.3 (23.3 in the quieter run), the clinic's week 739 / 139, a week's free slots 10.9
+/ 1.4, the patient's visits 14.3 / 9.4, the hourly slot generation 14.6 s / 9.3 s; the directory, the receipts, their
+report and the clinic statistics unchanged. The machine was shared with two other packages (load average 9 to 24): the
+p95 and p99 move by tens of milliseconds between runs.
+
+**Decisions.** A generated column, not a leakproof wrapper function (needs a superuser and is a security claim) and not
+an index on the expression (the qual still is not leakproof). The 00087 rewrite of both tables took 86 s on the seed
+under an `ACCESS EXCLUSIVE` lock: no clinic runs on production yet. The budgets are on the median, not the p95: on 60
+requests a p95 is the third slowest, and one pause of the shared machine moved it past every budget in two runs of three.
+The api is driven in process (`api.New` on the loopback), not as the `api` container: no image build, the same handler
+and middleware; the load stack has Postgres and Redis only (the object store and LiveKit are not reached by these paths).
+No new personal data: `start_at` is the start already in `period`, under the same retention; the seed is synthetic.
+
+**Checks** (this worktree's compose project `salus-cms-rd2`): `bash scripts/runner.sh full` (`make check`, set go):
+`make gen-clients` with no diff, `i18n-check`, `make test`, `make archcheck`, `make cover` (89.8% total, every package at
+80% or more) passed; `make lint` failed on one gofmt blank line, then on its first full pass on three `time.Now` in
+`test/load`, a struct's field order and the slot plan test's length (golangci-lint over the `loadtest` tag); fixed, and
+`make lint` passed (0 issues), with the changed tests run again. `make load-budget` passed (26 to 36 s, three runs). The
+load runs themselves: five on the busy year (the seed once, 9 min; each run 2 to 4 min).
+
+**Deferred** (in the report's "Left for later"): the staff's appointment search without dates is unbounded (a contract
+change, for the owner); the hourly generation's role read a schedule; audit events, deliveries, chats and documents were
+not seeded at their real size.
 
 ## RD3: accessibility and keyboard
 

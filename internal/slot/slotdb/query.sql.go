@@ -29,7 +29,7 @@ const deleteFreeSlotsExcept = `-- name: DeleteFreeSlotsExcept :execrows
 DELETE FROM slot
 WHERE schedule_id = $1
   AND status = 'free'
-  AND lower(period) > $2::timestamptz
+  AND start_at > $2::timestamptz -- start_at, not lower(period): read through its index under the policies (00087)
   AND (lower(period), upper(period), visit_mode, coalesce(location_id::text, ''), coalesce(room_id::text, '')) NOT IN (
       SELECT g.s, g.e, g.m, coalesce(NULLIF(g.l, ''), room.location_id::text, ''), g.r
       FROM (SELECT unnest($3::timestamptz[]) AS s, unnest($4::timestamptz[]) AS e, unnest($5::text[]) AS m,
@@ -118,6 +118,7 @@ SELECT $1::uuid, $2::uuid, tstzrange(g.s, g.e), g.m, coalesce(NULLIF(g.l, '')::u
 FROM (SELECT unnest($3::timestamptz[]) AS s, unnest($4::timestamptz[]) AS e, unnest($5::text[]) AS m,
              unnest($6::text[]) AS l, unnest($7::text[]) AS r) AS g
 LEFT JOIN room ON room.id = NULLIF(g.r, '')::uuid
+WHERE NOT EXISTS (SELECT 1 FROM slot s WHERE s.schedule_id = $1::uuid AND s.start_at = g.s AND upper(s.period) = g.e)
 ON CONFLICT DO NOTHING
 `
 
@@ -134,7 +135,8 @@ type InsertSlotsParams struct {
 // Generation: a free slot per period, in its rule's visit mode, at its location (its room's when it names none) and in
 // its room (” for none); one that overlaps a slot of the schedule (slot_no_overlap) or another's in its room
 // (slot_room_no_overlap, which the rules' check at save leaves to a race) is skipped. The arrays are as long as each
-// other, so the unnest calls pair them up.
+// other, so the unnest calls pair them up. A period the schedule has a slot of already is left out before the insert,
+// so an hourly re-run sends none to the conflict check (docs/clinic-cms/load/REPORT.md).
 func (q *Queries) InsertSlots(ctx context.Context, arg InsertSlotsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertSlots,
 		arg.ScheduleID,
@@ -219,10 +221,9 @@ SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_m
 FROM slot
 WHERE schedule_id = $1
   AND status = 'free'
-  AND period && tstzrange($2::timestamptz, $3::timestamptz)
-  AND lower(period) >= $2::timestamptz
-  AND lower(period) < $3::timestamptz
-ORDER BY lower(period)
+  AND start_at >= $2::timestamptz -- start_at, not lower(period): read through its index under the policies (00087)
+  AND start_at < $3::timestamptz
+ORDER BY start_at
 `
 
 type SearchFreeSlotsParams struct {
@@ -244,7 +245,7 @@ type SearchFreeSlotsRow struct {
 	EndAt          pgtype.Timestamptz
 }
 
-// Slot?schedule=…&start=ge…&start=lt…&status=free; the overlap lets the exclusion constraint's index serve it.
+// Slot?schedule=…&start=ge…&start=lt…&status=free.
 func (q *Queries) SearchFreeSlots(ctx context.Context, arg SearchFreeSlotsParams) ([]SearchFreeSlotsRow, error) {
 	rows, err := q.db.Query(ctx, searchFreeSlots, arg.ScheduleID, arg.FromAt, arg.ToAt)
 	if err != nil {
