@@ -4199,7 +4199,7 @@ export interface components {
             translations: components["schemas"]["ServiceTranslation"][];
             /**
              * Format: uuid
-             * @description A device of the clinic a visit for it needs (x-salus-package cms-rm1): a booking when it is busy is refused with `resource_busy`. Omitted for none.
+             * @description A device of the clinic in use a visit for it needs (x-salus-package cms-rm1): a booking when it is busy is refused with `resource_busy`; an unknown device, another clinic's or one not in use is `invalid_service`. Omitted for none: a change without it clears the device.
              */
             deviceId?: string;
         };
@@ -8638,7 +8638,7 @@ export interface operations {
                     "application/json": components["schemas"]["Availability"];
                 };
             };
-            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, rules that overlap on a day, or a video rule at a location; `invalid_location`: an in-person rule at no active location of the clinic, or naming none when the clinic has more than one active location (x-salus-package cms-lc1; with one, a rule that names none is at it); a room on a video rule, or one that is not an active room of the clinic (x-salus-package cms-rm1). */
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, rules that overlap on a day, or a video rule at a location; `invalid_location`: an in-person rule at no active location of the clinic, or naming none when the clinic has more than one active location (x-salus-package cms-lc1; with one, a rule that names none is at it); a room on a video rule, or one that is not an active room of the clinic or is a room of another location than the rule's (x-salus-package cms-rm1). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -13844,7 +13844,7 @@ export interface operations {
                     "application/json": components["schemas"]["Service"];
                 };
             };
-            /** @description `invalid_request`: unreadable or a field unknown; `invalid_service`: a blank name, a negative price, an unknown mode, or a VAT rate out of range. */
+            /** @description `invalid_request`: unreadable or a field unknown; `invalid_service`: a blank name, a negative price, an unknown mode, a VAT rate out of range, or a device that is not one of the clinic's in use (x-salus-package cms-rm1). */
             400: {
                 headers: {
                     [name: string]: unknown;

@@ -184,3 +184,23 @@ func TestPostgres_LockRoom_TheScopesRoomLocked(t *testing.T) {
 		}
 	}
 }
+
+func TestPostgres_Device_TheScopesDevice(t *testing.T) {
+	t.Parallel()
+	s := newRoomStore(t)
+	var d, got location.Device
+	if err := s.in(clinicA, func(ctx context.Context) (err error) {
+		d, _, err = s.repo.SaveDevice(ctx, location.Device{LocationID: siteA, Name: "Device 1"})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.in(clinicA, func(ctx context.Context) (err error) { got, err = s.repo.Device(ctx, d.ID); return err }); err != nil || got != d {
+		t.Fatalf("Device() = %+v, %v; want %+v", got, err, d)
+	}
+	for _, id := range []string{d.ID, "not-a-uuid"} {
+		if err := s.in(clinicB, func(ctx context.Context) error { _, err := s.repo.Device(ctx, id); return err }); !errors.Is(err, location.ErrNotFound) {
+			t.Errorf("Device(%s) from clinic B: %v, want ErrNotFound", id, err)
+		}
+	}
+}

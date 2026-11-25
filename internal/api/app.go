@@ -85,8 +85,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{},
 		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool))) // the location's check and city name
-	prices := priceList(pool, audit, tx, clinics) // the price list's routes and the receipts' prices (clinic-cms B, C)
-	sites := locations(pool, audit, tx, clinics)  // the clinic's locations and the rules' (clinic-cms LC1)
+	sites := locations(pool, audit, tx, clinics)         // the clinic's locations and the rules' (clinic-cms LC1)
+	prices := priceList(pool, audit, tx, clinics, sites) // the price list's routes and the receipts' prices (clinic-cms B, C)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, People: practitioners,

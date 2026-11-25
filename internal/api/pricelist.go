@@ -10,15 +10,17 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
+	"github.com/Shmeeshmee/salus/internal/location"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
 
 // priceList is the clinic's price list (docs/plans/clinic-cms.md, package B): its own routes and the receipts' prices.
-func priceList(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clinics *organization.Service) *chargeitemdefinition.Service {
+// A service's device is one of the clinic's in use (sites, clinic-cms W6).
+func priceList(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Transactor, clinics *organization.Service, sites *location.Service) *chargeitemdefinition.Service {
 	return chargeitemdefinition.NewService(chargeitemdefinition.Ports{
-		Repo: chargeitemdefinition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics,
+		Repo: chargeitemdefinition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, Devices: sites,
 	})
 }
 

@@ -66,7 +66,7 @@ class SaveServiceRequest {
 
   List<ServiceTranslation> translations;
 
-  /// A device of the clinic a visit for it needs (x-salus-package cms-rm1): a booking when it is busy is refused with `resource_busy`. Omitted for none.
+  /// A device of the clinic in use a visit for it needs (x-salus-package cms-rm1): a booking when it is busy is refused with `resource_busy`; an unknown device, another clinic's or one not in use is `invalid_service`. Omitted for none: a change without it clears the device.
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated

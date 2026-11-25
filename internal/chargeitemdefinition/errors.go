@@ -10,8 +10,8 @@ var (
 	ErrForbidden = errors.New("chargeitemdefinition: forbidden")
 	// ErrConflict is returned for an update of a version that is not the current one.
 	ErrConflict = errors.New("chargeitemdefinition: version conflict")
-	// ErrInvalid is returned for a service with a blank name, a negative price, an unknown currency or mode, or a VAT
-	// rate out of range.
+	// ErrInvalid is returned for a service with a blank name, a negative price, an unknown currency or mode, a VAT
+	// rate out of range, or a device that is not one of the clinic in use.
 	ErrInvalid = errors.New("chargeitemdefinition: invalid service")
 )
 

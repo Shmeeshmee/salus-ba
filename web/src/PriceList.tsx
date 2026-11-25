@@ -8,6 +8,7 @@ import { PriceListImport } from './PriceListImport'
 import { contentLanguageNames, contentLanguages } from './questionnaire'
 import { Alert, Field, Notice, Submit } from './ui'
 import { details, modeLabel } from './serviceDetails'
+import { ServiceDevice } from './ServiceDevice'
 import { useSubmit } from './useSubmit'
 
 type Service = components['schemas']['Service']
@@ -119,6 +120,7 @@ function ServiceForm({ api, service, onStored, onCancel }: FormProps) {
   const [vat, setVat] = useState(service?.vatRateBp === undefined ? '' : String(service.vatRateBp / 100))
   const [modes, setModes] = useState<VisitMode[]>(service?.modes ?? visitModes)
   const [active, setActive] = useState(service?.active ?? true)
+  const [deviceId, setDeviceId] = useState(service?.deviceId) // always sent back: a change without it clears it
   const [names, setNames] = useState<Record<string, string>>(Object.fromEntries((service?.translations ?? []).map((x) => [x.language, x.name])))
   const currency = service?.currency ?? 'BAM'
   const { busy, error, onSubmit } = useSubmit(async () => {
@@ -139,6 +141,7 @@ function ServiceForm({ api, service, onStored, onCancel }: FormProps) {
       ...(vatRateBp === undefined ? {} : { vatRateBp }),
       modes: visitModes.filter((m) => modes.includes(m)),
       active,
+      ...(deviceId === undefined ? {} : { deviceId }),
       translations: contentLanguages.filter((l) => (names[l] ?? '').trim() !== '').map((l) => ({ language: l, name: names[l].trim() })),
     }
     const res = service
@@ -172,6 +175,7 @@ function ServiceForm({ api, service, onStored, onCancel }: FormProps) {
           </label>
         ))}
       </fieldset>
+      <ServiceDevice api={api} value={deviceId} onChange={setDeviceId} />
       <label className="check">
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
         <span>{t('prices.active')}</span>

@@ -19,6 +19,7 @@ const (
 	room1        = "a6000000-0000-4000-8000-0000000000a1"
 	room2        = "a6000000-0000-4000-8000-0000000000a2"
 	roomInactive = "a6000000-0000-4000-8000-0000000000a3"
+	roomAtSite2  = "a6000000-0000-4000-8000-0000000000a4" // a room of clinic A's second location
 )
 
 // fakeRooms are clinic A's rooms, as location.Service.LockRoom gives them; it remembers what it locked.
@@ -37,9 +38,11 @@ func (r *fakeRooms) LockRoom(ctx context.Context, org, id string) (location.Room
 	case org != clinicA:
 		return location.Room{}, location.ErrNotFound
 	case id == room1 || id == room2:
-		return location.Room{ID: id, Name: "Room", Active: true}, nil
+		return location.Room{ID: id, LocationID: siteA1, Name: "Room", Active: true}, nil
 	case id == roomInactive:
-		return location.Room{ID: id, Name: "Room", Active: false}, nil
+		return location.Room{ID: id, LocationID: siteA1, Name: "Room", Active: false}, nil
+	case id == roomAtSite2:
+		return location.Room{ID: id, LocationID: siteA2, Name: "Room", Active: true}, nil
 	}
 	return location.Room{}, location.ErrNotFound
 }
@@ -122,5 +125,56 @@ func TestSaveAvailability_RoomRefusals(t *testing.T) {
 	none := newFixture() // a service built without rooms (the worker's) refuses a rule that names one
 	if _, err := none.svc.SaveAvailability(t.Context(), practitionerA1, roleA1, inPerson(1, "09:00", "10:00", room2), 0); !errors.Is(err, schedule.ErrInvalidAvailability) {
 		t.Errorf("no rooms port: %v, want ErrInvalidAvailability", err)
+	}
+}
+
+// A rule's room is a room of the rule's location (LC1's placed sets it): a room of another location is refused.
+func TestSaveAvailability_ARulesRoomIsOfItsLocation(t *testing.T) {
+	t.Parallel()
+	at := func(site, room string) schedule.Availability {
+		return schedule.Availability{SlotMinutes: 30, Rules: []schedule.Rule{
+			{Day: 1, Start: "09:00", End: "10:00", Mode: schedule.ModeInPerson, LocationID: site, RoomID: room},
+		}}
+	}
+	cases := []struct {
+		want error
+		name string
+		in   schedule.Availability
+	}{
+		{name: "the clinic's only location, its room", in: at("", room1)},
+		{name: "the clinic's only location, a room of another", in: at("", roomAtSite2), want: schedule.ErrInvalidAvailability},
+		{name: "the second location, its room", in: at(siteA2, roomAtSite2)},
+		{name: "the second location, a room of the first", in: at(siteA2, room1), want: schedule.ErrInvalidAvailability},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f, _ := roomFixture()
+			if tc.in.Rules[0].LocationID == siteA2 {
+				f.sites.rows = append(f.sites.rows, location.Location{ID: siteA2, OrganizationID: clinicA, Name: "Branch", Active: true})
+			}
+			got, err := f.svc.SaveAvailability(t.Context(), practitionerA1, roleA1, tc.in, 0)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("SaveAvailability() = %+v, %v; want %v", got, err, tc.want)
+			}
+			if tc.want != nil && len(f.jobs.jobs) != 0 {
+				t.Errorf("jobs %v, want no generation after a refusal", f.jobs.jobs)
+			}
+		})
+	}
+}
+
+// Rules of an inactive role stop holding their room: role A2, taken out of use, no longer refuses its hours in room 1.
+func TestSaveAvailability_AnInactiveRolesRulesHoldNoRoom(t *testing.T) {
+	t.Parallel()
+	f, _ := roomFixture()
+	f.roles.inactive = roleA2
+	if _, err := f.svc.SaveAvailability(t.Context(), practitionerA1, roleA1, inPerson(2, "09:30", "11:00", room1), 0); err != nil {
+		t.Fatalf("room 1 held only by an inactive role: %v, want saved", err)
+	}
+	f, _ = roomFixture()
+	f.roles.failing = roleA2
+	if _, err := f.svc.SaveAvailability(t.Context(), practitionerA1, roleA1, inPerson(2, "09:30", "11:00", room1), 0); err == nil {
+		t.Errorf("a failing role lookup saved, want the error")
 	}
 }
