@@ -188,6 +188,12 @@ func toAppointment(row appointmentdb.AppointmentByIDRow) Appointment {
 	if row.ArrivedAt.Valid {
 		a.ArrivedAt = row.ArrivedAt.Time
 	}
+	if row.LocationID.Valid {
+		a.LocationID = row.LocationID.String()
+	}
+	if row.RoomID.Valid {
+		a.RoomID = row.RoomID.String()
+	}
 	a.RescheduleCount, a.BookedVia, a.Mode = int32(row.RescheduleCount), BookedVia(row.BookedVia), schedule.VisitMode(row.VisitMode)
 	return a
 }

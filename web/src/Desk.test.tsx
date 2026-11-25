@@ -283,6 +283,23 @@ describe('Desk by location', () => {
     expect(await screen.findByText('Ana Example')).toBeTruthy()
   })
 
+  it("names each in-person visit's location while every location is shown, and none once one is picked", async () => {
+    const atAnnex = { ...anaVisit, appointment: { ...anaVisit.appointment, locationId: annex.id } }
+    renderDesk(
+      {
+        'GET /clinic/locations': () => Response.json([site, annex, closed]),
+        'GET /clinic/desk/today': () => Response.json({ ...deskDay, visits: [atAnnex, boVisit] }),
+      },
+      reception,
+    )
+    const row = (await screen.findByText('Ana Example')).closest('li') as HTMLElement
+    expect(within(row).getByText(/Placeholder annex/)).toBeTruthy()
+    const video = screen.getByText('Bo Sample').closest('li') as HTMLElement
+    expect(within(video).queryByText(/Placeholder/)).toBeNull()
+    fireEvent.change(screen.getByLabelText('Location'), { target: { value: annex.id } })
+    await waitFor(() => expect(within(screen.getByText('Ana Example').closest('li') as HTMLElement).queryByText(/Placeholder annex/)).toBeNull())
+  })
+
   it('offers no choice to a clinic with one location in use, or when the locations cannot be read', async () => {
     renderDesk({ 'GET /clinic/locations': () => Response.json([site, closed]) })
     await screen.findByText('Ana Example')

@@ -265,6 +265,18 @@ func TestHandlerRead_ThePatientParticipantFollowsTheConfirmation(t *testing.T) {
 	}
 }
 
+// An in-person visit names its location as a Location participant (docs/clinic-cms/WAVE6.md U2); the patient app
+// reads it (LC3).
+func TestHandlerRead_SendsAnInPersonVisitsLocation(t *testing.T) {
+	inPerson := fullA
+	inPerson.Appointment.Mode, inPerson.Appointment.LocationID = schedule.ModeInPerson, "a3000000-0000-4000-8000-0000000000a3"
+	rec := getAppt(t, &stubReader{out: []appointment.Seen{inPerson}}, as(pract), &bytes.Buffer{}, "/fhir/R4/Appointment/"+apptA)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "appointment_in_person.json", rec.Body.Bytes())
+}
+
 // A booking that named a service carries it as a reference to the price list's ChargeItemDefinition (clinic-cms E).
 func TestHandlerRead_SendsTheServiceTheBookingNamed(t *testing.T) {
 	withService := fullA

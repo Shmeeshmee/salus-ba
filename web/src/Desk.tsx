@@ -49,6 +49,8 @@ function Day({ api, fhir, zone, staff, locations, now }: DayProps) {
   const [patients, setPatients] = useState(false)
   const [notice, setNotice] = useState<string>()
   const [locationId, setLocationId] = useState('') // '' for every location
+  // While every location is shown, each in-person visit names its own (U2); a picked location needs no name.
+  const sites = new Map(locations.map((l) => [l.id, l.name]))
   const { state, reload, set } = useLoad(async () => {
     const res = await attempt(api.GET('/clinic/desk/today', { params: { query: locationId ? { locationId } : {} } }))
     if (!res.ok) throw new Error('desk')
@@ -101,6 +103,7 @@ function Day({ api, fhir, zone, staff, locations, now }: DayProps) {
                     api={api}
                     visit={v}
                     zone={zone}
+                    place={locations.length > 1 && !locationId ? sites.get(v.appointment.locationId ?? '') : undefined}
                     move={{ fhir, staff: staff.filter((m) => m.active), now }}
                     onMoved={() => {
                       setNotice(t('desk.move.moved'))
@@ -138,13 +141,14 @@ type RowProps = {
   api: ApiClient
   visit: DeskVisit
   zone: string
+  place?: string // the in-person visit's location, named while the desk shows every location
   move: { fhir: FhirClient; staff: Member[]; now: () => Date } // what moving the visit needs (M1)
   onMoved: () => void // the day is read again: after a move, or a change on the patient's card
   onArrived: (a: DeskVisit['appointment']) => void
   onIssued: (number: number) => void
 }
 
-function Row({ api, visit, zone, move, onMoved, onArrived, onIssued }: RowProps) {
+function Row({ api, visit, zone, place, move, onMoved, onArrived, onIssued }: RowProps) {
   const t = useT()
   const f = useFormat()
   const [issuing, setIssuing] = useState(false)
@@ -154,7 +158,7 @@ function Row({ api, visit, zone, move, onMoved, onArrived, onIssued }: RowProps)
   const receipts = mergeReceipts(visit.receipts, issued)
   const active = receipts.filter((r) => !r.reversed)
   const status = a.status === 'arrived' && a.arrivedAt ? t('desk.arrivedAt', { time: f.time(new Date(a.arrivedAt), zone) }) : t(`desk.status.${a.status}`)
-  const details = [f.calendarDate(p.birthDate), p.phone && groupPhone(p.phone), t(a.visitMode === 'in-person' ? 'desk.inPerson' : 'desk.video'), visit.serviceName].filter(Boolean)
+  const details = [f.calendarDate(p.birthDate), p.phone && groupPhone(p.phone), t(a.visitMode === 'in-person' ? 'desk.inPerson' : 'desk.video'), place, visit.serviceName].filter(Boolean)
   return (
     <li>
       <span className="stack">

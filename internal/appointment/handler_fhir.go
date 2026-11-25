@@ -114,6 +114,9 @@ func toFHIR(s Seen) resource {
 		res.Participant = append(res.Participant, participant{Status: "accepted", Actor: fhir.Reference{Reference: "Practitioner/" + s.PractitionerID}})
 	}
 	res.Participant = append(res.Participant, participant{Status: "accepted", Actor: fhir.Reference{Reference: "PractitionerRole/" + a.PractitionerRoleID}})
+	if a.LocationID != "" { // an in-person visit's site (docs/clinic-cms/WAVE6.md U2)
+		res.Participant = append(res.Participant, participant{Status: "accepted", Actor: fhir.Reference{Reference: "Location/" + a.LocationID}})
+	}
 	if !a.Created.IsZero() {
 		res.Created = instant(a.Created)
 	}

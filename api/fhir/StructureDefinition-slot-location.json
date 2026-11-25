@@ -1,0 +1,59 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "slot-location",
+  "url": "https://salus.invalid/fhir/StructureDefinition/slot-location",
+  "version": "0.1.0",
+  "name": "SlotLocation",
+  "title": "Slot location",
+  "status": "active",
+  "date": "2026-11-25",
+  "publisher": "Salus",
+  "description": "The clinic's location (Location) an in-person slot is at, its availability rule's (docs/clinic-cms/WAVE6.md U2). R4 Slot has no location element; the patient picks the location before the time. Absent on a video slot.",
+  "fhirVersion": "4.0.1",
+  "kind": "complex-type",
+  "abstract": false,
+  "context": [
+    {
+      "type": "element",
+      "expression": "Slot"
+    }
+  ],
+  "type": "Extension",
+  "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+  "derivation": "constraint",
+  "differential": {
+    "element": [
+      {
+        "id": "Extension",
+        "path": "Extension",
+        "short": "The in-person slot's location",
+        "definition": "The clinic's location the in-person slot is at.",
+        "min": 0,
+        "max": "1"
+      },
+      {
+        "id": "Extension.extension",
+        "path": "Extension.extension",
+        "max": "0"
+      },
+      {
+        "id": "Extension.url",
+        "path": "Extension.url",
+        "fixedUri": "https://salus.invalid/fhir/StructureDefinition/slot-location"
+      },
+      {
+        "id": "Extension.value[x]",
+        "path": "Extension.value[x]",
+        "min": 1,
+        "type": [
+          {
+            "code": "Reference",
+            "targetProfile": [
+              "http://hl7.org/fhir/StructureDefinition/Location"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

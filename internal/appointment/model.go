@@ -56,6 +56,8 @@ type Appointment struct {
 	ServiceID          string // the price-list service named at booking; empty for none (docs/plans/clinic-cms.md, E)
 	CancelledBy        string // the account that cancelled; empty for none or a job
 	BookedBy           string // the staff account that booked it (docs/clinic-cms F2); empty for the patient's own
+	LocationID         string // an in-person visit's location, its slot's (docs/clinic-cms/WAVE6.md U2); empty for video
+	RoomID             string // an in-person visit's room, its slot's (U3); empty for none
 	Status             Status
 	Reason             Reason             // Appointment.cancelationReason; empty unless cancelled
 	ConfirmedVia       Via                // ViaApp or ViaLink once confirmed; empty while unconfirmed

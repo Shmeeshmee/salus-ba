@@ -1,11 +1,14 @@
 package slot_test
 
 import (
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 )
 
@@ -73,6 +76,11 @@ func TestGenerate_ARulesRoomIsOnItsSlots(t *testing.T) {
 	}
 	if r := roomsOf(t, owner, scheduleA1); len(r) != 8 || r[0] != [2]string{roomB, roomSiteA} {
 		t.Errorf("slots %v, want 8 in room B", r)
+	}
+	// The clinic's search reads each slot with its location (the FHIR Slot's slot-location extension, LC3).
+	found, err := newService(app, monday, inRoom(roomB)...).SearchFor(t.Context(), clinicA, scheduleA1, monday, monday.Add(7*24*time.Hour))
+	if err != nil || len(found) == 0 || slices.ContainsFunc(found, func(s slot.Slot) bool { return s.LocationID != roomSiteA }) {
+		t.Errorf("SearchFor() = %+v, %v; want free slots, each at the room's site", found, err)
 	}
 	if got, err := newService(app, monday, inRoom(roomB)...).Generate(t.Context(), clinicA, scheduleA1); err != nil || got.Deleted != 0 || got.Inserted != 0 {
 		t.Errorf("a re-run: %+v, %v; want nothing changed", got, err)

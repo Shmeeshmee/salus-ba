@@ -265,7 +265,7 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 // name, and whether a reminder reaches the patient, for the desk (package F3's screen): to the clinic's admin and
 // receptionists only (ErrForbidden, audited, to
 // anyone else). One search of Appointment is audited, and each patient shown as a read of Patient.
-func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error) {
+func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time, locationID string) (Desk, error) {
 	if !c.desk() {
 		return Desk{}, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
 	}
@@ -290,6 +290,9 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, e
 		all, err := s.Repo.Desk(ctx, c.OrganizationID, out.Day, out.Day.AddDate(0, 0, 1))
 		if err != nil {
 			return err
+		}
+		if locationID != "" { // that location's in-person visits and every video visit (docs/clinic-cms/WAVE6.md U2)
+			all = slices.DeleteFunc(all, func(a Appointment) bool { return a.LocationID != "" && a.LocationID != locationID })
 		}
 		if out.Visits, err = s.deskVisits(ctx, c, all); err != nil {
 			return err

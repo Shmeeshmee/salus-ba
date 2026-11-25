@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -46,8 +47,9 @@ func (s *stubStaff) Arrive(_ context.Context, _ appointment.Caller, id string) (
 	return s.out, s.err
 }
 
-func (s *stubStaff) DeskDay(_ context.Context, _ appointment.Caller, day time.Time) (appointment.Desk, error) {
+func (s *stubStaff) DeskDay(_ context.Context, _ appointment.Caller, day time.Time, locationID string) (appointment.Desk, error) {
 	s.day = day
+	s.calls = append(s.calls, "DeskDay "+locationID)
 	if day.IsZero() {
 		day = now // the service's today in the clinic's zone
 	}
@@ -163,5 +165,19 @@ func TestStaffHandler_AnswersEachRefusalWithItsCode(t *testing.T) {
 				t.Errorf("= %d %s, want %d %s", rec.Code, rec.Body, tc.status, tc.code)
 			}
 		})
+	}
+}
+
+// The desk's day at one location (docs/clinic-cms/WAVE6.md U2): the service is asked for it; a malformed id is a 400.
+func TestStaffHandler_TheDeskDayAtALocation(t *testing.T) {
+	t.Parallel()
+	svc := &stubStaff{}
+	if rec := serveStaff(t, svc, http.MethodGet, "/clinic/desk/today?locationId=A3000000-0000-4000-8000-0000000000A1", "", nil); rec.Code != http.StatusOK ||
+		!slices.Contains(svc.calls, "DeskDay a3000000-0000-4000-8000-0000000000a1") {
+		t.Errorf("GET ?locationId = %d %s, calls %v; want 200 and the day at that location", rec.Code, rec.Body, svc.calls)
+	}
+	svc = &stubStaff{}
+	if rec := serveStaff(t, svc, http.MethodGet, "/clinic/desk/today?locationId=x", "", nil); rec.Code != http.StatusBadRequest || len(svc.calls) != 0 {
+		t.Errorf("GET ?locationId=x = %d, calls %v; want 400 and no read", rec.Code, svc.calls)
 	}
 }

@@ -27,7 +27,7 @@ ON CONFLICT DO NOTHING;
 
 -- name: SearchFreeSlots :many
 -- Slot?schedule=…&start=ge…&start=lt…&status=free; the overlap lets the exclusion constraint's index serve it.
-SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, location_id, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE schedule_id = @schedule_id
@@ -39,7 +39,7 @@ ORDER BY lower(period);
 
 -- name: SlotByID :one
 -- Booking: the slot to book, as the directory shows it (free, of an active role of a listed clinic).
-SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, location_id, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE id = @id;
@@ -49,7 +49,7 @@ WHERE id = @id;
 UPDATE slot
 SET status = 'busy', version_id = version_id + 1, updated_at = @updated_at
 WHERE id = @id AND status = 'free'
-RETURNING id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
+RETURNING id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, location_id, lower(period)::timestamptz AS start_at,
           upper(period)::timestamptz AS end_at;
 
 -- name: ReleaseSlot :execrows
@@ -67,7 +67,7 @@ WHERE status = 'free' AND upper(period) < @before::timestamptz;
 
 -- name: LockSlot :one
 -- The waitlist: the slot to hand on, locked until the transaction ends (two jobs of one slot run one after the other).
-SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
+SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, location_id, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE id = @id
@@ -79,5 +79,5 @@ FOR UPDATE;
 UPDATE slot
 SET status = @to_status, version_id = version_id + 1, updated_at = @updated_at
 WHERE id = @id AND status = @from_status::text
-RETURNING id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, lower(period)::timestamptz AS start_at,
+RETURNING id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, location_id, lower(period)::timestamptz AS start_at,
           upper(period)::timestamptz AS end_at;

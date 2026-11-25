@@ -44,7 +44,7 @@ func TestDeskDay_SaysWhetherAReminderWillGoAndWhyNot(t *testing.T) {
 		settings := organization.DefaultAppointmentSettings()
 		settings.SMSReminders = sms
 		f.rules.settings = map[string]organization.AppointmentSettings{clinicA: settings}
-		out, err := f.svc.DeskDay(t.Context(), desk, start)
+		out, err := f.svc.DeskDay(t.Context(), desk, start, "")
 		if err != nil || len(out.Visits) != 3 {
 			t.Fatalf("DeskDay = %+v, %v; want the three visits", out, err)
 		}

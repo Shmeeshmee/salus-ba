@@ -137,8 +137,12 @@ func bounds(periods []Period) (starts, ends []pgtype.Timestamptz, modes, locatio
 
 // toSlot maps a row; every slot query selects the same columns.
 func toSlot(row slotdb.HoldSlotRow) Slot {
+	var site string
+	if row.LocationID.Valid {
+		site = row.LocationID.String()
+	}
 	return Slot{
-		Period: Period{Start: row.StartAt.Time, End: row.EndAt.Time, Mode: schedule.VisitMode(row.VisitMode)},
+		Period: Period{Start: row.StartAt.Time, End: row.EndAt.Time, Mode: schedule.VisitMode(row.VisitMode), LocationID: site},
 		ID:     row.ID.String(), ScheduleID: row.ScheduleID.String(), OrganizationID: row.OrganizationID.String(),
 		Status: Status(row.Status), VersionID: row.VersionID, LastUpdated: row.UpdatedAt.Time,
 	}
