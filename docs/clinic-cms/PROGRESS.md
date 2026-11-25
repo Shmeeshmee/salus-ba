@@ -4255,7 +4255,83 @@ timing tests outside its diff (`TestNew_ServesTheChatsNotificationSettingsDevice
 
 ## RD1: the role matrix
 
-Planned 2026-11-25 (`WAVE7.md`).
+Done 2026-11-25 on `wt/cms/RD1` (from `13db9fbc`), no migration. Test first: the matrix was written and run before the
+one fix, whose service test failed before the code changed.
+
+**Built.** `internal/api/role_matrix_test.go` and five files beside it (`_fixture`, `_body`, `_table`, `_own`,
+`_states`; split to keep each under 400 lines). The routes come from `api/openapi.yaml` and the interactions from
+`api/fhir/CapabilityStatement.json`, so a route added later is held without a line and fails
+`TestRoleMatrix_EveryRouteIsClassifiedForEveryRole` until `roleRoutes` classifies it for the patient, the practitioner
+and the admin (the receptionist's stay F1's `receptionRoutes` and `receptionFHIR`). Every write gets a body built from
+its request schema (required fields, and every field that names a record, filled with the fixture's ids), so that it
+reaches its access check instead of a 400; six bodies the schema cannot give are written out (`matrixBodies`).
+
+- The world (`newRoleWorld`): two clinics on one database with row-level security on, each with its admin,
+  practitioner and receptionist, two app patients with a booked visit, a past visit with its encounter, an allergy and
+  a medication, a chat with a message and an attachment, a receipt, a quote, a released lab result, a treatment plan,
+  a questionnaire response and a file uploaded to it, a waitlist entry and a data request, and the clinic's own
+  location, room, device, service, webhook, document template, export and membership invoice. About 4 s to build.
+- `TestRoleMatrix_AnotherClinicsAndPatientsIDsAnswerAsUnknownOnes`: every route and FHIR interaction as clinic A's
+  admin, practitioner, receptionist and patient with clinic B's records (and for the patient with their neighbour's at
+  A): status and body the same as for ids that do not exist (the ids taken out), none of the other's data. Twice: with
+  B's directory ids, and with A's own slot, service, role and location beside B's patient and visit (as a write of
+  A's own would name them). The public directory (clinics, roles, schedules, slots, locations, price lists) is read by
+  anyone; there staff may write nothing of B's. Checked to fail: run with A's own records as "another's", it reports
+  73 differences.
+- `TestRoleMatrix_EachRoleOnItsOwnClinic`: each role in a world of its own, every route to its class (allowed: never
+  401, 403 or 5xx; refused: 403 or 404, or a 400 before any access, never a patient's data; stranger: what an account
+  without a patient profile gets; machine: 401). The receptionist is also held, as F1, to the unknown id's answer on
+  the clinic's own records.
+- `TestRoleMatrix_ASignedOutCallerReachesOnlyThePublicRoutes`: the one 401 everywhere but the public routes and the
+  public FHIR directory.
+- States: a suspended clinic (every read answers each role as before but the public directory's; the patient's, the
+  desk's, the waitlist's and a plan's new bookings refused, each accepted at clinic B as control; a lab result and a
+  receipt still written); a restricted record (per role: no read shows the patient but the admin's openings, no write
+  succeeds but `restrictedWrites`); a revoked consent and a closed account (no staff read shows the birth date or the
+  phone but the admin's data-request queue, no staff write succeeds but `revokedWrites`; the closed account's session
+  gets the one 401 on every route and cannot sign in).
+
+**Holes found, each fixed test first:**
+
+| Severity | Hole | Fix |
+| --- | --- | --- |
+| low | The desk and the admin could check in (`POST /clinic/appointments/{id}/arrive`) a visit of a patient whose record is restricted at the clinic, through its id, though the desk's day hides it (S7). Nothing of the patient was shown and the visit had to be known by id; it changed the visit and the clinic's statistics | `appointment.Service.Arrive` refuses it as not found, audited (`TestArrive_RefusesAVisitOfARestrictedRecordAsNotFound`, and the matrix's restricted test) |
+
+No other hole: no route or FHIR interaction answers another clinic's or another patient's real id differently from an
+unknown one, none returns their data, no role reaches a route outside its class, a signed-out caller and a closed
+account reach nothing but the public routes.
+
+**Readings and decisions.**
+
+- Within its own clinic a refusal may say `forbidden` where an unknown id is `not_found` (the id is the clinic's own,
+  opaque); only another clinic's ids are held to the unknown answer, as WAVE7 asks, and the receptionist's own as F1
+  holds them.
+- F1's class for `POST /appointments` changed from refused to stranger: with a real body a receptionist gets the
+  `profile_required` an account without a patient profile gets; with F1's empty body both get the same 400. It loosens
+  nothing (stranger still accepts only a refusal or the stranger's very answer).
+- `DELETE /waitlist/{id}`: the practitioner and the admin withdraw an entry of their clinic's waitlist (the service's
+  rule, `entryOf`); classified allowed for them.
+- A 409 or 412 on a restricted or revoked record is the record's state (a released report, a stale version), not
+  counted as a success; the routes' own tests hold their order of checks.
+- Receipts (`POST /clinic/receipts`, a reversal, a retried report) are still issued for a restricted record's visit:
+  the fiscal law asks for them, and D4 left it open. Kept, for the owner (below).
+- The public directory hides a suspended clinic from everyone, its own staff and patients too: `GET
+  /organizations/{id}/locations` and `/profile` and the FHIR Schedule read answer 404 to them once suspended. Not an
+  authorization hole (it refuses more); the patient app then cannot name the location of a visit at a suspended clinic.
+  For the owner.
+
+**Not reached by the fixture** (held only with unknown ids, and by their domains' tests): compositions, drafts and
+signed documents (need a transcript), chat invitations, waitlist offers, chat participants and threads by id, the
+terminology curation routes by term.
+
+**Checks** (compose project `salus-cms-rd1`): the fast layer (vet and tests of every package that imports the changed
+ones) passed; `runner.sh full`, set `go`, passed on its first run: `make gen-clients` with no diff, `make lint` 0
+issues (with i18n-check and the migrations check), `make test` (`internal/api` 103 s, under the 10-minute limit; the
+matrix's tests alone take about 30 s), `make archcheck`, `make cover` 89.9% total and every package at 80% or more.
+
+**For the owner**: (1) may a clinic issue a receipt for a visit of a patient whose record is restricted (fiscal law
+against GDPR Art. 18)? It does today. (2) Should a suspended clinic's own patients and staff still read its locations
+and profile, which the app uses for a visit's address?
 
 ## RD2: load and slow queries
 

@@ -211,7 +211,8 @@ func (s *Service) CancelForPatient(ctx context.Context, c Caller, id string, ver
 
 // Arrive marks the booked in-person appointment id arrived at the desk (StatusArrived, W6) as the clinic's admin or
 // receptionist c, in the clinic's scope, and returns it; audited, and the clinic's statistics refreshed. ErrForbidden
-// to anyone else, ErrNotFound for an appointment the clinic does not see, ErrNotInPerson for a video visit, ErrClosed
+// to anyone else, ErrNotFound for an appointment the clinic does not see or whose patient's record is restricted at
+// the clinic (docs/clinic-cms/WAVE5.md S7), ErrNotInPerson for a video visit, ErrClosed
 // for one not booked any more; each refusal is audited.
 func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment, error) {
 	if !c.desk() {
@@ -232,6 +233,12 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 			return err
 		case visitMode(a.Mode) != schedule.ModeInPerson:
 			refused = ErrNotInPerson
+			return nil
+		}
+		if restricted, err := s.Patients.Restricted(ctx, a.PatientID, c.OrganizationID); err != nil {
+			return err
+		} else if restricted { // S7: hidden from the desk's day, and not checked in through its id either
+			refused = ErrNotFound
 			return nil
 		}
 		if out, err = s.Repo.Arrive(ctx, id, s.Clock.Now()); errors.Is(err, ErrClosed) {
