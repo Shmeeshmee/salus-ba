@@ -87,7 +87,8 @@ jobs:
       # it writes that project's full logs to E2E_LOGS on a failure, before the cleanup.
       - name: Logs of the salus-e2e project
         if: failure()
-        run: cat e2e-logs.txt || echo "No e2e logs: the run failed before its stack started."
+        run: |
+          cat e2e-logs.txt || echo "No e2e logs: the run failed before its stack started."
       # The consultation pipeline's latency against the plan's targets (SAL-10), per run: the job summary and an
       # artifact.
       - name: Latency report
