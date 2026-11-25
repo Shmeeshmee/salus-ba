@@ -253,7 +253,7 @@ services:
 
   # Catches every e-mail sent locally; web UI on 127.0.0.1:8025 (SMTP 1025 on the compose network only).
   mailpit:
-    image: axllent/mailpit:v1.33.1
+    image: axllent/mailpit:v1.34.0
     ports: ["127.0.0.1:${SALUS_MAILPIT_PORT:-8025}:8025"]
     restart: unless-stopped
 
@@ -263,14 +263,14 @@ services:
   # (deployments/mailpit-tls, `make mailpit-tls-cert`) names both services and is signed by a throwaway CA that only
   # the tools service trusts. Compose network only, nothing published; the dev stack sends through mailpit above.
   mailpit-starttls:
-    image: axllent/mailpit:v1.33.1
+    image: axllent/mailpit:v1.34.0
     command: ["--smtp-tls-cert", "/etc/mailpit-tls/smtp.crt", "--smtp-tls-key", "/etc/mailpit-tls/smtp.key", "--smtp-require-starttls"]
     environment: &mailpit-auth
       MP_SMTP_AUTH: "salus-test:local-only-synthetic-smtp-password"
     volumes: ["./mailpit-tls:/etc/mailpit-tls:ro"]
     restart: unless-stopped
   mailpit-tls:
-    image: axllent/mailpit:v1.33.1
+    image: axllent/mailpit:v1.34.0
     command: ["--smtp-tls-cert", "/etc/mailpit-tls/smtp.crt", "--smtp-tls-key", "/etc/mailpit-tls/smtp.key", "--smtp-require-tls"]
     environment: *mailpit-auth
     volumes: ["./mailpit-tls:/etc/mailpit-tls:ro"]
