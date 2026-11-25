@@ -18,6 +18,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/diagnosticreport"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -33,6 +34,7 @@ type ownSources struct {
 	visits     []appointment.Seen
 	receipts   []invoice.Invoice
 	quotes     []invoice.Quote
+	labs       []diagnosticreport.Report
 	encs       []encounter.Encounter
 	docs       []composition.Document
 	answers    []questionnaireresponse.Seen
@@ -51,6 +53,20 @@ func (o *ownSources) opened(body, id string) (io.ReadCloser, error) {
 		return nil, errors.New("synthetic: the key was rotated")
 	}
 	return io.NopCloser(strings.NewReader(body)), nil
+}
+
+// ownLabs is the patient's released lab results (diagnosticreport.Service).
+type ownLabs struct{ o *ownSources }
+
+func (l ownLabs) MineAt(_ context.Context, c diagnosticreport.Patient, org string) ([]diagnosticreport.Report, error) {
+	var out []diagnosticreport.Report
+	for _, r := range l.o.labs {
+		if ofClinic(r.OrganizationID, org) && c.PatientID == r.PatientID {
+			l.o.call("lab result " + r.ID)
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 // ofClinic is whether id is org's, or org is empty.
@@ -208,7 +224,10 @@ func newOwn() (*ownSources, *clinicexport.OwnRecords) {
 		},
 		receipts: []invoice.Invoice{{ID: "i1", PatientID: "pt1", OrganizationID: clinicA}, {ID: "i2", PatientID: "pt1", OrganizationID: clinicB}},
 		quotes:   []invoice.Quote{{ID: "q2", PatientID: "pt1", OrganizationID: clinicB}},
-		encs:     []encounter.Encounter{{ID: "e2", AppointmentID: "a2", PatientID: "pt1", OrganizationID: clinicB}},
+		labs: []diagnosticreport.Report{{ID: "l2", PatientID: "pt1", OrganizationID: clinicB, AppointmentID: "a2", Title: "Synthetic panel",
+			Status: diagnosticreport.StatusFinal, ReleasedAt: &released, VersionID: 2,
+			Results: []diagnosticreport.Result{{Test: "Synthetic marker", ValueText: "negative"}}}},
+		encs: []encounter.Encounter{{ID: "e2", AppointmentID: "a2", PatientID: "pt1", OrganizationID: clinicB}},
 		docs: []composition.Document{{
 			Encounter: encounter.Encounter{ID: "e2", PatientID: "pt1", OrganizationID: clinicB},
 			Draft:     composition.Draft{ID: "d2", EncounterID: "e2", DocumentReferenceID: "dr2", Status: composition.StatusFinal},
@@ -225,8 +244,12 @@ func newOwn() (*ownSources, *clinicexport.OwnRecords) {
 	return o, clinicexport.NewOwnRecords(clinicexport.OwnPorts{
 		Profile: o, Consents: o, Appointments: o, Receipts: inv, Quotes: inv, Encounters: ownEncounters{o},
 		Documents: ownDocuments{o}, Answers: ownAnswers{o}, Questionnaires: ownAnswers{o}, Files: ownFiles{o}, Chat: ownChat{o},
+		LabResults: ownLabs{o},
 	})
 }
+
+// released is when the synthetic lab result was released.
+var released = time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)
 
 // entries are the fullUrls of a Bundle's entries.
 func entries(t *testing.T, body []byte) []string {
@@ -293,7 +316,7 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 		t.Errorf("clinic A's record %v", got)
 	}
 	if got := entries(t, file(t, b, "record.json")); !slices.Equal(got, []string{"urn:uuid:pt1", "urn:uuid:c2", "urn:uuid:a2",
-		"urn:uuid:e2", "urn:uuid:d2", "urn:uuid:r2", "urn:uuid:i2"}) {
+		"urn:uuid:e2", "urn:uuid:d2", "urn:uuid:r2", "urn:uuid:l2", "urn:uuid:i2"}) {
 		t.Errorf("clinic B's record %v", got)
 	}
 	if want := []string{"record.json", "files/i1.pdf"}; !slices.Equal(names(a), want) {
@@ -316,7 +339,7 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 	}
 	if want := []string{"1 consent", "1 appointment (the cancelled ones too)", "1 visit record (Encounter)",
 		"1 signed document (its PDF in files/)", "1 submitted questionnaire answer", "1 file you uploaded with your answers (in files/)",
-		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)"}; !slices.Equal(b.Holds, want) {
+		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)", "1 released lab result (DiagnosticReport)"}; !slices.Equal(b.Holds, want) {
 		t.Errorf("clinic B holds %q", b.Holds)
 	}
 	if !slices.Contains(o.calls, "answers a2 completed") || !slices.Contains(o.calls, "file b3") {
@@ -340,7 +363,7 @@ func TestOwnRecords_AClinicTargetReadsThatClinic(t *testing.T) {
 	}
 	for _, c := range o.calls {
 		if strings.Contains(c, "a2") || strings.Contains(c, "e2") || strings.Contains(c, "b2") ||
-			strings.Contains(c, "c2") || strings.Contains(c, "i2") || strings.Contains(c, "q2") {
+			strings.Contains(c, "c2") || strings.Contains(c, "i2") || strings.Contains(c, "q2") || strings.Contains(c, "l2") {
 			t.Errorf("read %q of clinic B", c)
 		}
 	}

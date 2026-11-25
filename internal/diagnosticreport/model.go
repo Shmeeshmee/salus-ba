@@ -75,8 +75,8 @@ type Draft struct {
 type Staff struct {
 	AccountID      string
 	OrganizationID string
+	PractitionerID string // the practitioner the account is; empty for the admin and the receptionist
 	Admin          bool
-	Practitioner   bool
 	Reception      bool
 }
 

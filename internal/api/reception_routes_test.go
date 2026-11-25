@@ -187,10 +187,8 @@ var notServedYet = []string{
 	"GET /clinic/locations", "POST /clinic/locations", "PUT /clinic/locations/{id}", "GET /organizations/{id}/locations",
 	"GET /clinic/locations/{id}/rooms", "POST /clinic/locations/{id}/rooms", "PUT /clinic/rooms/{id}",
 	"GET /clinic/locations/{id}/devices", "POST /clinic/locations/{id}/devices", "PUT /clinic/devices/{id}",
-	"GET /clinic/appointments/{id}/diagnostic-reports", "POST /clinic/appointments/{id}/diagnostic-reports",
-	"GET /clinic/diagnostic-reports/{id}", "PUT /clinic/diagnostic-reports/{id}", "GET /clinic/diagnostic-reports/{id}/pdf",
-	"PUT /clinic/diagnostic-reports/{id}/pdf", "POST /clinic/diagnostic-reports/{id}/release", "GET /me/diagnostic-reports",
-	"GET /me/diagnostic-reports/{id}", "GET /me/diagnostic-reports/{id}/pdf", "POST /clinic/care-plans",
+	"GET /clinic/diagnostic-reports/{id}/pdf", "PUT /clinic/diagnostic-reports/{id}/pdf",
+	"GET /me/diagnostic-reports/{id}/pdf", "POST /clinic/care-plans",
 	"GET /clinic/patients/{id}/care-plans", "GET /clinic/care-plans/{id}", "PUT /clinic/care-plans/{id}",
 	"POST /clinic/care-plans/{id}/book", "POST /clinic/care-plans/{id}/cancel", "GET /me/care-plans",
 }
