@@ -58,7 +58,7 @@ dependencies:
 
   # Video consultations (docs/consultation/SPEC.md "Mobile client"): LiveKit's Flutter SDK, reached only
   # through lib/call.dart. Pinned exact.
-  livekit_client: 2.13.2
+  livekit_client: 2.14.0
 
   # Camera and microphone permissions: whether they are still to be asked (M35 before the system prompt on
   # Android), and the device settings when they were denied (M11), which neither livekit_client nor
@@ -75,7 +75,7 @@ dependencies:
   # The camera (photo and video) and the photo library: Flutter's own plugin, the system pickers on both platforms.
   image_picker: 1.2.4
   # PDFs from the documents: the system document picker on both platforms.
-  file_picker: 13.1.0
+  file_picker: 13.4.1
   # The share sheet (docs/consultation/SPEC.md "Patient documents"): a signed document's PDF to open in a viewer,
   # save to the device's files or send, and the transcript copy as text. Flutter has no share sheet of its own, and
   # one needs platform code on iOS and Android; share_plus is the Flutter Community's plugin. Reached only through
