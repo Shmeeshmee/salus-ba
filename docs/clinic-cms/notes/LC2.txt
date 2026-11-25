@@ -1,0 +1,2 @@
+Package LC2. Your specification is the "LC2" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Read 6.0 record in docs/clinic-cms/PROGRESS.md first. No Go: build against the generated client with a fake API in tests, walk your screens at 1280 and 390 px where they are web, and list under INTEGRATION NOTES what must be checked against the real server.

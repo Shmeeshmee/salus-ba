@@ -1,0 +1,2 @@
+Package BG1. Your specification is the "BG1" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Other packages run in parallel: touch no screen and no schema that 6.0 adds. A fix without a failing test first is not a fix.

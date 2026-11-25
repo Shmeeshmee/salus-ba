@@ -1,0 +1,2 @@
+Package BG3. Your specification is the "BG3" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Touch nothing under internal/, web/ or mobile/. Read R3 report (.claude/runs/cms/R3.report.md) for the port collision. Do not change what any check asserts.

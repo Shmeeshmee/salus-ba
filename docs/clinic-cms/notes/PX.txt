@@ -1,0 +1,2 @@
+Package PX. Your specification is the "PX" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Read the wave 5 integration record in PROGRESS.md ("Deferred") first. Ticket SAL-59.

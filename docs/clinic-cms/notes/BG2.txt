@@ -1,0 +1,2 @@
+Package BG2. Your specification is the "BG2" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Web only. Regenerate nothing. BG1 adds the invite withdrawal route in parallel: build the action against a fake and say so under INTEGRATION NOTES.

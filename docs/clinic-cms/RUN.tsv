@@ -45,3 +45,16 @@ D3	-	Closing the account and erasure
 D4	-	The clinic handling and restricted records
 D5	-	The operator and the deadline warnings
 D6	-	Privacy in the patient app
+6.0	-	Wave 6 contract: locations, rooms, equipment, lab results, treatment plans
+BG1	-	Backend hardening
+BG2	-	Web polish
+BG3	-	Tooling: ports, e2e isolation, make check
+PX	-	Privacy follow-ups
+LC1	-	Locations: server
+RM1	-	Rooms and devices
+LB1	-	Lab results: server
+TP1	-	Treatment plans: server
+LC2	-	Locations, rooms and devices: web
+LB2	-	Lab results: web and patient app
+TP2	-	Treatment plans: web and patient app
+LC3	-	Locations: patient app
