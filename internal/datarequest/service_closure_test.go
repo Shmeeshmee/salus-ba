@@ -65,6 +65,20 @@ func TestCloseAccount_ClosesRevokesAndFilesTheErasureRequestInProgress(t *testin
 	}
 }
 
+// The patient's chat consents end with the closure too, in its transaction, so a doctor of another clinic they invited
+// into a conversation keeps no access (owner, 2026-11-25).
+func TestCloseAccount_RevokesTheChatConsents(t *testing.T) {
+	t.Parallel()
+	f := newClosureFixture(profileID, careAt("c1", clinicA, consent.KindCare, consent.StatusActive))
+	f.consents.chats = 2
+	if _, err := f.closure().CloseAccount(t.Context(), datarequest.Patient{AccountID: accountID}, password); err != nil {
+		t.Fatalf("CloseAccount() error = %v", err)
+	}
+	if !slices.Equal(f.consents.revoked, []string{"c1", "chat1", "chat2"}) || f.consents.chats != 0 {
+		t.Errorf("revoked %v, %d chat consents left; want the care consent, then both chat consents", f.consents.revoked, f.consents.chats)
+	}
+}
+
 func TestCloseAccount_AnAccountWithoutAProfileIsClosedToo(t *testing.T) {
 	t.Parallel()
 	f := newClosureFixture("")

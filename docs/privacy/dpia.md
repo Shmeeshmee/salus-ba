@@ -3030,3 +3030,35 @@ target), what the patient reads in the app there, and nothing they cannot.
   (`data_request_export.object_key`, `datarequest/<request id>/<attempt>`), so two overlapping attempts never write one
   object, the losing attempt deletes its own object, and the retention rule deletes the object the row names.
 - **Retention and logs.** Unchanged: 7 days from ready (S13), then deleted; the job logs the request's id only.
+
+### Data request follow-ups from the wave 5 walk (migration 00079, docs/clinic-cms/walk/wave5/WALK.md findings 3 to 6)
+
+**Processing added.** No new personal-data field and no new table. The clinic's admin now sees, for each request
+targeting the clinic, the patient's given and family name, birth date and whether the clinic registered them (an
+existing profile, read for a new purpose: answering the request, Art. 12); the restriction's time and maker; an app
+patient's card at the desk shows what the desk's rows already show. Closing an account also revokes the patient's chat
+consents.
+
+- **The patient on a request** (`GET /clinic/data-requests`, `GET /clinic/data-requests/{id}`, the `patient` object):
+  read by `patient.Service.RequestSubject`, for the clinic's admin only (the service refuses anyone else before any
+  read, audited), in the clinic's scope widened by `app.data_requests = 'on'` to the patients its own requests name
+  (00079: policy `patient_data_request`, asking the SECURITY DEFINER yes/no function `data_request_names_patient`), set
+  off again after the one read. Each read is audited as a read of the Patient at the patient's request (`PATRQT`), the
+  event's request id naming the data request (`data_request/<id>`). The phone, account and versions are not returned.
+  The name is read whatever the consent or the restriction: answering the request is the purpose, and the request is
+  the restricted record's stated reason (S7). Not on the patient's own reads, the changes (answer, extension, filing),
+  the operator's `salusctl` reads or the deadline warning e-mails, which name no patient.
+- **The restriction's state** (`GET /clinic/patients/{id}/restriction`): the admin only, for the clinic's patient,
+  audited as a read; it says since when and whether the clinic or the erasure made it.
+- **The desk's card of an app patient**: read-only, from the desk row or search result already loaded (name, birth date,
+  phone, whether a consent is active); no new read. Filing a request on behalf is offered only on a registered
+  patient's card.
+- **Closure** (S5): the patient's active chat consents end in the closure's transaction
+  (`consent.Service.RevokeChats`, each audited), so no doctor of another clinic keeps access to a conversation.
+
+| Risk | Measure |
+| --- | --- |
+| The name reaches staff other than the answering clinic's admin | The service refuses all but the admin before reading (`TestRequestSubject_RefusesAllButTheAdmin`, `TestClinicRequests_TheNameIsTheAdminsOnly`); the handler adds the patient on the clinic's list and read only (`TestHandler_OnlyTheClinicsReadsNameThePatient`); the route tests: the receptionist on every refused route (F1, now with requests naming both patients), the practitioner, another clinic's admin and the patient's own list (`TestNew_ARequestNamesItsPatientToTheAnsweringAdminOnly`) |
+| The widened scope shows more than the requests' patients | The policy holds only with the setting on and only for a patient a request targeting the scope's clinic names; tested against another clinic and with the setting off and off again (`TestRequestSubject_TheClinicsScopeWidenedToItsRequests`) |
+| `data_request_names_patient` as a probe | It answers one yes or no about two opaque ids to the server's own role (as 00076 and 00078) |
+| A restricted patient's name on the admin's queue | Intended (S7, owner 2026-11-25): listed in `restrictedOpenings` of the restriction route test; every other route still returns nothing of a restricted patient |

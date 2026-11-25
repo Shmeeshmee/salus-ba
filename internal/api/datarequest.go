@@ -46,6 +46,7 @@ func dataRequestRoutes(p dataRequestPorts, log *slog.Logger) func(*http.ServeMux
 	svc := datarequest.NewService(datarequest.Ports{
 		Repo: repo, Clock: clock.System{}, Tx: p.tx, Audit: p.audit,
 		Profiles: p.patients, Consents: p.consents, Clinics: p.clinics, Export: dataRequestExportsOn(p), Objections: p.patients,
+		Subjects: p.patients,
 	})
 	closure := datarequest.NewClosure(datarequest.ClosurePorts{
 		Tx: p.tx, Repo: repo, Scope: datarequest.NewErasureScope(), Accounts: p.accounts, Profiles: p.patients,

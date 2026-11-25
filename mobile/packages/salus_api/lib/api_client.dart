@@ -378,6 +378,8 @@ class ApiClient {
           return DataRequestFiling.fromJson(value);
         case 'DataRequestKind':
           return DataRequestKindTypeTransformer().decode(value);
+        case 'DataRequestPatient':
+          return DataRequestPatient.fromJson(value);
         case 'DataRequestStatus':
           return DataRequestStatusTypeTransformer().decode(value);
         case 'DataRequestTarget':
@@ -518,6 +520,8 @@ class ApiClient {
           return PatientImport.fromJson(value);
         case 'PatientImportRow':
           return PatientImportRow.fromJson(value);
+        case 'PatientRestriction':
+          return PatientRestriction.fromJson(value);
         case 'PaymentMethod':
           return PaymentMethodTypeTransformer().decode(value);
         case 'PeriodUnit':

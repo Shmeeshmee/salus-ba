@@ -10,6 +10,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/pkg/clock"
+	"github.com/Shmeeshmee/salus/pkg/middleware"
 )
 
 // Transactor runs fn in a transaction carried by the context, joining one already there (postgres.Transactor).
@@ -43,6 +44,12 @@ type Objections interface {
 	ObjectToAnalytics(ctx context.Context, patientID string) error
 }
 
+// Subjects reads, to the clinic's admin, the patient a request of the clinic names, audited, in the caller's
+// transaction (patient.Service).
+type Subjects interface {
+	RequestSubject(ctx context.Context, c patient.Caller, id string) (patient.Patient, error)
+}
+
 // Ports are what the Service consumes.
 type Ports struct {
 	Repo     Repository
@@ -56,6 +63,8 @@ type Ports struct {
 	Export   ExportPorts // the patient's export (D2, service_export.go)
 	// Objections: an objection marks the profile as it is filed (S9).
 	Objections Objections
+	// Subjects: the clinic's queue and detail name each request's patient (walk finding 3).
+	Subjects Subjects
 }
 
 // Service is the requests' business rules.
@@ -266,6 +275,11 @@ func (s *Service) ClinicRequests(ctx context.Context, st Staff) ([]Request, erro
 		if err != nil {
 			return err
 		}
+		for i := range all {
+			if all[i].Subject, err = s.subject(ctx, st, all[i]); err != nil {
+				return err
+			}
+		}
 		out = append(out, all...)
 		return s.p.Audit.Record(ctx, event(st.AccountID, Request{OrganizationID: st.OrganizationID}, auditevent.CodeSearchType, auditevent.CodeHOPERAT, int64(len(out))))
 	})
@@ -286,6 +300,9 @@ func (s *Service) ClinicRequest(ctx context.Context, st Staff, id string) (Reque
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
 		if r, err = s.clinics(ctx, st, id); err != nil {
+			return err
+		}
+		if r.Subject, err = s.subject(ctx, st, r); err != nil {
 			return err
 		}
 		if history, err = s.p.Repo.History(ctx, id); err != nil {
@@ -363,6 +380,23 @@ func (s *Service) Extend(ctx context.Context, st Staff, id string, reason Extens
 		return Request{}, wrap("extend", err)
 	}
 	return out, nil
+}
+
+// subject reads the patient r names for the clinic's admin st, the read's audit event naming r (AuditRequestID); zero
+// for a request without a patient, or one the read does not find. The caller has checked st is the admin.
+func (s *Service) subject(ctx context.Context, st Staff, r Request) (Subject, error) {
+	if r.PatientID == "" {
+		return Subject{}, nil
+	}
+	c := patient.Caller{AccountID: st.AccountID, OrganizationID: st.OrganizationID, Admin: true}
+	p, err := s.p.Subjects.RequestSubject(middleware.WithRequestID(ctx, AuditRequestID(r.ID)), c, r.PatientID)
+	switch {
+	case errors.Is(err, patient.ErrNotFound):
+		return Subject{}, nil
+	case err != nil:
+		return Subject{}, fmt.Errorf("datarequest: the request's patient: %w", err)
+	}
+	return Subject{GivenName: p.GivenName, FamilyName: p.FamilyName, BirthDate: p.BirthDate, RegisteredByClinic: p.RegisteredBy == st.OrganizationID}, nil
 }
 
 // clinics scopes the transaction in ctx to the admin's clinic and returns its request id, or ErrNotFound.

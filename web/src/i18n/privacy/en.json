@@ -65,5 +65,14 @@
   "erasureKeeps": {
     "defaultMessage": "The erasure keeps this record restricted; the clinic cannot lift it.",
     "description": "legal"
-  }
+  },
+  "born": "Born {date}",
+  "recordTitle": "The patient's record at the clinic",
+  "notRestricted": "The record is not restricted.",
+  "restrictedByClinic": "Restricted by the clinic since {date}.",
+  "restrictedByErasure": {
+    "defaultMessage": "Restricted by the erasure of the account since {date}. The clinic cannot lift it.",
+    "description": "legal"
+  },
+  "restrictionLoadFailed": "The restriction could not be read. Reload the page."
 }

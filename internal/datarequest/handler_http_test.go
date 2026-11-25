@@ -19,9 +19,9 @@ type stubRequests struct {
 	reason  datarequest.ExtensionReason
 	kind    datarequest.Kind
 	id      string
-	request datarequest.Request
 	answer  datarequest.Answer
 	history []datarequest.Change
+	request datarequest.Request
 	version int
 }
 
@@ -176,6 +176,32 @@ func TestHandler_ErrorsAreTheContractsCodes(t *testing.T) {
 		rec := serveAs(t, &stubRequests{err: err}, asAdmin, http.MethodPost, "/clinic/data-requests/"+reqID+"/extend", `{"reason":"complex"}`, `W/"1"`)
 		if rec.Code != want.status || strings.TrimSpace(rec.Body.String()) != `{"error":"`+want.code+`"}` {
 			t.Errorf("%v: %d %s, want %d %s", err, rec.Code, rec.Body, want.status, want.code)
+		}
+	}
+}
+
+// The clinic's list and read name the request's patient (walk finding 3); the patient's own routes and the clinic's
+// changes do not, even when the service hands one.
+func TestHandler_OnlyTheClinicsReadsNameThePatient(t *testing.T) {
+	t.Parallel()
+	named := received
+	named.Subject = datarequest.Subject{GivenName: "Ada", FamilyName: "Example", BirthDate: time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)}
+	stub := &stubRequests{request: named}
+	want := `"patient":{"birthDate":"1990-01-01","givenName":"Ada","familyName":"Example","registeredByClinic":false}`
+	for _, path := range []string{"/clinic/data-requests", "/clinic/data-requests/" + reqID} {
+		if rec := serveAs(t, stub, asAdmin, http.MethodGet, path, "", ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("GET %s = %d %s, want %s", path, rec.Code, rec.Body, want)
+		}
+	}
+	for name, rec := range map[string]*httptest.ResponseRecorder{
+		"the patient's list":   serveAs(t, stub, asPatient, http.MethodGet, "/me/data-requests", "", ""),
+		"the patient's filing": serveAs(t, stub, asPatient, http.MethodPost, "/me/data-requests", `{"kind":"access","target":"account"}`, ""),
+		"the answer":           serveAs(t, stub, asAdmin, http.MethodPost, "/clinic/data-requests/"+reqID+"/answer", `{"status":"fulfilled","code":"done"}`, `W/"1"`),
+		"the extension":        serveAs(t, stub, asAdmin, http.MethodPost, "/clinic/data-requests/"+reqID+"/extend", `{"reason":"complex"}`, `W/"1"`),
+		"a filing at the desk": serveAs(t, stub, asAdmin, http.MethodPost, "/clinic/patients/"+registered+"/data-requests", `{"kind":"access"}`, ""),
+	} {
+		if strings.Contains(rec.Body.String(), "Ada") || strings.Contains(rec.Body.String(), `"patient"`) {
+			t.Errorf("%s = %d %s, want no patient", name, rec.Code, rec.Body)
 		}
 	}
 }

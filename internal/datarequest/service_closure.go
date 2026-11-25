@@ -32,6 +32,8 @@ type Accounts interface {
 type ClosureConsents interface {
 	Consents
 	Revoke(ctx context.Context, c consent.Caller, id string) (consent.Consent, error)
+	// RevokeChats ends every active chat consent of the patient (which Mine does not list), audited.
+	RevokeChats(ctx context.Context, c consent.Caller) ([]consent.Consent, error)
 }
 
 // Devices removes the push devices of an account (notification.Chat).
@@ -122,7 +124,8 @@ func (c *Closure) fileErasure(ctx context.Context, accountID, patientID string) 
 }
 
 // revokeConsents revokes every active consent of the patient, the care consents first: theirs end the others with the
-// clinic, which then read as inactive.
+// clinic, which then read as inactive; then the chat consents, so no doctor of another clinic the patient invited
+// into a conversation keeps access (owner, 2026-11-25).
 func (c *Closure) revokeConsents(ctx context.Context, caller consent.Caller) error {
 	all, err := c.p.Consents.Mine(ctx, caller)
 	if err != nil {
@@ -138,14 +141,15 @@ func (c *Closure) revokeConsents(ctx context.Context, caller consent.Caller) err
 		return 1
 	})
 	for _, x := range all {
-		if x.Status != consent.StatusActive || x.Kind == consent.KindChat {
+		if x.Status != consent.StatusActive {
 			continue
 		}
 		if _, err := c.p.Consents.Revoke(ctx, caller, x.ID); err != nil && !errors.Is(err, consent.ErrInactive) {
 			return err
 		}
 	}
-	return nil
+	_, err = c.p.Consents.RevokeChats(ctx, caller)
+	return err
 }
 
 // ReopenAccount reopens a closed account before its erasure date (the operator's, from salusctl as the tables' owner):

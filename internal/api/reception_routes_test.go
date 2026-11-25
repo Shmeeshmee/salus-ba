@@ -163,7 +163,7 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /me/account/close": stranger, "GET /clinic/data-requests": refused, "GET /clinic/data-requests/{id}": refused,
 	"POST /clinic/data-requests/{id}/answer": refused, "POST /clinic/data-requests/{id}/extend": refused,
 	"POST /clinic/patients/{id}/data-requests": desk, "PUT /clinic/patients/{id}/restriction": refused,
-	"DELETE /clinic/patients/{id}/restriction": refused,
+	"DELETE /clinic/patients/{id}/restriction": refused, "GET /clinic/patients/{id}/restriction": refused,
 }
 
 // notServedYet are the routes in the contract that are not mounted: wave 5's, declared by its contract (5.0) and
@@ -234,6 +234,7 @@ type reception struct {
 	receptionist, stranger                      *client // stranger: a signed-in account with no patient profile
 	visit, patientID, receptionAccount, receipt string  // receipt: one the receptionist issued for the visit
 	registered                                  string  // a patient the receptionist registered (docs/clinic-cms R2)
+	request                                     string  // the booked patient's data request to the clinic, which names them (wave 5)
 }
 
 func newReception(t *testing.T) (reception, func(string, ...any) int) {
@@ -274,7 +275,29 @@ func newReception(t *testing.T) (reception, func(string, ...any) int) {
 	var reg struct{ ID string }
 	decode(t, rec, &reg)
 	r.registered = reg.ID
+	r.request = receptionRequests(t, r)
 	return r, count
+}
+
+// receptionRequests has the booked patient file an access request to the clinic and the receptionist file a
+// restriction request at the desk for the patient they registered (S10): the clinic's queue then names both patients,
+// to its admin only (wave 5 walk, finding 3). It returns the booked patient's request.
+func receptionRequests(t *testing.T, r reception) string {
+	t.Helper()
+	rec := r.patient.do(http.MethodPost, "/me/data-requests", `{"kind":"access","target":"clinic","organizationId":"`+inviteClinic+`"}`)
+	var filed struct{ ID string }
+	decode(t, rec, &filed)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST /me/data-requests = %d %s", rec.Code, rec.Body)
+	}
+	if rec := r.receptionist.do(http.MethodPost, "/clinic/patients/"+r.registered+"/data-requests", `{"kind":"restriction"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("the receptionist files on behalf = %d %s", rec.Code, rec.Body)
+	}
+	if rec := r.admin.do(http.MethodGet, "/clinic/data-requests", ""); rec.Code != http.StatusOK ||
+		!strings.Contains(rec.Body.String(), `"familyName":"Syntheticova"`) || !strings.Contains(rec.Body.String(), `"familyName":"Registeredova"`) {
+		t.Fatalf("the admin's queue = %d %s, want both patients named", rec.Code, rec.Body)
+	}
+	return filed.ID
 }
 
 // deskReceipt gives the clinic its billing details and address and a service, and has the receptionist issue a receipt
@@ -315,15 +338,15 @@ var receptionQueries = map[string]string{
 // are the clinic's own (real) or ids that do not exist; the clinic and its practitioner's role, which the public directory lists, are
 // always the clinic's own; every other id does not exist.
 func receptionPath(r reception, route string, real bool) string {
-	visit, patient, receipt, registered := r.visit, r.patientID, r.receipt, r.registered
+	visit, patient, receipt, registered, request := r.visit, r.patientID, r.receipt, r.registered, r.request
 	if !real {
-		visit, patient, receipt, registered = unknownID, unknownID, unknownID, unknownID
+		visit, patient, receipt, registered, request = unknownID, unknownID, unknownID, unknownID, unknownID
 	}
 	path := route
 	for prefix, id := range map[string]string{
 		"/appointments/{id}": visit, "/clinic/appointments/{id}": visit, "/patients/{id}": patient,
 		"/practitioner-roles/{id}": r.roleID, "/organizations/{id}": inviteClinic, "/history-sharing/{organizationId}": inviteClinic,
-		"/clinic/receipts/{id}": receipt, "/clinic/patients/{id}": registered,
+		"/clinic/receipts/{id}": receipt, "/clinic/patients/{id}": registered, "/clinic/data-requests/{id}": request,
 	} {
 		if strings.HasPrefix(path, prefix) {
 			path = strings.Replace(path, prefix[strings.LastIndex(prefix, "{"):], id, 1)
@@ -339,6 +362,10 @@ func receptionPath(r reception, route string, real bool) string {
 
 // The patient's data the bookedVisit fixture holds: none of it may reach a receptionist on a refused route.
 var bookedPatientData = []string{"Zorana", "Syntheticova", "1977-07-07", "+38760000777"}
+
+// The data of the patient the receptionist registered: the desk's to see, but not on a refused route (the clinic's
+// queue of data requests names them, to its admin only).
+var registeredPatientData = []string{"Rina", "Registeredova", "1966-06-06"}
 
 // A receptionist reaches the desk's routes and is refused, as a stranger, on every other route of the contract
 // (docs/clinic-cms, F1).
@@ -422,7 +449,7 @@ func checkRefused(t *testing.T, r reception, op string, code int, body string) {
 	if code != http.StatusForbidden && code != http.StatusNotFound && !malformed {
 		t.Errorf("%s as the receptionist = %d %s, want 403 or 404", op, code, body)
 	}
-	for _, s := range bookedPatientData {
+	for _, s := range append(slices.Clone(bookedPatientData), registeredPatientData...) {
 		if strings.Contains(body, s) {
 			t.Errorf("%s as the receptionist: the body holds the patient's data", op)
 		}

@@ -18,6 +18,7 @@ class DataRequest {
     required this.target,
     this.organizationId,
     this.patientId,
+    this.patient,
     required this.status,
     required this.receivedAt,
     required this.dueAt,
@@ -53,6 +54,14 @@ class DataRequest {
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
   String? patientId;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  DataRequestPatient? patient;
 
   DataRequestStatus status;
 
@@ -110,6 +119,7 @@ class DataRequest {
           other.target == target &&
           other.organizationId == organizationId &&
           other.patientId == patientId &&
+          other.patient == patient &&
           other.status == status &&
           other.receivedAt == receivedAt &&
           other.dueAt == dueAt &&
@@ -129,6 +139,7 @@ class DataRequest {
       (target.hashCode) +
       (organizationId == null ? 0 : organizationId!.hashCode) +
       (patientId == null ? 0 : patientId!.hashCode) +
+      (patient == null ? 0 : patient!.hashCode) +
       (status.hashCode) +
       (receivedAt.hashCode) +
       (dueAt.hashCode) +
@@ -142,7 +153,7 @@ class DataRequest {
 
   @override
   String toString() =>
-      'DataRequest[id=$id, kind=$kind, target=$target, organizationId=$organizationId, patientId=$patientId, status=$status, receivedAt=$receivedAt, dueAt=$dueAt, extendedUntil=$extendedUntil, extensionReason=$extensionReason, answeredAt=$answeredAt, answerCode=$answerCode, filedByPatient=$filedByPatient, version=$version, history=$history]';
+      'DataRequest[id=$id, kind=$kind, target=$target, organizationId=$organizationId, patientId=$patientId, patient=$patient, status=$status, receivedAt=$receivedAt, dueAt=$dueAt, extendedUntil=$extendedUntil, extensionReason=$extensionReason, answeredAt=$answeredAt, answerCode=$answerCode, filedByPatient=$filedByPatient, version=$version, history=$history]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -158,6 +169,11 @@ class DataRequest {
       json[r'patientId'] = this.patientId;
     } else {
       json[r'patientId'] = null;
+    }
+    if (this.patient != null) {
+      json[r'patient'] = this.patient;
+    } else {
+      json[r'patient'] = null;
     }
     json[r'status'] = this.status;
     json[r'receivedAt'] = this.receivedAt.toUtc().toIso8601String();
@@ -240,6 +256,7 @@ class DataRequest {
         target: DataRequestTarget.fromJson(json[r'target'])!,
         organizationId: mapValueOfType<String>(json, r'organizationId'),
         patientId: mapValueOfType<String>(json, r'patientId'),
+        patient: DataRequestPatient.fromJson(json[r'patient']),
         status: DataRequestStatus.fromJson(json[r'status'])!,
         receivedAt: mapDateTime(json, r'receivedAt', r'')!,
         dueAt: mapDateTime(json, r'dueAt', r'')!,

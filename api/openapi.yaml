@@ -7743,6 +7743,36 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
   /clinic/patients/{id}/restriction:
+    get:
+      operationId: getClinicPatientRestriction
+      x-salus-package: cms-dr
+      summary: Read a restriction
+      description: >-
+        Whether the record of the clinic's patient is restricted there, since when and by what, so the request's detail
+        offers only the action that applies (wave 5 walk, finding 4). For the clinic's admin. Audited.
+      tags: [privacy]
+      security:
+        - sessionCookie: []
+        - bearerAuth: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: The restriction's state.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PatientRestriction"}
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/ClinicAdminOnly"
+        "404":
+          description: "`not_found`: no patient with a record at the clinic with that id."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "500":
+          $ref: "#/components/responses/InternalError"
     put:
       operationId: restrictClinicPatient
       x-salus-package: cms-d4
@@ -8762,6 +8792,8 @@ components:
         target: {$ref: "#/components/schemas/DataRequestTarget"}
         organizationId: {type: string, format: uuid, description: The clinic of a clinic target.}
         patientId: {type: string, format: uuid, description: The patient's profile; on the clinic's reads.}
+        patient:
+          $ref: "#/components/schemas/DataRequestPatient"
         status: {$ref: "#/components/schemas/DataRequestStatus"}
         receivedAt: {type: string, format: date-time}
         dueAt: {type: string, format: date-time}
@@ -8774,12 +8806,37 @@ components:
         history:
           type: array
           items: {$ref: "#/components/schemas/DataRequestChange"}
+    DataRequestPatient:
+      type: object
+      required: [givenName, familyName, birthDate, registeredByClinic]
+      description: >-
+        The patient a request targeting the clinic names, so its admin knows whose request it is (wave 5 walk, finding
+        3). On the clinic's list and read of its requests only, for its admin, each read audited as a read of the
+        Patient at the patient's request; never on the patient's own reads, the changes or the deadline warnings.
+        Personal data: the minimum to tell patients apart.
+      properties:
+        givenName: {type: string}
+        familyName: {type: string}
+        birthDate: {type: string, format: date}
+        registeredByClinic:
+          type: boolean
+          description: The clinic registered the profile (no Salus account), so its admin hands the record over (GET /clinic/patients/{id}/record).
     DataRequestChange:
       type: object
       required: [status, changedAt]
       properties:
         status: {$ref: "#/components/schemas/DataRequestStatus"}
         changedAt: {type: string, format: date-time}
+    PatientRestriction:
+      type: object
+      required: [restricted]
+      description: >-
+        Whether the patient's record is restricted at the clinic (S7), since when and by what: the clinic's staff, who
+        may lift it, or the erasure of the patient's account (S6), which the clinic cannot lift.
+      properties:
+        restricted: {type: boolean}
+        restrictedAt: {type: string, format: date-time, description: While restricted.}
+        by: {type: string, enum: [clinic, erasure], description: While restricted.}
     DataRequestFiling:
       type: object
       required: [kind, target]

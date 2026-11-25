@@ -1,20 +1,24 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import type { ApiClient, ErrorCode } from './api/client'
 import { attempt } from './api/result'
 import type { components } from './api/schema'
 import { Dialog } from './chat/Dialog'
 import { DeskConsent } from './DeskConsent'
-import { useT } from './i18n/useT'
+import { useFormat, useT } from './i18n/useT'
 import { useLoad } from './load'
 import { groupPhone } from './phone'
 import { Alert, Field, Notice, Submit } from './ui'
 
 type ClinicPatient = components['schemas']['ClinicPatient']
+type Kind = components['schemas']['DataRequestKind']
 
-// DeskPatient is the patient's name on a desk row (clinic-cms R2). For a patient the clinic registered (no Salus
-// account) it opens the patient's card, where the desk exercises the patient's rights for them (V2): correct the name,
-// birth date and phone, record that the patient withdrew the consent they gave in person or record a new one, and, for
-// the admin, download the record to hand over. A patient with their own account manages their profile in the app: their name is text.
+const kinds: Kind[] = ['access', 'portability', 'rectification', 'restriction', 'objection', 'erasure']
+
+// DeskPatient is the patient's name on a desk row (clinic-cms R2); it opens the patient's card. For a patient the clinic
+// registered (no Salus account) the desk exercises the patient's rights for them there (V2): correct the name, birth
+// date and phone, record that the patient withdrew the consent they gave in person or record a new one, file a data
+// request on their behalf (WAVE5 S10) and, for the admin, download the record to hand over. A patient with their own
+// account manages their profile and files their requests in the app: their card is read-only (wave 5 walk, finding 6).
 // onChanged is called when the card closes after a change, so the desk's row reads the day again (its phone, the
 // visits a withdrawal cancelled).
 export function DeskPatient({ api, patient, onChanged }: { api: ApiClient; patient: ClinicPatient; onChanged?: () => void }) {
@@ -22,13 +26,13 @@ export function DeskPatient({ api, patient, onChanged }: { api: ApiClient; patie
   const [open, setOpen] = useState(false)
   const [changed, setChanged] = useState(false)
   const name = `${shown.givenName} ${shown.familyName}`
-  if (!shown.registeredByClinic) return <span>{name}</span>
   return (
     <>
       <button type="button" className="desk-name" onClick={() => setOpen(true)}>
         {name}
       </button>
-      {open && (
+      {open && !shown.registeredByClinic && <AppCard patient={shown} onClose={() => setOpen(false)} />}
+      {open && shown.registeredByClinic && (
         <Card
           api={api}
           patient={shown}
@@ -61,6 +65,7 @@ function Card({ api, patient, onSaved, onClose }: CardProps) {
       <h2>{t('desk.patient.title')}</h2>
       <Profile api={api} patient={patient} onSaved={onSaved} />
       <Consent api={api} patient={patient} onChanged={(consentActive) => onSaved({ ...patient, consentActive })} />
+      <OnBehalf api={api} patient={patient} />
       {me.state.name === 'loaded' && me.state.value && (
         <section>
           <h3>{t('desk.patient.recordTitle')}</h3>
@@ -76,6 +81,86 @@ function Card({ api, patient, onSaved, onClose }: CardProps) {
         </button>
       </div>
     </Dialog>
+  )
+}
+
+// AppCard is the card of a patient with their own Salus account: read-only, since they manage their profile and file
+// their data requests in the app.
+function AppCard({ patient, onClose }: { patient: ClinicPatient; onClose: () => void }) {
+  const t = useT()
+  const f = useFormat()
+  const id = useId()
+  const facts: [string, string][] = [
+    ['name', `${patient.givenName} ${patient.familyName}`],
+    ['born', f.calendarDate(patient.birthDate)],
+    ['phone', patient.phone ? groupPhone(patient.phone) : t('desk.patient.noPhone')],
+    ['consent', t(patient.consentActive ? 'desk.patient.consentActive' : 'desk.patient.consentNone')],
+  ]
+  const label: Record<string, string> = {
+    name: t('desk.patient.name'), born: t('desk.patient.born'), phone: t('desk.patient.phone'), consent: t('desk.patient.consentTitle'),
+  }
+  return (
+    <Dialog label={t('desk.patient.title')} className="receipt-dialog desk-dialog" onClose={onClose}>
+      <h2>{t('desk.patient.title')}</h2>
+      <p className="muted small">{t('desk.patient.appHint')}</p>
+      <dl className="desk-facts">
+        {facts.map(([key, value]) => (
+          <div key={key}>
+            <dt id={`${id}-${key}`}>{label[key]}</dt>
+            <dd aria-labelledby={`${id}-${key}`}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="actions">
+        <button type="button" onClick={onClose}>
+          {t('desk.patient.close')}
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+// OnBehalf files a data request for a patient the clinic registered, who has no account to file it in the app (S10),
+// once the desk has checked their identity; the clinic's admin answers it (its queue).
+function OnBehalf({ api, patient }: { api: ApiClient; patient: ClinicPatient }) {
+  const t = useT()
+  const id = useId()
+  const [kind, setKind] = useState<Kind>('access')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<string>()
+  const [error, setError] = useState<string>()
+
+  async function file() {
+    if (busy) return
+    setBusy(true)
+    setDone(undefined)
+    setError(undefined)
+    const res = await attempt(api.POST('/clinic/patients/{id}/data-requests', { params: { path: { id: patient.id } }, body: { kind } }))
+    setBusy(false)
+    if (res.ok) setDone(t('desk.patient.requestFiled'))
+    else setError(t('desk.patient.requestFailed'))
+  }
+
+  return (
+    <section>
+      <h3>{t('desk.patient.requestTitle')}</h3>
+      <p className="muted small">{t('desk.patient.requestHint')}</p>
+      <div className="toolbar actions">
+        <label htmlFor={id}>{t('desk.patient.requestKind')}</label>
+        <select id={id} value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+          {kinds.map((k) => (
+            <option key={k} value={k}>
+              {t(`privacy.kind.${k}`)}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={busy} onClick={() => void file()}>
+          {t('desk.patient.fileRequest')}
+        </button>
+      </div>
+      <Notice message={done} />
+      <Alert message={error} />
+    </section>
   )
 }
 

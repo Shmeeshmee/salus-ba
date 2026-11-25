@@ -24,6 +24,17 @@ type Patient struct {
 	ConsentActive bool
 }
 
+// Restriction is the restriction of a patient's record at one clinic (docs/clinic-cms/WAVE5.md S6, S7), as its admin
+// reads it: since when, and whether the erasure made it (which the clinic cannot lift) rather than the clinic's staff.
+// A zero At is a record that is not restricted.
+type Restriction struct {
+	At        time.Time
+	ByErasure bool
+}
+
+// Restricted reports whether the record is restricted.
+func (r Restriction) Restricted() bool { return !r.At.IsZero() }
+
 // Caller is who asks: the signed-in account and, for staff, its clinic, whether they are its admin and a
 // practitioner's role there (set by the composition root where a route needs staff access). A caller without
 // a clinic is a patient (an account has a clinic exactly when it is staff).

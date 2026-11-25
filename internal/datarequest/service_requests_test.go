@@ -292,18 +292,18 @@ func TestAnswer(t *testing.T) {
 	open := datarequest.Request{ID: "r1", AccountID: accountA, PatientID: profileA, OrganizationID: clinicA, Status: datarequest.StatusInProgress, ReceivedAt: filedAt, Version: 2}
 	for name, tc := range map[string]struct {
 		want   error
-		stored datarequest.Request
 		answer datarequest.Answer
+		stored datarequest.Request
 	}{
-		"fulfilled, done":          {nil, open, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerDone, Version: 2}},
-		"refused, retention law":   {nil, open, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerRetentionLaw, Version: 2}},
-		"fulfilled with a refusal": {datarequest.ErrInvalid, open, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerExcessive, Version: 2}},
-		"refused with done":        {datarequest.ErrInvalid, open, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerDone, Version: 2}},
-		"withdrawn is no answer":   {datarequest.ErrInvalid, open, datarequest.Answer{Status: datarequest.StatusWithdrawn, Code: datarequest.AnswerDone, Version: 2}},
-		"an unknown code":          {datarequest.ErrInvalid, open, datarequest.Answer{Status: datarequest.StatusRefused, Code: "because", Version: 2}},
-		"stale":                    {datarequest.ErrVersionConflict, open, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 1}},
-		"already answered":         {datarequest.ErrClosed, func() datarequest.Request { r := open; r.Status = datarequest.StatusFulfilled; return r }(), datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 2}},
-		"another clinic's":         {datarequest.ErrNotFound, func() datarequest.Request { r := open; r.OrganizationID = clinicB; return r }(), datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 2}},
+		"fulfilled, done":          {nil, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerDone, Version: 2}, open},
+		"refused, retention law":   {nil, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerRetentionLaw, Version: 2}, open},
+		"fulfilled with a refusal": {datarequest.ErrInvalid, datarequest.Answer{Status: datarequest.StatusFulfilled, Code: datarequest.AnswerExcessive, Version: 2}, open},
+		"refused with done":        {datarequest.ErrInvalid, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerDone, Version: 2}, open},
+		"withdrawn is no answer":   {datarequest.ErrInvalid, datarequest.Answer{Status: datarequest.StatusWithdrawn, Code: datarequest.AnswerDone, Version: 2}, open},
+		"an unknown code":          {datarequest.ErrInvalid, datarequest.Answer{Status: datarequest.StatusRefused, Code: "because", Version: 2}, open},
+		"stale":                    {datarequest.ErrVersionConflict, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 1}, open},
+		"already answered":         {datarequest.ErrClosed, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 2}, func() datarequest.Request { r := open; r.Status = datarequest.StatusFulfilled; return r }()},
+		"another clinic's":         {datarequest.ErrNotFound, datarequest.Answer{Status: datarequest.StatusRefused, Code: datarequest.AnswerNoData, Version: 2}, func() datarequest.Request { r := open; r.OrganizationID = clinicB; return r }()},
 	} {
 		f := newFixture(filedAt)
 		f.repo.put(tc.stored)

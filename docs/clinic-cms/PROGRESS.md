@@ -2199,10 +2199,9 @@ changed); `make i18n-check` ran in the fast layer and in `make lint`.
 ## Waiting on a person
 
 - Wave 5, the owner: confirm S1 to S13 (S12 and S13 decided at the integration); the operator's address and language;
-  the support address in the app; whether closure also revokes chat consents; whether a guest doctor keeps chat
-  access when the treating clinic restricts the record (built: no); whether a clinic with no admin warns the operator;
-  the walk's findings 3 to 5; whether the export without receipt and quote PDFs is enough for now; and the wave's new
-  copy (web `privacy.*`, mobile privacy and closure strings, the `data_request_deadline` e-mail in ten languages;
+  the support address in the app; whether a guest doctor keeps chat access when the treating clinic restricts the
+  record (built: no); whether a clinic with no admin warns the operator; whether the export without receipt and quote
+  PDFs is enough for now; the copy of the data request follow-ups (below); and the wave's new copy (web `privacy.*`, mobile privacy and closure strings, the `data_request_deadline` e-mail in ten languages;
   sr-Cyrl transliterated, de, ar, tr, it, fr want a native reader).
 - Wave 5, the lawyer: D3's erased and kept list and assumptions (1) to (6) under "Before production"; the answer codes
   and extension reasons; keeping `data_request` after erasure; the legal-tagged closure and explanation texts.
@@ -3017,3 +3016,90 @@ web-lint` (the one warning in `analytics/ClinicView.tsx` that was there), `web-t
 on the detail (walk 3, 4); the notification erasers; receipt and quote PDFs in the export, and a file the export cannot
 open failing the build (D7); the clinic narrowing of `consent.Mine`, `invoice.Mine` and `MyQuotes` in the export; a rate
 limit on the closure's password; a warning when a clinic has no admin (D5: logged only).
+
+## Data request follow-ups from the wave 5 walk
+
+Done 2026-11-25 on `fix/data-requests` from `origin/main` (51a1b2e8, PR #121 merged), one PR. The wave 5 walk's
+findings 3 to 6 (`docs/clinic-cms/walk/wave5/WALK.md`). Migration `00079_data_request_subject.sql`.
+
+**Owner's decisions** (2026-11-25):
+
+| Topic | Decision |
+| --- | --- |
+| A restricted patient at the desk (walk finding 5, S7) | Confirmed as built: hidden from the desk's patient search for everyone, the admin included; the admin reaches the record through the request's detail and its hand-over |
+| Closing an account and chat consents (S5) | The closure also revokes the patient's chat consents, in its transaction, so nothing stays active. The guest-practitioner rule (a guest loses the conversation while the record is restricted) stays as built |
+
+**Owner's answers in the session** (2026-11-25, to two points the brief and `main` did not agree on): the web had no
+"File a data request on their behalf" action anywhere (S10 was API-only), so it is added to a registered patient's card
+and left off the app patient's read-only card; the hand-over (`GET /clinic/patients/{id}/record`) serves only patients
+the clinic registered, so the detail offers it only for them (an app patient's access request is served by their own
+export, D2).
+
+**Built.**
+
+- **The request names its patient** (finding 3). `GET /clinic/data-requests` and `GET /clinic/data-requests/{id}` carry
+  `patient` (`DataRequestPatient`: given and family name, birth date, registered by the clinic), for the clinic's admin
+  only. `datarequest.Service` reads it through a `Subjects` port (`patient.Service.RequestSubject`), once per request,
+  in the request's transaction, each read audited as a read of the Patient at the patient's request with the event's
+  request id naming the data request (`AuditRequestID`). `RequestSubject` refuses all but the admin before reading
+  (audited) and reads in the clinic scope widened by `app.data_requests` to the patients its own requests name
+  (00079: policy `patient_data_request` asking `data_request_names_patient`, a SECURITY DEFINER yes/no function:
+  `data_request`'s policies read `patient`, so a policy reading `data_request` directly is a cycle, which Postgres
+  refused), then narrows it again; it returns no phone, account or version. Read whatever the consent or restriction:
+  an app patient who revoked their consent and never had a visit is outside every other clinic branch of `patient`.
+  Nothing else carries it: the patient's own reads, the answer, extension and filing responses, the operator's reads,
+  the deadline warning e-mails (unchanged, still no patient).
+- **The restriction's state** (finding 4). `GET /clinic/patients/{id}/restriction` (`PatientRestriction`: restricted,
+  since when, by `clinic` or `erasure`), the admin only, for the clinic's patient, audited as a read
+  (`patient.Service.Restriction`, query `PatientRestriction`). The detail shows "not restricted", "restricted by the
+  clinic since …" or "restricted by the erasure of the account since … ; the clinic cannot lift it", and only the
+  action that applies: "Restrict the record" when not restricted, "Lift the restriction" for the clinic's own, none for
+  the erasure's; it reads the state again after each action.
+- **The hand-over from the detail** (finding 5). For a patient the clinic registered, "Open the hand-over" downloads
+  the record (`download`), restricted or not: the admin's way to a restricted patient.
+- **The desk's app patient card** (finding 6). An app patient's name at the desk (day and search) opens a read-only card:
+  name, birth date, phone and whether a consent is active, with a line that they manage their profile and requests in
+  the app; no form, no consent actions, no hand-over, no filing. A registered patient's card gains "File a data request
+  on their behalf" (kind, then file; S10), for the admin and the receptionist.
+- **Closure revokes chat consents** (owner). `consent.Service.RevokeChats` (query `RevokePatientChatConsents`) ends
+  every active chat consent of the patient, each audited, in the closure's transaction after the care consents.
+- **Tests and docs.** F1's route test now has a request from the booked app patient and one the desk filed for the
+  registered patient, and checks neither patient's data on any refused route; `TestNew_ARequestNamesItsPatientToTheAnsweringAdminOnly`
+  (the admin after a revoked consent and a restriction; the practitioner, another clinic's admin, the patient's own
+  list); the restriction route test lists the admin's queue and detail as intended openings. The web journey
+  (`privacy.spec.ts`) checks the queue's name and birth date, the detail's state and its one action, and downloads the
+  hand-over while restricted. DPIA block "Data request follow-ups from the wave 5 walk".
+
+**Test first.** Red before green: the patient service tests (`patient.Restriction` undefined), the repository test
+(not found without 00079), the handler test (405 for the GET), the datarequest service tests (no `Subjects` port), the
+handler test (no `patient` in the JSON), the closure test (chat consents left), the consent tests (no `RevokeChats`),
+the web tests (seven failing). The API route tests were written after the domain code they exercise and passed on
+their first run.
+
+**Review** (a fresh subagent over the whole diff; Copilot is out of quota until 2026-12-01). Its question, whether the
+patient's name on a request reaches anyone but the answering clinic's admin: no path found (the service gate on both
+sides, the JSON on the clinic's list and read only, the worker, notifier and `salusctl` services built without
+`Subjects`, the policy's transaction-local setting reset after the one read, and no way for a clinic to make a request
+naming a patient who is not its own). **Fixed**: a test helper that could panic on a short entry; the repository test
+now pins that the widening holds not in a patient's scope. **For the owner** (not changed): (1) the name shows on every
+request of the queue, answered and withdrawn ones too, for as long as `data_request` is kept (`ThenKeep`): limit it to
+open requests, or to a window after the answer?; (2) the queue reads one patient per request (a select and an audit
+event each), unmeasured and with no limit on the list: fine for a clinic's handful, batch it if a queue grows; (3) the
+closure's chat revocation ends the guest's access (row-level security reads the consent) but leaves them listed as a
+participant; (4) `data_request_names_patient` answers yes or no about two opaque ids to the server's role, as 00076 and
+00078 do.
+
+**Checks** (the worktree's own compose project `salus-fix-dr`, fresh volumes). `go`: `make lint` (after fixes: gofmt,
+two test functions over the limits, field alignment), `make test`, `make archcheck`, `make cover` (90.0% total, every
+package at 80% or more), `make i18n-check`, `make gen-clients` (regenerated, committed); no golden FHIR file changed.
+`internal/worker` failed once in a parallel run after the last test refactor and passed on its rerun (the failing test
+was not captured; the full `make test` before it passed). `web`: `make web-lint` (the one warning in
+`analytics/ClinicView.tsx` that was there), `make web-typecheck`, `make web-test` (1339). `e2e`: `make e2e`. Walk rerun:
+`docs/clinic-cms/walk/wave5/WALK.md`, "Rerun after fixes".
+
+**Copy waiting for the owner** (five staff languages; sr-Cyrl transliterated from sr-Latn; `[legal]` tagged):
+`privacy.born`, `privacy.recordTitle`, `privacy.notRestricted`, `privacy.restrictedByClinic`,
+`privacy.restrictedByErasure` [legal], `privacy.restrictionLoadFailed`; `desk.patient.appHint`, `desk.patient.name`,
+`desk.patient.born`, `desk.patient.phone`, `desk.patient.noPhone`, `desk.patient.consentActive`,
+`desk.patient.consentNone`, `desk.patient.requestTitle`, `desk.patient.requestHint` [legal], `desk.patient.requestKind`,
+`desk.patient.fileRequest`, `desk.patient.requestFiled`, `desk.patient.requestFailed`.

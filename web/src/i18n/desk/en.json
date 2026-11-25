@@ -118,5 +118,21 @@
   "consent.failed": "The consent could not be recorded. Try again.",
   "reminder.on": "Reminder will be sent",
   "reminder.noPhone": "No reminder: no phone number",
-  "reminder.smsOff": "No reminder: SMS is off for the clinic"
+  "reminder.smsOff": "No reminder: SMS is off for the clinic",
+  "patient.appHint": "This patient manages their profile and files their data requests in the Salus app.",
+  "patient.name": "Name",
+  "patient.born": "Birth date",
+  "patient.phone": "Phone",
+  "patient.noPhone": "None given",
+  "patient.consentActive": "Active",
+  "patient.consentNone": "None active",
+  "patient.requestTitle": "Data request",
+  "patient.requestHint": {
+    "defaultMessage": "Check the patient's identity first. The clinic's admin answers the request within one month.",
+    "description": "legal"
+  },
+  "patient.requestKind": "Kind of request",
+  "patient.fileRequest": "File a data request on their behalf",
+  "patient.requestFiled": "The request is filed. The clinic's admin answers it.",
+  "patient.requestFailed": "The request could not be filed. Try again."
 }

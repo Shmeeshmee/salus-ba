@@ -116,6 +116,15 @@ WHERE conversation_id = @conversation_id AND practitioner_role_id = @practitione
 RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
     practitioner_organization_id, version_id, status;
 
+-- Every active chat consent of the patient, ended at once by the closure of their account (owner, 2026-11-25); in the
+-- patient's scope.
+-- name: RevokePatientChatConsents :many
+UPDATE chat_consent
+SET status = 'inactive', revoked_at = @revoked_at, updated_at = @revoked_at, version_id = version_id + 1
+WHERE patient_id = @patient_id AND status = 'active'
+RETURNING id, updated_at, date_time, revoked_at, patient_id, organization_id, conversation_id, practitioner_role_id,
+    practitioner_organization_id, version_id, status;
+
 -- name: ChatConsentGranted :one
 SELECT EXISTS (SELECT 1 FROM chat_consent
                WHERE conversation_id = @conversation_id AND practitioner_role_id = @practitioner_role_id AND status = 'active')::boolean;

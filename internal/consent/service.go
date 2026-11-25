@@ -460,6 +460,39 @@ func (s *Service) RevokeChat(ctx context.Context, c Caller, conversationID, role
 	return out, nil
 }
 
+// RevokeChats ends every active chat consent of the calling patient and returns them, each audited as an update: the
+// closure of their account (docs/clinic-cms/WAVE5.md S5; owner, 2026-11-25), so no doctor of another clinic they
+// invited into a conversation keeps access. It runs in the caller's transaction. None for a patient without a profile;
+// ErrForbidden to staff.
+func (s *Service) RevokeChats(ctx context.Context, c Caller) ([]Consent, error) {
+	if !c.patient() {
+		return nil, s.refuse(ctx, c, auditevent.CodeUpdate, ErrForbidden)
+	}
+	var out []Consent
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		patientID, err := s.ownPatient(ctx, c)
+		if errors.Is(err, errNoProfile) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if out, err = s.repo.RevokeChats(ctx, patientID, s.clock.Now()); err != nil {
+			return err
+		}
+		for _, x := range out {
+			if err := s.record(ctx, c, auditevent.CodeUpdate, x.ID, auditevent.OutcomeSuccess); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("consent: revoke chats: %w", err)
+	}
+	return out, nil
+}
+
 // EndChat ends the active chat consent for the conversation and role as the conversation's clinic (staff of
 // c.OrganizationID), when its treating practitioner removes the invited doctor (SAL-28): the consent ends with their
 // part in the conversation, so the patient never sees it granted to nobody. It runs in the caller's transaction, in

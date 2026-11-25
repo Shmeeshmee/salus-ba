@@ -273,3 +273,24 @@ func (r *postgresRepository) RestrictForErasure(ctx context.Context, patientID, 
 		RestrictedAt: pgtype.Timestamptz{Time: at, Valid: true}, PatientID: p, OrganizationID: o,
 	})
 }
+
+func (r *postgresRepository) Restriction(ctx context.Context, patientID, org string) (Restriction, error) {
+	var p, o pgtype.UUID
+	if p.Scan(patientID) != nil || o.Scan(org) != nil {
+		return Restriction{}, nil
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).PatientRestriction(ctx, patientdb.PatientRestrictionParams{PatientID: p, OrganizationID: o})
+	if err != nil || len(rows) == 0 {
+		return Restriction{}, err
+	}
+	return Restriction{At: rows[0].RestrictedAt.Time, ByErasure: rows[0].ByErasure}, nil
+}
+
+// SetDataRequests sets app.data_requests (00079) for the rest of the transaction in ctx: "on" widens the clinic's scope
+// to the patients its requests name, "" narrows it again.
+func (r *postgresRepository) SetDataRequests(ctx context.Context, on bool) error {
+	if on {
+		return postgres.SetLocal(ctx, "app.data_requests", "on")
+	}
+	return postgres.SetLocal(ctx, "app.data_requests", "")
+}

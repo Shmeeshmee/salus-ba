@@ -3664,7 +3664,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Read a restriction
+         * @description Whether the record of the clinic's patient is restricted there, since when and by what, so the request's detail offers only the action that applies (wave 5 walk, finding 4). For the clinic's admin. Audited.
+         */
+        get: operations["getClinicPatientRestriction"];
         /**
          * Restrict a patient's record at the clinic
          * @description Hidden from the clinic's everyday screens and searches, and never used for analytics, reminders or messages; the admin opens it only with a stated reason (S7). Restricting a restricted record changes nothing. For the clinic's admin. Built in package D4. Audited.
@@ -4174,6 +4178,7 @@ export interface components {
              * @description The patient's profile; on the clinic's reads.
              */
             patientId?: string;
+            patient?: components["schemas"]["DataRequestPatient"];
             status: components["schemas"]["DataRequestStatus"];
             /** Format: date-time */
             receivedAt: string;
@@ -4193,10 +4198,33 @@ export interface components {
             version: number;
             history?: components["schemas"]["DataRequestChange"][];
         };
+        /** @description The patient a request targeting the clinic names, so its admin knows whose request it is (wave 5 walk, finding 3). On the clinic's list and read of its requests only, for its admin, each read audited as a read of the Patient at the patient's request; never on the patient's own reads, the changes or the deadline warnings. Personal data: the minimum to tell patients apart. */
+        DataRequestPatient: {
+            givenName: string;
+            familyName: string;
+            /** Format: date */
+            birthDate: string;
+            /** @description The clinic registered the profile (no Salus account), so its admin hands the record over (GET /clinic/patients/{id}/record). */
+            registeredByClinic: boolean;
+        };
         DataRequestChange: {
             status: components["schemas"]["DataRequestStatus"];
             /** Format: date-time */
             changedAt: string;
+        };
+        /** @description Whether the patient's record is restricted at the clinic (S7), since when and by what: the clinic's staff, who may lift it, or the erasure of the patient's account (S6), which the clinic cannot lift. */
+        PatientRestriction: {
+            restricted: boolean;
+            /**
+             * Format: date-time
+             * @description While restricted.
+             */
+            restrictedAt?: string;
+            /**
+             * @description While restricted.
+             * @enum {string}
+             */
+            by?: "clinic" | "erasure";
         };
         DataRequestFiling: {
             kind: components["schemas"]["DataRequestKind"];
@@ -15552,6 +15580,40 @@ export interface operations {
                 };
             };
             /** @description `not_found`: no profile the clinic registered with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicPatientRestriction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restriction's state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatientRestriction"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no patient with a record at the clinic with that id. */
             404: {
                 headers: {
                     [name: string]: unknown;

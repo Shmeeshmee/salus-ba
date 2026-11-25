@@ -35,6 +35,37 @@ func (s *Service) LiftRestriction(ctx context.Context, c Caller, id string) erro
 	})
 }
 
+// Restriction returns, to the clinic's admin c, the restriction of the record of the clinic's patient id there (zero
+// for none), so the request's detail offers only the action that applies (walk finding 4). Audited as a read of the
+// Patient at the patient's request; refused as Restrict.
+func (s *Service) Restriction(ctx context.Context, c Caller, id string) (Restriction, error) {
+	if c.patient() || !c.Admin {
+		return Restriction{}, s.refuseRights(ctx, c, auditevent.CodeRead, auditevent.CodePATRQT, ErrForbidden)
+	}
+	var out Restriction
+	var missing bool
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		ok, err := s.ofClinic(ctx, c, id)
+		if err != nil {
+			return err
+		}
+		if missing = !ok; missing {
+			return s.audit.Record(ctx, s.event(c, auditevent.CodeRead, auditevent.CodePATRQT, "", auditevent.OutcomeMinorFailure))
+		}
+		if out, err = s.repo.Restriction(ctx, id, c.OrganizationID); err != nil {
+			return err
+		}
+		return s.audit.Record(ctx, s.event(c, auditevent.CodeRead, auditevent.CodePATRQT, id, auditevent.OutcomeSuccess))
+	})
+	switch {
+	case err != nil:
+		return Restriction{}, fmt.Errorf("patient: restriction: %w", err)
+	case missing:
+		return Restriction{}, ErrNotFound
+	}
+	return out, nil
+}
+
 // Restricted reports whether the patient's record is restricted at the clinic, in the caller's transaction and scope
 // (the clinic's: a patient's scope sees no restriction). It is the access check inside the caller's audited access
 // (consent.Service's State) and is not audited.

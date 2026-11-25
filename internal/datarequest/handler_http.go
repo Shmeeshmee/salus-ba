@@ -51,8 +51,10 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /clinic/patients/{id}/data-requests", h.fileOnBehalf)
 }
 
-// requestJSON is the DataRequest schema. PatientID is on the clinic's reads only; History on the clinic's read of one.
+// requestJSON is the DataRequest schema. PatientID is on the clinic's reads only, Patient on its list and read (named);
+// History on the clinic's read of one.
 type requestJSON struct {
+	Patient         *subjectJSON    `json:"patient,omitempty"`
 	ReceivedAt      time.Time       `json:"receivedAt"`
 	DueAt           time.Time       `json:"dueAt"`
 	ExtendedUntil   *time.Time      `json:"extendedUntil,omitempty"`
@@ -68,6 +70,23 @@ type requestJSON struct {
 	History         []changeJSON    `json:"history,omitempty"`
 	Version         int             `json:"version"`
 	FiledByPatient  bool            `json:"filedByPatient"`
+}
+
+// subjectJSON is the DataRequestPatient schema: the patient as the answering clinic's admin sees them.
+type subjectJSON struct {
+	BirthDate          string `json:"birthDate"`
+	GivenName          string `json:"givenName"`
+	FamilyName         string `json:"familyName"`
+	RegisteredByClinic bool   `json:"registeredByClinic"`
+}
+
+// named is r as the clinic's admin lists and reads it: with its patient when the service read one.
+func named(r Request) requestJSON {
+	out := toJSON(r, true)
+	if s := r.Subject; s.GivenName != "" || s.FamilyName != "" {
+		out.Patient = &subjectJSON{BirthDate: s.BirthDate.Format(time.DateOnly), GivenName: s.GivenName, FamilyName: s.FamilyName, RegisteredByClinic: s.RegisteredByClinic}
+	}
+	return out
 }
 
 // changeJSON is the DataRequestChange schema.
@@ -98,10 +117,11 @@ func optionalTime(t time.Time) *time.Time {
 	return &u
 }
 
-func listJSON(all []Request, clinic bool) []requestJSON {
+// listJSON is the patient's own list: no profile id, no patient.
+func listJSON(all []Request) []requestJSON {
 	out := make([]requestJSON, len(all))
 	for i, r := range all {
-		out[i] = toJSON(r, clinic)
+		out[i] = toJSON(r, false)
 	}
 	return out
 }
@@ -117,7 +137,7 @@ func (h *Handler) mine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	httpx.JSON(w, http.StatusOK, listJSON(all, false))
+	httpx.JSON(w, http.StatusOK, listJSON(all))
 }
 
 func (h *Handler) file(w http.ResponseWriter, r *http.Request) {
@@ -160,8 +180,12 @@ func (h *Handler) clinicList(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	out := make([]requestJSON, len(all))
+	for i, x := range all {
+		out[i] = named(x)
+	}
 	w.Header().Set("Cache-Control", "no-store")
-	httpx.JSON(w, http.StatusOK, listJSON(all, true))
+	httpx.JSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) clinicRead(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +198,7 @@ func (h *Handler) clinicRead(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	out := toJSON(req, true)
+	out := named(req)
 	out.History = make([]changeJSON, len(history))
 	for i, c := range history {
 		out.History[i] = changeJSON{ChangedAt: c.ChangedAt.UTC(), Status: c.Status}

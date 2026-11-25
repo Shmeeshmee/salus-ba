@@ -10,8 +10,9 @@ import { Alert, Link } from './ui'
 type Props = { api: ApiClient; fhir: FhirClient; account: Account }
 
 // DataRequests is the queue of data subject requests targeting the clinic, for its admin (docs/clinic-cms/WAVE5.md
-// D4): as the API orders them (open ones by due date first), each with its kind, state, due date in the clinic's zone
-// (the extended one once extended), what an open one needs, and its detail.
+// D4): as the API orders them (open ones by due date first), each with its patient's name and birth date (wave 5 walk,
+// finding 3), kind, state, due date in the clinic's zone (the extended one once extended), what an open one needs, and
+// its detail.
 export function DataRequests({ api, fhir, account }: Props) {
   const t = useT()
   const organizationId = account.organizationId ?? ''
@@ -45,6 +46,12 @@ function Row({ request: r, zone }: { request: DataRequest; zone: string }) {
   return (
     <li>
       <span className="stack">
+        {r.patient && (
+          <span>
+            <strong>{`${r.patient.givenName} ${r.patient.familyName}`}</strong>{' '}
+            <span className="muted small">{t('privacy.born', { date: f.calendarDate(r.patient.birthDate) })}</span>
+          </span>
+        )}
         <span>
           {t(`privacy.kind.${r.kind}`)} · {t('privacy.due', { date: f.date(new Date(r.extendedUntil ?? r.dueAt), zone, 'long') })}
         </span>
