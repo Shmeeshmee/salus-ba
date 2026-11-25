@@ -46,7 +46,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     // app.css and analytics.css are read as text by the tests that check a spacing or the motion against them
-    // (Builder.test.tsx, analytics/motion.test.ts).
-    css: { include: [/app\.css/, /analytics\.css/] },
+    // (Builder.test.tsx, analytics/motion.test.ts), and every stylesheet by the focus ring test (appCss.test.ts).
+    css: { include: [/app\.css/, /analytics\.css/, /chat\.css/, /cheatsheet\.css/, /explain\.css/, /review\.css/] },
   },
 })

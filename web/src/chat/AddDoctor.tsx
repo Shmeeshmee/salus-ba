@@ -61,7 +61,14 @@ export function AddDoctor({ chat, conversation, organizationId, staff, messages,
     <Dialog label={t('chat.add.title')} onClose={onClose}>
       <h2>{t('chat.add.title')}</h2>
       {candidates.length === 0 ? (
-        <p>{t('chat.add.noDoctors')}</p>
+        <>
+          <p>{t('chat.add.noDoctors')}</p>
+          <div className="actions">
+            <button type="button" onClick={onClose}>
+              {t('chat.add.cancel')}
+            </button>
+          </div>
+        </>
       ) : (
         <form onSubmit={submit}>
           <div className="field">

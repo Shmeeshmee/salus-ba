@@ -43,6 +43,7 @@
 .chart-svg .bar.active .hit { fill: var(--color-mint-faint); }
 .chart-svg .openable { cursor: pointer; }
 .chart-svg .cell.active { stroke: var(--color-ink); stroke-width: 1.5; }
+.chart-svg .cell.active:focus-visible { stroke-width: 2; } /* the focused cell is also the one shown: its focus wins (WAVE7 RD3) */
 
 .chart-legend { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--color-text-muted); }
 .chart-legend li { display: inline-flex; align-items: center; gap: 6px; }

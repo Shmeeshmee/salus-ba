@@ -4263,7 +4263,89 @@ Planned 2026-11-25 (`WAVE7.md`).
 
 ## RD3: accessibility and keyboard
 
-Planned 2026-11-25 (`WAVE7.md`).
+Status: done, 2026-11-26, on `wt/cms/RD3`, one commit `cms(RD3)`. No Go under `internal/`, no migration, no schema, no
+new catalog string. Built from `WAVE7.md` (RD3); no Jira for this wave.
+
+**Built.**
+
+- **The journey** `TestAccessibility_EveryStaffScreenAndDialog` (`test/e2e/accessibility_test.go`) makes a clinic with a
+  row on every staff screen (in-person hours, a second location with a room and a device, a service, a receptionist,
+  the desk's day with an arrived walk-in, her receipt and a booked visit, a patient of the app with a visit, a lab
+  result, a draft treatment plan, a conversation, a data request), then runs `test/e2e/web/a11y.spec.ts` once as the
+  admin, the practitioner and the receptionist. Every screen of the role at 1280 px: the axe engine (WCAG 2.2 A and AA
+  tags), and a keyboard walk (each Tab stop after the one before it in the document, on screen and not covered, with a
+  focus indicator of 3:1 or more against what is around it). Every dialog, opened from its button with Enter: the focus
+  moves in, axe, a modal keeps Tab inside, and closing it (Escape, or the question's cancel button) gives the focus back
+  to its opener. At 390 px on a touch screen: axe again and a target of at least 44 × 44 px for every control a finger
+  presses (a link in running text exempt, a checkbox or radio measured with its label, a chart's marks exempt: their
+  table is the equivalent). A wrong password on the sign-in page is announced in an alert. Every finding of the run is
+  listed in one failure. 26 distinct screens (35 role passes) and 12 dialogs over the three roles (`a11y.ts` holds the checks); the run takes about
+  three minutes.
+- **Fixed** (each failing first: the journey, and a Vitest test where one could state it):
+  1. The focus ring was the mint `#34D399`, **1.9:1** on white and 1.8:1 on the page: below the 3:1 a focus indicator
+     needs. Every ring (`app.css`, `chat.css`, `review.css`, `explain.css`) now uses the brand green `--color-brand`
+     (6.3:1 on white). No new colour (`appCss.test.ts`).
+  2. The medical terms search had no focus ring at all (`outline: none`); it has the ring, drawn inside its bar
+     (`cheatsheet.css`).
+  3. Targets on a touch screen: header links (39 px), the language select (33 px), quiet and icon buttons (38 px),
+     selects (41 px), link-like buttons (the desk's patient names, 24 px), toolbar and settings links (16 to 24 px),
+     summaries (20 px), checkbox and radio labels (24 px), the tooltip tags. One `@media (pointer: coarse)` block in
+     `app.css` makes each at least 44 px; a mouse sees no change (`appCss.test.ts`).
+  4. "Add a doctor" in a clinic with no other doctor held no control: the focus stayed behind it, Escape did nothing and
+     it could not be closed. `Dialog` now takes the focus itself when it holds no control (and keeps Tab on itself),
+     and the empty state has Cancel (`chat/Dialog.test.tsx`, `chat/ChatView.test.tsx`).
+  5. `Dialog`'s Tab trap counted a disabled last button (the receipt dialog's Issue before a service is picked), so Tab
+     left the dialog; disabled controls are skipped (`chat/Dialog.test.tsx`).
+  6. Errors not announced: the call's camera or microphone problem (`DeviceCheck.tsx`) and a refused chat upload
+     (`chat/Composer.tsx`) are now alerts (`CallScreen.test.tsx`, `chat/ChatView.test.tsx`).
+  7. The focused heatmap cell is also the one shown, whose 1.5 px stroke won over the 2 px focus stroke
+     (`analytics.css`; the CSS test was written after the journey had failed on it).
+- `@axe-core/playwright` 4.14.0 and `axe-core` 4.14.0, pinned, as dev dependencies of `test/e2e/web` (both published in
+  October 2026). `vite.config.ts` lets Vitest read the other stylesheets as text, for the focus ring test.
+- `scripts/e2e.sh`: `go test -timeout 30m` for the suite (the default 10 minutes would be too short with the three
+  passes added to a 7 to 8 minute suite).
+
+**What axe found:** nothing, on any screen or dialog at either width, after the run's first pass (labels, names, roles,
+text contrast, ARIA). Every finding came from the keyboard and touch checks.
+
+**Needs a design decision (not changed, or changed as little as possible):**
+
+- The focus ring colour: changed from the mint to the existing brand green, the smallest change that passes. The owner
+  may prefer another treatment (a two-tone ring, mint with a dark inner line); the mint itself cannot carry a ring.
+- The mint as a hover border (`.appt:hover`, `.palette .kind:hover`), the confirmed tags' border and today's underline
+  in the calendar is 1.9:1: decorative there (the text says the state), so not changed; it must not become the only sign
+  of a state.
+- On a phone the header holds 9 to 12 links of 44 px in wrapped rows (about 260 px of the first screen for the admin).
+  A menu button would give that back; a layout decision, not made here.
+- A disabled button is shown by opacity alone (`.6`); WCAG exempts it from contrast, RD6 owns how it looks.
+- Chart marks (analytics) are 24 px on a phone; their table ("Show as table") is the touch equivalent. Larger marks
+  would be a chart design decision.
+- The date inputs' parts and picker are the browser's own (one Tab per part); not styled.
+
+**Departures from `WAVE7.md`:** the specs are in `test/e2e/web` (the existing Playwright suite, run by `make e2e`), not
+`web/e2e`; they run from a Go journey like every web journey. The visit's live call screen (`/appointments/<id>/call`)
+is not walked: it needs a started consultation and LiveKit, which only the consultation journey sets up; its one
+finding found by reading (the device problem not announced) is fixed with a Vitest test. The file viewer of
+questionnaire answers is not opened (no uploaded file in this fixture). Between 23:30 and midnight in Sarajevo the
+desk's visits are tomorrow's and the desk rows' own dialogs (move, another receipt) are skipped for that run; the same
+dialogs are checked on the visit page and the receipts page.
+
+**Checks** (this worktree's compose projects `salus-cms-rd3` and `salus-cms-rd3-e2e`): `runner.sh full e2e` (sets go,
+web, e2e: `make gen-clients` with no diff, `make lint` 0 issues, `test`, `archcheck`, `cover`, `i18n-check`, `web-lint`
+0 warnings, `web-typecheck`, `web-test` 100 files and 1407 tests) passed every check but `make e2e`, which the full
+layer's 20-minute limit stopped as it started; `make e2e` alone then passed (the suite's `go test` 453 s, the new
+journey included, about three minutes of it). The journey was run on its own stack eight times while building; its
+last two runs passed.
+
+**Walk:** `docs/clinic-cms/walk/rd3/WALK.md`, nine screenshots at 1280 and 390 px from the passing run.
+
+**For RD6 and the integration:** the spec runs on the merged code. It needs: the buttons and dialog names it opens by
+their English text (Walk-in, Patients, Issue another receipt / New receipt, Move / Move visit, Show treatment plans,
+New treatment plan, Book / Book treatment plan, Cancel plan and Keep the plan, Issue receipt, Write a quote / New quote,
+Add a lab result, Show history, Show changes, Add a doctor, New questionnaire, New receipt, the cheatsheet's
+`header button.cheatsheet-open`); every new button at least 44 px under `(pointer: coarse)` (a new class of control
+may need adding to the block); a disabled-looking button keeping the brand-green focus ring; "Add step" (RD6) as a
+button reaches 44 px through the `button` rule.
 
 ## RD4: operations drill
 

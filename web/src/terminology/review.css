@@ -23,7 +23,7 @@
 }
 .review-entry.approved { border-left-color: var(--color-mint); }
 .review-entry.needs_changes { border-left-color: var(--color-error); }
-.review-entry:focus-visible { outline: 2px solid var(--color-mint); outline-offset: 2px; }
+.review-entry:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .review-entry-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .review-entry-head h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
 .review-entry-head .tag { font-size: 12px; }
