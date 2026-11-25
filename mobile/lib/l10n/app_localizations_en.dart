@@ -2319,4 +2319,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'To ask for your account to be reopened within 21 days, write to $email.';
   }
+
+  @override
+  String get locationQuestion => 'Where would you like to come?';
 }

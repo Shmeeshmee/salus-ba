@@ -234,6 +234,13 @@ class Booking {
     return list ?? const <api.OfferedService>[];
   }
 
+  /// The active locations of the listed clinic [clinicId], by name (docs/clinic-cms/WAVE6.md U1): where an in-person
+  /// visit is.
+  Future<List<api.Location>> locations(String clinicId) async {
+    final list = await apiCall(() => api.LocationsApi(_client).listOrganizationLocations(clinicId));
+    return list ?? const <api.Location>[];
+  }
+
   /// The listed clinic [clinicId]'s profile for patients abroad (docs/clinic-cms, package X2): the languages its staff
   /// speak, its description with every translation, whether it welcomes patients from abroad.
   Future<api.ClinicProfile> clinicProfile(String clinicId) async {

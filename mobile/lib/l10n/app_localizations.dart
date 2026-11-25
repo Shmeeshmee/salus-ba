@@ -3767,6 +3767,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'To ask for your account to be reopened within 21 days, write to {email}.'**
   String accountClosedReopen(String email);
+
+  /// Clinic system, package LC3: above the choice between the clinic's locations for a visit at the clinic, before the time is picked. Draft, waiting for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Where would you like to come?'**
+  String get locationQuestion;
 }
 
 class _AppLocalizationsDelegate

@@ -2352,4 +2352,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Pour demander la réouverture de votre compte dans un délai de 21 jours, écrivez à $email.';
   }
+
+  @override
+  String get locationQuestion => 'Où souhaitez-vous venir ?';
 }

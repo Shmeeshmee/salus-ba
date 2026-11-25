@@ -608,5 +608,6 @@
   "closeAccountCopyFirst": "Ako želite da zadržite kopiju svojih podataka, zatražite je pod Privatnost prije nego što zatvorite nalog: kada je zatvoren, ne možete da se prijavite da biste je preuzeli.",
   "closeAccountConfirm": "Unesite lozinku da biste potvrdili.",
   "accountClosed": "Vaš nalog je zatvoren i odjavljeni ste.",
-  "accountClosedReopen": "Ako želite da Salus ponovo otvori nalog u roku od 21 dana, pišite na {email}."
+  "accountClosedReopen": "Ako želite da Salus ponovo otvori nalog u roku od 21 dana, pišite na {email}.",
+  "locationQuestion": "Gdje želite da dođete?"
 }

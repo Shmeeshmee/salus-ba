@@ -608,5 +608,6 @@
   "closeAccountCopyFirst": "Wenn Sie eine Kopie Ihrer Daten behalten möchten, fordern Sie sie unter Datenschutz an, bevor Sie das Konto schließen: Danach können Sie sich nicht mehr anmelden, um sie herunterzuladen.",
   "closeAccountConfirm": "Geben Sie zur Bestätigung Ihr Passwort ein.",
   "accountClosed": "Ihr Konto ist geschlossen und Sie sind abgemeldet.",
-  "accountClosedReopen": "Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an {email}."
+  "accountClosedReopen": "Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an {email}.",
+  "locationQuestion": "Wohin möchten Sie kommen?"
 }

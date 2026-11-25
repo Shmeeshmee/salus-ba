@@ -608,5 +608,6 @@
   "closeAccountCopyFirst": "Per conservare una copia dei Suoi dati, la chieda in Privacy prima di chiudere l'account: dopo la chiusura non potrà accedere per scaricarla.",
   "closeAccountConfirm": "Inserisca la password per confermare.",
   "accountClosed": "Il Suo account è chiuso ed è stato disconnesso.",
-  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}."
+  "accountClosedReopen": "Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a {email}.",
+  "locationQuestion": "Dove desidera venire?"
 }

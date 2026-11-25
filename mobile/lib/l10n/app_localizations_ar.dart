@@ -2386,4 +2386,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'لطلب إعادة فتح حسابك خلال 21 يومًا، راسل $email.';
   }
+
+  @override
+  String get locationQuestion => 'إلى أين تود الحضور؟';
 }

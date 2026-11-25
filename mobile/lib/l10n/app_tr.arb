@@ -608,5 +608,6 @@
   "closeAccountCopyFirst": "Verilerinizin bir kopyasını saklamak istiyorsanız hesabı kapatmadan önce Gizlilik bölümünden isteyin: hesap kapandıktan sonra indirmek için oturum açamazsınız.",
   "closeAccountConfirm": "Onaylamak için parolanızı girin.",
   "accountClosed": "Hesabınız kapatıldı ve oturumunuz kapandı.",
-  "accountClosedReopen": "Hesabınızın 21 gün içinde yeniden açılmasını istemek için {email} adresine yazın."
+  "accountClosedReopen": "Hesabınızın 21 gün içinde yeniden açılmasını istemek için {email} adresine yazın.",
+  "locationQuestion": "Nereye gelmek istersiniz?"
 }

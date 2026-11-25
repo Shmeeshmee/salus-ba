@@ -2350,4 +2350,7 @@ class AppLocalizationsBs extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Ako želite da Salus ponovo otvori račun u roku od 21 dana, pišite na $email.';
   }
+
+  @override
+  String get locationQuestion => 'Gdje želite doći?';
 }

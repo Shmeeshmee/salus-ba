@@ -2326,4 +2326,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Hesabınızın 21 gün içinde yeniden açılmasını istemek için $email adresine yazın.';
   }
+
+  @override
+  String get locationQuestion => 'Nereye gelmek istersiniz?';
 }

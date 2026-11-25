@@ -2354,4 +2354,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Wenn Salus Ihr Konto innerhalb von 21 Tagen wieder öffnen soll, schreiben Sie an $email.';
   }
+
+  @override
+  String get locationQuestion => 'Wohin möchten Sie kommen?';
 }

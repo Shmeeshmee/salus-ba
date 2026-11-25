@@ -2348,6 +2348,9 @@ class AppLocalizationsSr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
   }
+
+  @override
+  String get locationQuestion => 'Гдје желите да дођете?';
 }
 
 /// The translations for Serbian, using the Cyrillic script (`sr_Cyrl`).
@@ -4693,6 +4696,9 @@ class AppLocalizationsSrCyrl extends AppLocalizationsSr {
   String accountClosedReopen(String email) {
     return 'Ако желите да Salus поново отвори налог у року од 21 дана, пишите на $email.';
   }
+
+  @override
+  String get locationQuestion => 'Гдје желите да дођете?';
 }
 
 /// The translations for Serbian, using the Latin script (`sr_Latn`).
@@ -7040,4 +7046,7 @@ class AppLocalizationsSrLatn extends AppLocalizationsSr {
   String accountClosedReopen(String email) {
     return 'Ako želite da Salus ponovo otvori nalog u roku od 21 dana, pišite na $email.';
   }
+
+  @override
+  String get locationQuestion => 'Gdje želite da dođete?';
 }
