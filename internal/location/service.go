@@ -4,12 +4,25 @@ import (
 	"context"
 	"errors"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
+
+// Transactor runs fn in a transaction that travels in the context (postgres.Transactor).
+type Transactor interface {
+	WithTx(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
+// Auditor records an AuditEvent inside the caller's transaction (auditevent.Service).
+type Auditor interface {
+	Record(ctx context.Context, e auditevent.AuditEvent) error
+}
 
 // Ports are what the Service consumes.
 type Ports struct {
 	Repo  Repository
+	Tx    Transactor
+	Audit Auditor
 	Clock clock.Clock
 }
 
@@ -36,24 +49,4 @@ func (s *Service) SaveLocation(_ context.Context, _ Staff, _ Location) (Location
 // PublicLocations returns the active locations of a listed clinic, for the patient booking in person (LC1).
 func (s *Service) PublicLocations(_ context.Context, _ string) ([]Location, error) {
 	return nil, errors.ErrUnsupported
-}
-
-// Rooms returns the rooms of a location of the staff's clinic (RM1).
-func (s *Service) Rooms(_ context.Context, _ Staff, _ string) ([]Room, error) {
-	return nil, errors.ErrUnsupported
-}
-
-// SaveRoom adds a room to a location of the admin's clinic, or changes one at its version (RM1).
-func (s *Service) SaveRoom(_ context.Context, _ Staff, _ Room) (Room, error) {
-	return Room{}, errors.ErrUnsupported
-}
-
-// Devices returns the devices of a location of the staff's clinic (RM1).
-func (s *Service) Devices(_ context.Context, _ Staff, _ string) ([]Device, error) {
-	return nil, errors.ErrUnsupported
-}
-
-// SaveDevice adds a device to a location of the admin's clinic, or changes one at its version (RM1).
-func (s *Service) SaveDevice(_ context.Context, _ Staff, _ Device) (Device, error) {
-	return Device{}, errors.ErrUnsupported
 }

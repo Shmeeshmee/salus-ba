@@ -95,9 +95,11 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	// be built before the appointment service, which reads profiles through it.
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, appointment.NewFacts(appointmentRepo))
 	consents = consents.WithRestrictions(patients) // every other domain's consent state tells a restricted record (WAVE5.md S7)
+	sites := locations(pool, audit, tx)            // rooms and devices (clinic-cms RM1)
 	schedules := schedule.NewService(schedule.Ports{
 		Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
+		Rooms: sites, // a rule's room (RM1)
 	})
 	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
 	stops := memberships(pool, audit, tx) // a suspended or cancelled membership stops new bookings (clinic-cms Q4)
@@ -168,6 +170,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			[]func(*http.ServeMux){signupRoutes(signupPorts{pool: pool, jobs: jobs, counters: auth.NewRedisCounters(rdb), audit: audit, tx: tx,
 				clinics: clinics, accounts: accounts, rateLimitKey: cfg.RateLimitKey, trustedProxies: cfg.TrustedProxies}, log)}, // self-signup (clinic-cms O1)
 			[]func(*http.ServeMux){clinicExportRoutes(clinicExportPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, files: files, patients: patients, appointments: appointments}, log), dataRequestRoutes(dataRequestPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, patients: patients, consents: consents, clinics: clinics, files: files}, log)}, // clinic-cms M2, D1 to D3
+			[]func(*http.ServeMux){roomRoutes(sites, accounts, log)}, // rooms and devices (clinic-cms RM1)
 			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
 		Streams: append(streams, consultStream, chatStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id

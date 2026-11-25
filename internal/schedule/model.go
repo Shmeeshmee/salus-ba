@@ -35,10 +35,11 @@ func (m VisitMode) Valid() bool { return m == ModeInPerson || m == ModeVideo }
 // HH:MM in the clinic's time zone, start before end, and the visit mode of its slots. Rules never overlap, whatever
 // their modes.
 type Rule struct {
-	Start string
-	End   string
-	Mode  VisitMode
-	Day   int
+	Start  string
+	End    string
+	Mode   VisitMode
+	RoomID string // an in-person rule's room, optional (U3 of docs/clinic-cms/WAVE6.md, RM1); its slots carry it
+	Day    int
 }
 
 // Availability is what an edit sets: the slot length and the rules.

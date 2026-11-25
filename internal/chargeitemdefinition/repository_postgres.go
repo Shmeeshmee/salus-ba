@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition/chargeitemdefinitiondb"
@@ -57,6 +58,9 @@ func (r *postgresRepository) List(ctx context.Context, org string) ([]Definition
 			Code: row.Code.String, Currency: row.Currency, Modes: modes, PriceMinor: row.PriceMinor,
 			DurationMinutes: row.DurationMinutes.Int32, VersionID: row.VersionID, Active: row.Active,
 		}
+		if row.DeviceID.Valid {
+			out[i].DeviceID = row.DeviceID.String()
+		}
 		if row.VatRateBp.Valid {
 			out[i].VATRateBP = &row.VatRateBp.Int32
 		}
@@ -87,6 +91,9 @@ func (r *postgresRepository) Create(ctx context.Context, d Definition, at time.T
 		return Definition{}, err
 	}
 	d.ID, d.VersionID, d.LastUpdated = row.ID.String(), row.VersionID, at
+	if err := r.setDevice(ctx, row.ID, d.DeviceID); err != nil {
+		return Definition{}, err
+	}
 	return d, r.putTranslations(ctx, row.ID, d.Translations)
 }
 
@@ -114,6 +121,9 @@ func (r *postgresRepository) Update(ctx context.Context, d Definition, at time.T
 		return Definition{}, err
 	}
 	d.VersionID, d.LastUpdated = version, at
+	if err := r.setDevice(ctx, id, d.DeviceID); err != nil {
+		return Definition{}, err
+	}
 	if err := r.q(ctx).DeleteDefinitionTranslations(ctx, id); err != nil {
 		return Definition{}, err
 	}
@@ -151,4 +161,24 @@ func modes(d Definition) []string {
 		out[i] = string(m)
 	}
 	return out
+}
+
+// The device a service needs (RM1, docs/clinic-cms/WAVE6.md U4).
+
+// foreignKeyViolation is Postgres's answer to a device that is not the service's clinic's.
+const foreignKeyViolation = "23503"
+
+// setDevice sets the device the service id needs, none for "" (RM1); ErrInvalid for an id that is not a device of
+// the service's clinic.
+func (r *postgresRepository) setDevice(ctx context.Context, id pgtype.UUID, device string) error {
+	var u pgtype.UUID
+	if device != "" && u.Scan(device) != nil {
+		return ErrInvalid
+	}
+	err := r.q(ctx).SetDefinitionDevice(ctx, chargeitemdefinitiondb.SetDefinitionDeviceParams{ID: id, DeviceID: u})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
+		return ErrInvalid
+	}
+	return err
 }

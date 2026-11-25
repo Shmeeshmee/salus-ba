@@ -60,6 +60,7 @@ type serviceJSON struct {
 	ID              string               `json:"id"`
 	Name            string               `json:"name"`
 	Code            string               `json:"code,omitempty"`
+	DeviceID        string               `json:"deviceId,omitempty"` // RM1
 	Currency        string               `json:"currency"`
 	Modes           []schedule.VisitMode `json:"modes"`
 	Translations    []translationJSON    `json:"translations"`
@@ -87,6 +88,7 @@ type saveJSON struct {
 	Active          *bool                 `json:"active"`
 	Translations    *[]translationJSON    `json:"translations"`
 	Code            string                `json:"code"`
+	DeviceID        string                `json:"deviceId"` // RM1
 	Currency        string                `json:"currency"`
 	DurationMinutes int32                 `json:"durationMinutes"`
 }
@@ -206,7 +208,7 @@ func decode(w http.ResponseWriter, r *http.Request) (Definition, bool) {
 	}
 	d := Definition{
 		Name: *in.Name, Code: in.Code, PriceMinor: *in.PriceMinor, Currency: in.Currency, DurationMinutes: in.DurationMinutes,
-		VATRateBP: in.VATRateBP, Modes: *in.Modes, Active: *in.Active,
+		VATRateBP: in.VATRateBP, Modes: *in.Modes, Active: *in.Active, DeviceID: in.DeviceID,
 	}
 	for _, t := range *in.Translations {
 		d.Translations = append(d.Translations, Translation(t))
@@ -218,7 +220,7 @@ func toJSON(d Definition) serviceJSON {
 	out := serviceJSON{
 		ID: d.ID, Name: d.Name, Code: d.Code, PriceMinor: d.PriceMinor, Currency: d.Currency, DurationMinutes: d.DurationMinutes,
 		VATRateBP: d.VATRateBP, Modes: d.Modes, Active: d.Active, Translations: make([]translationJSON, len(d.Translations)),
-		VersionID: d.VersionID,
+		VersionID: d.VersionID, DeviceID: d.DeviceID,
 	}
 	for i, t := range d.Translations {
 		out.Translations[i] = translationJSON(t)

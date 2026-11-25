@@ -25,6 +25,8 @@ type Period struct {
 	Start time.Time
 	End   time.Time
 	Mode  schedule.VisitMode // its rule's: in-person or video
+	// RoomID is its rule's room, at generation only (RM1): reads leave it empty.
+	RoomID string
 }
 
 // Slot is a bookable time of one schedule.

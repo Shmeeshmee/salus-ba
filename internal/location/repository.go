@@ -19,6 +19,8 @@ type Repository interface {
 	SaveRoom(ctx context.Context, r Room) (Room, bool, error)
 	// Devices returns the location's devices, by name.
 	Devices(ctx context.Context, locationID string) ([]Device, error)
+	// LockRoom returns the room of the scope's clinic, locked until the transaction ends, or ErrNotFound (RM1).
+	LockRoom(ctx context.Context, id string) (Room, error)
 	// SaveDevice inserts d (no id) or updates it at d.VersionID-1; false when the version moved on.
 	SaveDevice(ctx context.Context, d Device) (Device, bool, error)
 }

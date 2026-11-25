@@ -78,6 +78,9 @@ func (s *fakeSelfService) Reschedule(ctx context.Context, id string, m appointme
 	if a.Status != appointment.StatusBooked || a.RescheduleCount != m.From {
 		return appointment.Appointment{}, appointment.ErrClosed
 	}
+	if s.f.repo.busy {
+		return appointment.Appointment{}, appointment.ErrResourceBusy
+	}
 	for _, b := range s.f.repo.appts {
 		if b.ID != a.ID && b.PractitionerRoleID == a.PractitionerRoleID && b.Status != appointment.StatusCancelled && b.Start.Before(m.End) && m.Start.Before(b.End) {
 			return appointment.Appointment{}, appointment.ErrSlotUnavailable
