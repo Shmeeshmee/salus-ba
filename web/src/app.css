@@ -638,6 +638,7 @@ p.hint.join { margin-bottom: 20px; }
   .membership-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
   .membership-table td { display: block; padding: 0; border: 0; }
   .membership-table td::before { content: attr(data-label); display: block; font-size: 0.8em; color: var(--color-text-muted); }
+  .membership-table td:empty { display: none; } /* an empty cell (a text value's range and flag) prints no lonely label (wave 6 walk) */
 }
 
 /* Questionnaire branching (SAL-43): branches indented by depth, the join marked, the preview. */

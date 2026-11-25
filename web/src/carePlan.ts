@@ -10,15 +10,17 @@ type Service = components['schemas']['Service']
 type T = ReturnType<typeof useT>
 
 // stepText is a step as one line: its number, service and visit type, and its day: once the plan is booked, its
-// visit's date (a moved visit's new day), the day from the start in a draft. A service gone from the price list keeps
+// visit's date and time (a moved visit's new day), the day from the start in a draft. A service gone from the price list keeps
 // the name the server gives it.
 export function stepText(t: T, f: ReturnType<typeof useFormat>, s: CarePlanStep, i: number, services: Service[], startsOn: string | undefined, zone: string): string {
   const service = services.find((x) => x.id === s.serviceId)?.name ?? s.serviceName ?? t('carePlans.serviceGone')
   const mode = t(s.visitMode === 'video' ? 'carePlans.mode.video' : 'carePlans.mode.inPerson')
   const values = { n: i + 1, service, mode }
   if (!startsOn) return t('carePlans.stepDay', { ...values, day: s.dayOffset })
-  const day = s.visitStart ? new Date(s.visitStart) : dayStart(startsOn, s.dayOffset, zone)
-  return t('carePlans.stepDate', { ...values, date: f.date(day, zone, 'long') })
+  if (!s.visitStart) return t('carePlans.stepDate', { ...values, date: f.date(dayStart(startsOn, s.dayOffset, zone), zone, 'long') })
+  // A booked step's visit: its day and time, so two visits on one day tell apart (the wave 6 walk).
+  const visit = new Date(s.visitStart)
+  return t('carePlans.stepDate', { ...values, date: `${f.date(visit, zone, 'long')}, ${f.time(visit, zone)}` })
 }
 
 // dayStart is the instant the day offset days after the ISO date day begins in the clinic's zone.
