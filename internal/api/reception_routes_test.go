@@ -185,9 +185,7 @@ var receptionRoutes = map[string]receptionClass{
 // when it is mounted, the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{
 	"GET /clinic/diagnostic-reports/{id}/pdf", "PUT /clinic/diagnostic-reports/{id}/pdf",
-	"GET /me/diagnostic-reports/{id}/pdf", "POST /clinic/care-plans",
-	"GET /clinic/patients/{id}/care-plans", "GET /clinic/care-plans/{id}", "PUT /clinic/care-plans/{id}",
-	"POST /clinic/care-plans/{id}/book", "POST /clinic/care-plans/{id}/cancel", "GET /me/care-plans",
+	"GET /me/diagnostic-reports/{id}/pdf",
 }
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.

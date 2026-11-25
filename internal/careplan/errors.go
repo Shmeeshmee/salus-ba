@@ -18,3 +18,6 @@ var (
 	// ErrVersionConflict is returned when the plan changed since the caller read it.
 	ErrVersionConflict = errors.New("careplan: version conflict")
 )
+
+// ErrSlotUnavailable is returned for a booking whose slot is taken, not ahead or not the clinic's: nothing was booked.
+var ErrSlotUnavailable = errors.New("careplan: slot unavailable")

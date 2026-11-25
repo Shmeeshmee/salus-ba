@@ -52,6 +52,14 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/careplan/query.sql
+    gen:
+      go:
+        package: careplandb
+        out: internal/careplan/careplandb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/invoice/query.sql
     gen:
       go:
@@ -60,7 +68,7 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
-    queries: internal/location/query.sql
+    queries: [internal/location/query.sql, internal/location/query_room.sql]
     gen:
       go:
         package: locationdb
@@ -291,12 +299,4 @@ sql:
       go:
         package: trendsdb
         out: internal/trends/trendsdb
-        sql_package: pgx/v5
-  - engine: postgresql
-    schema: migrations
-    queries: internal/location/query_room.sql
-    gen:
-      go:
-        package: locationdb
-        out: internal/location/locationdb
         sql_package: pgx/v5

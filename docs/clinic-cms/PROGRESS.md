@@ -52,7 +52,7 @@ writes under its own heading here.
 | LC1 | done 2026-11-25 (migration `00081`); the visit's location in the API, desk, receipts and e-mails deferred | `cms(LC1)` |
 | RM1 | done 2026-11-25 (migration `00082`, to renumber at the integration) | `cms(RM1)` |
 | LB1 | done 2026-11-25 (no migration); values, release, the patient's read and export; the PDF and the hand-over left | `cms(LB1)` |
-| TP1 | not started (wave 6, second half, after 6.0) | |
+| TP1 | done 2026-11-25 (no migration) | `cms(TP1)` on `wt/cms/TP1` |
 | LC2 | not started (wave 6, second half, after 6.0) | |
 | LB2 | not started (wave 6, second half, after 6.0) | |
 | TP2 | not started (wave 6, second half, after 6.0) | |
@@ -3742,7 +3742,78 @@ journey changed), `make fhir-validate` (no golden FHIR file changed; the Diagnos
 
 ## TP1: treatment plans on the server
 
-Status: not started. Specification: `docs/clinic-cms/WAVE6.md`.
+Status: done, 2026-11-25, on `wt/cms/TP1`, one commit `cms(TP1)`. No migration (its reserved `00086` is unused): 6.0's
+tables and policies were enough. No Jira export for this run: built from `WAVE6.md` U6 and 6.0's record.
+
+**Built.**
+
+- **`internal/careplan`.** The service behind 6.0's seven routes: `Write` and `Change` (a draft: a title, 1 to 50 steps,
+  each an active service of the clinic's own price list offered in the step's mode on day 0 to 730, the quote one of
+  the patient's at the clinic or none; the patient's active, unrestricted care consent is checked on every write),
+  `Book` (one slot per step, in order: every visit is booked or none, each in its step's mode; the plan becomes
+  `active` with its start and the visits' ids), `Cancel` (a draft or an active plan becomes `revoked`; its visits still
+  ahead are cancelled by the clinic, past ones kept), `Read`, `ForPatient` and `Mine` (the patient's booked plans at
+  every clinic). Each runs in one transaction in the clinic's scope (the patient's for `Mine`) and is audited there
+  (`CarePlan/<id>`; a list audits each plan it shows); a refusal rolls back and is audited after, with no id. Version
+  checks at `If-Match` (412). `repository_postgres.go` through `careplandb` (sqlc, a new `sqlc.yaml` entry): a
+  change updates steps by id, inserts new ones and deletes the rest; row-level security's refusals (a patient without
+  the clinic's consent, a quote not theirs) and a malformed id are `ErrNotFound`. `handler_http.go` serves the JSON
+  (startsOn as a date, the ETag `W/"<versionId>"`), mounted in `internal/api/careplan.go` (one line in `app.go`); the
+  seven routes are off `notServedYet` and held to their receptionist classes.
+- **`internal/appointment/service_careplan.go`** (its own file, no core file touched): `BookPlan` (each step's slot
+  resolved as `BookForPatient` resolves it, then every visit booked in one transaction, the caller's when it has one;
+  each visit audited as booked; a refusal returned unaudited for the plan to audit after its rollback), `PlanVisits`
+  (the visits in the scope set, unaudited: the plan's read audits) and `CancelPlan` (every booked visit still ahead
+  cancelled with reason `prov`, audited as the appointment's, its e-mail, waitlist and reminders as any cancellation).
+
+**Decisions** (the agent's, for the owner to confirm):
+
+| Point | As built | Why |
+| --- | --- | --- |
+| Moving a step | By moving its visit (the existing reschedule); the plan shows its steps in the order of their visits' start, numbered 1 to n | 6.0's PUT says so; no plan write when a visit moves |
+| `completed` | Derived on read: an active plan whose every visit has ended shows `completed` (and cannot be cancelled) | No job and no write on a read; the stored status stays `active` |
+| Who books | The admin any role's slots; a practitioner only their own role's (as `BookForPatient`) | The existing rule for staff bookings |
+| The day offsets | A guide for choosing the slots: a booking is not refused when a slot falls on another day | The 400 of `bookCarePlan` names only the slot count and the mode |
+| Cancelling a plan | Its future visits are cancelled with the clinic's access (the plan's caller is authorized for the plan); a visit closed meanwhile is skipped | A practitioner's plan may hold another practitioner's visits |
+
+**Test first.** `appointment`: `BookPlan` books every step and audits each, books none when a step is refused (a past
+slot, another clinic's, a patient); `CancelPlan` cancels only the future booked visits (red: the methods did not exist).
+`careplan`: service tests with fakes (write, each refusal audited, a restricted record, a change at its version only,
+booking and the patient's read, booking none on a taken slot, a slot count or mode that does not match, the order by
+the visits and `completed`, cancel and a second cancel, the clinic's list), the repository against Postgres (steps
+swapped, dropped and added; the patient sees a plan once booked; row-level security's refusals), handler tests with a
+stub (codes, ETag, If-Match, the receptionist refused before the body is read). `internal/api`: the plan on the real
+stack with row-level security on: one slot for two steps books nothing (no appointment row), two slots book both, the
+patient sees the plan, cancelling cancels both visits, and the plan's audit events. The careplan service and handler
+code was written beside their tests rather than strictly after a red run (they passed on their first run).
+
+**Review** (a fresh subagent over the staged diff; Copilot is out of quota until 2026-12-01): nothing serious; the
+all-or-none booking, the audits, the versions and the scopes hold. **Fixed:** (1) a list with no plan wrote no audit
+event: every list now records a search naming `Patient/<id>`, then each plan read; (5) a plan with a visit cancelled
+on its own never completed: a cancelled visit counts as ended; (7) a plan's cancellation skipped any refused visit:
+it now skips only a visit closed meanwhile, and another refusal (forbidden, not found) cancels nothing and refuses the
+plan's cancellation. **Left:** (2) `GET /clinic/patients/{id}/care-plans` answers `200 []` for a patient the clinic
+does not have (the contract says 404), and reads go on after a consent revocation (the record is kept, as other
+clinical reads): for BG4 or the owner; (3) any practitioner of the clinic may work with any of its patients' plans,
+and a plan's cancellation cancels other practitioners' visits of the plan: U6 says "the practitioner or admin", for
+the owner to confirm against CLAUDE.md's care-relationship rule; (4) `403 profile_required` on `GET /me/care-plans` and
+`403 forbidden` to a receptionist on the two clinic reads are not in `api/openapi.yaml` (as `/me/quotes` today): an
+OpenAPI line each, with the clients, at the integration; (6) `care_plan_clinic` re-checks on every update that the
+plan's author is still the clinic's admin or practitioner, so a plan whose author left cannot be changed or cancelled
+(404): a forward migration splitting the policy (insert: the author; update: the acting account), for BG4 or the owner.
+
+**Checks:** see the commit's report (`.claude/runs/cms/TP1.report.md`): the fast layer (every touched package and its
+importers) and the full set `make check`.
+
+**Deferred.**
+
+- The FHIR form of `CarePlan` (a FHIR read, the CapabilityStatement, `Patient/$everything`) and the plan in the
+  patient's export and the record hand-over: not in TP1's row; with the FHIR and export packages (6.0's note 13).
+- `resource_busy` on a plan's booking: RM1's device check adds the appointment error; `bookingErr` in
+  `careplan/service.go` then maps it to the plan's (a line and a case), at the integration.
+- A database guard on the plan's status (forward only) and on deleting a booked plan's steps (6.0's note 8): the
+  service enforces both (steps change only while a draft); a trigger needs a migration, left for BG4 or the owner.
+- A visit a plan's cancellation cannot cancel (the clinic lost access to it) is skipped silently; the plan is revoked.
 
 ## LC2: locations, rooms and devices on the web
 
