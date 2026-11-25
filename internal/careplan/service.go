@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -46,8 +46,20 @@ type Visits interface {
 	CancelPlan(ctx context.Context, c appointment.Caller, ids []string) error
 }
 
+// Care gives a patient's visits in the clinic, of any status, in the caller's transaction and scope (appointment.Facts).
+type Care interface {
+	Visits(ctx context.Context, patientID, org string) ([]access.Visit, error)
+}
+
+// Roles gives a practitioner's role in the clinic (practitionerrole.Service).
+type Roles interface {
+	OfPractitioner(ctx context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error)
+}
+
 // Ports are what the Service consumes.
 type Ports struct {
+	Care     Care
+	Roles    Roles
 	Repo     Repository
 	Tx       Transactor
 	Audit    Auditor
@@ -70,7 +82,7 @@ func NewService(p Ports) *Service {
 }
 
 // refusals are the errors a caller is answered with; any other is a failure.
-var refusals = []error{ErrInvalid, ErrNotFound, ErrForbidden, ErrNotDraft, ErrEnded, ErrVersionConflict, ErrSlotUnavailable}
+var refusals = []error{ErrInvalid, ErrNotFound, ErrForbidden, ErrNotDraft, ErrEnded, ErrVersionConflict, ErrSlotUnavailable, ErrResourceBusy}
 
 // Clinical reports whether c may work with the clinic's plans: its admin or a practitioner, never a receptionist.
 func (c Staff) Clinical() bool {
@@ -81,6 +93,9 @@ func (c Staff) Clinical() bool {
 // with its quote (one of the patient's at the clinic, or none). ErrForbidden, ErrInvalid, ErrNotFound; audited.
 func (s *Service) Write(ctx context.Context, c Staff, d Draft) (Plan, error) {
 	return s.staffTx(ctx, c, auditevent.CodeCreate, func(ctx context.Context) (Plan, error) {
+		if err := s.works(ctx, c, d.PatientID); err != nil {
+			return Plan{}, err
+		}
 		steps, err := s.checkDraft(ctx, c, d.PatientID, d)
 		if err != nil {
 			return Plan{}, err
@@ -96,7 +111,7 @@ func (s *Service) Write(ctx context.Context, c Staff, d Draft) (Plan, error) {
 // ErrVersionConflict, and Write's refusals; audited.
 func (s *Service) Change(ctx context.Context, c Staff, id string, d Draft) (Plan, error) {
 	return s.staffTx(ctx, c, auditevent.CodeUpdate, func(ctx context.Context) (Plan, error) {
-		p, err := s.current(ctx, id, d.Version)
+		p, err := s.current(ctx, c, id, d.Version)
 		if err != nil {
 			return Plan{}, err
 		}
@@ -116,7 +131,7 @@ func (s *Service) Change(ctx context.Context, c Staff, id string, d Draft) (Plan
 // mode that does not match, ErrSlotUnavailable (nothing booked), ErrNotDraft, ErrVersionConflict; audited.
 func (s *Service) Book(ctx context.Context, c Staff, id string, b Booking) (Plan, error) {
 	return s.staffTx(ctx, c, auditevent.CodeUpdate, func(ctx context.Context) (Plan, error) {
-		p, err := s.current(ctx, id, b.Version)
+		p, err := s.current(ctx, c, id, b.Version)
 		if err != nil {
 			return Plan{}, err
 		}
@@ -150,7 +165,7 @@ func (s *Service) Book(ctx context.Context, c Staff, id string, b Booking) (Plan
 // clinic); past ones are kept. ErrEnded for a completed or revoked plan, ErrVersionConflict; audited.
 func (s *Service) Cancel(ctx context.Context, c Staff, id string, version int) (Plan, error) {
 	return s.staffTx(ctx, c, auditevent.CodeUpdate, func(ctx context.Context) (Plan, error) {
-		p, err := s.current(ctx, id, version)
+		p, err := s.current(ctx, c, id, version)
 		if err != nil {
 			return Plan{}, err
 		}
@@ -167,70 +182,6 @@ func (s *Service) Cancel(ctx context.Context, c Staff, id string, version int) (
 		p.Status, p.RevokedAt = StatusRevoked, &now
 		return s.store(ctx, c, p)
 	})
-}
-
-// Read returns one plan of the staff's clinic, its steps in the order of their visits once booked; audited.
-func (s *Service) Read(ctx context.Context, c Staff, id string) (Plan, error) {
-	return s.staffTx(ctx, c, auditevent.CodeRead, func(ctx context.Context) (Plan, error) {
-		p, err := s.p.Repo.ByID(ctx, id)
-		if err != nil {
-			return Plan{}, err
-		}
-		return s.settle(ctx, c.OrganizationID, p)
-	})
-}
-
-// ForPatient returns a patient's plans at the staff's clinic, drafts included, newest first; each is audited as read.
-func (s *Service) ForPatient(ctx context.Context, c Staff, patientID string) ([]Plan, error) {
-	var out []Plan
-	_, err := s.staffTx(ctx, c, auditevent.CodeSearchType, func(ctx context.Context) (Plan, error) {
-		var err error
-		out, err = s.list(ctx, c.AccountID, c.OrganizationID, patientID)
-		return Plan{}, err
-	})
-	return out, err
-}
-
-// Mine returns the patient's booked plans at every clinic, newest first; each is audited as read.
-func (s *Service) Mine(ctx context.Context, c Patient) ([]Plan, error) {
-	var out []Plan
-	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
-		if err := s.p.Repo.SetPatient(ctx, c.PatientID); err != nil {
-			return err
-		}
-		var err error
-		out, err = s.list(ctx, c.AccountID, "", c.PatientID)
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("careplan: mine: %w", err)
-	}
-	return out, nil
-}
-
-// list reads the patient's plans in the scope set, settles each, and audits the search (naming the patient, also when
-// nothing is found) and each plan as read by account.
-func (s *Service) list(ctx context.Context, account, org, patientID string) ([]Plan, error) {
-	all, err := s.p.Repo.ForPatient(ctx, patientID)
-	if err != nil {
-		return nil, err
-	}
-	search := entry(account, org, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
-	search.EntityReference = "Patient/" + patientID // the list's subject, also when it is empty
-	if err := s.p.Audit.Record(ctx, search); err != nil {
-		return nil, err
-	}
-	out := make([]Plan, 0, len(all))
-	for _, p := range all {
-		if p, err = s.settle(ctx, org, p); err != nil {
-			return nil, err
-		}
-		if err := s.p.Audit.Record(ctx, entry(account, org, auditevent.CodeRead, p.ID, auditevent.OutcomeSuccess)); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, nil
 }
 
 // staffTx runs fn for c in one transaction in the clinic's scope and audits interaction on the plan it returns; a
@@ -250,6 +201,9 @@ func (s *Service) staffTx(ctx context.Context, c Staff, interaction string, fn f
 		}
 		if interaction == auditevent.CodeSearchType {
 			return nil // a list audits itself and each plan it shows
+		}
+		if err := s.named(ctx, []Plan{out}); err != nil {
+			return err
 		}
 		return s.p.Audit.Record(ctx, entry(c.AccountID, c.OrganizationID, interaction, out.ID, auditevent.OutcomeSuccess))
 	})
@@ -273,9 +227,10 @@ func (s *Service) refuse(ctx context.Context, c Staff, interaction string, refus
 	return refusal
 }
 
-// current reads plan id for a change at version: ErrNotFound, ErrVersionConflict.
-func (s *Service) current(ctx context.Context, id string, version int) (Plan, error) {
-	p, err := s.p.Repo.ByID(ctx, id)
+// current reads plan id for c's change at version: ErrNotFound (also for a plan c may not work with),
+// ErrVersionConflict.
+func (s *Service) current(ctx context.Context, c Staff, id string, version int) (Plan, error) {
+	p, err := s.seen(ctx, c, id)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -331,43 +286,6 @@ func (s *Service) checkDraft(ctx context.Context, c Staff, patientID string, d D
 	return steps, nil
 }
 
-// settle orders a booked plan's steps by their visits' start (a moved step shows in its new place) and shows an active
-// plan whose every visit has ended or was cancelled as completed. org is the clinic's scope, empty for the patient's.
-func (s *Service) settle(ctx context.Context, org string, p Plan) (Plan, error) {
-	if p.BookedAt == nil {
-		return p, nil
-	}
-	visits, err := s.p.Visits.PlanVisits(ctx, org, visitIDs(p))
-	if err != nil {
-		return Plan{}, err
-	}
-	starts := make(map[string]time.Time, len(visits))
-	ended := len(visits) == len(p.Steps)
-	now := s.p.Clock.Now()
-	for _, v := range visits {
-		starts[v.ID] = v.Start
-		ended = ended && (!v.End.After(now) || v.Status == appointment.StatusCancelled)
-	}
-	slices.SortStableFunc(p.Steps, func(a, b Step) int { return starts[a.AppointmentID].Compare(starts[b.AppointmentID]) })
-	for i := range p.Steps {
-		p.Steps[i].Position = i + 1
-	}
-	if p.Status == StatusActive && ended {
-		p.Status = StatusCompleted
-	}
-	return p, nil
-}
-
-func visitIDs(p Plan) []string {
-	ids := make([]string, 0, len(p.Steps))
-	for _, st := range p.Steps {
-		if st.AppointmentID != "" {
-			ids = append(ids, st.AppointmentID)
-		}
-	}
-	return ids
-}
-
 // visitCaller is c as the appointments' staff caller.
 func visitCaller(c Staff) appointment.Caller {
 	return appointment.Caller{AccountID: c.AccountID, OrganizationID: c.OrganizationID, PractitionerID: c.PractitionerID, Admin: c.Admin}
@@ -378,6 +296,8 @@ func bookingErr(err error) error {
 	switch {
 	case errors.Is(err, appointment.ErrSlotUnavailable):
 		return ErrSlotUnavailable
+	case errors.Is(err, appointment.ErrResourceBusy):
+		return ErrResourceBusy
 	case errors.Is(err, appointment.ErrForbidden):
 		return ErrForbidden
 	case errors.Is(err, appointment.ErrNotFound), errors.Is(err, appointment.ErrConsentRequired):

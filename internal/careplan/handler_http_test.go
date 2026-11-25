@@ -16,6 +16,8 @@ import (
 
 const planID = "0e000000-0000-4000-8000-000000000001"
 
+var visit = time.Date(2030, 1, 7, 9, 0, 0, 0, time.UTC) // the stub step's visit
+
 // stubPlans answers every call with plan and err, and keeps what it was asked.
 type stubPlans struct {
 	err     error
@@ -28,7 +30,8 @@ type stubPlans struct {
 func (s *stubPlans) plan() careplan.Plan {
 	day := time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC)
 	return careplan.Plan{ID: planID, OrganizationID: clinicA, PatientID: patientA, Status: careplan.StatusActive, Title: "Synthetic plan",
-		StartsOn: &day, CreatedAt: now, VersionID: 3, Steps: []careplan.Step{{ID: "s1", ServiceID: serviceIn, VisitMode: "in-person", Position: 1}}}
+		StartsOn: &day, CreatedAt: now, VersionID: 3, Steps: []careplan.Step{{ID: "s1", ServiceID: serviceIn, ServiceName: "Synthetic exam",
+			VisitMode: "in-person", Position: 1, VisitStart: &visit, VisitEnd: &visit, VisitStatus: "booked"}}}
 }
 
 func (s *stubPlans) Write(_ context.Context, _ careplan.Staff, d careplan.Draft) (careplan.Plan, error) {
@@ -96,6 +99,10 @@ func TestHandler_WritesADraftWithItsETag(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || got["startsOn"] != "2030-01-07" || got["status"] != "active" {
 		t.Errorf("body %s, want the plan with its start as a date", rec.Body)
 	}
+	if b := rec.Body.String(); !strings.Contains(b, `"serviceName":"Synthetic exam"`) || !strings.Contains(b, `"visitStart":"2030-01-07T09:00:00Z"`) ||
+		strings.Contains(b, "visitEnd") || strings.Contains(b, "visitStatus") {
+		t.Errorf("body %s, want each step's service name and visit start, nothing more of the visit", b)
+	}
 }
 
 func TestHandler_ReadsTheRequestOrRefusesIt(t *testing.T) {
@@ -113,6 +120,7 @@ func TestHandler_ReadsTheRequestOrRefusesIt(t *testing.T) {
 		"an invalid plan":         {careplan.ErrInvalid, http.MethodPut, "/clinic/care-plans/" + planID, `W/"1"`, `{"title":"T","steps":[]}`, "invalid_care_plan", staffCaller, http.StatusBadRequest},
 		"a receptionist":          {careplan.ErrForbidden, http.MethodPost, "/clinic/care-plans/" + planID + "/book", "", "", "forbidden", careplan.Caller{Staff: desk}, http.StatusForbidden},
 		"booked already":          {careplan.ErrNotDraft, http.MethodPut, "/clinic/care-plans/" + planID, `W/"1"`, `{"title":"T","steps":[]}`, "care_plan_not_draft", staffCaller, http.StatusConflict},
+		"a device busy":           {careplan.ErrResourceBusy, http.MethodPost, "/clinic/care-plans/" + planID + "/book", `W/"1"`, `{"startsOn":"2030-01-07","slotIds":["` + planID + `"]}`, "resource_busy", staffCaller, http.StatusConflict},
 		"a slot taken":            {careplan.ErrSlotUnavailable, http.MethodPost, "/clinic/care-plans/" + planID + "/book", `W/"1"`, `{"startsOn":"2030-01-07","slotIds":["` + planID + `"]}`, "slot_unavailable", staffCaller, http.StatusConflict},
 		"ended":                   {careplan.ErrEnded, http.MethodPost, "/clinic/care-plans/" + planID + "/cancel", `W/"1"`, "", "care_plan_ended", staffCaller, http.StatusConflict},
 		"an old version":          {careplan.ErrVersionConflict, http.MethodPost, "/clinic/care-plans/" + planID + "/cancel", `W/"1"`, "", "version_conflict", staffCaller, http.StatusPreconditionFailed},

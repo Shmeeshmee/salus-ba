@@ -12,6 +12,8 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/careplan"
+	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
@@ -89,6 +91,10 @@ func newDataRequestExports(pool *pgxpool.Pool, files Files, appointments *appoin
 			}),
 			LabResults: diagnosticreport.NewService(diagnosticreport.Ports{ // the patient's released results, read as in the app (LB1)
 				Repo: diagnosticreport.NewPostgresRepository(pool), Visits: appointments, Audit: audit, Tx: tx, Clock: clk,
+			}),
+			CarePlans: careplan.NewService(careplan.Ports{ // the patient's booked plans, read as in the app (TP1)
+				Repo: careplan.NewPostgresRepository(pool), Tx: tx, Audit: audit, Consents: consents, Visits: appointments, Clock: clk,
+				Prices: chargeitemdefinition.NewService(chargeitemdefinition.Ports{Repo: chargeitemdefinition.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),
 			}),
 		}),
 		Accounts: auth.NewService(auth.Ports{Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clk}),

@@ -21,12 +21,18 @@ const MaxDayOffset = 730
 // Step is one activity of a plan: a service of the price list, its day counted from the plan's start, and the visit
 // mode; the visit once booked.
 type Step struct {
-	ID            string `json:"id,omitempty"` // in a response only
-	ServiceID     string `json:"serviceId"`
-	VisitMode     string `json:"visitMode"` // in-person or video, as appointment's
-	AppointmentID string `json:"appointmentId,omitempty"`
-	Position      int    `json:"position,omitempty"` // in a response only
-	DayOffset     int    `json:"dayOffset"`
+	// VisitStart and VisitEnd are the visit's times once booked, VisitStatus its status (in a response only; the
+	// patient's app and the export show the visit's day, which a move changes).
+	VisitStart    *time.Time `json:"visitStart,omitempty"`
+	VisitEnd      *time.Time `json:"-"`
+	ID            string     `json:"id,omitempty"` // in a response only
+	ServiceID     string     `json:"serviceId"`
+	ServiceName   string     `json:"serviceName,omitempty"` // the price list's name, in a response only
+	VisitStatus   string     `json:"-"`
+	VisitMode     string     `json:"visitMode"` // in-person or video, as appointment's
+	AppointmentID string     `json:"appointmentId,omitempty"`
+	Position      int        `json:"position,omitempty"` // in a response only
+	DayOffset     int        `json:"dayOffset"`
 }
 
 // Plan is a treatment plan for a patient of the clinic. It carries its quote (X1).
@@ -43,6 +49,18 @@ type Plan struct {
 	QuoteID        string     `json:"quoteId,omitempty"`
 	Steps          []Step     `json:"steps"`
 	VersionID      int        `json:"versionId"`
+}
+
+// LastUpdated is the plan's latest change: written, booked or cancelled (a booked plan's steps change only through
+// its visits).
+func (p Plan) LastUpdated() time.Time {
+	at := p.CreatedAt
+	for _, t := range []*time.Time{p.BookedAt, p.RevokedAt} {
+		if t != nil && t.After(at) {
+			at = *t
+		}
+	}
+	return at
 }
 
 // Draft is what staff write while a plan is a draft.

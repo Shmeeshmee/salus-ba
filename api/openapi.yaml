@@ -8701,7 +8701,8 @@ paths:
       description: >-
         A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list,
         a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's
-        admin or a practitioner. The patient does not see a draft. Built in package TP1. Audited, also when refused.
+        admin or a practitioner who has or had a visit with the patient (the care relationship); never a
+        receptionist. The patient does not see a draft. Built in package TP1. Audited, also when refused.
       tags: [care-plans]
       security:
         - sessionCookie: []
@@ -8729,12 +8730,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
-          description: "`forbidden`."
+          description: "`forbidden`: a receptionist (no clinical content)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such patient of the clinic with its active care consent, or no such quote of theirs."
+          description: "`not_found`: no such patient of the clinic with its active care consent, a patient the practitioner has no visit with, or no such quote of theirs."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -8746,8 +8747,8 @@ paths:
       x-salus-package: cms-tp1
       summary: A patient's treatment plans at the clinic
       description: >-
-        Newest first, drafts included. For the clinic's admin and its practitioners; never a receptionist. Built in
-        package TP1. Audited.
+        Newest first, drafts included. For the clinic's admin and a practitioner who has or had a visit with the
+        patient; never a receptionist. Built in package TP1. Audited, also when refused.
       tags: [care-plans]
       security:
         - sessionCookie: []
@@ -8766,8 +8767,13 @@ paths:
                 items: {$ref: "#/components/schemas/CarePlan"}
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a receptionist (no clinical content)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such patient of the clinic."
+          description: "`not_found`: no such patient of the clinic, or one the practitioner has no visit with."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -8779,8 +8785,9 @@ paths:
       x-salus-package: cms-tp1
       summary: A treatment plan of the clinic
       description: >-
-        Its steps in the order of their visits once booked (a moved step shows in its new place). Built in package
-        TP1. Audited.
+        Its steps in the order of their visits once booked (a moved step shows in its new place). For the clinic's
+        admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package
+        TP1. Audited, also when refused.
       tags: [care-plans]
       security:
         - sessionCookie: []
@@ -8797,8 +8804,13 @@ paths:
               schema: {$ref: "#/components/schemas/CarePlan"}
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`forbidden`: a receptionist (no clinical content)."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such plan the caller may see."
+          description: "`not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -8841,12 +8853,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
-          description: "`forbidden`."
+          description: "`forbidden`: a receptionist (no clinical content)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such plan the caller may see."
+          description: "`not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -8900,12 +8912,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
-          description: "`forbidden`."
+          description: "`forbidden`: a receptionist (no clinical content), or a practitioner booking another practitioner's slot."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such plan the caller may see."
+          description: "`not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -8954,12 +8966,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
-          description: "`forbidden`."
+          description: "`forbidden`: a receptionist (no clinical content)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
         "404":
-          description: "`not_found`: no such plan the caller may see."
+          description: "`not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with)."
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Error"}
@@ -8981,7 +8993,8 @@ paths:
       x-salus-package: cms-tp1
       summary: The patient's own treatment plans
       description: >-
-        Booked ones from every clinic, newest first, never a draft. Built in package TP1. Audited.
+        Booked ones from every clinic, newest first, never a draft; each step names its service and its visit's start.
+        Built in package TP1. Audited.
       tags: [care-plans]
       security:
         - sessionCookie: []
@@ -8998,6 +9011,11 @@ paths:
                 items: {$ref: "#/components/schemas/CarePlan"}
         "401":
           $ref: "#/components/responses/Unauthenticated"
+        "403":
+          description: "`profile_required`: a staff account, or a patient with no profile yet."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
         "500":
           $ref: "#/components/responses/InternalError"
 components:
@@ -11556,9 +11574,11 @@ components:
         id: {type: string, format: uuid, description: In a response only.}
         position: {type: integer, format: int32, minimum: 1, description: In a response only.}
         serviceId: {type: string, format: uuid, description: A service of the clinic's price list.}
+        serviceName: {type: string, description: "The service's name in the clinic's price list; in a response only, absent for a service gone from it."}
         dayOffset: {type: integer, format: int32, minimum: 0, maximum: 730, description: Days from the plan's start.}
         visitMode: {$ref: "#/components/schemas/VisitMode"}
         appointmentId: {type: string, format: uuid, description: Its visit once booked; in a response only.}
+        visitStart: {type: string, format: date-time, description: "Its visit's start once booked (a moved visit's new time); in a response only."}
     CarePlan:
       type: object
       required: [id, organizationId, patientId, status, title, steps, createdAt, versionId]

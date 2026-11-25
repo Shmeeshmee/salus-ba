@@ -310,6 +310,7 @@ var errorCodes = []struct {
 	{ErrNotDraft, "care_plan_not_draft", http.StatusConflict},
 	{ErrEnded, "care_plan_ended", http.StatusConflict},
 	{ErrSlotUnavailable, "slot_unavailable", http.StatusConflict},
+	{ErrResourceBusy, "resource_busy", http.StatusConflict}, // a device (RM1)
 	{ErrVersionConflict, "version_conflict", http.StatusPreconditionFailed},
 }
 

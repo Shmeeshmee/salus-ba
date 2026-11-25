@@ -69,6 +69,21 @@ describe('CarePlans (clinic-cms TP2)', () => {
     expect(within(items[0]).getByRole('button', { name: 'Cancel plan' })).toBeTruthy()
   })
 
+  it("shows a booked step on its visit's day after a move, and its service by the plan's name once off the price list", async () => {
+    const moved = plan('d2000000-0000-4000-8000-000000000003', 'active', {
+      startsOn: '2026-11-30', bookedAt: '2026-11-21T10:00:00Z',
+      steps: [
+        { id: 'd3000000-0000-4000-8000-000000000001', position: 1, serviceId: physio, dayOffset: 7, visitMode: 'in-person', visitStart: '2026-12-07T09:00:00Z' },
+        // The examination's visit moved after the session: its new day, in the clinic's zone, not its offset's.
+        { id: 'd3000000-0000-4000-8000-000000000002', position: 2, serviceId: 'c1000000-0000-4000-8000-0000000000ff', serviceName: 'Placeholder retired service', dayOffset: 0, visitMode: 'in-person', visitStart: '2026-12-09T23:30:00Z' },
+      ],
+    })
+    renderPlans({ [list]: () => Response.json([moved]) })
+    const plans = within(await screen.findByRole('list', { name: 'Treatment plans' }))
+    expect(plans.getByText('1. Placeholder therapy session, at the clinic, Monday, 7 December 2026')).toBeTruthy()
+    expect(plans.getByText('2. Placeholder retired service, at the clinic, Thursday, 10 December 2026')).toBeTruthy()
+  })
+
   it('says when the patient has no plan, and when the plans cannot be read', async () => {
     renderPlans({ [list]: () => Response.json([]) })
     expect(await screen.findByText('No treatment plans for this patient yet.')).toBeTruthy()

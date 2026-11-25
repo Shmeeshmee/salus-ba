@@ -57,7 +57,7 @@ func TestWrite_RefusesARestrictedRecord(t *testing.T) {
 	t.Parallel()
 	f := newFixture()
 	f.svc = careplan.NewService(careplan.Ports{Repo: f.repo, Tx: fakeTx{f: f}, Audit: f.audit, Prices: fakePrices{}, Visits: f.visits, Clock: f.clock,
-		Consents: fakeConsents{state: map[string]access.Consent{patientA + clinicA: {Active: true, Restricted: true}}}})
+		Care: fakeCare{}, Roles: fakeRoles{}, Consents: fakeConsents{state: map[string]access.Consent{patientA + clinicA: {Active: true, Restricted: true}}}})
 	if _, err := f.svc.Write(t.Context(), admin, draft()); !errors.Is(err, careplan.ErrNotFound) {
 		t.Fatalf("Write: %v, want ErrNotFound", err)
 	}

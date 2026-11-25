@@ -3,6 +3,7 @@ package api_test
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,5 +84,60 @@ func TestNew_ATreatmentPlanBooksEveryStepOrNoneAndCancelsItsVisits(t *testing.T)
 	}
 	if n := count(`SELECT count(*) FROM audit_event WHERE entity_reference = $1`, "CarePlan/"+plan.ID); n < 4 {
 		t.Errorf("%d audit events of the plan, want its write, booking, cancellation and read", n)
+	}
+}
+
+// Only the clinic's admin and a practitioner who has or had a visit with the patient work with the patient's plans
+// (CLAUDE.md "GDPR and health data", the care relationship): a second practitioner of the clinic without one is
+// answered as for a patient they cannot see, and each refusal is audited; a patient the clinic does not have is not
+// found. The plan's steps name their service.
+func TestNew_ATreatmentPlanIsOnlyForTheClinicsAdminAndThePatientsPractitioner(t *testing.T) {
+	t.Parallel()
+	cfg := testConfig(t)
+	owner := ownerPool(t, cfg)
+	count := openDB(t, cfg)
+	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
+	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(app.Close)
+	m := newMatrix(t, app.Handler, owner, cfg.FHIRBaseURL) // the practitioner has a past and a future visit with the patient
+	exam := saveService(t, m.directory, `{"name":"Synthetic exam","priceMinor":5000,"modes":["video"],"active":true,"translations":[]}`)
+	body := `{"patientId":"` + m.patientID + `","title":"Synthetic plan","steps":[{"serviceId":"` + exam + `","dayOffset":0,"visitMode":"video"}]}`
+	rec := m.practitioner.do(http.MethodPost, "/clinic/care-plans", body)
+	var plan struct {
+		ID    string
+		Steps []struct{ ServiceName string }
+	}
+	decode(t, rec, &plan)
+	if rec.Code != http.StatusCreated || len(plan.Steps) != 1 || plan.Steps[0].ServiceName != "Synthetic exam" {
+		t.Fatalf("POST /clinic/care-plans by the patient's practitioner = %d %s", rec.Code, rec.Body)
+	}
+	list := "/clinic/patients/" + m.patientID + "/care-plans"
+	for _, c := range []*client{m.practitioner, m.admin} {
+		if rec := c.do(http.MethodGet, list, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), plan.ID) {
+			t.Errorf("GET %s = %d %s, want the plan", list, rec.Code, rec.Body)
+		}
+	}
+	refused := func() int {
+		return count(`SELECT count(*) FROM audit_event WHERE agent_account_id = $1 AND outcome = 4 AND subtype_code IN ('read', 'search-type', 'create')`, m.otherAccount)
+	}
+	before := refused()
+	for _, r := range []struct{ method, path, body string }{
+		{http.MethodGet, "/clinic/care-plans/" + plan.ID, ""},
+		{http.MethodGet, list, ""},
+		{http.MethodPost, "/clinic/care-plans", body},
+	} {
+		if rec := m.other.do(r.method, r.path, r.body); rec.Code != http.StatusNotFound {
+			t.Errorf("%s %s by a practitioner without a visit = %d %s, want 404", r.method, r.path, rec.Code, rec.Body)
+		}
+	}
+	if n := refused() - before; n != 3 {
+		t.Errorf("%d refusals audited, want 3", n)
+	}
+	stranger := "/clinic/patients/0b000000-0000-4000-8000-0000000000b9/care-plans"
+	if rec := m.admin.do(http.MethodGet, stranger, ""); rec.Code != http.StatusNotFound {
+		t.Errorf("GET %s = %d %s, want 404 for a patient the clinic does not have", stranger, rec.Code, rec.Body)
 	}
 }
