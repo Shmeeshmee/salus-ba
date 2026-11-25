@@ -5,5 +5,5 @@ A data subject request is due on {{.When}}, in {{if eq .Days 1}}1 day{{else}}{{.
 Kind: {{if eq .Kind "access"}}Access{{else if eq .Kind "portability"}}Portability{{else if eq .Kind "rectification"}}Rectification{{else if eq .Kind "restriction"}}Restriction{{else if eq .Kind "objection"}}Objection{{else if eq .Kind "erasure"}}Erasure{{end}}
 Request: {{.Request}}
 
-{{if .Link}}To handle it, sign in to Salus:
+{{if .NoAdminClinic}}The clinic {{.NoAdminClinic}} has no admin to answer it: ask the clinic to name one before the due date.{{else if .Link}}To handle it, sign in to Salus:
 {{.Link}}{{else}}To handle it: salusctl datarequest show {{.Request}}{{end}}

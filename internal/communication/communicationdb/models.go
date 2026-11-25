@@ -281,6 +281,9 @@ type Appointment struct {
 	ServiceID            pgtype.UUID
 	ArrivedAt            pgtype.Timestamptz
 	BookedByAccountID    pgtype.UUID
+	LocationID           pgtype.UUID
+	RoomID               pgtype.UUID
+	DeviceID             pgtype.UUID
 }
 
 type AppointmentActionToken struct {
@@ -384,6 +387,34 @@ type Binary struct {
 	ThumbnailID               pgtype.UUID
 	ThumbnailSize             pgtype.Int8
 	ThumbnailWrappedKey       []byte
+	DiagnosticReportID        pgtype.UUID
+}
+
+type CarePlan struct {
+	ID                 pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	OrganizationID     pgtype.UUID
+	PatientID          pgtype.UUID
+	CreatedByAccountID pgtype.UUID
+	Status             string
+	Title              string
+	QuoteID            pgtype.UUID
+	StartsOn           pgtype.Date
+	BookedAt           pgtype.Timestamptz
+	RevokedAt          pgtype.Timestamptz
+	RevokedByAccountID pgtype.UUID
+	VersionID          int32
+}
+
+type CarePlanActivity struct {
+	ID                     pgtype.UUID
+	CarePlanID             pgtype.UUID
+	Position               int32
+	ChargeItemDefinitionID pgtype.UUID
+	DayOffset              int32
+	VisitMode              string
+	AppointmentID          pgtype.UUID
 }
 
 type ChargeItemDefinition struct {
@@ -400,6 +431,7 @@ type ChargeItemDefinition struct {
 	Modes           []string
 	Active          bool
 	VersionID       int32
+	DeviceID        pgtype.UUID
 }
 
 type ChargeItemDefinitionTranslation struct {
@@ -472,10 +504,11 @@ type ClinicSignup struct {
 	VerifiedAt     pgtype.Timestamptz
 	ApprovedAt     pgtype.Timestamptz
 	OrganizationID pgtype.UUID
-	Email          string
+	Email          pgtype.Text
 	ClinicName     string
 	Language       Language
 	TokenHash      []byte
+	TokenIssuedAt  pgtype.Timestamptz
 }
 
 type ClinicSubscription struct {
@@ -622,6 +655,17 @@ type DataRequestExport struct {
 	ObjectKey     pgtype.Text
 }
 
+type Device struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	LocationID     pgtype.UUID
+	Name           string
+	Active         bool
+	VersionID      int32
+}
+
 type DiagnosisGroup struct {
 	Position   int32
 	Code       string
@@ -644,6 +688,36 @@ type DiagnosisGroupRange struct {
 	GroupCode string
 	FromCode  string
 	ToCode    string
+}
+
+type DiagnosticReport struct {
+	ID                  pgtype.UUID
+	CreatedAt           pgtype.Timestamptz
+	UpdatedAt           pgtype.Timestamptz
+	OrganizationID      pgtype.UUID
+	PatientID           pgtype.UUID
+	AppointmentID       pgtype.UUID
+	CreatedByAccountID  pgtype.UUID
+	Status              string
+	Title               string
+	LoincCode           pgtype.Text
+	EffectiveDate       pgtype.Date
+	ReleasedAt          pgtype.Timestamptz
+	ReleasedByAccountID pgtype.UUID
+	VersionID           int32
+}
+
+type DiagnosticReportResult struct {
+	ID                 pgtype.UUID
+	DiagnosticReportID pgtype.UUID
+	Position           int32
+	Test               string
+	LoincCode          pgtype.Text
+	ValueDecimal       pgtype.Numeric
+	Unit               pgtype.Text
+	ValueText          pgtype.Text
+	ReferenceRange     pgtype.Text
+	Interpretation     pgtype.Text
 }
 
 type DocumentDraft struct {
@@ -761,6 +835,7 @@ type Invoice struct {
 	FiscalQr          pgtype.Text
 	FiscalizedAt      pgtype.Timestamptz
 	IdempotencyKey    pgtype.UUID
+	PlaceOfService    pgtype.Text
 }
 
 type InvoiceLine struct {
@@ -779,6 +854,21 @@ type InvoiceLine struct {
 type InvoiceSequence struct {
 	OrganizationID pgtype.UUID
 	LastNumber     int64
+}
+
+type Location struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	Name           string
+	AddressLine    pgtype.Text
+	PostalCode     pgtype.Text
+	CityID         pgtype.Text
+	Phone          pgtype.Text
+	TimeZone       string
+	Active         bool
+	VersionID      int32
 }
 
 type MedicationStatement struct {
@@ -1088,6 +1178,17 @@ type RiverQueue struct {
 	UpdatedAt pgtype.Timestamptz
 }
 
+type Room struct {
+	ID             pgtype.UUID
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	OrganizationID pgtype.UUID
+	LocationID     pgtype.UUID
+	Name           string
+	Active         bool
+	VersionID      int32
+}
+
 type Schedule struct {
 	ID                 pgtype.UUID
 	CreatedAt          pgtype.Timestamptz
@@ -1120,6 +1221,8 @@ type Slot struct {
 	Status         string
 	Period         pgtype.Range[pgtype.Timestamptz]
 	VisitMode      string
+	LocationID     pgtype.UUID
+	RoomID         pgtype.UUID
 }
 
 type SmsUsage struct {

@@ -231,6 +231,12 @@ func (s *Service) revoke(ctx context.Context, c Caller, id string) (out Consent,
 // profile. Each consent returned is audited; a list of none writes one event without an entity.
 // ErrForbidden to staff.
 func (s *Service) Mine(ctx context.Context, c Caller) ([]Consent, error) {
+	return s.MineAt(ctx, c, "")
+}
+
+// MineAt is Mine narrowed to the clinic org when org is set: only that clinic's consents are returned and audited (a
+// clinic-target export, docs/clinic-cms/WAVE6.md PX).
+func (s *Service) MineAt(ctx context.Context, c Caller, org string) ([]Consent, error) {
 	if !c.patient() {
 		return nil, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
 	}
@@ -246,7 +252,7 @@ func (s *Service) Mine(ctx context.Context, c Caller) ([]Consent, error) {
 				return err
 			}
 			for _, x := range all {
-				if x.PatientID == patientID { // not on row-level security alone
+				if x.PatientID == patientID && (org == "" || x.OrganizationID == org) { // not on row-level security alone
 					out = append(out, x)
 				}
 			}

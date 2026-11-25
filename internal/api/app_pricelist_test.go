@@ -12,6 +12,7 @@ import (
 // The price list (docs/plans/clinic-cms.md, package B): the clinic's admin keeps it, its staff read it, anyone sees
 // the active services of a listed clinic in a visit's mode, and every write is audited, also when refused.
 func TestNew_KeepsTheClinicsPriceListAndShowsItsPricesAtBooking(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

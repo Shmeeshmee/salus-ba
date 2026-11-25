@@ -212,6 +212,12 @@ func TestMyQuotes_ShowsThePatientTheirOwnAndThePDF(t *testing.T) {
 	if e := f.audit.last(); e.Subtype.Code != auditevent.CodeSearchType || e.Purpose.Code != auditevent.CodePATRQT {
 		t.Errorf("audit = %+v", e)
 	}
+	if got, err := f.svc.MyQuotesAt(t.Context(), patientC, org); err != nil || len(got) != 1 {
+		t.Errorf("MyQuotesAt(the clinic) = %v, %v; want the one", got, err)
+	}
+	if got, err := f.svc.MyQuotesAt(t.Context(), patientC, "00000000-0000-4000-8000-0000000000ee"); err != nil || len(got) != 0 {
+		t.Errorf("MyQuotesAt(another clinic) = %v, %v; want none", got, err)
+	}
 	other := invoice.Caller{AccountID: "acct-other", PatientID: "patient-other"}
 	if got, err := f.svc.MyQuotes(t.Context(), other); err != nil || len(got) != 0 {
 		t.Errorf("another patient's MyQuotes() = %v, %v; want none", got, err)

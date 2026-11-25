@@ -5,5 +5,5 @@ Il termine per rispondere a una richiesta dell'interessato scade il {{.When}}, t
 Tipo: {{if eq .Kind "access"}}Accesso{{else if eq .Kind "portability"}}Portabilità{{else if eq .Kind "rectification"}}Rettifica{{else if eq .Kind "restriction"}}Limitazione{{else if eq .Kind "objection"}}Opposizione{{else if eq .Kind "erasure"}}Cancellazione{{end}}
 Richiesta: {{.Request}}
 
-{{if .Link}}Per gestirla, acceda a Salus:
+{{if .NoAdminClinic}}La clinica {{.NoAdminClinic}} non ha un amministratore che possa rispondere alla richiesta: chieda alla clinica di nominarne uno prima della scadenza.{{else if .Link}}Per gestirla, acceda a Salus:
 {{.Link}}{{else}}Per gestirla: salusctl datarequest show {{.Request}}{{end}}

@@ -44,11 +44,35 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations
+    queries: internal/diagnosticreport/query.sql
+    gen:
+      go:
+        package: diagnosticreportdb
+        out: internal/diagnosticreport/diagnosticreportdb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: internal/careplan/query.sql
+    gen:
+      go:
+        package: careplandb
+        out: internal/careplan/careplandb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
     queries: internal/invoice/query.sql
     gen:
       go:
         package: invoicedb
         out: internal/invoice/invoicedb
+        sql_package: pgx/v5
+  - engine: postgresql
+    schema: migrations
+    queries: [internal/location/query.sql, internal/location/query_room.sql]
+    gen:
+      go:
+        package: locationdb
+        out: internal/location/locationdb
         sql_package: pgx/v5
   - engine: postgresql
     schema: migrations

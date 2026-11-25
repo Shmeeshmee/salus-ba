@@ -10,8 +10,9 @@ type Signup struct {
 	CreatedAt      time.Time
 	VerifiedAt     time.Time // zero until the e-mail is verified
 	ApprovedAt     time.Time // zero until the operator lists the clinic
+	TokenIssuedAt  time.Time // when the latest verification e-mail's token was issued: its link's 72 hours start here
 	ID             string
-	Email          string // the admin's: trimmed and lower-cased
+	Email          string // the admin's: trimmed and lower-cased; empty once the admin joined (U8)
 	ClinicName     string
 	Language       string // a BCP 47 tag of the language enum: the e-mail's and the clinic's default
 	OrganizationID string // created on verification; empty before

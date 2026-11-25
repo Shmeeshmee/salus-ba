@@ -2319,4 +2319,80 @@ class AppLocalizationsEn extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'To ask for your account to be reopened within 21 days, write to $email.';
   }
+
+  @override
+  String get myLabResults => 'My lab results';
+
+  @override
+  String get labResultsIntro =>
+      'Lab results your practitioner reviewed and released to you. Ask your practitioner what they mean for you.';
+
+  @override
+  String get noLabResults => 'You have no lab results yet.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Sample taken on $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Released on $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Reference range $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normal',
+      'L': 'Low',
+      'H': 'High',
+      'LL': 'Critically low',
+      'HH': 'Critically high',
+      'A': 'Abnormal',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get myCarePlans => 'My treatment plans';
+
+  @override
+  String get carePlansIntro =>
+      'Treatment plans your clinics booked for you. Each step of a plan is a visit, which you find among your visits.';
+
+  @override
+  String get noCarePlans => 'You have no treatment plans yet.';
+
+  @override
+  String get carePlanActive => 'Booked';
+
+  @override
+  String get carePlanCompleted => 'Completed';
+
+  @override
+  String get carePlanRevoked => 'Cancelled';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Starts on $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Where would you like to come?';
 }

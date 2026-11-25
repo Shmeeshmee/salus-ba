@@ -80,5 +80,10 @@ func TestAccountErasureWorker_ErasesADueAccountOnce(t *testing.T) {
 	var changes int
 	if err := owner.QueryRow(ctx, `SELECT count(*) FROM data_request_change WHERE data_request_id = $1 AND status = 'fulfilled'`, request).Scan(&changes); err != nil || changes != 1 {
 		t.Errorf("%d fulfilments in the history, %v; want one: a second run adds none", changes, err)
+	} // BG4: the answer has its own data_request event, the job's, in the same transaction (once: a second run answers none).
+	var answers int
+	if err := owner.QueryRow(ctx, `SELECT count(*) FROM audit_event WHERE agent_name = $1 AND entity_name = 'data_request'`,
+		datarequest.ErasureAgent).Scan(&answers); err != nil || answers != 1 {
+		t.Errorf("%d data_request events of the erasure job, %v; want one", answers, err)
 	}
 }

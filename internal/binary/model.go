@@ -1,5 +1,5 @@
 // Package binary is a file a patient attached to a questionnaire answer: FHIR R4 Binary
-// (docs/attachments/SPEC.md). It owns the object store, the "binary" table and the files' lifecycle: the
+// (docs/attachments/SPEC.md); also a chat's file and a lab result's PDF, whose parents decide and audit for them. It owns the object store, the "binary" table and the files' lifecycle: the
 // upload pipeline (type from the bytes, envelope encryption, one streamed put), the status read, the ranged
 // download and the deletion. Who may upload, read or delete a file is decided by the file's holder, the
 // questionnaire response it answers (Holder); binary imports no domain but auditevent. Files are health data:
@@ -70,32 +70,33 @@ func kindOf(contentType string) Kind {
 // Target (a chat file's from its conversation). The bytes are in the object store under ID, sealed with a data key
 // that WrappedKey holds, wrapped by the key-encryption key KEKID.
 //
-// A file has one of two parents: a questionnaire response's item (ResponseID, AppointmentID, LinkID), or a
+// A file has one of three parents: a questionnaire response's item (ResponseID, AppointmentID, LinkID), a
 // conversation of the chat (ConversationID, uploaded by the participant ParticipantID and attached to the message
-// MessageID once it is sent; SAL-30).
+// MessageID once it is sent; SAL-30), or a lab result (DiagnosticReportID: the lab's PDF; docs/clinic-cms/WAVE6.md U5).
 type Binary struct {
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	ScannedAt      time.Time // zero while quarantined
-	MessageSentAt  time.Time // the message's time, with MessageID
-	ID             string    // the Binary id and the object key, a lowercase UUID
-	OrganizationID string
-	PatientID      string
-	AppointmentID  string
-	ResponseID     string // the questionnaire response whose answer holds the file
-	LinkID         string // the attachment item
-	ConversationID string // a chat file's conversation
-	ParticipantID  string // the conversation participant who uploaded a chat file
-	MessageID      string // the message a chat file is attached to; empty until it is sent
-	ContentType    string // detected from the bytes
-	Title          string // the file's name as uploaded, at most MaxTitle characters; personal data
-	KEKID          string
-	Status         Status
-	SHA1           []byte    // of the plaintext: Attachment.hash and the identical-retry check
-	WrappedKey     []byte    // nil once rejected
-	Thumbnail      Thumbnail // a clean chat image's; zero for none
-	Size           int64     // plaintext bytes
-	SegmentSize    int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	ScannedAt          time.Time // zero while quarantined
+	MessageSentAt      time.Time // the message's time, with MessageID
+	ID                 string    // the Binary id and the object key, a lowercase UUID
+	OrganizationID     string
+	PatientID          string
+	AppointmentID      string
+	ResponseID         string // the questionnaire response whose answer holds the file
+	LinkID             string // the attachment item
+	ConversationID     string // a chat file's conversation
+	ParticipantID      string // the conversation participant who uploaded a chat file
+	MessageID          string // the message a chat file is attached to; empty until it is sent
+	DiagnosticReportID string // a lab result's PDF's report
+	ContentType        string // detected from the bytes
+	Title              string // the file's name as uploaded, at most MaxTitle characters; personal data
+	KEKID              string
+	Status             Status
+	SHA1               []byte    // of the plaintext: Attachment.hash and the identical-retry check
+	WrappedKey         []byte    // nil once rejected
+	Thumbnail          Thumbnail // a clean chat image's; zero for none
+	Size               int64     // plaintext bytes
+	SegmentSize        int32
 }
 
 // Thumbnail is a chat image's preview, made by the scan job from the clean file: a JPEG stored and sealed like a file,
@@ -173,12 +174,13 @@ const QueueScan = "scan"
 
 // ScanArgs is the binary_scan job, enqueued with each upload in its transaction. Opaque ids only: the file,
 // and its response and clinic, which name the job scope that lets the job read the file's row.
-// A chat file's job names its conversation instead of a response.
+// A chat file's job names its conversation instead of a response, a lab result's PDF its report.
 type ScanArgs struct {
-	BinaryID       string `json:"binary_id"`
-	ResponseID     string `json:"questionnaire_response_id,omitempty"`
-	ConversationID string `json:"conversation_id,omitempty"`
-	OrganizationID string `json:"organization_id"`
+	BinaryID           string `json:"binary_id"`
+	ResponseID         string `json:"questionnaire_response_id,omitempty"`
+	ConversationID     string `json:"conversation_id,omitempty"`
+	DiagnosticReportID string `json:"diagnostic_report_id,omitempty"`
+	OrganizationID     string `json:"organization_id"`
 }
 
 // ChatScanAttempts is how often a chat file's scan is tried before the worker rejects it as unscannable

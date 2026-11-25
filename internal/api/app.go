@@ -38,6 +38,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/internal/signup"
 	"github.com/Shmeeshmee/salus/internal/slot"
 	"github.com/Shmeeshmee/salus/internal/suggestion"
 	"github.com/Shmeeshmee/salus/internal/terminology"
@@ -84,7 +85,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{},
 		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool))) // the location's check and city name
-	prices := priceList(pool, audit, tx, clinics) // the price list's routes and the receipts' prices (clinic-cms B, C)
+	sites := locations(pool, audit, tx, clinics)         // the clinic's locations and the rules' (clinic-cms LC1)
+	prices := priceList(pool, audit, tx, clinics, sites) // the price list's routes and the receipts' prices (clinic-cms B, C)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, People: practitioners,
@@ -98,6 +100,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	schedules := schedule.NewService(schedule.Ports{
 		Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Roles: roles, Jobs: schedule.NewRiverJobs(jobs), // an edit enqueues its slot generation in its transaction
+		Sites: sites, // an in-person rule's location (clinic-cms LC1)
+		Rooms: sites, // a rule's room (RM1)
 	})
 	slots := slot.NewService(slot.NewPostgresRepository(pool), tx, clock.System{}, schedules, clinics)
 	stops := memberships(pool, audit, tx) // a suspended or cancelled membership stops new bookings (clinic-cms Q4)
@@ -120,8 +124,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	accounts := auth.NewService(auth.Ports{
 		Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
 		Challenges: auth.NewRedisChallengeStore(rdb), Counters: auth.NewRedisCounters(rdb), Box: box,
-		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles,
 		RateLimitKey: cfg.RateLimitKey, Hasher: auth.NewArgon2Hasher(auth.DefaultArgon2Params(), auth.MaxConcurrentHashes),
+		// U8: an accepted admin invite makes the clinic's signup forget the e-mail. Only Repo and Tx: the signup's own
+		// routes are built on accounts (signupRoutes).
+		Jobs: auth.NewRiverJobs(jobs), Practitioners: practitioners, PractitionerRoles: roles, Signups: signup.NewService(signup.Ports{Repo: signup.NewPostgresRepository(pool), Tx: tx}),
 	})
 	authHandler := auth.NewHandler(accounts, log, cfg.TrustedProxies).WithFeatures(features(cfg.Analytics))
 	encounters, sessions := newConsultation(pool, lk, jobs, audit, tx, appointments, consents, patients, practitioners, roles, appointment.NewFacts(appointmentRepo))
@@ -131,7 +137,8 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		store: binary.NewS3Store(&http.Client{Timeout: binary.UploadDeadline}, files.Endpoint, files.Region, files.Bucket, files.AccessKeyID, files.SecretAccessKey, s3PageSize),
 		kek:   kek,
 	}, fhirBase, log)
-	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newChatFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
+	labAPI, labStream := labResultRoutes(labResultPorts{pool: pool, audit: audit, tx: tx, appointments: appointments, accounts: accounts, patients: patients, files: newParentFiles(pool, files, kek, jobs, tx)}, log) // lab results and their PDFs (clinic-cms LB1, U5)
+	chatAPI, chatStream, chatHub := newChat(chatPorts{db: pool, rdb: rdb, audit: audit, tx: tx, consents: consents, jobs: jobs, files: newParentFiles(pool, files, kek, jobs, tx), language: uiLanguage(accounts),
 		visits: appointment.NewFacts(appointmentRepo), roles: roles, encounters: encounters, caller: appointmentCaller(accounts, patients), active: authHandler.Active, summarizer: summarizer}, log)
 	entries := newProfileEntries(profilePorts{pool, audit, tx, consents, appointmentRepo, roles, encounters, accounts, patients}, fhirBase, log)
 	h := router.New(router.Config{
@@ -162,14 +169,17 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewStaffHandler(appointments, deskCaller(accounts, patients), log).Routes, // clinic-cms F2
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log)},
-			[]func(*http.ServeMux){invoiceRoutes(invoicePorts{pool: pool, audit: audit, tx: tx, jobs: jobs, clinics: clinics, appointments: appointments, consents: consents, care: appointment.NewFacts(appointmentRepo), prices: prices, accounts: accounts, patients: patients}, log)}, // receipts (clinic-cms C)
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log), locationRoutes(sites, accounts, log)},
+			[]func(*http.ServeMux){invoiceRoutes(invoicePorts{pool: pool, audit: audit, tx: tx, jobs: jobs, clinics: clinics, appointments: appointments, consents: consents, care: appointment.NewFacts(appointmentRepo), prices: prices, sites: sites, accounts: accounts, patients: patients}, log)}, // receipts (clinic-cms C)
+			[]func(*http.ServeMux){carePlanRoutes(carePlanPorts{pool: pool, audit: audit, tx: tx, appointments: appointments, care: appointment.NewFacts(appointmentRepo), roles: roles, consents: consents, prices: prices, accounts: accounts, patients: patients}, log)},                             // treatment plans (clinic-cms TP1)
 			subscriptionRoutes(pool, audit, tx, accounts, clinics, cfg.Seller, log), // membership (clinic-cms D)
 			[]func(*http.ServeMux){signupRoutes(signupPorts{pool: pool, jobs: jobs, counters: auth.NewRedisCounters(rdb), audit: audit, tx: tx,
 				clinics: clinics, accounts: accounts, rateLimitKey: cfg.RateLimitKey, trustedProxies: cfg.TrustedProxies}, log)}, // self-signup (clinic-cms O1)
 			[]func(*http.ServeMux){clinicExportRoutes(clinicExportPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, files: files, patients: patients, appointments: appointments}, log), dataRequestRoutes(dataRequestPorts{pool: pool, jobs: jobs, audit: audit, tx: tx, kek: kek, accounts: accounts, patients: patients, consents: consents, clinics: clinics, files: files}, log)}, // clinic-cms M2, D1 to D3
+			[]func(*http.ServeMux){roomRoutes(sites, accounts, log)}, // rooms and devices (clinic-cms RM1)
+			[]func(*http.ServeMux){labAPI},                           // lab results (clinic-cms LB1)
 			platformRoutes(cfg.Analytics, pool, audit, tx, clinics, accounts, log))...),
-		Streams: append(streams, consultStream, chatStream),
+		Streams: append(streams, consultStream, chatStream, labStream),
 		Timeout: RequestTimeout, Provenances: append(entries.provenances, signatures), // the signatures' last: they audit any id
 	})
 	return &App{Handler: h, pool: pool, redis: rdb, chat: chatHub}, nil

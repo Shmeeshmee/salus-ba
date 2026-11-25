@@ -300,17 +300,13 @@ func (h *Handler) signedIn(w http.ResponseWriter, r *http.Request) (Staff, bool)
 	return st, true
 }
 
-// patient is the signed-in patient; staff are refused on the patient's own routes.
+// patient is the signed-in account on the patient's own routes; the service refuses (and audits) a staff account.
 func (h *Handler) patient(w http.ResponseWriter, r *http.Request) (Patient, bool) {
 	st, ok := h.signedIn(w, r)
 	if !ok {
 		return Patient{}, false
 	}
-	if st.OrganizationID != "" {
-		writeCode(w, http.StatusForbidden, "forbidden")
-		return Patient{}, false
-	}
-	return Patient{AccountID: st.AccountID}, true
+	return Patient{AccountID: st.AccountID, OrganizationID: st.OrganizationID}, true // staff: refused, audited, by the service
 }
 
 // ifMatch is the version an If-Match header names; without one (or one that names none) 428 is written.

@@ -6,9 +6,13 @@ import "context"
 const maxOpenInvites = 50
 
 // inviteLimitReached reports whether the clinic org already has maxOpenInvites open invites, none of them for
-// email: an invite that replaces an open one for the same e-mail adds none. Inside the caller's transaction.
+// email: an invite that replaces an open one for the same e-mail adds none. Inside the caller's transaction, under
+// the clinic's invite lock (U7 of docs/clinic-cms/WAVE6.md), held to its end, so two invites at 49 cannot both pass.
 func (s *Service) inviteLimitReached(ctx context.Context, org, email string) (bool, error) {
 	if err := s.repo.SetOrganization(ctx, org); err != nil {
+		return false, err
+	}
+	if err := s.repo.LockInvites(ctx, org); err != nil {
 		return false, err
 	}
 	open, err := s.repo.OpenInvites(ctx, org, s.clock.Now())

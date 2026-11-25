@@ -19,6 +19,7 @@ import (
 // A patient's confirmation through a reminder's one-time link, their actions and a reschedule in the app, through the
 // api as it is composed (SAL-34). The link is stored as a notifier job would (SAL-33 issues it from its reminders).
 func TestNew_APatientConfirmsThroughTheLinkAndReschedulesInTheApp(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

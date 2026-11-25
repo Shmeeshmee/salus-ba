@@ -130,6 +130,7 @@ type fakeReminders struct {
 	takeErr, noticeErr, linkErr error
 	start                       time.Time
 	mode                        schedule.VisitMode
+	location                    string // an in-person visit's location (U2)
 	links                       []appointment.Link
 	taken, dispatched           int
 	noAccount                   bool // the patient's profile was registered by the clinic, without an account (docs/clinic-cms W1)
@@ -140,7 +141,7 @@ func (f *fakeReminders) notice() appointment.ReminderNotice {
 	if f.noAccount {
 		account = ""
 	}
-	return appointment.ReminderNotice{Start: f.start, ReminderID: reminderID, AppointmentID: remindAppt, OrganizationID: remindClin, PatientID: patientID, AccountID: account, Mode: f.mode}
+	return appointment.ReminderNotice{Start: f.start, ReminderID: reminderID, AppointmentID: remindAppt, OrganizationID: remindClin, PatientID: patientID, AccountID: account, Mode: f.mode, LocationID: f.location}
 }
 
 func (f *fakeReminders) TakeReminder(_ context.Context, _, org, id string) (appointment.ReminderNotice, error) {
@@ -244,7 +245,7 @@ func newReminderFixture(now, start time.Time, rules fakeRules) *reminderFixture 
 		Accounts: &fakeChatAccounts{language: map[string]string{patientAccount: "en"}}, Clinics: sarajevo{}, Questionnaires: f.q, Sender: f.sender, PatientAppURL: "https://app.salus.invalid",
 		Deliveries: f.deliveries, DeliveryJobs: f.jobs, Devices: f.repo, Reminders: f.reminders, Rules: rules,
 		Languages: &fakeChatAccounts{}, Phones: f.phones, Profiles: fakeProfiles{phone: remindPhone},
-		Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{}, Clock: clock.Fixed{T: now},
+		Pusher: f.pusher, SMS: f.sms, Audit: f.audit, Tx: fakeChatTx{}, Clock: clock.Fixed{T: now}, Sites: annexSites,
 	})
 	return f
 }

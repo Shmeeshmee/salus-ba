@@ -140,3 +140,22 @@ func TestQuoteDocument_SaysItIsNoReceipt(t *testing.T) {
 		}
 	}
 }
+
+// A receipt of an in-person visit names where the service was given (docs/clinic-cms/WAVE6.md U2): the visit's
+// location, below the payment; the seller stays the clinic's registered details (the owner, 2026-11-25: the seller's
+// address is a fiscal matter). A reversal keeps it; a receipt without a place prints no line.
+func TestDocument_ThePlaceOfServiceOfAnInPersonVisit(t *testing.T) {
+	inv := sample()
+	inv.PlaceOfService = "Synthetic annex, Synthetic annex 2, 88000 Mostar"
+	got := printed(document(inv, clinic, 0))
+	if !strings.Contains(got, "Payment: Cash\nPlace of service: Synthetic annex, Synthetic annex 2, 88000 Mostar") ||
+		!strings.Contains(got, "Synthetic clinic d.o.o.\nTax ID (JIB): 4200000000000\nPlaceholder street 1, 71000 Sarajevo") {
+		t.Errorf("the receipt lacks the place of service below the payment, or the seller's details:\n%s", got)
+	}
+	if rev := reversal(inv, PaymentCard); rev.PlaceOfService != inv.PlaceOfService {
+		t.Errorf("the reversal's place %q, want the receipt's", rev.PlaceOfService)
+	}
+	if got := printed(document(sample(), clinic, 0)); strings.Contains(got, "Place of service") {
+		t.Errorf("a receipt without a place prints one:\n%s", got)
+	}
+}

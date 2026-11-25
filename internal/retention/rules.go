@@ -13,6 +13,7 @@ const day = 24 * time.Hour
 var clinicalTables = []string{
 	"encounter", "condition", "allergy_intolerance", "medication_statement", "allergy_intolerance_provenance",
 	"medication_statement_provenance", "document_draft", "transcript_segment", "appointment", "appointment_change",
+	"diagnostic_report", "diagnostic_report_result", "care_plan", "care_plan_activity",
 }
 
 // operationalLogTables are the operational logs (when each reminder was due, which channel a notification went
@@ -118,11 +119,12 @@ func tableRules() []Rule {
 			Table: "binary",
 			Basis: "The patient's files attached to a questionnaire answer (GDPR Art. 9(2)(h), with the consent for sharing before care): each row lives exactly as long as its questionnaire response and is deleted with it (foreign key) or with its answer. " +
 				"The files of a chat message (SAL-30; care between visits, Art. 9(2)(h), with the care consent for the clinic's access) are part of the clinical record with their message and kept with it, never deleted while attached (a trigger refuses it, as for the message); a chat upload never attached to a message is deleted 24 h after its upload. " +
-				"A rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext or thumbnail, an upload that never reached its answer or message) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5, docs/plans/chat.md)",
+				"The PDF of a lab result (docs/clinic-cms/WAVE6.md U5; care, Art. 9(2)(h)) is part of the clinical record with its result and kept with it, frozen once the result is released (a trigger refuses its deletion); a PDF replaced before the release is deleted with the upload that replaces it. " +
+				"A rejected row is deleted 24 h after its scan, and a stored object without a row (a deleted file's ciphertext or thumbnail, an upload that never reached its answer or message) 24 h after it was written; needs a legal decision before production (docs/attachments/SPEC.md sections 4 and 5, docs/plans/chat.md, migration 00084)",
 			Keep: day, // after scanned_at of a rejected row; after created_at of a chat upload never attached; after an object's last write
 			Then: ThenDelete,
 		},
-	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules(), dataRequestRules(), dataRequestExportRules())...)
+	}, slices.Concat(consultIntelligenceRules(), termReviewRules(), chatRules(), chatNotificationRules(), historyRules(), clinicStatsRules(), trendsRules(), appointmentRules(), clinicWave3Rules(), clinicWave4Rules(), dataRequestRules(), dataRequestExportRules(), clinicWave6Rules())...)
 }
 
 // clinicStatsRules are the rules of the clinic's own statistics (docs/plans/analytics.md §4, §7): counts with no
@@ -433,5 +435,20 @@ func dataRequestRules() []Rule {
 				"the clinic lifts it (docs/clinic-cms/WAVE5.md, S6, S7)",
 			Then: ThenKeep,
 		},
+	}
+}
+
+// clinicWave6Rules are the rules of the clinic system's wave 6 tables with personal data (docs/clinic-cms/WAVE6.md,
+// 6.0): lab results and treatment plans, part of the clinical record and kept as its policy says.
+func clinicWave6Rules() []Rule {
+	report := "A lab result the clinic attached to a visit, with its values (GDPR Art. 9(2)(h), the clinic's care record): " +
+		"kept with the clinical record, needs a legal decision before production (docs/clinic-cms/WAVE6.md, U5)"
+	plan := "A treatment plan the clinic laid out for its patient, its steps and their visits (GDPR Art. 9(2)(h), " +
+		"Art. 6(1)(b)): kept with the clinical record, needs a legal decision before production (docs/clinic-cms/WAVE6.md, U6)"
+	return []Rule{
+		{Table: "diagnostic_report", Basis: report, Then: ThenKeep},
+		{Table: "diagnostic_report_result", Basis: report, Then: ThenKeep},
+		{Table: "care_plan", Basis: plan, Then: ThenKeep},
+		{Table: "care_plan_activity", Basis: plan, Then: ThenKeep},
 	}
 }

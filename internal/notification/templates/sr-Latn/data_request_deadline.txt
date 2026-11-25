@@ -5,5 +5,5 @@ Rok za odgovor na zahtjev lica na koje se podaci odnose je {{.When}}, za {{if eq
 Vrsta: {{if eq .Kind "access"}}Pristup{{else if eq .Kind "portability"}}Prenosivost{{else if eq .Kind "rectification"}}Ispravka{{else if eq .Kind "restriction"}}Ograničenje{{else if eq .Kind "objection"}}Prigovor{{else if eq .Kind "erasure"}}Brisanje{{end}}
 Zahtjev: {{.Request}}
 
-{{if .Link}}Da biste ga obradili, prijavite se u Salus:
+{{if .NoAdminClinic}}Klinika {{.NoAdminClinic}} nema administratora koji bi odgovorio na zahtjev: zamolite kliniku da ga imenuje prije isteka roka.{{else if .Link}}Da biste ga obradili, prijavite se u Salus:
 {{.Link}}{{else}}Da biste ga obradili: salusctl datarequest show {{.Request}}{{end}}

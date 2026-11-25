@@ -31,7 +31,7 @@ func periods(rules []schedule.Rule, slotMinutes int32, loc *time.Location, now t
 			for m := start; m+int(slotMinutes) <= end; m += int(slotMinutes) {
 				t, ok := localTime(date, m, loc)
 				if ok && t.After(now) && t.Before(until) {
-					out = append(out, Period{Start: t, End: t.Add(length), Mode: ruleMode(r)})
+					out = append(out, Period{Start: t, End: t.Add(length), Mode: ruleMode(r), LocationID: ruleLocation(r), RoomID: r.RoomID})
 				}
 			}
 		}

@@ -81,6 +81,7 @@ func newGroupConsult(t *testing.T) groupConsult {
 // the doctor reads the history, writes and opens a doctor-only side thread the patient never sees; the patient's
 // revocation ends the doctor's access to both. No message text reaches the log.
 func TestNew_ServesTheGroupConsultAcrossClinicsUnderRowLevelSecurity(t *testing.T) {
+	t.Parallel()
 	g := newGroupConsult(t)
 	d, owner, guest, logs, path, guestRole := g.d, g.owner, g.guest, g.logs, g.path, g.guestRole
 	conv := struct{ ID string }{g.convID}
@@ -148,6 +149,7 @@ func TestNew_ServesTheGroupConsultAcrossClinicsUnderRowLevelSecurity(t *testing.
 // patient's record (docs/clinic-cms/WAVE5.md S7), and has it again once the restriction is lifted; the patient keeps
 // it throughout.
 func TestNew_AGuestLosesTheConversationWhileTheTreatingClinicRestrictsTheRecord(t *testing.T) {
+	t.Parallel()
 	g := newGroupConsult(t)
 	d, guest, path := g.d, g.guest, g.path
 	rec := d.practitioner.do(http.MethodPost, path+"/participants",

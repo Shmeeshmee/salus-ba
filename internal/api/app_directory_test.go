@@ -61,6 +61,7 @@ func newDirectory(t *testing.T, h http.Handler, owner *pgxpool.Pool) directory {
 }
 
 func TestNew_ServesTheDirectoryOverFHIRToStaffOfTheClinicAndAuditsIt(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	count := openDB(t, cfg)

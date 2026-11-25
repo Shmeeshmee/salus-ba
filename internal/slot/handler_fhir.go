@@ -42,25 +42,41 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 // Appointment.virtualService means the same.
 const ExtensionVisitMode = "https://salus.invalid/fhir/StructureDefinition/visit-mode"
 
+// ExtensionLocation is the extension of an in-person Slot that names its clinic's Location (docs/clinic-cms/WAVE6.md
+// U2, api/fhir/StructureDefinition-slot-location.json): R4 Slot has no location element; the patient app picks the
+// location before the time from it.
+const ExtensionLocation = "https://salus.invalid/fhir/StructureDefinition/slot-location"
+
+// extension is a Slot's extension: a code (the visit mode) or a reference (the location).
+type extension struct {
+	ValueReference *fhir.Reference `json:"valueReference,omitempty"`
+	URL            string          `json:"url"`
+	ValueCode      string          `json:"valueCode,omitempty"`
+}
+
 // resource is a Slot as FHIR R4 JSON.
 type resource struct {
-	ResourceType string           `json:"resourceType"`
-	ID           string           `json:"id"`
-	Status       Status           `json:"status"`
-	Start        string           `json:"start"`
-	End          string           `json:"end"`
-	Schedule     fhir.Reference   `json:"schedule"`
-	Meta         fhir.Meta        `json:"meta"`
-	Extension    []fhir.Extension `json:"extension"`
+	ResourceType string         `json:"resourceType"`
+	ID           string         `json:"id"`
+	Status       Status         `json:"status"`
+	Start        string         `json:"start"`
+	End          string         `json:"end"`
+	Schedule     fhir.Reference `json:"schedule"`
+	Meta         fhir.Meta      `json:"meta"`
+	Extension    []extension    `json:"extension"`
 }
 
 func toFHIR(s Slot) resource {
-	return resource{
+	res := resource{
 		ResourceType: "Slot", ID: s.ID, Status: s.Status, Meta: fhir.NewMeta(s.VersionID, s.LastUpdated),
-		Extension: []fhir.Extension{{URL: ExtensionVisitMode, ValueCode: string(s.Mode)}},
+		Extension: []extension{{URL: ExtensionVisitMode, ValueCode: string(s.Mode)}},
 		Start:     s.Start.UTC().Format(time.RFC3339), End: s.End.UTC().Format(time.RFC3339),
 		Schedule: fhir.Reference{Reference: "Schedule/" + s.ScheduleID},
 	}
+	if s.LocationID != "" {
+		res.Extension = append(res.Extension, extension{URL: ExtensionLocation, ValueReference: &fhir.Reference{Reference: "Location/" + s.LocationID}})
+	}
+	return res
 }
 
 // search answers Slot?schedule=<id>&status=free&start=lt<instant>[&start=ge<instant>]: the free slots of the

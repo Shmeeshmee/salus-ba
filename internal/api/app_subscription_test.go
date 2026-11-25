@@ -14,6 +14,7 @@ import (
 // Package D of docs/plans/clinic-cms.md through the api: the admin reads the clinic's membership and keeps its billing
 // details; a suspended clinic takes no new booking while care goes on, and takes them again once it has paid.
 func TestNew_ASuspendedClinicTakesNoNewBookingAndCareGoesOn(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))

@@ -216,6 +216,12 @@ func (s *Service) ReadQuote(ctx context.Context, c Caller, id string) (Quote, er
 // MyQuotes lists the calling patient's quotes from every clinic, newest first (GET /me/quotes). ErrForbidden,
 // audited, to staff and to an account without a patient profile.
 func (s *Service) MyQuotes(ctx context.Context, c Caller) ([]Quote, error) {
+	return s.MyQuotesAt(ctx, c, "")
+}
+
+// MyQuotesAt is MyQuotes narrowed to the clinic org when org is set (a clinic-target export, docs/clinic-cms/WAVE6.md
+// PX).
+func (s *Service) MyQuotesAt(ctx context.Context, c Caller, org string) ([]Quote, error) {
 	if c.OrganizationID != "" || c.PatientID == "" {
 		return nil, s.refuse(ctx, c, auditevent.CodeSearchType, ErrForbidden)
 	}
@@ -229,7 +235,9 @@ func (s *Service) MyQuotes(ctx context.Context, c Caller) ([]Quote, error) {
 			return err
 		}
 		for _, q := range list {
-			out = append(out, s.stated(q))
+			if org == "" || q.OrganizationID == org {
+				out = append(out, s.stated(q))
+			}
 		}
 		return s.p.Audit.Record(ctx, quoteEvent(c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess))
 	})

@@ -26,7 +26,7 @@ import (
 )
 
 // secretChatText is a recognisable synthetic message (SAL-29): it must appear in nothing sent, enqueued or logged.
-const secretChatText = "Synthetic secret chat text 5c1d: never outside the record"
+const secretChatText = "Synthetic secret chat text QZX-MARK: never outside the record"
 
 // captureSender keeps the e-mails it is given.
 type captureSender struct {
@@ -172,7 +172,7 @@ func TestChatNotifications_NeverCarryTheMessageText(t *testing.T) {
 	}
 	stored := storedJobs(t, db.owner)
 	everything := strings.Join(stored, "\n") + "\n" + logs.String() + "\n" + m.Subject + m.Body + "\n" + pusher.Sent()[0].Title + pusher.Sent()[0].Body
-	for _, never := range []string{"5c1d", secretChatText, "Ana", "Cy Example", "Example", "whsec_"} {
+	for _, never := range []string{"QZX-MARK", secretChatText, "Ana", "Cy Example", "Example", "whsec_"} {
 		if strings.Contains(everything, never) {
 			t.Errorf("%q is in what was sent, enqueued or logged", never)
 		}

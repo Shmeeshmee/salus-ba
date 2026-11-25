@@ -140,7 +140,11 @@ func (s *Service) sendAppointment(ctx context.Context, e appointmentEmail, id, o
 	if path == "" {
 		path = "/appointments"
 	}
-	data := whereToCome(letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + path, Questionnaire: outstanding}, n.Appointment.Mode, clinic)
+	where, err := s.address(ctx, clinic, n.Appointment.Mode, n.Appointment.LocationID)
+	if err != nil {
+		return fmt.Errorf("notification: %s: %w", e.agent, err)
+	}
+	data := whereToCome(letter{Clinic: clinic.Name, When: when, Link: s.patientAppURL + path, Questionnaire: outstanding}, n.Appointment.Mode, where)
 	msg, err := l.message(to, e.template, data)
 	if err != nil {
 		return fmt.Errorf("notification: %s: %w", e.agent, err)

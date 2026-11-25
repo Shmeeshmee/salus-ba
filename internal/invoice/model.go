@@ -46,6 +46,7 @@ type Invoice struct {
 	SellerLegalName   string // the clinic's, copied at issue
 	SellerTaxID       string
 	SellerAddress     string
+	PlaceOfService    string // an in-person visit's location, name and address, copied at issue; empty for none (U2)
 	PatientID         string // empty unless to a patient
 	CompanyName       string // empty unless to a company
 	CompanyTaxID      string

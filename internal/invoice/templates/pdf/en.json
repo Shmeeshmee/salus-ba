@@ -4,6 +4,7 @@
   "reversal": "Receipt no. {number}, reversal of receipt no. {reversed}",
   "issued": "Issued",
   "payment": "Payment",
+  "place_of_service": "Place of service",
   "buyer": "Buyer",
   "tax_id": "Tax ID (JIB)",
   "items": "Items",

@@ -2352,4 +2352,80 @@ class AppLocalizationsFr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Pour demander la réouverture de votre compte dans un délai de 21 jours, écrivez à $email.';
   }
+
+  @override
+  String get myLabResults => 'Mes résultats d’analyses';
+
+  @override
+  String get labResultsIntro =>
+      'Les résultats d’analyses que votre médecin a examinés et mis à votre disposition. Demandez à votre médecin ce qu’ils signifient pour vous.';
+
+  @override
+  String get noLabResults => 'Vous n’avez pas encore de résultats d’analyses.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Prélèvement du $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Mis à disposition le $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test : $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Valeurs de référence $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normal',
+      'L': 'Bas',
+      'H': 'Élevé',
+      'LL': 'Critiquement bas',
+      'HH': 'Critiquement élevé',
+      'A': 'Anormal',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get myCarePlans => 'Mes plans de traitement';
+
+  @override
+  String get carePlansIntro =>
+      'Les plans de traitement que vos cliniques ont réservés pour vous. Chaque étape d’un plan est un rendez-vous, que vous retrouvez parmi vos rendez-vous.';
+
+  @override
+  String get noCarePlans => 'Vous n’avez pas encore de plan de traitement.';
+
+  @override
+  String get carePlanActive => 'Réservé';
+
+  @override
+  String get carePlanCompleted => 'Terminé';
+
+  @override
+  String get carePlanRevoked => 'Annulé';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Commence le $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Où souhaitez-vous venir ?';
 }

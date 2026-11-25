@@ -62,3 +62,18 @@ func TestForVisit_GivesTheAdminTheVisitsReceiptsAndRefusesAnyoneElse(t *testing.
 		}
 	}
 }
+
+// A receipt of an in-person visit copies where the service was given, the visit's location with its address, at issue
+// (docs/clinic-cms/WAVE6.md U2); the seller stays the clinic's registered details. A video visit's names no place.
+func TestIssue_AnInPersonVisitsReceiptCopiesThePlaceOfService(t *testing.T) {
+	f := newFixture(theSeller)
+	d := draft()
+	d.AppointmentID = inPersonVisit
+	got, err := f.svc.Issue(t.Context(), adminC, d)
+	if err != nil || got.PlaceOfService != "Synthetic annex, Synthetic annex 2, 88000 Mostar" || got.SellerAddress != theSeller.Address {
+		t.Errorf("Issue() = %+v, %v; want the annex as the place of service and the seller's own address", got, err)
+	}
+	if got, err := f.svc.Issue(t.Context(), adminC, draft()); err != nil || got.PlaceOfService != "" {
+		t.Errorf("a video visit's receipt: place %q, %v; want none", got.PlaceOfService, err)
+	}
+}

@@ -18,6 +18,7 @@ import (
 // either is missing the receipt is refused with 409 billing_details_missing; a service that is unknown, inactive or
 // another clinic's is a client error, never a 500.
 func TestNew_AReceiptIsPricedFromTheClinicsListAndNamesItsSeller(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
@@ -94,6 +95,7 @@ func TestNew_AReceiptIsPricedFromTheClinicsListAndNamesItsSeller(t *testing.T) {
 // The receipts' service sees any appointment of the clinic through appointment.Lookup against Postgres (C tested a
 // fake only): the admin issues for a visit the admin is not part of; a visit of another clinic is not found.
 func TestNew_TheReceiptsSeeEveryVisitOfTheClinicAndNoOther(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

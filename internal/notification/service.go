@@ -21,12 +21,18 @@ type Clinics interface {
 	Read(ctx context.Context, c organization.Caller, id string) (organization.Organization, error)
 }
 
+// Sites gives the address of a clinic's location on one line (location.Service), "" for one without an address.
+type Sites interface {
+	Address(ctx context.Context, org, id string) (string, error)
+}
+
 // Ports are what the Service runs on, and the bases of its links.
 type Ports struct {
 	Invites      Invites
 	Appointments Appointments
 	Accounts     Accounts
 	Clinics      Clinics
+	Sites        Sites // an in-person visit's location (docs/clinic-cms/WAVE6.md U2); nil: the clinic's address
 	// Questionnaires is asked by the booking confirmation and the reminder only.
 	Questionnaires Questionnaires
 	Sender         Sender

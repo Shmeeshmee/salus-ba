@@ -38,6 +38,7 @@ func seedSlots(t *testing.T, owner *pgxpool.Pool, roleID string, offsets ...time
 }
 
 func TestNew_APatientBooksAndCancelsAndThePractitionerMarksAppointmentsAudited(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
@@ -194,6 +195,7 @@ func checkAppointmentTrail(t *testing.T, count func(q string, args ...any) int, 
 
 // Two bookings of one slot at once: one is booked, the other refused.
 func TestNew_TwoConcurrentBookingsOfOneSlotGiveOneAppointment(t *testing.T) {
+	t.Parallel()
 	app, cfg := newApp(t)
 	owner := ownerPool(t, cfg)
 	d := newDirectory(t, app.Handler, owner)

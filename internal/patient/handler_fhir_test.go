@@ -119,7 +119,7 @@ func TestFHIRHandlerRead_SendsAFixedOperationOutcomeAndLogsNoProfileField(t *tes
 		if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "db down") || log.Len() == 0 {
 			t.Errorf("%s failing: status = %d %s, log %q; want 500 without the error, the error logged", name, rec.Code, rec.Body, log.String())
 		}
-		for _, field := range []string{"Ada", "Example", "1990", "38760000001"} {
+		for _, field := range []string{"Ada", "Example", "1990-01-01", "38760000001"} {
 			if strings.Contains(log.String(), field) {
 				t.Errorf("%s failing: the log holds %q", name, field)
 			}

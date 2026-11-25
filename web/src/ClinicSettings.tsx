@@ -26,7 +26,7 @@ type Place = components['schemas']['Place']
 // platform is whether the All of Salus view is on (GET /auth/me features): off, the opt-out and the location hint,
 // which speak of that view, are not shown (docs/plans/analytics.md §2a). Below them, the clinic's rescheduling rules
 // (ClinicSettingsReschedule, SAL-34); the reminders section follows (SAL-33). A link leads to the price list
-// (PriceList, docs/plans/clinic-cms.md package B), and a button opens the patient import (PatientImport, M3).
+// (PriceList, docs/plans/clinic-cms.md package B) and one to the locations (Locations, WAVE6.md LC2), and a button opens the patient import (PatientImport, M3).
 export function ClinicSettings({
   api,
   fhir,
@@ -70,8 +70,9 @@ export function ClinicSettings({
       <section className="panel" id="clinic-details">
         <h1>{t('admin.clinicSettings')}</h1>
         <ClinicSettingsNav />
-        <p>
+        <p className="links">
           <Link to="/price-list">{t('prices.title')}</Link>
+          <Link to="/locations">{t('locations.title')}</Link>
         </p>
         {load.name === 'loading' && <p className="muted">{t('common.loading')}</p>}
         {load.name === 'failed' && <Alert message={t('admin.clinicLoadFailed')} />}
@@ -105,7 +106,7 @@ export function ClinicSettings({
           onCancel={() => setImporting(false)}
         />
       ) : (
-        <p>
+        <p className="actions">
           <button
             type="button"
             onClick={() => {

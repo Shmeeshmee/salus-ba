@@ -4,6 +4,7 @@
   "reversal": "Račun br. {number}, storno računa br. {reversed}",
   "issued": "Izdano",
   "payment": "Način plaćanja",
+  "place_of_service": "Mjesto pružanja usluge",
   "buyer": "Kupac",
   "tax_id": "JIB",
   "items": "Stavke",

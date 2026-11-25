@@ -83,8 +83,8 @@ func NewService(p Ports) *Service {
 // target, ErrNotFound for a clinic where they have no record, ErrExportInProgress (nothing filed) while an export of
 // theirs is still queued, ErrForbidden, audited, without an account. Audited as the patient's own request.
 func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error) {
-	if p.AccountID == "" {
-		return Request{}, s.refuse(ctx, p.AccountID, "", auditevent.CodeCreate, auditevent.CodePATRQT)
+	if p.refused() {
+		return Request{}, s.refuse(ctx, p.AccountID, p.OrganizationID, auditevent.CodeCreate, auditevent.CodePATRQT)
 	}
 	if !f.Kind.valid() || !f.valid() {
 		return Request{}, ErrInvalid
@@ -93,12 +93,13 @@ func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error
 	if err != nil {
 		return Request{}, err
 	}
+	var refused bool
 	err = s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.p.Repo.SetAccount(ctx, p.AccountID); err != nil {
 			return err
 		}
 		var err error
-		if r, err = s.p.Repo.Insert(ctx, r); err != nil {
+		if r, refused, err = s.insert(ctx, r, p.AccountID, auditevent.CodePATRQT); err != nil || refused {
 			return err
 		}
 		if err := s.p.Audit.Record(ctx, event(p.AccountID, r, auditevent.CodeCreate, auditevent.CodePATRQT, 1)); err != nil {
@@ -109,10 +110,26 @@ func (s *Service) File(ctx context.Context, p Patient, f Filing) (Request, error
 		}
 		return s.QueueExport(ctx, r) // an access or portability request's export, in this transaction (D2)
 	})
-	if err != nil {
+	switch {
+	case err != nil:
 		return Request{}, wrap("file", err)
+	case refused:
+		return Request{}, ErrNotFound
 	}
 	return r, nil
+}
+
+// insert stores r in the transaction in ctx. A filing row-level security refuses (ErrNotFound: a profile or clinic out
+// of the scope) is audited there as account's refused create, naming nothing it did not reach, and the transaction
+// commits that audit: refused is true and err nil (BG4).
+func (s *Service) insert(ctx context.Context, r Request, account, purpose string) (out Request, refused bool, err error) {
+	out, err = s.p.Repo.Insert(ctx, r)
+	if !errors.Is(err, ErrNotFound) {
+		return out, false, err
+	}
+	e := event(account, Request{OrganizationID: r.OrganizationID}, auditevent.CodeCreate, purpose, 0)
+	e.Outcome = auditevent.OutcomeMinorFailure
+	return Request{}, true, s.p.Audit.Record(ctx, e)
 }
 
 // objected marks r's profile as objecting to the analytics when r is an objection (S9: from the request on), in the
@@ -171,8 +188,8 @@ func (s *Service) hasRecord(ctx context.Context, accountID, patientID, org strin
 
 // Mine returns the patient's requests, newest first, audited as one search. ErrForbidden, audited, without an account.
 func (s *Service) Mine(ctx context.Context, p Patient) ([]Request, error) {
-	if p.AccountID == "" {
-		return nil, s.refuse(ctx, p.AccountID, "", auditevent.CodeSearchType, auditevent.CodePATRQT)
+	if p.refused() {
+		return nil, s.refuse(ctx, p.AccountID, p.OrganizationID, auditevent.CodeSearchType, auditevent.CodePATRQT)
 	}
 	out := []Request{}
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -195,8 +212,8 @@ func (s *Service) Mine(ctx context.Context, p Patient) ([]Request, error) {
 // Withdraw withdraws the patient's open request id at version; it keeps its history. ErrNotFound for none of theirs,
 // ErrClosed once answered or withdrawn, ErrVersionConflict for another version. Audited.
 func (s *Service) Withdraw(ctx context.Context, p Patient, id string, version int) (Request, error) {
-	if p.AccountID == "" {
-		return Request{}, s.refuse(ctx, p.AccountID, "", auditevent.CodeUpdate, auditevent.CodePATRQT)
+	if p.refused() {
+		return Request{}, s.refuse(ctx, p.AccountID, p.OrganizationID, auditevent.CodeUpdate, auditevent.CodePATRQT)
 	}
 	var out Request
 	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
@@ -241,12 +258,13 @@ func (s *Service) FileOnBehalf(ctx context.Context, st Staff, patientID string, 
 		PatientID: patientID, OrganizationID: st.OrganizationID, FiledBy: st.AccountID, Kind: kind,
 		Status: StatusReceived, ReceivedAt: s.p.Clock.Now(), DueAt: due, Version: 1,
 	}
+	var refused bool
 	err = s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.p.Repo.SetOrganization(ctx, st.OrganizationID); err != nil {
 			return err
 		}
 		var err error
-		if r, err = s.p.Repo.Insert(ctx, r); err != nil {
+		if r, refused, err = s.insert(ctx, r, st.AccountID, auditevent.CodeHOPERAT); err != nil || refused {
 			return err
 		}
 		if err := s.p.Audit.Record(ctx, event(st.AccountID, r, auditevent.CodeCreate, auditevent.CodeHOPERAT, 1)); err != nil {
@@ -254,8 +272,11 @@ func (s *Service) FileOnBehalf(ctx context.Context, st Staff, patientID string, 
 		}
 		return s.objected(ctx, r)
 	})
-	if err != nil {
+	switch {
+	case err != nil:
 		return Request{}, wrap("file on behalf", err)
+	case refused:
+		return Request{}, ErrNotFound
 	}
 	return r, nil
 }

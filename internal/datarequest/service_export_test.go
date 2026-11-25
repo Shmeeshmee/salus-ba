@@ -208,9 +208,10 @@ func newExportEnv(t *testing.T) *exportEnv {
 	e := &exportEnv{repo: newFakeExports(), store: &fakeStore{objects: map[string][]byte{}}, jobs: &fakeJobs{},
 		audit: &fakeAudit{}, sources: &fakeSources{record: &clinicexport.OwnExport{
 			Patient: []byte(`{"resourceType":"Bundle","entry":["Patient"]}` + "\n"),
-			Parts: []clinicexport.OwnPart{{OrganizationID: clinicA, Holds: []string{"1 signed document (its PDF in files/)"}, Files: []clinicexport.OwnFile{
-				{Name: "record.json", Body: []byte(`{"resourceType":"Bundle"}` + "\n")}, {Name: "files/dr1.pdf", Body: []byte("%PDF")},
-			}}},
+			Parts: []clinicexport.OwnPart{{OrganizationID: clinicA, Holds: []string{"1 signed document (its PDF in files/)"},
+				Unreadable: []string{"files/b9.png"}, Files: []clinicexport.OwnFile{
+					{Name: "record.json", Body: []byte(`{"resourceType":"Bundle"}` + "\n")}, {Name: "files/dr1.pdf", Body: []byte("%PDF")},
+				}}},
 		}}, clk: &clock.Fixed{T: now}}
 	e.svc = datarequest.NewService(datarequest.Ports{Clock: e.clk, Export: datarequest.ExportPorts{
 		Repo: e.repo, Audit: e.audit, Tx: fakeTx{}, Jobs: e.jobs, Store: e.store, KEK: kek, Records: e.sources, Accounts: e.sources,
@@ -323,6 +324,9 @@ func TestBuildExport_StoresItEncryptedFulfilsAndServesItForSevenDays(t *testing.
 	if m := fs["manifest.txt"]; !strings.Contains(m, part) || !strings.Contains(m, "1 signed document (its PDF in files/)") ||
 		strings.Contains(m, "documents, questionnaire answers") {
 		t.Errorf("manifest.txt %q, want what the clinic's part holds", m)
+	}
+	if m := fs["manifest.txt"]; !strings.Contains(m, "  could not be opened, so not in this archive: files/b9.png\n") {
+		t.Errorf("manifest.txt %q, want the file that could not be opened named", m)
 	}
 	if a := fs["account.json"]; !bytes.Contains([]byte(a), []byte("patient@example.test")) || bytes.Contains([]byte(a), []byte("secret-hash")) {
 		t.Errorf("account.json %q, want the e-mail and no credential", a)

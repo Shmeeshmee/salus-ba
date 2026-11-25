@@ -5,20 +5,25 @@ RETURNING id, created_at;
 
 -- name: SignupByTokenHash :one
 -- FOR UPDATE: two verifications of one token wait for each other; the second sees it verified.
-SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash
+SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash, token_issued_at
 FROM clinic_signup
 WHERE token_hash = @token_hash
 FOR UPDATE;
 
 -- name: SignupByID :one
-SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash
+SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash, token_issued_at
 FROM clinic_signup
 WHERE id = @id;
 
 -- name: SetSignupToken :execrows
--- A new verification link replaces the last one, only while the signup is not verified.
-UPDATE clinic_signup SET token_hash = @token_hash
+-- A new verification link replaces the last one, only while the signup is not verified; its 72 hours start now (U8).
+UPDATE clinic_signup SET token_hash = @token_hash, token_issued_at = @token_issued_at
 WHERE id = @id AND verified_at IS NULL;
+
+-- name: ForgetSignupEmail :exec
+-- U8: once the clinic's admin joined, its verified signup forgets the admin's e-mail.
+UPDATE clinic_signup SET email = NULL
+WHERE organization_id = @organization_id AND verified_at IS NOT NULL AND email IS NOT NULL;
 
 -- name: VerifySignup :execrows
 UPDATE clinic_signup SET verified_at = @verified_at, organization_id = @organization_id
@@ -26,7 +31,7 @@ WHERE id = @id AND verified_at IS NULL;
 
 -- name: ListSignups :many
 -- salusctl signup list (as the owner): the verified signups, the ones waiting for approval first.
-SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash
+SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash, token_issued_at
 FROM clinic_signup
 WHERE verified_at IS NOT NULL
 ORDER BY approved_at IS NOT NULL, verified_at, id;

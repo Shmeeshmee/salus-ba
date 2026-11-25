@@ -6,3 +6,6 @@
 # Build and test output
 /bin/
 coverage.out
+
+# make cover's raw profile (scripts/cover.sh); twice swept into a commit in wave 6
+/coverage.raw

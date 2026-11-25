@@ -7,6 +7,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 // agentEnd names the practitioner's end of the consultation as the agent of the writes it causes (the
@@ -75,7 +76,8 @@ func (s *Service) ownStatus(ctx context.Context, c appointment.Caller, appointme
 // appointment id when the staff caller is the practitioner of its role and joined its room, read in their
 // clinic's scope narrowed to the appointment, whatever the consent; false for anyone else.
 func (s *Service) attended(ctx context.Context, c appointment.Caller, id string) (Session, bool, error) {
-	if c.OrganizationID == "" || c.Admin || c.PractitionerID == "" {
+	// An id that is no UUID names no appointment: it never reaches the scope, which Postgres would refuse (BG4).
+	if c.OrganizationID == "" || c.Admin || c.PractitionerID == "" || !fhir.IsUUID(id) {
 		return Session{}, false, nil
 	}
 	if err := s.Repo.SetClinic(ctx, c.OrganizationID); err != nil {

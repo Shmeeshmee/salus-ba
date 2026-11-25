@@ -2350,4 +2350,80 @@ class AppLocalizationsBs extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Ako želite da Salus ponovo otvori račun u roku od 21 dana, pišite na $email.';
   }
+
+  @override
+  String get myLabResults => 'Moji laboratorijski nalazi';
+
+  @override
+  String get labResultsIntro =>
+      'Laboratorijski nalazi koje je vaš ljekar pregledao i objavio vama. Pitajte svog ljekara šta za vas znače.';
+
+  @override
+  String get noLabResults => 'Još nemate laboratorijskih nalaza.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Uzorak uzet $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Objavljeno $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Referentni raspon $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Uredno',
+      'L': 'Nisko',
+      'H': 'Visoko',
+      'LL': 'Kritično nisko',
+      'HH': 'Kritično visoko',
+      'A': 'Odstupa',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get myCarePlans => 'Moji planovi liječenja';
+
+  @override
+  String get carePlansIntro =>
+      'Planovi liječenja koje su vam klinike zakazale. Svaki korak plana je termin, koji nalazite među svojim terminima.';
+
+  @override
+  String get noCarePlans => 'Još nemate plan liječenja.';
+
+  @override
+  String get carePlanActive => 'Zakazan';
+
+  @override
+  String get carePlanCompleted => 'Završen';
+
+  @override
+  String get carePlanRevoked => 'Otkazan';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Počinje $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Gdje želite doći?';
 }

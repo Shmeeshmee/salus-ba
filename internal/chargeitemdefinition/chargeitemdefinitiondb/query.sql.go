@@ -53,7 +53,7 @@ func (q *Queries) DefinitionTranslations(ctx context.Context, ids []pgtype.UUID)
 const definitions = `-- name: Definitions :many
 
 SELECT id, updated_at, organization_id, name, code, price_minor, currency, duration_minutes, vat_rate_bp, modes, active,
-       version_id
+       version_id, device_id
 FROM charge_item_definition
 WHERE organization_id = $1
 ORDER BY name, id
@@ -72,6 +72,7 @@ type DefinitionsRow struct {
 	Modes           []string
 	Active          bool
 	VersionID       int32
+	DeviceID        pgtype.UUID
 }
 
 // The price list (docs/plans/clinic-cms.md, package B).
@@ -99,6 +100,7 @@ func (q *Queries) Definitions(ctx context.Context, organizationID pgtype.UUID) (
 			&i.Modes,
 			&i.Active,
 			&i.VersionID,
+			&i.DeviceID,
 		); err != nil {
 			return nil, err
 		}
@@ -178,6 +180,22 @@ type InsertDefinitionTranslationParams struct {
 
 func (q *Queries) InsertDefinitionTranslation(ctx context.Context, arg InsertDefinitionTranslationParams) error {
 	_, err := q.db.Exec(ctx, insertDefinitionTranslation, arg.ChargeItemDefinitionID, arg.Language, arg.Name)
+	return err
+}
+
+const setDefinitionDevice = `-- name: SetDefinitionDevice :exec
+UPDATE charge_item_definition SET device_id = $1 WHERE id = $2
+`
+
+type SetDefinitionDeviceParams struct {
+	DeviceID pgtype.UUID
+	ID       pgtype.UUID
+}
+
+// The device a service needs (RM1), set after its insert or update; a device of another clinic violates
+// charge_item_definition_device_fkey.
+func (q *Queries) SetDefinitionDevice(ctx context.Context, arg SetDefinitionDeviceParams) error {
+	_, err := q.db.Exec(ctx, setDefinitionDevice, arg.DeviceID, arg.ID)
 	return err
 }
 

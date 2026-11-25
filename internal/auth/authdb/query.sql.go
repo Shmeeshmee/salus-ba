@@ -464,6 +464,16 @@ func (q *Queries) InviteOrganization(ctx context.Context, tokenHash []byte) (pgt
 	return organization_id, err
 }
 
+const lockInvites = `-- name: LockInvites :exec
+SELECT pg_advisory_xact_lock(hashtextextended('invite:' || $1::text, 0))
+`
+
+// Serialises the invites of one clinic until the transaction ends, so its open-invite limit holds (U7).
+func (q *Queries) LockInvites(ctx context.Context, organizationID string) error {
+	_, err := q.db.Exec(ctx, lockInvites, organizationID)
+	return err
+}
+
 const openInvites = `-- name: OpenInvites :many
 SELECT id, created_at, expires_at, accepted_at, organization_id, invited_by, role, email, given_name, family_name
 FROM invite
@@ -788,6 +798,26 @@ type UseTOTPStepParams struct {
 // A step is used at most once: a code is rejected unless its step is newer than the last used one.
 func (q *Queries) UseTOTPStep(ctx context.Context, arg UseTOTPStepParams) (int64, error) {
 	result, err := q.db.Exec(ctx, useTOTPStep, arg.Step, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const withdrawInvite = `-- name: WithdrawInvite :execrows
+UPDATE invite SET expires_at = $1, token_hash = NULL
+WHERE id = $2 AND accepted_at IS NULL AND expires_at > $1
+`
+
+type WithdrawInviteParams struct {
+	Now pgtype.Timestamptz
+	ID  pgtype.UUID
+}
+
+// The admin withdraws an open invite (U7 of docs/clinic-cms/WAVE6.md): it ends now, and its e-mailed link with it.
+// The row stays until retention removes it, as an expired invite's does.
+func (q *Queries) WithdrawInvite(ctx context.Context, arg WithdrawInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, withdrawInvite, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}

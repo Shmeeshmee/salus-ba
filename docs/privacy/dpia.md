@@ -3062,3 +3062,138 @@ consents.
 | The widened scope shows more than the requests' patients | The policy holds only with the setting on and only for a patient a request targeting the scope's clinic names; tested against another clinic and with the setting off and off again (`TestRequestSubject_TheClinicsScopeWidenedToItsRequests`) |
 | `data_request_names_patient` as a probe | It answers one yes or no about two opaque ids to the server's own role (as 00076 and 00078) |
 | A restricted patient's name on the admin's queue | Intended (S7, owner 2026-11-25): listed in `restrictedOpenings` of the restriction route test; every other route still returns nothing of a restricted patient |
+
+### Package 6.0: the wave 6 contract, locations, lab results and treatment plans (migration 00080, docs/clinic-cms/WAVE6.md)
+
+**Processing added.** None yet: 6.0 adds the tables, columns, policies and routes; the services refuse until LC1, RM1,
+LB1 and TP1 fill them, and each of those adds its own block here. What the contract prepares:
+
+- **Locations, rooms and devices** (`location`, `room`, `device`, U1, U3, U4): a clinic's sites (name, address, phone,
+  time zone) with their rooms and devices. Not personal data. The visit carries its location, room and device
+  (`appointment.location_id`, `room_id`, `device_id`): that a patient's in-person visit is at one site of the clinic adds
+  nothing to what the visit already says (whom they consult, when). A patient's scope sees the location of their own
+  visits and the directory the active locations of listed clinics; rooms and devices are seen in the clinic's scope
+  only.
+- **Lab results** (`diagnostic_report`, `diagnostic_report_result`, U5): health data (Art. 9(2)(h), the clinic's care
+  record), attached by the clinic's admin or practitioners (never a receptionist: no clinical content) for a visit's
+  patient with the clinic's active care consent. The patient sees a result only once a practitioner of the clinic
+  released it (row-level security: `status = 'final'`), and a released result never changes (a trigger). Values are
+  typed in as the lab prints them (test, value with its UCUM unit or a text value, reference range, a
+  v3-ObservationInterpretation flag); no direct interface to a laboratory, so no new processor. The lab's PDF is a
+  Binary, encrypted and scanned as every attachment; where it is stored is LB1's. Every read and write will be audited
+  (LB1). Retention: with the clinical record (kept, pending the lawyer).
+- **Treatment plans** (`care_plan`, `care_plan_activity`, U6): health data (which care is planned), written for a
+  patient with the clinic's active care consent by its own staff, from its own price list, with a quote of the same
+  patient (X1). A draft is the clinic's; the patient sees a plan once booked. Retention: with the clinical record.
+- **Minimisation.** No new field about the patient: the result's values and the plan's steps are the care itself.
+  Nothing of a result or a plan goes into a log line, a metric, a job argument (opaque ids only) or an e-mail.
+
+### Package PX: privacy follow-ups (no migration, docs/clinic-cms/WAVE6.md PX)
+
+**Processing changed.** Four follow-ups of the data subject rights (wave 5), no new personal-data field.
+
+- **The export's receipts and quotes as PDFs.** Each part of the patient's export now holds the PDF of each receipt and
+  quote (`files/<Invoice id>.pdf`, `files/<quote id>.pdf`), rendered by `invoice.PDF` and `invoice.QuotePDF` as the
+  patient, each audited as a read with the request's id, the same documents the app downloads. The worker's invoice
+  service reads the clinic's letterhead (`organization.Clinic`: name, time zone, language; no personal data).
+- **A clinic target reads that clinic only.** `consent.MineAt`, `invoice.MineAt` and `invoice.MyQuotesAt` narrow the
+  patient's own consents, receipts and quotes to the target clinic in the service, so the other clinics' rows are
+  neither returned nor (for consents, audited one by one) audited as read for that export.
+- **A file the build cannot open** (a rotated key, a missing object) is left out and named in `manifest.txt` by its
+  archive path (an opaque id), and the rest of the archive is built: the patient gets their other data and knows what
+  is missing, instead of a failed export. Nothing about the file but its path is written.
+- **The closure's password** is limited as the login is: 5 wrong passwords per account in 15 minutes, then 429
+  `rate_limited` without checking it. The counter is a Redis key named by the HMAC of the account's opaque id
+  (`close:account:`), with the window as its TTL.
+- **A clinic with no admin.** A deadline warning (D5) for a clinic target whose clinic has no admin goes to the operator
+  instead, naming the clinic and the request by their opaque ids, the kind, the due date and the days left: never the
+  patient. Without an operator address nobody is warned, and the worker logs the ids, as before.
+
+### Package LB1: lab results on the server (no migration, docs/clinic-cms/WAVE6.md U5)
+
+**Processing added.** The lab results 6.0 prepared are now written and read (`internal/diagnosticreport`), the typed-in
+values only; the lab's PDF waits for its storage (see "Left" below), so no file of a result is stored yet.
+
+- **Who.** The clinic's admin and the visit's practitioner attach and change a visit's results, with the patient's
+  active care consent to attach (`access.Appointment` at full; the database's restrictive policy is the backstop); after
+  a revocation they still read and change what was written for a past visit (the care record, Art. 9(2)(h)). Only a
+  practitioner releases a result, also after a revocation. A receptionist is refused every route, audited. The patient
+  reads their own results once released, in the app and in their export.
+- **Audit.** Every attach, change, release and read writes an `AuditEvent` naming `DiagnosticReport/<id>` in the same
+  transaction (purpose TREAT for staff, PATRQT for the patient; a list audits each result, or one event when there is
+  none); every refusal (forbidden, not found, released, version conflict) an event of its own that commits although
+  the call fails.
+- **The patient's export.** Each clinic's `record.json` now holds the patient's released results as FHIR
+  DiagnosticReports with their values as contained Observations (LOINC and UCUM codings where typed in), read through
+  `diagnosticreport.MineAt` as the patient and narrowed to the target clinic before anything is audited; the manifest
+  counts them. Unreleased results are in no export.
+- **Minimisation.** No new field. The API's error codes and the logs carry ids and codes only; no value, title or
+  range of a result reaches a log line, a metric or a job argument.
+- **Left.** The record hand-over (`GET /clinic/patients/{id}/record`) still leaves out every clinical item, results
+  included, as the wave 4 integration decided until the owner and a lawyer say who may hand them over. The PDF (its
+  storage, scan and download) is a follow-up.
+
+### Package TP1: treatment plans on the server (no migration, docs/clinic-cms/WAVE6.md U6)
+
+- **Who.** The clinic's admin and its practitioners write, book, cancel and read a patient's plans; a receptionist is
+  refused every plan route (no clinical content). A plan is written and changed only for a patient with the clinic's
+  active, unrestricted care consent; its cancellation goes on after a revocation. The patient reads their booked plans
+  (`GET /me/care-plans`), never a draft.
+- **Audit.** Every write, booking, cancellation and read writes an `AuditEvent` (`CarePlan/<id>`) in its transaction;
+  a list audits each plan it shows; a refusal is audited after the rollback, with no id. Each visit a booking makes or a
+  cancellation cancels is audited as the appointment's, in the same transaction.
+- **Minimisation.** No new field: a plan's visits are ordinary appointments (their e-mails, reminders and statistics as
+  for a staff booking); nothing of a plan goes into a log line, a metric or a job argument.
+- **Wave 6 follow-ups (no new column; migration 00085 adds triggers only).** Who: a practitioner works only with the
+  plans of a patient they have or had a visit with (any status, the care relationship, `access.CarePlan`), the admin
+  with any patient of the clinic; anyone else, and a patient the clinic does not have, is answered 404 and audited; a
+  restricted record refuses every staff role, as the other care-record rules. The response names each step's service
+  (the price list's name, not personal data) and its visit's start (the patient's own visit, which staff and the patient
+  already see). The patient's own export (the data request's archive, `record.json` of each clinic) now holds their booked plans
+  as FHIR `CarePlan`s (never a draft), read through the careplan service as the patient and audited there, narrowed to
+  the target clinic in a clinic-target export; nothing else of a plan leaves the system. The database refuses a status
+  change backwards and deleting or re-pointing a booked plan's steps (00085).
+
+### Package BG4: backend hardening, second pass (migration 00083, numbered 00085 in its worktree, docs/clinic-cms/WAVE6.md U8)
+
+- **Less kept on a signup (U8).** A verified signup forgets the admin's e-mail (`clinic_signup.email` becomes null) in
+  the transaction in which the clinic's admin accepts their invite: from then on the account holds the address, so the
+  signup row no longer duplicates it. The migration does the same for the clinics whose admin already joined. An
+  unverified signup keeps its e-mail (a check constraint): its link is still to be sent, and the row is deleted by its
+  retention rule as before. `salusctl signup list` prints opaque ids and dates only, so the operator loses nothing.
+- **The signup link's 72 hours** count from the latest verification e-mail (`clinic_signup.token_issued_at`, a time, not
+  personal data), so a delayed e-mail job does not send a link that is already nearly dead.
+- **Refusals audited.** A data request that row-level security refuses (a profile or clinic outside the filer's scope)
+  and a clinic update the foreign keys or the signup trigger refuse now roll back to a savepoint and are audited as
+  refused in the same transaction, instead of aborting it without an audit row. The refusal names no entity it did not
+  reach.
+- **The erasure's answer** writes its own `data_request` AuditEvent (the erasure job as the agent, about the patient),
+  beside the account, device and restriction events it wrote before.
+
+### Lab result PDFs (migration 00084, docs/clinic-cms/WAVE6.md U5, the follow-up of LB1)
+
+**Processing added.** The lab's PDF of a result is stored, a third kind of parent of `binary` beside the questionnaire
+answers and the chat (`binary.diagnostic_report_id`; no new table).
+
+- **What is stored.** One PDF per result (a new upload before the release replaces the one there: its row is deleted in
+  the upload's transaction, its object after it), with its file name as uploaded (personal data, never logged), its
+  size, SHA-1 and detected type. The type is read from the bytes and only a PDF is taken, at most 20 MB.
+- **Encryption and scan.** As every Binary (ADR 0010, docs/attachments): envelope encryption under a data key of its
+  own, wrapped by the key-encryption key; streamed sealed into the EU object store outside any transaction; quarantined
+  until the ClamAV scan says it is clean, and served to nobody before. A flagged file is rejected, its key cleared and
+  its object deleted. The scan job's arguments carry opaque ids only (the file, the report, the clinic).
+- **Who reads it.** The clinic's admin and the visit's practitioner (the result's own read rule); the patient only once
+  the result is released, in the app and in their own export (`files/<DiagnosticReport id>.pdf`, a file the export
+  cannot open named in its manifest). Row-level security holds the same: the clinic's scope sees its results' files,
+  the patient's sees a file only of their released result. A receptionist and another clinic are refused, audited. A
+  preliminary result and its PDF reach the patient by no route, the export included (a test on the real stack proves
+  it). The clinic's record hand-over and its data export carry no lab result, and the export's manifest says so.
+- **Who writes it.** The clinic's admin or the visit's practitioner, on a preliminary result, at its version (the
+  result moves to its next version). Once released the file is frozen: row-level security and a trigger (for every role,
+  the owner too) refuse adding or deleting one; only the scan may still mark it.
+- **Audit.** Every upload and read of the PDF writes an `AuditEvent` naming `DiagnosticReport/<id>` in its transaction,
+  every refusal (forbidden, not found, released, version conflict, not a PDF, too large, a body short of its length) one
+  of its own; the scan job audits its result on `Binary/<id>`.
+- **Retention.** Kept with the result, as the clinical record (pending the lawyer, as the result's own rule); a replaced
+  file is deleted at once, a rejected one 24 h after its scan, an object left without a row 24 h after it was written
+  (binary's purger).

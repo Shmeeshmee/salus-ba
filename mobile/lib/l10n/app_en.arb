@@ -3058,5 +3058,117 @@
         "example": "support@example.test"
       }
     }
+  },
+  "myLabResults": "My lab results",
+  "@myLabResults": {
+    "description": "Clinic system, package LB2: home button and screen title of the patient's released lab results."
+  },
+  "labResultsIntro": "Lab results your practitioner reviewed and released to you. Ask your practitioner what they mean for you.",
+  "@labResultsIntro": {
+    "description": "Clinic system, package LB2: above the patient's lab results; only results a practitioner released are shown. Draft, waiting for the owner."
+  },
+  "noLabResults": "You have no lab results yet.",
+  "@noLabResults": {
+    "description": "Clinic system, package LB2: the patient has no released lab results."
+  },
+  "labResultSampleDate": "Sample taken on {date}",
+  "@labResultSampleDate": {
+    "description": "Clinic system, package LB2: the day the lab's sample was taken; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "labResultReleasedOn": "Released on {date}",
+  "@labResultReleasedOn": {
+    "description": "Clinic system, package LB2: the day a practitioner released the result to the patient; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "labResultValue": "{test}: {value}",
+  "@labResultValue": {
+    "description": "Clinic system, package LB2: one typed-in value; the test's name as the lab prints it, and the value (a number with its UCUM unit, or a text).",
+    "placeholders": {
+      "test": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "labResultRange": "Reference range {range}",
+  "@labResultRange": {
+    "description": "Clinic system, package LB2: the value's reference range as the lab printed it.",
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "labResultFlag": "{flag, select, N{Normal} L{Low} H{High} LL{Critically low} HH{Critically high} A{Abnormal} other{}}",
+  "@labResultFlag": {
+    "description": "Clinic system, package LB2: the lab's flag on a value (v3-ObservationInterpretation N, L, H, LL, HH, A).",
+    "placeholders": {
+      "flag": {
+        "type": "String"
+      }
+    }
+  },
+  "myCarePlans": "My treatment plans",
+  "@myCarePlans": {
+    "description": "Clinic system, package TP2: home button and screen title of the patient's treatment plans."
+  },
+  "carePlansIntro": "Treatment plans your clinics booked for you. Each step of a plan is a visit, which you find among your visits.",
+  "@carePlansIntro": {
+    "description": "Clinic system, package TP2: above the patient's treatment plans; each step is one of their visits."
+  },
+  "noCarePlans": "You have no treatment plans yet.",
+  "@noCarePlans": {
+    "description": "Clinic system, package TP2: the patient has no treatment plans."
+  },
+  "carePlanActive": "Booked",
+  "@carePlanActive": {
+    "description": "Clinic system, package TP2: a treatment plan's state: its visits are booked (FHIR CarePlan active)."
+  },
+  "carePlanCompleted": "Completed",
+  "@carePlanCompleted": {
+    "description": "Clinic system, package TP2: a treatment plan's state: every visit is past."
+  },
+  "carePlanRevoked": "Cancelled",
+  "@carePlanRevoked": {
+    "description": "Clinic system, package TP2: a treatment plan's state: the clinic cancelled it."
+  },
+  "carePlanStartsOn": "Starts on {date}",
+  "@carePlanStartsOn": {
+    "description": "Clinic system, package TP2: a plan's first day; a long date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "carePlanStep": "{n}. {date} · {mode}",
+  "@carePlanStep": {
+    "description": "Clinic system, package TP2: one step of a plan: its number, the long date of its visit and the visit type (visitModeInPerson or visitModeVideo).",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "date": {
+        "type": "String"
+      },
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "locationQuestion": "Where would you like to come?",
+  "@locationQuestion": {
+    "description": "Clinic system, package LC3: above the choice between the clinic's locations for a visit at the clinic, before the time is picked. Draft, waiting for the owner."
   }
 }

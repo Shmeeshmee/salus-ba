@@ -316,10 +316,17 @@ List<Map<String, Object?>> visitMode(String code) => [
   {'url': 'https://salus.invalid/fhir/StructureDefinition/visit-mode', 'valueCode': code},
 ];
 
-Map<String, Object?> slot(String id, String start, String end, {String mode = 'video'}) => {
+/// The slot's location (docs/clinic-cms/WAVE6.md U2), as this app reads it until LC1's FHIR form is checked: an
+/// extension with a reference to the Location.
+Map<String, Object?> slotLocation(String id) => {
+  'url': 'https://salus.invalid/fhir/StructureDefinition/slot-location',
+  'valueReference': {'reference': 'Location/$id'},
+};
+
+Map<String, Object?> slot(String id, String start, String end, {String mode = 'video', String? location}) => {
   'resourceType': 'Slot',
   'id': id,
-  'extension': visitMode(mode),
+  'extension': [...visitMode(mode), if (location != null) slotLocation(location)],
   'status': 'free',
   'start': start,
   'end': end,
@@ -336,6 +343,7 @@ Map<String, Object?> appointment(
   String practitioner = practitionerId,
   String patientStatus = 'accepted',
   String mode = 'video',
+  String? location,
 }) => {
   'resourceType': 'Appointment',
   'id': id,
@@ -358,7 +366,25 @@ Map<String, Object?> appointment(
       'status': 'accepted',
       'actor': {'reference': 'PractitionerRole/$role'},
     },
+    if (location != null)
+      {
+        'status': 'accepted',
+        'actor': {'reference': 'Location/$location'},
+      },
   ],
+};
+
+/// A site of the synthetic clinic (docs/clinic-cms/WAVE6.md U1), as `GET /organizations/{id}/locations` gives it.
+/// The names and addresses are invented.
+Map<String, Object?> location(String id, String name, {String? addressLine, String? postalCode}) => {
+  'id': id,
+  'organizationId': clinicId,
+  'name': name,
+  'addressLine': ?addressLine,
+  'postalCode': ?postalCode,
+  'timeZone': zone,
+  'active': true,
+  'versionId': 1,
 };
 
 /// A synthetic profile: invented name, a phone number from the fake +387 60 000 0xxx range.

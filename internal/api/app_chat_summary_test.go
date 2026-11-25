@@ -11,6 +11,7 @@ import (
 // The AI summary through api.New (SAL-31): for the practitioner of a long conversation only, on the fake, in the
 // asked language; the patient is refused, and a short conversation has nothing to summarise.
 func TestNew_SummarisesALongChatForThePractitioner(t *testing.T) {
+	t.Parallel()
 	c := newConsultationApp(t)
 	c.book(t, wallNow().Add(-48*time.Hour))
 	rec := c.d.patient.do(http.MethodPost, "/conversations", `{"organization_id":"`+inviteClinic+`","practitioner_role_id":"`+c.d.roleID+`"}`)

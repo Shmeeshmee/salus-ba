@@ -23,6 +23,7 @@ const templateBody = `{"title":"Placeholder findings report","language":"bs","st
 // missing), the draft is pushed on the encounter's stream, they sign it, and its Composition, DocumentReference,
 // Provenance and PDF are read back; nobody else drafts, and every write and read is audited.
 func TestNew_DraftsSignsAndServesTheEncountersDocuments(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	created := s.d.practitioner.do(http.MethodPost, "/document-templates", templateBody)
 	var tpl struct{ ID string }

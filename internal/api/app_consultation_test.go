@@ -57,6 +57,7 @@ func livekitSignature(t *testing.T, lk config.LiveKit, body []byte) string {
 // The api serves LiveKit's webhook without a session: an unsigned one is 401, a signed one for a room we do
 // not know is 200 with no effect, and the log holds no room or identity from the body.
 func TestNew_ServesTheLiveKitWebhook(t *testing.T) {
+	t.Parallel()
 	var log bytes.Buffer
 	lk := testLiveKit()
 	app, err := api.New(t.Context(), testConfig(t), lk, testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewJSONHandler(&log, nil)))

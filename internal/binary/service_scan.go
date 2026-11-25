@@ -32,8 +32,8 @@ type ScanResult struct {
 }
 
 // Scan is the binary_scan job, enqueued with every upload (docs/attachments/SPEC.md §2 "Scan"). In the job
-// scope of the file's response (a chat file's conversation) it reads the quarantined file, then, outside any
-// transaction, streams its object through the envelope decrypter into clamd. A clean file becomes clean and its
+// scope of the file's response (a chat file's conversation, a lab PDF's report) it reads the quarantined file, then,
+// outside any transaction, streams its object through the envelope decrypter into clamd. A clean file becomes clean and its
 // attachment no longer pending; a clean chat image gets its thumbnail, or none when making it fails (ThumbnailErr,
 // for the log: a preview never fails the scan); a file clamd flags becomes rejected, its wrapped key cleared and its
 // attachment removed, and its object is deleted after the commit. Each result is
@@ -93,6 +93,7 @@ func (s *Service) markScanned(ctx context.Context, job ScanArgs, b Binary, statu
 			e.interaction = auditevent.CodeDelete
 		}
 		switch {
+		case b.DiagnosticReportID != "": // a report lists its PDF from its row
 		case b.ConversationID != "" && thumb.ID != "":
 			_, err = s.Repo.SetThumbnail(ctx, b.ID, thumb, s.Clock.Now())
 		case b.ConversationID != "": // a chat file's message lists its files from their rows
@@ -129,8 +130,11 @@ func (s *Service) Unscannable(ctx context.Context, job ScanArgs) (bool, error) {
 	return true, nil
 }
 
-// jobScope scopes the transaction in ctx to the job's file: its response's, or its conversation's.
+// jobScope scopes the transaction in ctx to the job's file: its response's, its conversation's, or its report's.
 func (s *Service) jobScope(ctx context.Context, job ScanArgs) error {
+	if job.DiagnosticReportID != "" {
+		return s.Repo.SetReportJob(ctx, job.DiagnosticReportID, job.OrganizationID)
+	}
 	if job.ConversationID != "" {
 		return s.Repo.SetChatJob(ctx, job.ConversationID, job.OrganizationID)
 	}

@@ -14,8 +14,10 @@ type Repository interface {
 	// ByTokenHash returns the signup whose verification token has the SHA-256 hash, locked for the transaction in ctx,
 	// or ErrNotFound.
 	ByTokenHash(ctx context.Context, hash []byte) (Signup, error)
-	// SetToken replaces the token hash of the unverified signup id; false when it is verified or unknown.
-	SetToken(ctx context.Context, id string, tokenHash []byte) (bool, error)
+	// SetToken replaces the token hash of the unverified signup id, issued at at; false when it is verified or unknown.
+	SetToken(ctx context.Context, id string, tokenHash []byte, at time.Time) (bool, error)
+	// ForgetEmail removes the admin's e-mail from the verified signup of the clinic organizationID, if any.
+	ForgetEmail(ctx context.Context, organizationID string) error
 	// MarkVerified records that the unverified signup id was verified at at and created its clinic; false when it was
 	// verified already.
 	MarkVerified(ctx context.Context, id, organizationID string, at time.Time) (bool, error)

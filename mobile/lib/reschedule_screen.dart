@@ -57,10 +57,15 @@ class _RescheduleScreenState extends LoadingState<RescheduleScreen, List<Slot>?>
     final next = DateTime.utc(_day.year, _day.month, _day.day + 1);
     final earliest = widget.now().add(_notBefore);
     final slots = await widget.booking.fhir.freeSlots(schedule, _zone.startOf(_day), _zone.startOf(next));
-    // The appointment keeps its visit mode (ADR 0016): only times of that mode are offered.
+    // The appointment keeps its visit mode (ADR 0016) and, at the clinic, its location (WAVE6.md U2): only times of
+    // that mode and location are offered.
+    final at = widget.appointment.locationId;
     return [
       for (final s in slots)
-        if (!s.start.isBefore(earliest) && s.inPerson == widget.appointment.inPerson) s,
+        if (!s.start.isBefore(earliest) &&
+            s.inPerson == widget.appointment.inPerson &&
+            (at == null || s.locationId == at))
+          s,
     ];
   }
 

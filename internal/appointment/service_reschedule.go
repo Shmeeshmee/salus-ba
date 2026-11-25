@@ -33,7 +33,7 @@ func (s *Service) settingsFor(ctx context.Context, org, patientID string) (organ
 // already, or the exclusion constraint aborted it) and is audited in a transaction of its own.
 var rescheduleRefusals = []error{
 	ErrNotFound, ErrForbidden, ErrClosed, ErrConsentRequired, ErrSlotUnavailable,
-	ErrNotReschedulable, ErrRescheduleWindowClosed, ErrRescheduleLimit,
+	ErrNotReschedulable, ErrRescheduleWindowClosed, ErrRescheduleLimit, ErrResourceBusy,
 }
 
 // rescheduleUntil is the moment a's rescheduling closes: notice hours before the start, and never later than the

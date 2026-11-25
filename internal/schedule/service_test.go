@@ -230,6 +230,7 @@ type fixture struct {
 	audit   *fakeAuditor
 	roles   *fakeRoles
 	clinics *fakeClinics
+	sites   *fakeSites // LC1
 	svc     *schedule.Service
 }
 
@@ -246,9 +247,11 @@ func newFixture() fixture {
 		audit:   &fakeAuditor{},
 		roles:   &fakeRoles{log: l},
 		clinics: &fakeClinics{log: l},
+		sites:   newFakeSites(),
 	}
 	f.svc = schedule.NewService(schedule.Ports{
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}, Roles: f.roles, Jobs: f.jobs, Clinics: f.clinics,
+		Sites: f.sites,
 	})
 	return f
 }

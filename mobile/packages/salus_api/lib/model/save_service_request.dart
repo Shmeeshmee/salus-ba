@@ -22,6 +22,7 @@ class SaveServiceRequest {
     this.modes = const {},
     required this.active,
     this.translations = const [],
+    this.deviceId,
   });
 
   String name;
@@ -65,6 +66,15 @@ class SaveServiceRequest {
 
   List<ServiceTranslation> translations;
 
+  /// A device of the clinic in use a visit for it needs (x-salus-package cms-rm1): a booking when it is busy is refused with `resource_busy`; an unknown device, another clinic's or one not in use is `invalid_service`. Omitted for none: a change without it clears the device.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? deviceId;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -77,7 +87,8 @@ class SaveServiceRequest {
           other.vatRateBp == vatRateBp &&
           _deepEquality.equals(other.modes, modes) &&
           other.active == active &&
-          _deepEquality.equals(other.translations, translations);
+          _deepEquality.equals(other.translations, translations) &&
+          other.deviceId == deviceId;
 
   @override
   int get hashCode =>
@@ -90,11 +101,12 @@ class SaveServiceRequest {
       (vatRateBp == null ? 0 : vatRateBp!.hashCode) +
       (modes.hashCode) +
       (active.hashCode) +
-      (translations.hashCode);
+      (translations.hashCode) +
+      (deviceId == null ? 0 : deviceId!.hashCode);
 
   @override
   String toString() =>
-      'SaveServiceRequest[name=$name, code=$code, priceMinor=$priceMinor, currency=$currency, durationMinutes=$durationMinutes, vatRateBp=$vatRateBp, modes=$modes, active=$active, translations=$translations]';
+      'SaveServiceRequest[name=$name, code=$code, priceMinor=$priceMinor, currency=$currency, durationMinutes=$durationMinutes, vatRateBp=$vatRateBp, modes=$modes, active=$active, translations=$translations, deviceId=$deviceId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -119,6 +131,11 @@ class SaveServiceRequest {
     json[r'modes'] = this.modes.toList(growable: false);
     json[r'active'] = this.active;
     json[r'translations'] = this.translations;
+    if (this.deviceId != null) {
+      json[r'deviceId'] = this.deviceId;
+    } else {
+      json[r'deviceId'] = null;
+    }
     return json;
   }
 
@@ -166,6 +183,7 @@ class SaveServiceRequest {
         modes: VisitMode.listFromJson(json[r'modes']).toSet(),
         active: mapValueOfType<bool>(json, r'active')!,
         translations: ServiceTranslation.listFromJson(json[r'translations']),
+        deviceId: mapValueOfType<String>(json, r'deviceId'),
       );
     }
     return null;

@@ -17,7 +17,9 @@ tables:
   appointment_change: {owner: appointment, personal_data: true} # an appointment's history (00054, SAL-32)
   appointment_reminder: {owner: appointment, personal_data: true} # when each reminder is due and whether it went (00055, SAL-33)
   audit_event: {owner: auditevent, personal_data: true}
-  binary: {owner: binary, personal_data: true}
+  binary: {owner: binary, personal_data: true} # questionnaire answers', chat and lab result files (00027, 00045, 00084)
+  care_plan: {owner: careplan, personal_data: true} # a patient's treatment plan (00080, 6.0)
+  care_plan_activity: {owner: careplan, personal_data: true} # a treatment plan's steps and their visits (00080, 6.0)
   charge_item_definition: {owner: chargeitemdefinition, personal_data: false} # the clinic's price list (00059)
   charge_item_definition_translation: {owner: chargeitemdefinition, personal_data: false} # a service's name in a patient's language (00059)
   chat_consent: {owner: consent, personal_data: true}
@@ -36,9 +38,12 @@ tables:
   data_request: {owner: datarequest, personal_data: true} # a data subject's request, its target and answer (00071, 5.0)
   data_request_change: {owner: datarequest, personal_data: true} # a request's append-only status history (00071, 5.0)
   data_request_export: {owner: datarequest, personal_data: true} # a patient's own export: the key of its archive of their data (00074, D2)
+  device: {owner: location, personal_data: false} # a device of a location a service may require (00080, 6.0)
   diagnosis_group: {owner: terminology, personal_data: false}
   diagnosis_group_name: {owner: terminology, personal_data: false}
   diagnosis_group_range: {owner: terminology, personal_data: false}
+  diagnostic_report: {owner: diagnosticreport, personal_data: true} # a lab result on a visit (00080, 6.0)
+  diagnostic_report_result: {owner: diagnosticreport, personal_data: true} # a lab result's typed-in values (00080, 6.0)
   document_draft: {owner: composition, personal_data: true}
   document_template: {owner: composition, personal_data: false}
   document_template_translation: {owner: composition, personal_data: false}
@@ -49,6 +54,7 @@ tables:
   invoice: {owner: invoice, personal_data: true} # a receipt to a patient: who paid for what, at which clinic (00059)
   invoice_line: {owner: invoice, personal_data: true} # a receipt's lines (00059)
   invoice_sequence: {owner: invoice, personal_data: false} # the clinic's receipt numbers (00059)
+  location: {owner: location, personal_data: false} # a clinic's site: name, address, phone, time zone (00080, 6.0)
   medication_statement: {owner: medicationstatement, personal_data: true} # 00043, SAL-41
   medication_statement_provenance: {owner: medicationstatement, personal_data: true} # 00053, SAL-41
   notification_delivery: {owner: notification, personal_data: true} # which channel a reminder or offer went through (00055, SAL-33)
@@ -69,6 +75,7 @@ tables:
   questionnaire_translation: {owner: questionnaire, personal_data: false}
   quote: {owner: invoice, personal_data: true} # a treatment quote to a patient: what care at what price (00065, X1)
   quote_line: {owner: invoice, personal_data: true} # a quote's lines (00065, X1)
+  room: {owner: location, personal_data: false} # a room of a location (00080, 6.0)
   schedule: {owner: schedule, personal_data: true}
   session: {owner: auth, personal_data: true}
   slot: {owner: slot, personal_data: true}

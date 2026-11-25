@@ -3,6 +3,7 @@ import type { ApiClient } from './api/client'
 import type { FhirClient } from './api/fhir'
 import { attempt } from './api/result'
 import { AppointmentChanges } from './AppointmentChanges'
+import { CarePlans } from './CarePlans'
 import { PatientHistory } from './History'
 import { useT } from './i18n/useT'
 import { useLoad } from './load'
@@ -43,16 +44,20 @@ type Props = {
   receipts: boolean // issuing a receipt, for the admin and the visit's practitioner
   quotes: boolean // writing and showing quotes, as receipts
   admin: boolean // the clinic's admin reads the visit's receipts
+  plans?: boolean // the patient's treatment plans (TP2), for the admin and the visit's practitioner
+  practitionerId?: string // the signed-in practitioner, whose times a plan's booking offers first
 }
 
 // VisitActions are the visit page's secondary actions in one row of one style, each opening below it: the patient's
-// history, the visit's changes, its receipt and its quotes (docs/clinic-cms/walk/wave3, finding 4). Opening the page
+// history, the visit's changes, its receipt, its quotes and the patient's treatment plans (docs/clinic-cms/walk/wave3,
+// finding 4; TP2). Opening the page
 // reads (and audits) none of them but the admin's list of the visit's receipts.
-export function VisitActions({ api, fhir, appointmentId, patientId, serviceId, zone, history, receipts, quotes, admin }: Props) {
+export function VisitActions({ api, fhir, appointmentId, patientId, serviceId, zone, history, receipts, quotes, admin, plans = false, practitionerId }: Props) {
   const t = useT()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
   const [quotesShown, setQuotesShown] = useState(false)
+  const [plansShown, setPlansShown] = useState(false)
   const [dialog, setDialog] = useState<'receipt' | 'quote'>()
   const [sent, setSent] = useState(0) // reloads the shown quotes after one is sent
   const [notice, setNotice] = useState<string>()
@@ -90,12 +95,18 @@ export function VisitActions({ api, fhir, appointmentId, patientId, serviceId, z
             </button>
           </>
         )}
+        {plans && (
+          <button type="button" aria-expanded={plansShown} onClick={() => setPlansShown(!plansShown)}>
+            {t(plansShown ? 'carePlans.hide' : 'carePlans.show')}
+          </button>
+        )}
       </div>
       <Notice message={notice} />
       <VisitReceipts receipts={all} />
       {historyOpen && patientId && <PatientHistory api={api} fhir={fhir} patientId={patientId} appointmentId={appointmentId} zone={zone} />}
       {changesOpen && <AppointmentChanges api={api} id={appointmentId} zone={zone} />}
       {quotesShown && <VisitQuotes key={sent} api={api} appointmentId={appointmentId} zone={zone} />}
+      {plansShown && patientId && <CarePlans api={api} fhir={fhir} patientId={patientId} appointmentId={appointmentId} practitionerId={practitionerId} zone={zone} />}
       {dialog === 'receipt' && (
         <ReceiptDialog
           api={api}

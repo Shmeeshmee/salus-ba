@@ -234,4 +234,74 @@ class InvitesApi {
     }
     return null;
   }
+
+  /// Withdraw an open invite
+  ///
+  /// An admin of the clinic withdraws one of its open invites (U7 of docs/clinic-cms/WAVE6.md, package BG1): it ends now and its e-mailed link no longer works. Audited, also when refused.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<Response> withdrawInviteWithHttpInfo(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/invites/{id}'.replaceAll('{id}', id);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (xSalusCSRF != null) {
+      headerParams[r'X-Salus-CSRF'] = parameterToString(xSalusCSRF);
+    }
+
+    const contentTypes = <String>[];
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+      abortTrigger: abortTrigger,
+    );
+  }
+
+  /// Withdraw an open invite
+  ///
+  /// An admin of the clinic withdraws one of its open invites (U7 of docs/clinic-cms/WAVE6.md, package BG1): it ends now and its e-mailed link no longer works. Audited, also when refused.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] id (required):
+  ///
+  /// * [String] xSalusCSRF:
+  ///   Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body.
+  Future<void> withdrawInvite(
+    String id, {
+    String? xSalusCSRF,
+    Future<void>? abortTrigger,
+  }) async {
+    final response = await withdrawInviteWithHttpInfo(
+      id,
+      xSalusCSRF: xSalusCSRF,
+      abortTrigger: abortTrigger,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
 }

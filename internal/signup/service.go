@@ -23,7 +23,7 @@ import (
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
 
-// TokenLifetime is how long a signup may be verified after it was made.
+// TokenLifetime is how long a signup may be verified after its latest verification e-mail's token was issued (U8).
 const TokenLifetime = 72 * time.Hour
 
 // The rate limits: signups per client address an hour and per e-mail a day, verifications per address an hour.
@@ -153,7 +153,7 @@ func (s *Service) IssueVerification(ctx context.Context, id string) (Verificatio
 		if err != nil {
 			return err
 		}
-		ok, err := s.p.Repo.SetToken(ctx, id, hash)
+		ok, err := s.p.Repo.SetToken(ctx, id, hash, s.p.Clock.Now())
 		if err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func (s *Service) Verify(ctx context.Context, token, clientIP string) (Signup, e
 			return err
 		}
 		now := s.p.Clock.Now()
-		if !sg.VerifiedAt.IsZero() || now.Sub(sg.CreatedAt) > TokenLifetime {
+		if !sg.VerifiedAt.IsZero() || now.Sub(sg.TokenIssuedAt) > TokenLifetime {
 			return ErrInvalidToken
 		}
 		created, err := s.createClinic(ctx, auditevent.AgentSignup, sg.ClinicName, sg.Email)
@@ -246,6 +246,18 @@ func (s *Service) createClinic(ctx context.Context, agent, name, email string) (
 		return Created{}, fmt.Errorf("signup: create clinic: %w", err)
 	}
 	return out, nil
+}
+
+// AdminJoined forgets the admin's e-mail on the verified signup of the clinic organizationID (U8), in the transaction
+// in ctx: auth.Service calls it as the clinic's admin accepts their invite. The account holds the e-mail from then on.
+func (s *Service) AdminJoined(ctx context.Context, organizationID string) error {
+	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		return s.p.Repo.ForgetEmail(ctx, organizationID)
+	})
+	if err != nil {
+		return fmt.Errorf("signup: admin joined: %w", err)
+	}
+	return nil
 }
 
 // Signups returns the verified signups, those waiting for approval first (salusctl signup list).

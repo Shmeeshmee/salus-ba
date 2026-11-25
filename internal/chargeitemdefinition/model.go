@@ -22,6 +22,7 @@ type Definition struct {
 	OrganizationID  string
 	Name            string // in the clinic's language
 	Code            string // the clinic's own code; empty for none
+	DeviceID        string // the device a visit for it needs, of the clinic; empty for none (WAVE6.md U4, RM1)
 	Currency        string // ISO 4217, BAM
 	Translations    []Translation
 	Modes           []schedule.VisitMode // the modes it is offered in, at least one

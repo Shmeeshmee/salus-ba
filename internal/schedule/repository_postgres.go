@@ -111,10 +111,12 @@ func (r *postgresRepository) Update(ctx context.Context, s Schedule, at time.Tim
 
 // ruleJSON is a rule as stored in schedule.availability (every rule has its mode since 00059).
 type ruleJSON struct {
-	Start string    `json:"start"`
-	End   string    `json:"end"`
-	Mode  VisitMode `json:"mode"`
-	Day   int       `json:"day"`
+	Start      string    `json:"start"`
+	End        string    `json:"end"`
+	Mode       VisitMode `json:"mode"`
+	LocationID string    `json:"location_id,omitempty"` // since 00080
+	RoomID     string    `json:"room_id,omitempty"`     // RM1
+	Day        int       `json:"day"`
 }
 
 func rulesJSON(rules []Rule) ([]byte, error) {

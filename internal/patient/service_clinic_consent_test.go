@@ -45,6 +45,9 @@ func TestRecordConsent_RefusesAnotherClinicsPatientAPractitionerAndAnActiveConse
 			audit: event(admin, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure)},
 		"a practitioner": {caller: practitioner, patient: patientR, want: patient.ErrForbidden,
 			audit: event(practitioner, auditevent.CodeCreate, "", auditevent.OutcomeMinorFailure)},
+		// The consent's guard finds the profile gone in the same instant (docs/clinic-cms/WAVE6.md BG1): a 404, not a 500.
+		"a profile gone as the consent is recorded": {caller: admin, patient: patientR, err: consent.ErrNotFound, want: patient.ErrNotFound,
+			audit: event(admin, auditevent.CodeRead, patientR, auditevent.OutcomeSuccess)},
 		"an active consent": {caller: reception, patient: patientR, err: consent.ErrActive, want: consent.ErrActive,
 			audit: event(reception, auditevent.CodeRead, patientR, auditevent.OutcomeSuccess)},
 	} {

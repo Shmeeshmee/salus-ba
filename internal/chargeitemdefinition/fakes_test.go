@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
+	"github.com/Shmeeshmee/salus/internal/location"
 	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -130,8 +131,40 @@ func (c fakeClinics) ListListed(context.Context) ([]organization.Organization, e
 	return out, c.err
 }
 
+// The devices of clinic A (location.Service.Device gives them): one in use, one taken out of use.
+const (
+	deviceInUse  = "a8000000-0000-4000-8000-0000000000a1"
+	deviceUnused = "a8000000-0000-4000-8000-0000000000a2"
+)
+
+// fakeDevices are clinic A's devices; it remembers whether it was asked inside a transaction.
+type fakeDevices struct {
+	err     error
+	outside bool
+}
+
+func (f *fakeDevices) Device(ctx context.Context, org, id string) (location.Device, error) {
+	if ctx.Value(txKey{}) == nil {
+		f.outside = true
+	}
+	switch {
+	case f.err != nil:
+		return location.Device{}, f.err
+	case org == clinicA && id == deviceInUse:
+		return location.Device{ID: id, Name: "Device", Active: true}, nil
+	case org == clinicA && id == deviceUnused:
+		return location.Device{ID: id, Name: "Device"}, nil
+	}
+	return location.Device{}, location.ErrNotFound
+}
+
 func newService(repo *fakeRepository, audit *fakeAuditor) *chargeitemdefinition.Service {
+	return newServiceWith(repo, audit, &fakeDevices{})
+}
+
+func newServiceWith(repo *fakeRepository, audit *fakeAuditor, devices chargeitemdefinition.Devices) *chargeitemdefinition.Service {
 	return chargeitemdefinition.NewService(chargeitemdefinition.Ports{
 		Repo: repo, Audit: audit, Tx: fakeTransactor{}, Clock: clock.Fixed{T: now}, Clinics: fakeClinics{listed: []string{clinicA}},
+		Devices: devices,
 	})
 }

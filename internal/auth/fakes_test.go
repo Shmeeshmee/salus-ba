@@ -375,6 +375,19 @@ type fixture struct {
 	box           *fakeBox
 	jobs          *fakeJobs
 	practitioners *fakeDirectory
+	signups       *fakeSignups
+}
+
+// fakeSignups records the clinics whose admin joined, and whether inside the transaction.
+type fakeSignups struct {
+	joined []string
+	inTx   []bool
+}
+
+func (s *fakeSignups) AdminJoined(ctx context.Context, org string) error {
+	s.joined = append(s.joined, org)
+	s.inTx = append(s.inTx, ctx.Value(txKey{}) != nil)
+	return nil
 }
 
 func newFixture(accounts ...auth.Account) fixture {
@@ -383,12 +396,12 @@ func newFixture(accounts ...auth.Account) fixture {
 		challenges: &fakeChallenges{challenges: map[string]*fakeChallenge{}},
 		counters:   &fakeCounters{counts: map[string]int64{}, window: map[string]time.Duration{}},
 		box:        &fakeBox{},
-		jobs:       &fakeJobs{}, practitioners: &fakeDirectory{},
+		jobs:       &fakeJobs{}, practitioners: &fakeDirectory{}, signups: &fakeSignups{},
 	}
 	f.svc = auth.NewService(auth.Ports{
 		Repo: f.repo, Hasher: f.hasher, Audit: f.audit, Tx: &fakeTransactor{}, Clock: clock.Fixed{T: now},
 		Challenges: f.challenges, Counters: f.counters, Box: f.box, RateLimitKey: []byte("synthetic rate-limit key for tests"),
-		Jobs: f.jobs, Practitioners: f.practitioners, PractitionerRoles: roleCreator{f.practitioners},
+		Jobs: f.jobs, Practitioners: f.practitioners, PractitionerRoles: roleCreator{f.practitioners}, Signups: f.signups,
 	})
 	return f
 }

@@ -44,6 +44,20 @@ writes under its own heading here.
 | D5 | done 2026-11-24 on its rerun after D1 to D4 (no migration), integrated 2026-11-24 | `cms(D5)`, merged into `feat/cms` with `cms(wave 5)` |
 | D6 | done 2026-11-24, integrated 2026-11-24; the support address joined at the integration | `cms(D6)`, merged into `feat/cms` with `cms(wave 5)` |
 | D7 | done 2026-11-24, integrated 2026-11-24 (migration `00077`, renumbered from `00078`); the chat joined at the integration | `cms(D7)`, merged into `feat/cms` with `cms(wave 5)` |
+| 6.0 | done 2026-11-25, integrated 2026-11-25 (migration `00080`) | `cms(6.0)`, merged into `feat/cms` with `cms(wave 6)` |
+| BG1 | done 2026-11-25, integrated 2026-11-25 (no migration); U8 and the other deferred items go to BG4 | `cms(BG1)`, merged into `feat/cms` with `cms(wave 6)` |
+| BG2 | done 2026-11-25, integrated 2026-11-25; the withdraw call on the generated client at the integration | `cms(BG2)`, merged into `feat/cms` with `cms(wave 6)` |
+| BG3 | done 2026-11-25, integrated 2026-11-25; CI's e2e failure logs at the integration | `cms(BG3)`, merged into `feat/cms` with `cms(wave 6)` |
+| PX | done 2026-11-25, integrated 2026-11-25 (no migration) | `cms(PX)`, merged into `feat/cms` with `cms(wave 6)` |
+| LC1 | done 2026-11-25, integrated 2026-11-25 (migration `00081`); the visit's location in JSON, FHIR, the desk, messages and receipts joined at the integration | `cms(LC1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| RM1 | stopped at its budget 2026-11-25; its patch checked and committed by the integration as `wt/cms/RM1b`, integrated 2026-11-25 (migration `00082`) | `cms(RM1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LB1 | done 2026-11-25, integrated 2026-11-25 (no migration); the PDF joined at the integration (`00084`) | `cms(LB1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| TP1 | done 2026-11-25, integrated 2026-11-25 (no migration); its deferred items joined at the integration (`00085`) | `cms(TP1)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LC2 | done 2026-11-25, integrated 2026-11-25; the device picker and the desk's location names joined at the integration | `cms(LC2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LB2 | done 2026-11-25, integrated 2026-11-25 | `cms(LB2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| TP2 | done 2026-11-25, integrated 2026-11-25; a step's service name and visit time joined at the integration | `cms(TP2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| LC3 | done 2026-11-25, integrated 2026-11-25; the slot-location extension and the Location participant served at the integration | `cms(LC3)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| BG4 | done 2026-11-25, integrated 2026-11-25 (migration `00083`, `00085` in its worktree) | `cms(BG4)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 
 ## A: visit modes
 
@@ -3103,3 +3117,1132 @@ was not captured; the full `make test` before it passed). `web`: `make web-lint`
 `desk.patient.born`, `desk.patient.phone`, `desk.patient.noPhone`, `desk.patient.consentActive`,
 `desk.patient.consentNone`, `desk.patient.requestTitle`, `desk.patient.requestHint` [legal], `desk.patient.requestKind`,
 `desk.patient.fileRequest`, `desk.patient.requestFiled`, `desk.patient.requestFailed`.
+
+## 6.0: the wave 6 contract
+
+Status: done, 2026-11-25, on `wt/cms/6.0`, one commit `cms(6.0)`. Migration `00080_wave6_contract.sql` (main's next
+free number). Contract only, as 3.0 and 5.0: no behaviour; every new service method refuses with
+`errors.ErrUnsupported`, with a test that says so. No Jira export for this run: built from `WAVE6.md`.
+
+**Decisions applied** (WAVE6.md, the agent's defaults of 2026-11-25, for the owner to confirm): U1 locations, U2 hours
+per location, U3 rooms, U4 equipment, U5 lab results, U6 treatment plans, U7 the open invite (BG1), U8 the signup link
+(BG1), as the table in `WAVE6.md` states them.
+
+**Built.**
+
+- **Migration 00080.** `location` (a clinic's site: name, address line, postal code, city, phone, time zone, active;
+  FHIR Location): the clinic's scope reads and writes its own, the directory reads the active locations of listed
+  clinics, a patient's scope the location of their own visits; never deleted. The backfill gives every clinic that
+  exists its first location from its name and today's address, and puts every in-person rule (`location_id` key of
+  `schedule.availability`), slot and visit there. `room` and `device` (each of one location, the clinic's scope only,
+  never deleted or moved). `charge_item_definition.device_id` (the device a service needs). `slot.location_id`,
+  `room_id` (a video slot has none; two slots in one room never overlap, an exclusion constraint whoever's schedule they
+  are in). `appointment.location_id`, `room_id`, `device_id` (a video visit has no location or device; two visits that
+  need one device never overlap unless cancelled; salus_app may update the three for a move). `diagnostic_report`
+  (a lab result on a visit: title and an optional LOINC code, the sample's date, `preliminary` until released,
+  `final` with who and when) and `diagnostic_report_result` (the typed-in values: test, LOINC, a number with its UCUM
+  unit or a text, the reference range as printed, a v3-ObservationInterpretation flag): written in the clinic's scope
+  by its own staff for a visit's patient with its active care consent, released only by a practitioner of the clinic,
+  seen by the patient only once final; a trigger refuses a report inserted final and any change to a final one, the
+  results' policy any write once final. `care_plan` (draft, active, completed, revoked; title, quote, start day,
+  booked and revoked dates) and `care_plan_activity` (position, service, day offset, visit mode, its visit): written in
+  the clinic's scope by its own staff for a patient with its active care consent, from its own price list, a quote and
+  visits of the same patient; the patient sees a plan once booked. Ownership: `location`, `room`, `device` by
+  `location`; `diagnostic_report`, `_result` by `diagnosticreport`; `care_plan`, `_activity` by `careplan`. Retention:
+  the four health tables are clinical tables (`clinicalTables`, `clinicWave6Rules`): kept with the clinical record.
+- **Go.** Three new domains: `location` (context `scheduling`: `Locations`, `SaveLocation`, `PublicLocations` for LC1;
+  `Rooms`, `SaveRoom`, `Devices`, `SaveDevice` for RM1), `diagnosticreport` (context `clinical`: `Attach`, `Change`,
+  `AttachPDF`, `Release`, `ForVisit`, `Read`, `PDF`, `Mine`, `MyReport`, `MyPDF` for LB1) and `careplan` (context
+  `clinical`: `Write`, `Change`, `Book`, `Cancel`, `Read`, `ForPatient`, `Mine` for TP1), each with `model.go`,
+  `errors.go`, `repository.go` (the port its package implements) and `service.go`.
+- **OpenAPI.** Every second-half route with `x-salus-package`: `/clinic/locations` (list, add), `/{id}` (change),
+  `/organizations/{id}/locations` (public) for cms-lc1; `/clinic/locations/{id}/rooms` and `/devices` (list, add),
+  `/clinic/rooms/{id}`, `/clinic/devices/{id}` (change) for cms-rm1; `/clinic/appointments/{id}/diagnostic-reports`
+  (list, attach), `/clinic/diagnostic-reports/{id}` (read, change), `/pdf` (read, attach), `/release`,
+  `/me/diagnostic-reports`, `/{id}`, `/{id}/pdf` for cms-lb1; `/clinic/care-plans` (write),
+  `/clinic/patients/{id}/care-plans`, `/clinic/care-plans/{id}` (read, change), `/book`, `/cancel`, `/me/care-plans`
+  for cms-tp1. `AvailabilityRule.locationId` and `roomId`, `Appointment.locationId` and `roomId`, `Service.deviceId`
+  and `SaveServiceRequest.deviceId`, the desk day's `locationId` filter. The schemas `Location`, `Room`, `Device`,
+  `DiagnosticReport*`, `ObservationInterpretation`, `CarePlan*`, `Save…Request`, `BookCarePlanRequest`; seven error
+  codes (`invalid_location`, `resource_busy`, `invalid_diagnostic_report`, `report_released`, `invalid_care_plan`,
+  `care_plan_not_draft`, `care_plan_ended`); the tags `locations`, `lab-results`, `care-plans`. The contract test
+  (`api/clinic_wave6_contract_test.go`): the schemas are the Go models' fields (required exactly when always encoded),
+  the enums the Go constants, every route names its package. The 27 routes are classified for the receptionist and
+  listed in `notServedYet`. `make gen-clients` (Dart `LocationsApi`, `LabResultsApi`, `CarePlansApi` and models, web
+  `schema.d.ts`).
+- **Docs.** The DPIA's "Package 6.0" block; this record, the table rows and a heading for every wave 6 package.
+
+**Contract changes** (where the code fit better than the plan's text):
+
+| Plan's text | As built | Why |
+| --- | --- | --- |
+| "Staff attach a result" (U5) | The clinic's admin and its practitioners; a receptionist is refused every lab result and treatment plan route | CLAUDE.md "Product": the receptionist has no clinical content (owner, 2026-11-23) |
+| The location on a rule | A key `location_id` (and `room_id`) of each rule in `schedule.availability`, as its `mode` | Rules are a JSON array of the schedule, not rows |
+| Rooms and devices | Their own tables `room`, `device`, owned by `location` | A room is a FHIR Location `partOf` its site and a device a FHIR Device; separate tables keep the address and time zone checks off them |
+| "a price-list service may require one" (a device) | `charge_item_definition.device_id`, one device of the clinic | The simplest reading; a clinic with the same kind of device at two locations needs a device kind instead (for the owner) |
+| The test's code (U5) | A text as the lab prints it with an optional LOINC code; the unit a UCUM code | Staff type in what the paper says; a LOINC coding when known, never a free-text code in a `Coding` |
+| The PDF as `Binary` | Its storage is LB1's | `binary` rows belong to a questionnaire response today; LB1 either relaxes that or stores the key on the report |
+| Treatment plan statuses | FHIR request-status `draft`, `active`, `completed`, `revoked` | "Cancelling the plan" is `revoked` in FHIR |
+| Room overlap (U3) | An exclusion constraint on `slot` (`room_id`, `period`) as the database's backstop | RM1 refuses the overlapping rule at save (`resource_busy`) before any slot is generated |
+
+**Left to the packages** (their migrations are reserved in WAVE6.md's order: BG1 `00081`, PX `00082`, LC1 `00083`,
+RM1 `00084`, LB1 `00085`, TP1 `00086`):
+
+- **LC1.** The first location of a clinic made after the migration (salusctl, signup: a migrated database has none for
+  them); whether an in-person slot and visit must have a location (a `NOT NULL` check once the generator sets it); the
+  location on the FHIR Slot and Appointment (and `Location` in the CapabilityStatement, if served); the directory's
+  slots by location; the visit's address on receipts, reminders and e-mails.
+- **RM1.** The rule overlap check per room; the device check at booking (`resource_busy`) with Postgres concurrency
+  tests; slot generation with the room constraint (generation inserts `ON CONFLICT DO NOTHING`, which would now also
+  skip a slot that overlaps another schedule's in the same room).
+- **LB1.** The PDF's storage, scan and download; the audit of every read and write; the report in the record hand-over
+  and the patient's export; a mistaken report (FHIR `entered-in-error` is not in the contract).
+- **TP1.** Booking every step in one transaction (the slots' holds), moving a step, cancelling the future visits,
+  `completed` (a job or on read), the quote's link.
+
+**Review** (a fresh subagent over the diff and the plan docs; Copilot is out of quota until 2026-12-01). **Fixed**, with
+their cases in the migration tests: (1) a draft could not be revoked (the booked check); a draft revoked before booking
+stays hidden from the patient (`booked_at IS NOT NULL`); (2) a receptionist could write a lab result or a plan in the
+database (the author must be the clinic's admin or a practitioner); (3) the backfill test had no visits (now an
+in-person and a video one); (4) the "another patient's visit" case passed only because that visit was hidden (the
+second patient now has the clinic's consent); (7) the active consent was asked on every update, so a result could not be
+released, nor a plan cancelled, after a revocation: it is a restrictive policy on insert only; (8) the plan's PUT said
+both "a draft only" and "booked steps move" (a booked step moves with its visit's reschedule); (9) the clinic policies
+of `location`, `room`, `device` lacked the patient and account scope guards; (10) the guard's comment; (12) the
+`salus_stats` grants had no consumer (dropped) and `appointment` gained an index on its location. **Left to the
+packages**, recorded here: (5) a patient's scope may update a visit's `location_id`, `room_id`, `device_id` (the grant
+serves the move; `appointment_own` is FOR ALL): LC1 and RM1 set them from the slot and the service in a guard trigger
+and refuse other values, and a patient's booking takes the service's device; (6) `appointment/repository_postgres.go`
+maps every `23P01` to `slot_unavailable` (RM1 branches on `appointment_device_no_overlap` for `resource_busy`), and
+slot generation's `ON CONFLICT DO NOTHING` and `DeleteFreeSlotsExcept` do not know the room or location (RM1, LC1);
+(8) a plan's status has no forward-only guard and a booked plan's steps can still be deleted (TP1); (11) the PDF's
+column and its freeze at release (LB1); (13) the FHIR form of `DiagnosticReport` and `CarePlan` (reads, the
+CapabilityStatement, `Patient/$everything` and the export Bundle: LB1, TP1); (14) tests of who sees rooms and devices,
+and of a cancelled visit freeing its device (RM1).
+
+**Test first.** The migration tests (`migrations/wave6_contract_test.go`, `wave6_clinical_contract_test.go`) were
+written after the migration (as 3.0's) and run against it: the first run found the `location_own` policy placed before
+the column it reads, and that a clinic made after the migration has no first location (the tests seed one). The
+retention rule test was run red (no rules) before the rules. The skeleton and contract tests were written with their
+code.
+
+**Checks** (this worktree's compose project, `salus-cms-6-0`): the full set once, after the review's fixes, `make
+gen-clients`, `make lint` (gofmt, vet, golangci-lint, i18n-check, migrations, caddy routes), `make test`, `make
+archcheck`, `make web-lint`, `web-typecheck`, `web-test`, `web-build`, `make mobile-analyze`, `mobile-test` (701): all
+pass. The fast layer's Go set ran every package (a migration changed) and hit its 10-minute timeout; the full set
+replaced it. Not run: `make cover` (no behaviour; the new packages are skeletons), `make e2e` and `make fhir-validate`
+(no route is served and no golden file changed).
+
+**Copy waiting for the owner:** none. 6.0 adds no user-facing string; the API returns codes only. **For the owner:** a
+receptionist has no lab result or treatment plan route (U5 said "staff"); one device per service (a device kind if a
+clinic has the same device at two sites).
+
+## BG1: backend hardening
+
+Done 2026-11-25 in the worktree `wt/cms/BG1` (compose project `salus-cms-bg1`), from `docs/clinic-cms/WAVE6.md` BG1
+and the "Deferred", "Declined" and "Open" paragraphs of this file from "Wave 3 integration" on. No migration.
+
+**Decisions applied** (WAVE6.md, agent's defaults 2026-11-25, owner to confirm): U7 (an admin may withdraw an open
+invite; the limit of 50 is enforced under a lock) built here; U8 deferred (below). U1 to U6 are the second half's.
+
+**Built** (each with its failing test first):
+
+- **Invite limit under a lock (U7).** `inviteLimitReached` takes `LockInvites` (a transaction-scoped advisory lock
+  per clinic, `pg_advisory_xact_lock(hashtextextended('invite:' || org, 0))`) before counting, so two invites at 49
+  count one after the other. Tests: the repository's second transaction of a clinic waits for the first, another
+  clinic's does not; the service counts only under the lock (fake).
+- **Withdrawing an open invite (U7).** `DELETE /invites/{id}` (`x-salus-package: BG1`, clients regenerated),
+  `auth.Service.WithdrawInvite`: the admin only; the invite's `expires_at` becomes now and its token hash is cleared,
+  so the e-mailed link dies and the row is removed by retention as an expired one (no DELETE grant, no migration).
+  Audited as a delete, also when refused (forbidden, or no open invite: 404 `invalid_invite`). The receptionist is
+  refused (`reception_routes_test.go`). **The screen is BG2's: this package adds the API only.**
+- **The clinic export job re-checks its requester.** `clinicexport.Ports.Admins` (`auth.Service.IsClinicAdmin`,
+  wired in `internal/worker/clinicexport.go`): an export whose admin is no longer the clinic's admin when the job runs
+  is marked failed without reading anything of the clinic, audited as the job's refused update; no retry.
+- **Another clinic's export id is audited.** `Get` and `Download` audit an id the clinic does not have (and, for
+  `Download`, one not ready) as a refused read in a transaction of its own.
+- **Staff on `/me/data-requests`.** The handler no longer refuses staff itself: `datarequest.Patient` carries the
+  staff account's clinic and `File`, `Mine` and `Withdraw` refuse it, audited in its clinic (403 as before).
+- **The 500 when a profile disappears as a consent is recorded.** `consent`'s `GrantInPerson` runs its guarded
+  insert in a savepoint of the caller's transaction, so `consent_guard_in_person`'s refusal no longer aborts it;
+  `patient.RecordConsent` maps `consent.ErrNotFound` to its own 404 with the profile read audited. The repository test
+  failed first with `25P02` (transaction aborted).
+- **A Postgres race test of two staff bookings of one slot** (F2 had it on a fake):
+  `internal/api/reception_concurrency_test.go`, two desks through the API at once: one 201, one 409
+  `slot_unavailable`, one appointment in the slot. It passed on the first run (with `-race`): the slot hold and the
+  exclusion constraint already hold it; the test was what was missing.
+- **The flaky `internal/worker` test, captured and fixed.** The package's test binary run in a loop
+  (`-test.count=1 -test.parallel=16`, alongside this package's own test runs) failed on run 3: the four
+  `TestBinaryScan_*` tests, "the binary_scan job did not finish within 15s". clamd's log at the same minute:
+  `SelfCheck: Database modification detected. Forcing reload` at 12:26:31, `Database correctly reloaded` at 12:27:08.
+  With `ConcurrentDatabaseReload no` (ADR 0010, kept) clamd answers nothing while it reloads (37 s here, after
+  freshclam's update of `daily.cld`), and the scan tests started inside that window. A forced `RELOAD` showed a `PING`
+  waits for the reload's end (9 s). Fix: `testFiles` waits for clamd's `PING` (`scannerReady`, a 3-minute ceiling)
+  before a scan test starts, so it starts on an idle scanner; the job's own timing is unchanged. Rerun: the scan tests
+  in a loop of 100 runs with a forced `RELOAD` in the middle (see Checks).
+
+**Checks** (compose project `salus-cms-bg1`). The fast layer after each change (its Go step reached the 10-minute
+ceiling, as `internal/auth`'s importers are most of the suite; in it `cmd/agent`'s `TestRun_StartsWithTheFakeEngine…`
+timed out on River's `StartWorkContext` under the parallel load of the flaky loop: load, as `cmd/scheduler`'s before;
+it passed in the full run). The full set once more after lint fixes: `make gen-clients lint test archcheck web-lint
+web-typecheck web-test web-build mobile-analyze mobile-test` passed (lint's first run stopped on fieldalignment in
+three test stubs and one staticcheck inference, fixed; `web-lint` has the one known warning in
+`analytics/ClinicView.tsx`; `mobile-test` 701). `e2e`: `make e2e` passed (438 s; on the tree before the lint fixes,
+which moved test struct fields and one type declaration only). The flaky loop: the whole `internal/worker` package
+failed on run 3 of the loop before the fix (above); after it, `-test.run BinaryScan` 63 runs (stopped there for the
+full set), a forced clamd `RELOAD` during run 20, no failure. Not run: `make cover`, `make fhir-validate` (no FHIR
+response changed).
+
+**Deferred** (with reasons):
+
+- **U8 (signup link and the verified row's e-mail).** Both halves need a migration (when the latest verification
+  e-mail went out, and a nullable or blanked e-mail) and a hook from `auth.AcceptInvite` into `signup` that the
+  construction order in `internal/api/app.go` does not give today (signup builds on auth). Left for a package of its
+  own, after 6.0's migration number; nothing about it changed here.
+- **Refusals that row-level security turns into a rollback, generally.** Fixed here for the in-person consent (the
+  savepoint); other guarded inserts were not surveyed one by one in this package's time. The savepoint in
+  `consent/repository_postgres.go` is the pattern for the next one found.
+- **List and refusal audit events without an entity.** A refused create and an empty list name no entity because
+  nothing was reached (FHIR `AuditEvent.entity` is 0..*); the new refusals here follow that. Naming the clinic as the
+  entity would be a change across every domain's audit, not a defect fix: for the owner.
+- **The table-driven probe of the staff routes with malformed ids and bodies** for other 500s: not run in this
+  package's time.
+- **The erasure's answer without a `data_request` audit event of its own** (wave 5 integration, declined there):
+  untouched.
+- **A River worker test of `clinicExportWorker`'s last attempt** (M2's deferral): untouched.
+
+## BG2: web polish
+
+**Status: done.** Web only (`web/`), no generated client touched. Walk record: `docs/clinic-cms/walk/wave6-polish/WALK.md`.
+
+**Built.**
+- **Nested dialogs.** `chat/Dialog.tsx` stops Escape where it closes a dialog, so the patient card opened from the
+  desk's patient search closes alone (`chat/Dialog.test.tsx`).
+- **The patient search** (`DeskPatients`): the name on the left, not centred above the birth date (`.desk-name`
+  `justify-self: start; text-align: left`), and its search fills the dialog as the walk-in's does (the wave 3 rule now
+  on `.desk-dialog form[role='search']`, both desk dialogs).
+- **The phone grouped everywhere**: the visit page's "Patient details" uses `groupPhone`, the last staff screen that
+  showed a patient's phone raw.
+- **The lint warning** in `analytics/ClinicView.tsx`: `diagnosisBar` moved to `analytics/drill.ts`; `make web-lint` has no
+  warning left.
+- **Withdraw an open invite** (U7): "Withdraw" on each open invite on `/practitioners`, asked first (`Confirm`), then
+  `DELETE /invites/{id}`; 204 takes it off the list with a notice, 404 takes it off with "no longer open", anything else
+  keeps it with an alert. The route is BG1's, built in parallel: the call is typed by hand in `Practitioners.tsx`
+  (`withdrawInvite`) through the same client and CSRF header, and the tests answer it with a fake. **Integration:**
+  check BG1's route is `DELETE /invites/{id}` answering 204 and 404 `not_found` for an invite that is not open; once
+  the generated client has it, replace the cast with `api.DELETE('/invites/{id}', …)`.
+- **Clinic settings**: "Import patients" was a bare button that read as text; it is now in `.actions` (secondary style).
+- Membership invoices at 390 px and the walk-in's width at desktop were already fixed (package D's walk, the wave 3
+  rerun); the walk confirms both, see WALK.md.
+
+**Decisions.** The withdraw button in a row is secondary, only the confirm is red (a column of filled red buttons
+outweighed the list). A 404 on withdraw removes the row: the invite is not open whichever way it ended.
+
+**Checks.** `web`: `make web-lint` (0 warnings), `make web-typecheck`, `make web-test`, `make i18n-check`; the browser
+walk at 1280 and 390 px against a fake API (WALK.md, its limits too).
+
+**Copy waiting for the owner** (five staff languages; sr-Cyrl transliterated from sr-Latn; none `[legal]`):
+`admin.withdrawInvite`, `admin.withdrawInviteFor`, `admin.withdrawQuestion`, `admin.withdrawEffect`,
+`admin.keepInvite`, `admin.inviteWithdrawn`, `admin.inviteGone`, `admin.withdrawFailed`.
+
+**Deferred.** The other staff screens were seen empty or failing to load (the fake answered only the listed items'
+routes): their layout with real rows is for the integration's walk on a seeded stack.
+
+## BG3: tooling
+
+Done 2026-11-25 on `wt/cms/BG3` from `fa77c488`. Nothing under `internal/`, `web/` or `mobile/`; no migration.
+
+**Built.**
+
+- **Ports per worktree** (R3's report: `runner.sh start` gave cms-R3 the ports of cms-R1). The cause: a new worktree
+  skipped only the ports listening on the host, so a worktree whose stack was down lost its slot to the next one whose
+  name hashed to it. `runner.sh env` now also skips every port named in another checkout's `deployments/.env`
+  (`git worktree list`, the main checkout included), whether or not that stack runs; a worktree whose ports another
+  checkout already names (written before this fix) moves to a free slot, and the other keeps its own. UDP listeners
+  count too (LiveKit's media port). `runner.sh start` refuses to begin while one of the worktree's ports is held by
+  anything but its own compose project's containers, and names the port. Tested by `scripts/runner.test.sh` (two
+  names of one slot, a stack that is down, a rerun, a legacy duplicate, a taken port, the refusal and its own stack).
+- **`make e2e` on its own project** (`scripts/e2e.sh`): `<project>-e2e` (`salus-e2e` in the main checkout), with
+  `deployments/docker-compose.e2e-run.yml` on top, which publishes no host ports, so it runs beside the dev stack. Its
+  Postgres and object store volumes are removed before the run and after it, pass or fail; on a failure the stack's
+  last 200 log lines are printed first. Two volumes stay: `clamav` (the signatures, a cache, no personal data: a fresh
+  one downloads them again on every run) and `e2e` (the run's output, which `make e2e-report` now reads with
+  `scripts/e2e.sh report`). `e2e-install` runs `npm ci` with `--no-deps`, so it no longer starts the dev project's
+  services. Tested by `scripts/e2e.test.sh` (fake docker: every call on the e2e project, the volumes removed before
+  and after, only those, also when a journey fails).
+- **`make check`** (`scripts/check.sh`): exactly the plan's check sets that the change's files select (`go` by the
+  paths of `.github/workflows/go.yml`, `web`, `mobile`, `landing`, `e2e` for `test/e2e/`), from `BASE` (default the
+  merge base with `origin/main`) with uncommitted and untracked files, plus `SETS=`; `--dry-run` prints the plan.
+  The `go` set checks that `make gen-clients` leaves the generated clients as they were, and adds `fhir-validate`
+  when a golden FHIR file changed. `runner.sh full [sets]` runs it from the session's start commit, so every package
+  runs the same thing; this drops `web-build` from the runner's full layer (not in the plan's `web` set) and adds
+  `cover`, `i18n-check` and the clients' diff. Documented in CLAUDE.md "Checks" and the package-runner's "Full".
+  Tested by `scripts/check.test.sh`. `scripts/lint.sh` runs the three new tests.
+
+**Readings.** CLAUDE.md has no "Commands" section; `make check` is documented in "Checks", where the other targets
+are. The e2e set is selected by `test/e2e/` only; a package whose row names `e2e` passes `SETS=e2e` (`runner.sh full
+e2e`). CI's e2e job still prints `docker compose logs` of the default project on failure, which is now empty: the
+script prints the e2e project's logs itself (`.github/` is outside this package).
+
+**Test first.** Red before green: `runner.test.sh` (two worktrees of one slot shared 21980; a legacy duplicate kept;
+`start` ran with a port held), `e2e.test.sh` and `check.test.sh` (no script yet).
+
+**Checks.** `go`, through the new `make check` itself (`runner.sh full`): `make gen-clients` left the clients as they
+were, `make lint` (0 issues, the four shell tests ok), `make test`, `make archcheck`, `make cover` (90.0% total, every
+package at 80% or more), `make i18n-check`: passed. `make e2e` on its own project `salus-cms-bg3-e2e`, run beside the
+worktree's test stack: passed, its containers, network and data volumes removed afterwards; `make e2e-report` read
+the report from the kept `e2e` volume. shellcheck over the new scripts: two info notes, no warnings.
+
+## PX: privacy follow-ups
+
+Status: done 2026-11-25 on `wt/cms/PX`, one commit `cms(PX)`. No migration (PX's number after BG1 is left unused).
+Specification: `WAVE6.md` "PX"; the "Deferred" of "Wave 5 integration" and D7's and D5's notes above.
+
+**Built.**
+
+- **Receipt and quote PDFs in the patient's export.** `clinicexport.OwnRecords` reads each receipt's PDF
+  (`invoice.Service.PDF`) and each quote's (`invoice.Service.QuotePDF`) as the patient, each audited as the read, into
+  the clinic's part as `files/<Invoice id>.pdf` and `files/<quote id>.pdf`; the manifest's lines say "receipt (its PDF
+  in files/)" and "quote (quotes.json, its PDF in files/)". The worker's invoice service now has the `Clinics` port for
+  the letterhead (`internal/worker/invoice.go`, an `organization.Service` on the job's pool), which D7 lacked. The
+  worker's Postgres test seeds a receipt and finds its rendered PDF in the archive.
+- **A file the build cannot open is named, not fatal.** A signed document's PDF, an answer's upload, a chat file, a
+  receipt's or quote's PDF whose bytes cannot be read (a rotated KEK, a missing object, a render failure) is left out
+  of `files/` and listed in the part's `Unreadable`; `manifest.txt` writes "could not be opened, so not in this
+  archive: <path>" under the clinic. The rest is built. A done context still fails the build (the job's timeout). A
+  document or answer whose file failed stays in `record.json`; a chat file that failed has no `file` in `chat.json`
+  (its note says it is not in the archive). Listing reads (the services' searches) still fail the build: they are
+  not files, and the one retry is for them.
+- **Clinic narrowing.** `consent.Service.MineAt`, `invoice.Service.MineAt` and `invoice.Service.MyQuotesAt` (the
+  `Mine`, `Mine` and `MyQuotes` of every clinic call them with ""): a clinic-target export reads that clinic's
+  consents, receipts and quotes only; for consents, only that clinic's are audited (one event each). The narrowing is
+  in the service, after the patient-scoped query and before the audit.
+- **Closure password limit.** `auth.Service.Close` counts wrong passwords per account (Redis, `close:account:<HMAC of
+  the id>`, 15 minutes, the login's window); from the fifth it returns `RateLimitedError` without checking the
+  password. `POST /me/account/close` answers 429 `rate_limited` with `Retry-After` (already in `api/openapi.yaml`); the
+  app already shows `rate_limited` (`failureMessage`), so `mobile/` needed no change.
+- **No admin: the operator is warned.** `notification.SendDataRequestDeadline` sends a clinic target's warning to the
+  operator when the clinic has no admin, in the operator's language, naming the clinic by its opaque id (a new last
+  line in `data_request_deadline` in all ten languages, `NoAdminClinic`); never the patient. Without an operator
+  address nothing is sent and the worker logs the ids at warn, as before.
+- **Docs**: the DPIA block "Package PX".
+
+**Test first.** Red first: `TestClose_LimitsWrongPasswords` (no limit), the consent and invoice narrowing tests
+(compile failure: no `MineAt`, `MyQuotesAt`), the manifest test (no unreadable line), the operator fallback
+(`TestSendDataRequestDeadline_AClinicWithoutAnAdminWarnsTheOperator`, nothing sent). Written with or after their code:
+the close handler's 429 test (the mapping was typed before the test ran), and the export builder's tests
+(`TestOwnRecords_AFileThatCannotBeOpenedIsNamedNotFatal`, `TestOwnRecords_AChatFileThatCannotBeOpenedIsNamed`, the PDFs
+in `TestOwnRecords_OnePartPerClinicWithTheClinicalContent`), which were updated after the builder; the worker test's
+receipt was added with the wiring.
+
+**Decisions taken here.**
+
+| Topic | Decision | Why |
+| --- | --- | --- |
+| Narrowing place | In the service, after the patient-scoped query | No sqlc or query change; nothing of another clinic leaves the service or is audited for the export |
+| What "cannot open" is | An error reading a file's bytes or rendering a PDF, unless the context is done | A search failing is not a file; a cancelled job must not report a half archive as done |
+| Closure limit | 5 wrong passwords per account per 15 minutes, keyed by account, not IP | The login's numbers; the caller is signed in, so the account is the one being guessed |
+| No admin | The operator gets the clinic's warning, with the clinic's id and no link | D5's open question; the operator cannot answer it (`salusctl` refuses clinic requests), so the e-mail asks to get the clinic an admin |
+
+**Checks** (this worktree's compose project `salus-cms-px`): the fast layer after each change (gofmt found two test
+files, fixed); `make lint` failed twice on funlen of the worker's export test (the receipt's seed moved to a helper),
+then passed with `make i18n-check` inside; `runner.sh full` (`make lint test archcheck`): pass; `make cover`: pass,
+90.0% total, every package at 80% or more. Not run: `make fhir-validate` (no golden FHIR file changed), `make
+gen-clients` (`api/openapi.yaml` unchanged), `mobile` (no file under `mobile/` changed: the app already maps
+`rate_limited`), `make e2e` (not in PX's check sets). No review subagent was run.
+
+**Deferred.** The notification erasers (wait for the lawyer's retention periods, WAVE6). The archive is still built in
+memory, orphan objects are still not swept (D7). Clinics in the manifest are still named by id.
+
+**New user-facing strings** (owner's copy review): the last line of `data_request_deadline` for a clinic without an
+admin, ten languages (`internal/notification/templates/<language>/data_request_deadline.txt`, English in
+`internal/notification/testdata/en/data_request_deadline_no_admin.txt`); the manifest's line "could not be opened, so
+not in this archive: <path>" (English only, as the rest of `manifest.txt`).
+
+## Wave 6, first half
+
+Done 2026-11-25 on `feat/cms` (from `fa77c488`): `wt/cms/6.0`, `BG3`, `BG1`, `PX`, `BG2` merged with `--no-ff` in that
+order, each built by a package runner in its own worktree and compose project; then the integration's commit
+`cms(wave 6): integrate 6.0, BG1, BG2, BG3, PX`. One migration, 6.0's `00080_wave6_contract.sql`, after main's `00079`;
+BG1 and PX needed none, so their reserved numbers are unused (`00081`, `00082`), and the second half's packages take the
+next free numbers after `00080` in WAVE6.md's order, renumbered at their integration.
+
+- **Merges.** Only the records and one generated file conflicted. `PROGRESS.md`: each package's block replaced the
+  heading 6.0 had written for it, and each status row its own row; `docs/privacy/dpia.md` keeps the 6.0 and PX blocks in
+  that order. Generated code was not hand-merged: `make sqlc` (6.0 had not regenerated the sqlc packages after its
+  migration: every `<domain>db/models.go` gains the location, room, device, lab result and plan types and columns, added
+  only), `make gen-clients` (the Dart README gains BG1's `withdrawInvite`) and `flutter gen-l10n` (no change).
+- **BG1 with BG2.** BG2's "Withdraw" now calls BG1's `DELETE /invites/{id}` through the generated client
+  (`api.DELETE('/invites/{id}', ...)`); the hand-typed cast is gone. The route answers 204 when withdrawn and 404 when the
+  invite is no longer open, the shape BG2 built against; its four tests in `Practitioners.test.tsx` keep their fake.
+- **BG3's deferred item.** CI's e2e job printed `docker compose logs` of the default project on a failure, which is
+  empty now that `scripts/e2e.sh` runs on `<project>-e2e` (`salus-e2e` in CI), and that script removes its containers
+  when it ends, so a later step cannot read them either. With `E2E_LOGS=<file>`, a failed run now writes the e2e
+  project's full logs there before its cleanup; `.github/workflows/go.yml` sets it and the failure step prints the file.
+  Tested first in `scripts/e2e.test.sh` (red: no logs read, no file; then green; a passing run writes none).
+- **BG4.** What BG1 deferred is a package of its own in the second half (`RUN.tsv`, WAVE6.md's table, its integration
+  order and run line, `notes/BG4.txt`): U8, the 500 probe of the staff routes, the survey of RLS refusals with the
+  savepoint pattern, the erasure answer's audit event, the clinic export worker's last attempt. Go and e2e; no schema or
+  route of LC1, RM1, LB1 or TP1.
+- **Open for the owner** (from the reports, unchanged): receptionists out of lab results and treatment plans (6.0), one
+  device per service (6.0), whether refusal and list audit events name the clinic (BG1), BG2's eight withdraw strings
+  in five languages, PX's new line of `data_request_deadline` in ten languages and the operator fallback (D5's question).
+- **BG2 with the e2e suite.** BG2's withdraw button sits in the invite's row, so `test/e2e/web/language.spec.ts`
+  (the row's text ends with the expiry time) failed in the integration's first `make e2e` (BG2's sets were web only). The
+  journey now reads the invite's expiry line itself, with the same anchored pattern and the same "no `M` month" check.
+
+**Checks** (the main checkout's compose project `salus`):
+`make check BASE=origin/main` (sets go, web, mobile: `make gen-clients` with no diff, `make lint` 0 issues, `test`,
+`archcheck`, `cover` 90.0% total and every package at 80% or more, `i18n-check`, `web-lint`, `web-typecheck`,
+`web-test` 1346, `mobile-analyze`, `mobile-test` 701): passed on its second run. The first stopped at `internal/api`,
+which ran past `go test`'s 10-minute package timeout under the suite's load (603 s; the test running at the alarm had
+been going for 27 s, so no hang); the same package took 294 s in that run's `make cover`, 302 s in a full `make test`
+rerun and 180 s in the passing `make check`. It is the slowest package and close to the ceiling under load: worth a
+look before the second half adds routes to it. `make e2e` (`salus-e2e`, its own project): the first run failed on the
+language journey above; after the fix, passed (350 s) and removed its project. `scripts/e2e.test.sh`: ok.
+
+## LC1: locations on the server
+
+Status: done, 2026-11-25, on `wt/cms/LC1`, one commit `cms(LC1)`. Migration `00081_locations.sql` (the next free number
+after 6.0's `00080` on this branch; WAVE6.md reserved `00083`, the integration renumbers). No Jira export for this run:
+built from `WAVE6.md` and 6.0's record. Go only.
+
+**Built.**
+
+- **The clinic's locations** (`internal/location`): `Locations` (the clinic's staff, receptionist included: GET is
+  `desk` in the reception classes), `SaveLocation` (add and change at `If-Match`, by the admin only; audited as
+  `Location/<id>`, also when refused: forbidden, no clinic, another clinic's, another version), `PublicLocations` (the
+  active locations of a listed clinic; 404 for an unlisted one). A time zone left out is the clinic's for a new
+  location and unchanged on a change; an unknown city (the `place` key) or a malformed phone is `invalid_location`. Not
+  audited on read: a location is no personal data (as the price list). Postgres repository through `locationdb`
+  (`internal/location/query.sql`, a new `sqlc.yaml` entry); the handler and the four routes of `cms-lc1`, mounted in
+  `internal/api/locations.go` and taken off `notServedYet`. The rooms and devices stay RM1's: their service methods
+  and repository methods refuse with `errors.ErrUnsupported`.
+- **A new clinic's first location** (00081): an `AFTER INSERT` trigger on `organization` gives it its name, address and
+  time zone, as 00080's backfill did, whoever inserts it (signup, salusctl, tests).
+- **The location on rules** (`internal/schedule`): `Rule.LocationID`, stored as `location_id` in
+  `schedule.availability` (00080's key) and served as `locationId`. An in-person rule is at an active location of the
+  clinic: the one it names, or the clinic's only active one when it names none; otherwise `invalid_location` (audited
+  as a refused update); a video rule naming one is `invalid_availability`. The rule's location is checked through the
+  new `Sites` port (`location.Service.OfClinic`).
+- **The location on slots** (`internal/slot`): `Period.LocationID`; generation inserts it and a rule moved to another
+  location replaces its free slots (the delete compares the location too); a busy slot stays where it was booked.
+- **The location on visits** (00081): a `BEFORE INSERT OR UPDATE OF slot_id, visit_mode, location_id, room_id` trigger
+  sets a visit's `location_id` and `room_id` from its slot (none for a video visit or an unknown slot), so a booking, a
+  staff booking and a move (M1) are where their slot is, and no scope, a patient's included, can write another value
+  (6.0's review, point 5). The room is copied with the location because it is the slot's too; the device stays RM1's.
+
+**Decisions** (where the plan left a choice):
+
+| Point | As built | Why |
+| --- | --- | --- |
+| The first location of a new clinic | A database trigger, not code in signup and salusctl | One place for every insert of a clinic; the migration's backfill does the same |
+| An in-person rule that names no location | At the clinic's only active location; refused when it has two or more | Keeps today's web (no location picker before LC2) working for a one-site clinic |
+| The visit's location | Set by the database from the slot | Simplest guard for point 5; no change to `appointment`'s core files |
+| A `NOT NULL` check on in-person slots and visits | Not added | Fixtures across the packages insert in-person slots by hand; the generator and the trigger set it on every new one |
+| Time zone of slot generation | Still the clinic's | All clinics are in one zone today; a location in another zone is for the owner |
+
+**Tests first.** The service, handler and repository tests of `location`, the schedule and slot tests were written and
+run red (no `Auditor`, no `LocationID`, no `invalid_location`) before the code. The migration tests
+(`migrations/locations_test.go`) were written after `00081` and run against it, as 6.0's. 6.0's tests in
+`wave6_contract_test.go` changed on purpose: `seedLocation` now returns the clinic's first location (00081 gives every
+new clinic one), and the "patient sees their visit's location" case books the visit in a slot at that location, since
+the visit takes its slot's.
+
+**Deferred** (to a follow-up or the integration, with the reason):
+
+- `Appointment.locationId` in the JSON and FHIR form, the desk day's `locationId` filter, and the visit's location
+  address on receipts, reminders (SMS) and e-mails. Each needs the location on `appointment.Appointment` and its row
+  mappings (the middle of `appointment`'s core files, which RM1 and TP1 change in parallel) or a change to `invoice` and
+  `notification`; the database already holds the right location on every visit, so the integration (or a small
+  package after RM1) can expose it once. The receipt's seller address is the clinic's registered address today; whether
+  a receipt should show the visit's location instead (U2) is a fiscal question for the owner.
+- A location made inactive keeps the rules that name it: their slots are still generated. LC2's screen (or a check at
+  deactivation) should move the rules first.
+- `Location` in the CapabilityStatement and the FHIR Slot and Appointment's location: not served.
+- The directory's slots by location: the slot search has no location filter yet (no contract for it).
+
+**Checks** (this worktree's compose project, `salus-cms-lc1`). The fast layer ran every Go package (a migration
+changed); its wait hit the 10-minute timeout with `cmd/agent` failing on a River producer start timeout under load
+(`producer.StartWorkContext timed out after 10s`, a package LC1 does not touch; it passed in the full run). The full set
+(`runner.sh full e2e`: sets go, web, e2e) ran twice: the first stopped at `make lint` (fieldalignment of the new test
+tables and one staticcheck hint, fixed); the second passed `make gen-clients` with no diff, `make lint` (0 issues,
+i18n-check) and every `go test` package but `internal/api`, which hit `go test`'s 10-minute package timeout under the
+suite's load (603 s; the test running at the alarm had run 9 s; the same ceiling the wave 6 integration recorded), and
+was stopped there to stay inside the budget. `internal/api`, `migrations`, `worker`, `signup`, `appointment`,
+`clinicexport`, `organization`, `slot`, `schedule` and `location` were then run on their own, but that run hung: Postgres was stuck on the stopped run's `DROP DATABASE ... WITH (FORCE)` (wait event IPC, every test of `migrations` at 10m0s, unrelated ones included), so `internal/api`, `internal/worker`, the whole `migrations` package and `pkg/` are not verified on this tree; `make archcheck` passed. LC1's own migration tests (`TestLocations_*`, `TestWave6_*`) passed earlier on a healthy database. Not run inside the
+budget: `make cover`, the full web set (only a description changed in `schema.d.ts`; the fast layer's oxlint and `vitest related` passed) and `make e2e`;
+they are left to the integration's `make check`.
+
+**Merge notes for the integration.** `internal/location/repository_postgres.go`, `service.go`, `service_test.go` and
+`handler_http.go` will meet RM1's: RM1 replaces the room and device stubs. `schedule.Rule`, `ruleJSON`, `ruleOut`,
+`slot.Period`, `bounds` and `InsertSlots` gain RM1's room beside the location (a struct conversion needs the same field
+order in `Rule` and `ruleJSON`).
+
+## RM1: rooms and devices
+
+Status: done, 2026-11-25, on `wt/cms/RM1b` (the first run stopped at its budget; its patch applied and checked by the integration session: `make check --base b6bec6d0`, sets go and web, passed), one commit `cms(RM1)`. Migration `00082_rooms_devices.sql` (the next free
+number after LC1's in WAVE6.md's order; the integration renumbers). No Jira export for this run: built from `WAVE6.md`
+and the 6.0 record. Go only.
+
+**Decisions applied:** U3 rooms and U4 equipment as WAVE6.md states them (the agent's defaults of 2026-11-25, for the
+owner to confirm); 6.0's "one device per service".
+
+**Built.**
+
+- **Rooms and devices** (`internal/location`, my own files `service_room.go`, the appended block of `repository_postgres.go` (archcheck: only that file imports `locationdb`),
+  `query_room.sql`, `handler_room.go`): `GET`/`POST /clinic/locations/{id}/rooms` and `/devices`, `PUT /clinic/rooms/{id}`
+  and `/clinic/devices/{id}` (If-Match). Any staff of the clinic reads them (the desk included, as 6.0 classified);
+  only its admin writes, audited as `Location/<id>` (a room is a FHIR Location `partOf` its site) or `Device/<id>`, also
+  when refused (not admin, another clinic's location or room, a stale version). A room or device never moves to another
+  location: a PUT names only the name and `active`. Reads are not audited (not personal data). Taken off `notServedYet`.
+- **A rule's room (U3)** (`internal/schedule/service_room.go`): `Rule.RoomID`, stored as `room_id` in
+  `schedule.availability` (6.0's key), `roomId` in the API. Only an in-person rule may name one, and only an active room
+  of the clinic (else `invalid_availability`). At save, in the save's transaction, the named rooms are locked (`SELECT …
+  FOR UPDATE`, in id order) through `location.Service.LockRoom`, then every other schedule of the clinic is read: an
+  in-person rule of another role in the same room, on the same day, at an overlapping time, refuses the save with
+  `resource_busy` (409, audited as refused). Two concurrent saves naming one room run one after the other. A service
+  built without the rooms port (the worker's) refuses any rule that names a room.
+- **Slots carry the room** (`internal/slot`): generation puts the rule's room and the room's location on each slot; a
+  rule moved to another room (or off a room) regenerates its free slots; the room enters `DeleteFreeSlotsExcept`'s
+  comparison as `coalesce(room_id::text, '')`, so a slot without a room still compares.
+- **The device at booking (U4)**: `charge_item_definition.device_id` through the price list (`Service.deviceId`, a PUT
+  without it clears it; another clinic's device is `invalid_service`). Migration 00082's guard trigger on `appointment`
+  sets `device_id` from the service for an in-person visit (none for video or without a service) and `room_id` (with the
+  slot's `location_id`) from the slot, on insert and on a change of service, mode or slot; on any other update it keeps
+  them, so no scope can write other values (6.0 review item 5). A booking that needs a device takes an advisory lock
+  on it first, so two such bookings run one after the other and the second meets `appointment_device_no_overlap`
+  (23P01), never the deadlock two concurrent inserts into an exclusion constraint can give (which would read as
+  `slot_unavailable`). `appointment` maps that constraint to `ErrResourceBusy` (`resource_busy`, 409) in Create,
+  the patient's reschedule and the staff move (review item 6); the patient's booking, the offer's accept, the desk's
+  booking and move and the reschedule audit it as a refusal. A cancelled visit frees its device (the constraint's
+  `WHERE`).
+- **Contract** (`api/openapi.yaml`, my own lines): `resource_busy` on the availability PUT (a 409 the contract lacked)
+  and in the 409 texts of the patient's booking, reschedule, offer accept, the desk's booking and move;
+  `invalid_availability`'s text names the room. `make gen-clients`: the web schema's comments only.
+
+**Contract changes:** `location.Repository` gains `LockRoom` and `location.Ports` `Tx` and `Audit` (6.0's skeleton had
+neither); `schedule.Ports` gains `Rooms`.
+
+**Test first.** Service, repository and handler tests per layer: location (fakes and a throwaway database: another
+clinic's and a patient's scope see and change no room or device), schedule (the overlap cases, the lock, the storage
+key), slot (red first: the slots had no room), appointment (red first: the device stayed empty, the overlap booked;
+then a concurrent pair over 10 rounds gives one visit and one `resource_busy`; a cancelled visit frees the device; a
+reschedule onto a busy device; the patient's scope cannot clear the device or room), the price list. Several service
+and handler tests were run for the first time with their code in place (compile failures were the red), not each seen
+failing on its assertion.
+
+**Review** (a fresh subagent over the diff; Copilot is out of quota until 2026-12-01). **Fixed:** (1) 6.0's
+`TestWave6_ARoomAndADeviceAreNeverDoubleBooked` wrote `device_id` directly, which the guard now overrides: the visits
+take the device through a service; (3) a room id in capitals escaped the overlap check and made generation delete and
+re-insert its slots every run: the service lowercases it; (5) a status change that brings a visit back takes the
+device's lock. **Left:** (2) the guard does not keep `location_id` on other updates (6.0's own test moves a visit's
+location directly): the location's guard is LC1's; (6) a `PUT /clinic/services/{id}` without `deviceId` clears the
+device (a PUT replaces the service): LC2's form must send it; (8) a deadlock between a device lock and the role's
+exclusion in one multi-visit transaction (TP1's plan booking) reads as `slot_unavailable`; (9) rules of an inactive
+role keep holding their room, and an inactive device can still be put on a service (for the owner).
+
+**Checks** (`salus-cms-rm1`): the fast layer per package while building (location, schedule, slot, appointment,
+chargeitemdefinition, the wave 6 migration tests, golangci-lint over the changed packages: 0 issues). `make check`
+(sets go and web from the diff): the first run met two lint findings in a test file, the receptionist probe (the room
+and device routes need a real location of the clinic: the fixture now seeds one) and archcheck (only
+`repository_postgres.go` may import a domain's sqlc package: the room queries and the price list's `setDevice` moved
+into it); each fixed and rerun alone, then `make check` once more (its result in the report).
+
+**Left for the integration and later:**
+
+- LC1 writes `internal/location/repository_postgres.go` too: mine holds the struct, the constructor, `SetOrganization`
+  and the three location methods as `errors.ErrUnsupported` stubs; take LC1's location methods and keep the rest.
+  `sqlc.yaml`'s `locationdb` entry lists `query_room.sql`; with LC1's `query.sql` the entry takes both files. LC1's
+  `handler_http.go` may declare `writeCode`: mine is `writeRoomCode`. Both packages add `Tx`/`Audit` to the ports.
+- `Rule.LocationID` is LC1's: a rule's room should then be a room of the rule's location (the slot's composite key
+  `(room_id, location_id)` refuses a mismatch at generation, not at save). The slot takes the room's location today;
+  with LC1 the two must agree.
+- `Appointment.roomId` in the JSON responses (6.0's schema) is not mapped: the visit row has it (from its slot), but
+  every appointment query's column list would change, as LC1's `locationId` does; do both once in the integration.
+- TP1's plan booking books through `appointment`'s Create, so a step's busy device is `ErrResourceBusy` there too.
+- The desk's "why" (U4) is the `resource_busy` code; the screen is LC2's.
+
+## LB1: lab results on the server
+
+Status: done 2026-11-25 on `wt/cms/LB1`, one commit `cms(LB1)`, with two parts left (below). No migration (none was
+needed: the reserved `00085` is unused). No Jira export for this run: built from `WAVE6.md` and 6.0's record.
+
+**Decisions applied:** U5 as WAVE6.md states it, with 6.0's contract changes (the admin and practitioners, never a
+receptionist).
+
+**Built.**
+
+- **`internal/diagnosticreport`.** The service (`Attach`, `Change`, `Release`, `ForVisit`, `Read`, `Mine`, `MineAt`,
+  `MyReport`), the Postgres repository on its sqlc package `diagnosticreportdb` (new `sqlc.yaml` entry), the JSON
+  handler and the FHIR form. Who: the staff's attendance of the visit (`appointment.Service.Attendance`, no change to
+  `appointment`) decides; attaching needs `access.Appointment` at full (the clinic's admin or the visit's practitioner
+  with an active care consent: else `not_found`, as the contract says); changing and reading need any level, so a past
+  visit's results stay readable and changeable after a revocation (as the database allows: its consent policy is on
+  insert only); releasing needs a practitioner (`forbidden` for the admin, as the database's policy), also after a
+  revocation. A receptionist gets `forbidden` on writes and `not_found` on reads (the contract lists no 403 there),
+  each audited. Values: a title of up to 200 characters, an optional LOINC code, the sample's day, at most 100 values,
+  each a number with an optional UCUM unit or a text, a printed range and an optional flag; checked in the service
+  (`invalid_diagnostic_report`) before the database's checks. Versions: `If-Match` on change and release, `ETag`
+  `W/"<versionId>"` on every write; a released report answers `report_released` (409), a stale version
+  `version_conflict` (412). A change replaces the values (delete and insert in the transaction).
+- **Audit.** Every write and read records an AuditEvent `DiagnosticReport/<id>` in its transaction (TREAT for staff with
+  the clinic, PATRQT for the patient); a list one per result, or one without an entity when empty; every refusal one
+  of its own transaction (outcome 4), so it stays when the call rolls back.
+- **Routes** (`internal/api/diagnosticreport.go`, one line in `app.go`): the five clinic routes and `GET
+  /me/diagnostic-reports`, `/{id}`; taken off `notServedYet` and held to their receptionist class by
+  `TestReceptionRoutes`. The session is `deskCaller`'s, so the service sees, refuses and audits the receptionist.
+- **The patient's export** (`clinicexport.OwnRecords`, the worker's `datarequestexport.go`): each clinic's `record.json`
+  holds the patient's released results as FHIR R4 DiagnosticReports (`diagnosticreport.FHIR`: code text with its LOINC
+  coding, subject, `effectiveDateTime` the sample's day, `issued` the release, the clinic as performer, the values as
+  contained Observations with `valueQuantity` in UCUM or `valueString`, the interpretation and the printed range),
+  read through `MineAt` as the patient and narrowed to a clinic target before anything is audited (as PX's); the
+  manifest counts "released lab result (DiagnosticReport)".
+- **Docs.** The DPIA's "Package LB1" block; this record.
+
+**Left** (for a follow-up package; nothing half-built is served):
+
+- **The PDF.** `AttachPDF`, `PDF`, `MyPDF` still refuse with `errors.ErrUnsupported` and their three routes stay in
+  `notServedYet` (`HasPDF` is always false). The contract says "scanned and encrypted as every Binary": the simplest
+  sound way is a third parent of `binary` (a `diagnostic_report_id` beside the response and the conversation, its RLS
+  through the report, its scan job's scope), a migration and a change across `binary`'s upload, scan and download, which
+  did not fit this session with its checks. A stored PDF must also freeze at release (6.0's review item 11).
+- **The record hand-over.** `GET /clinic/patients/{id}/record` leaves out every clinical item (the wave 4 integration:
+  until the owner and a lawyer decide who may hand them over); a lab result is clinical, so it is not added here
+  although WAVE6.md's row names the hand-over. For the owner: may the hand-over carry the patient's released results?
+- **A mistaken report** (FHIR `entered-in-error`, not in the contract) and the FHIR read routes (`DiagnosticReport` is
+  not in the CapabilityStatement; it is written only inside the export).
+
+**Test first.** Each layer's test was written before its code (the service tests with fakes for the repository, the
+visit's attendance, the audit and the transaction, which drops a failed transaction's events; the repository test on
+`pgtest`; the handler and FHIR tests), but each was first run together with its code under the time budget, so
+none was seen red on its own (a gap against the TDD rule, recorded here). The repository test first failed on its own seed (two visits of one practitioner at the same time). The FHIR
+test's expected key order was corrected to the struct's (fieldalignment puts the pointer first).
+
+**Review** (a fresh subagent over the diff; Copilot is out of quota until 2026-12-01): nothing serious; three low
+findings. **Fixed:** (1) the release answered the clock's nanoseconds while Postgres keeps microseconds (truncated);
+(2) the clinic's policy re-checks the report's author on every update (migration 00080), so a report whose author is no
+longer the clinic's admin or practitioner could be neither changed nor released and answered a 500: the repository now
+maps that refusal (42501) to `forbidden`, with a test. Whether such a report should stay changeable (a later migration
+checking the author on insert only) is for the owner. **Left:** (3) a typed unit is written as a UCUM code unchecked;
+a unit that is no valid UCUM would fail the HL7 validator once one reaches a golden file (no golden file holds a result
+yet).
+
+**Checks** (this worktree's compose project `salus-cms-lb1`): the fast layer twice (every changed package and its
+importers: `api`, `cmd/*`, `internal/api`, `clinicexport`, `datarequest`, `diagnosticreport`, `worker`): pass. A first
+full set stopped at lint (fieldalignment of three structs, a test's complexity, `httptest.NewRequest`), fixed; then the
+full set once: `make check` from the session's start (set go: `make gen-clients` with no diff, `lint` 0 issues,
+`test` pass (`internal/api` 585 s), `archcheck` pass, `i18n-check` pass); its `cover` step failed on a missing
+`coverage.raw`, which the first, stopped full run's still-running `make cover` in the same worktree had removed (not a
+test failure: every package passed under coverage), so `make cover` was rerun once alone: pass, 90.0% total,
+`diagnosticreport` 88.4%, `clinicexport` 85.1%, `internal/api` 93.8%. Not run: `make e2e` (not in LB1's sets; no
+journey changed), `make fhir-validate` (no golden FHIR file changed; the DiagnosticReport form is tested inline).
+
+**Dev stack:** this worktree's own compose project; nothing added to the dev database (no migration, no seed).
+
+## TP1: treatment plans on the server
+
+Status: done, 2026-11-25, on `wt/cms/TP1`, one commit `cms(TP1)`. No migration (its reserved `00086` is unused): 6.0's
+tables and policies were enough. No Jira export for this run: built from `WAVE6.md` U6 and 6.0's record.
+
+**Built.**
+
+- **`internal/careplan`.** The service behind 6.0's seven routes: `Write` and `Change` (a draft: a title, 1 to 50 steps,
+  each an active service of the clinic's own price list offered in the step's mode on day 0 to 730, the quote one of
+  the patient's at the clinic or none; the patient's active, unrestricted care consent is checked on every write),
+  `Book` (one slot per step, in order: every visit is booked or none, each in its step's mode; the plan becomes
+  `active` with its start and the visits' ids), `Cancel` (a draft or an active plan becomes `revoked`; its visits still
+  ahead are cancelled by the clinic, past ones kept), `Read`, `ForPatient` and `Mine` (the patient's booked plans at
+  every clinic). Each runs in one transaction in the clinic's scope (the patient's for `Mine`) and is audited there
+  (`CarePlan/<id>`; a list audits each plan it shows); a refusal rolls back and is audited after, with no id. Version
+  checks at `If-Match` (412). `repository_postgres.go` through `careplandb` (sqlc, a new `sqlc.yaml` entry): a
+  change updates steps by id, inserts new ones and deletes the rest; row-level security's refusals (a patient without
+  the clinic's consent, a quote not theirs) and a malformed id are `ErrNotFound`. `handler_http.go` serves the JSON
+  (startsOn as a date, the ETag `W/"<versionId>"`), mounted in `internal/api/careplan.go` (one line in `app.go`); the
+  seven routes are off `notServedYet` and held to their receptionist classes.
+- **`internal/appointment/service_careplan.go`** (its own file, no core file touched): `BookPlan` (each step's slot
+  resolved as `BookForPatient` resolves it, then every visit booked in one transaction, the caller's when it has one;
+  each visit audited as booked; a refusal returned unaudited for the plan to audit after its rollback), `PlanVisits`
+  (the visits in the scope set, unaudited: the plan's read audits) and `CancelPlan` (every booked visit still ahead
+  cancelled with reason `prov`, audited as the appointment's, its e-mail, waitlist and reminders as any cancellation).
+
+**Decisions** (the agent's, for the owner to confirm):
+
+| Point | As built | Why |
+| --- | --- | --- |
+| Moving a step | By moving its visit (the existing reschedule); the plan shows its steps in the order of their visits' start, numbered 1 to n | 6.0's PUT says so; no plan write when a visit moves |
+| `completed` | Derived on read: an active plan whose every visit has ended shows `completed` (and cannot be cancelled) | No job and no write on a read; the stored status stays `active` |
+| Who books | The admin any role's slots; a practitioner only their own role's (as `BookForPatient`) | The existing rule for staff bookings |
+| The day offsets | A guide for choosing the slots: a booking is not refused when a slot falls on another day | The 400 of `bookCarePlan` names only the slot count and the mode |
+| Cancelling a plan | Its future visits are cancelled with the clinic's access (the plan's caller is authorized for the plan); a visit closed meanwhile is skipped | A practitioner's plan may hold another practitioner's visits |
+
+**Test first.** `appointment`: `BookPlan` books every step and audits each, books none when a step is refused (a past
+slot, another clinic's, a patient); `CancelPlan` cancels only the future booked visits (red: the methods did not exist).
+`careplan`: service tests with fakes (write, each refusal audited, a restricted record, a change at its version only,
+booking and the patient's read, booking none on a taken slot, a slot count or mode that does not match, the order by
+the visits and `completed`, cancel and a second cancel, the clinic's list), the repository against Postgres (steps
+swapped, dropped and added; the patient sees a plan once booked; row-level security's refusals), handler tests with a
+stub (codes, ETag, If-Match, the receptionist refused before the body is read). `internal/api`: the plan on the real
+stack with row-level security on: one slot for two steps books nothing (no appointment row), two slots book both, the
+patient sees the plan, cancelling cancels both visits, and the plan's audit events. The careplan service and handler
+code was written beside their tests rather than strictly after a red run (they passed on their first run).
+
+**Review** (a fresh subagent over the staged diff; Copilot is out of quota until 2026-12-01): nothing serious; the
+all-or-none booking, the audits, the versions and the scopes hold. **Fixed:** (1) a list with no plan wrote no audit
+event: every list now records a search naming `Patient/<id>`, then each plan read; (5) a plan with a visit cancelled
+on its own never completed: a cancelled visit counts as ended; (7) a plan's cancellation skipped any refused visit:
+it now skips only a visit closed meanwhile, and another refusal (forbidden, not found) cancels nothing and refuses the
+plan's cancellation. **Left:** (2) `GET /clinic/patients/{id}/care-plans` answers `200 []` for a patient the clinic
+does not have (the contract says 404), and reads go on after a consent revocation (the record is kept, as other
+clinical reads): for BG4 or the owner; (3) any practitioner of the clinic may work with any of its patients' plans,
+and a plan's cancellation cancels other practitioners' visits of the plan: U6 says "the practitioner or admin", for
+the owner to confirm against CLAUDE.md's care-relationship rule; (4) `403 profile_required` on `GET /me/care-plans` and
+`403 forbidden` to a receptionist on the two clinic reads are not in `api/openapi.yaml` (as `/me/quotes` today): an
+OpenAPI line each, with the clients, at the integration; (6) `care_plan_clinic` re-checks on every update that the
+plan's author is still the clinic's admin or practitioner, so a plan whose author left cannot be changed or cancelled
+(404): a forward migration splitting the policy (insert: the author; update: the acting account), for BG4 or the owner.
+
+**Checks:** see the commit's report (`.claude/runs/cms/TP1.report.md`): the fast layer (every touched package and its
+importers) and the full set `make check`.
+
+**Deferred.**
+
+- The FHIR form of `CarePlan` (a FHIR read, the CapabilityStatement, `Patient/$everything`) and the plan in the
+  patient's export and the record hand-over: not in TP1's row; with the FHIR and export packages (6.0's note 13).
+- `resource_busy` on a plan's booking: RM1's device check adds the appointment error; `bookingErr` in
+  `careplan/service.go` then maps it to the plan's (a line and a case), at the integration.
+- A database guard on the plan's status (forward only) and on deleting a booked plan's steps (6.0's note 8): the
+  service enforces both (steps change only while a draft); a trigger needs a migration, left for BG4 or the owner.
+- A visit a plan's cancellation cannot cancel (the clinic lost access to it) is skipped silently; the plan is revoked.
+
+## LC2: locations, rooms and devices on the web
+
+Status: done, 2026-11-25, on `wt/cms/LC2`, one commit `cms(LC2)`. Web only (check set `web`), built against 6.0's
+generated client with a fake API in the tests: the routes it calls are LC1's and RM1's, built in parallel. No Jira export
+for this run: built from `WAVE6.md` (U1 to U4) and the 6.0 record. No migration, no Go, no OpenAPI change.
+
+**Built.**
+
+- **Locations** (`/locations`, the clinic's admin; linked from clinic settings beside the price list): every site with
+  its street, postal code, city and phone (grouped as people write it), "Not in use" on one taken out of use; add and
+  edit one at a time (`POST /clinic/locations`, `PUT /clinic/locations/{id}` with If-Match of the version read). The
+  city is a select of `GET /places`' cities grouped by region (Cyrillic names on a Cyrillic screen). Never deleted:
+  "In use" off takes it off the booking. `Locations.tsx`.
+- **Rooms and devices** of a location, opened under its row ("Rooms and devices"): two lists of the same shape (name, in
+  use), add and edit (`/clinic/locations/{id}/rooms|devices`, `PUT /clinic/rooms|devices/{id}` with If-Match).
+  `LocationResources.tsx`.
+- **Working hours**: an in-person row names its location (the ones in use, and the row's own), and a room of it when it
+  has rooms ("No room" by default); a row turned in-person takes the first location in use, a new row the row above's
+  place, a new location clears the room; a video row sends neither. `resource_busy` on save says another practitioner
+  works in that room then. With no location in use, the row says to add one. `Availability.tsx`, `AvailabilityPlaces.tsx`.
+- **Front desk**: with two or more locations in use, a "Location" select (every location, or one) reads the day with
+  `?locationId=` (that site's visits and the video visits, as 6.0's contract says). `Desk.tsx`.
+- **Copy**: a new catalog area `locations` in the five staff languages (46 strings).
+
+**Decisions** (where the contract left room; for the owner to confirm):
+
+- The time zone is not on the form: a new location sends none (the server takes the clinic's), an edit sends back the
+  one it has. Every clinic today is in Europe/Sarajevo; a picker waits until a clinic needs another zone.
+- The locations screen is its own page reached from clinic settings, not a section of that page (already long) and not
+  a menu item (the menu is full).
+- A failed read of the locations is not an error on the working hours or the desk: the hours show no location to pick
+  (the server says what is missing on save) and the desk shows the whole day without the filter.
+- The desk's choice of location is not remembered between visits to the page (no requirement asked for it).
+- The device a service needs (`Service.deviceId`, U4) has no picker on the price list: WAVE6.md gives LC2 the devices
+  screen, not the price list. Left for the owner to place (see Deferred).
+
+**Test first.** `Locations.test.tsx` (15 cases), the desk's two cases, the route and link cases were run red before the
+code. The five working hours cases were written before the code but first run after it (green); they cover each branch.
+
+**Checks.** The fast layer (oxlint, `vitest related`, i18n-check) after each change; the full set once:
+`runner.sh full` (set `web`: `make web-lint`, `web-typecheck`, `web-test`): the first run failed one case,
+`i18n/catalog.test.ts` "has the areas of the plan" (the list of catalog areas, which now has `locations`; added there);
+lint and typecheck passed. The second run passed: oxlint 0 warnings, `tsc -b`, i18n-check, 97 test files with 1369 tests. The walk at 1280 and 390 px
+against the Vite dev server with a fake API: `docs/clinic-cms/walk/wave6-locations/WALK.md` (three layout fixes found
+and made: the desk's select at 390 px, the hours row's place line, the "Not in use" tag).
+
+**Deferred.** A device picker on a price-list service (`deviceId`); the desk naming each in-person visit's location
+when every location is shown; a time zone picker for a location.
+
+**For the integration** (against LC1's and RM1's server): the shape of every call above; that `PUT
+/practitioner-roles/{id}/availability` accepts `locationId`/`roomId` and answers `resource_busy` (the code, whatever its
+status) for a taken room; that `GET /clinic/locations` and `/rooms` answer a practitioner (they read them on their own
+working hours), not only the admin; that the desk's `locationId` filter keeps the video visits; that a new location
+without `timeZone` gets the clinic's; and the walk again on the real stack.
+
+## LB2: lab results on the web and in the app
+
+Status: done, 2026-11-25, on `wt/cms/LB2`, one commit `cms(LB2)`. No Jira export: built from `WAVE6.md` (U5) and 6.0's
+contract. No Go, no migration: built against 6.0's generated clients with fake APIs in the tests; LB1 serves the routes.
+
+**Built.**
+
+- **Web, the visit page** (`LabResults.tsx`, `LabResultForm.tsx`, `labResultApi.ts`, catalog area `labResults` in the
+  five staff languages). The visit's own practitioner and the clinic's admin see a "Lab results" section (never another
+  practitioner, nor a receptionist: the list is not even read, since the server audits it). Each result shows its title,
+  the sample's day, whether the patient sees it ("Not released" or the day it was released), its values in a table
+  (test, value with its UCUM unit or the text, reference range, flag) and a link to its PDF. "Add a lab result" opens a
+  form: title, sample day, any number of values (up to 100), an optional PDF sent after the result at its new version.
+  A value that reads as a number (comma or point) is sent as `value` with its unit, anything else as `valueText`; a unit
+  with a text value and a half-filled row are refused before the server is asked. A result not yet released takes or
+  replaces its PDF; only the visit's practitioner releases it, after a confirmation that says the patient then sees it
+  and it never changes (tagged `legal`). `version_conflict` and `report_released` reread the list. On a cancelled or
+  no-show visit the results are shown but none is added (as receipts and quotes). At 390 px the values stack one card
+  per row, as the membership invoices do.
+- **Mobile** (`lab_results_screen.dart`, `Booking.labResults`, `labResultPdf`, a "My lab results" button on home,
+  eight strings in all ten languages). The patient's released results from every clinic, each with its sample day,
+  release day, values, range and flag as the lab printed them, and "Save or share the PDF" when there is one. Nothing
+  interprets a value: the flag is the lab's.
+
+**Decisions and readings.** Release is offered to the visit's own practitioner only ("a practitioner who may see the
+visit"; the admin attaches but does not release, as the contract's 403 says). Changing a result's values before release
+(`PUT /clinic/diagnostic-reports/{id}`) has no screen yet: deferred; a mistaken result is fixed before release only
+through the API. The PDF upload passes `Content-Length` as the contract asks; a browser drops the header from script and
+sets it from the file itself.
+
+**Test first.** `LabResults.test.tsx` (12), the new case in `AppointmentDetail.test.tsx`, and
+`mobile/test/lab_results_test.dart` (4) were written first and run red (missing module, missing button). Two existing
+tests changed on purpose: the fulfilled visit's button list in `AppointmentDetail.test.tsx` now starts with "Add a lab
+result"; `NoShows.test.tsx` and `catalog.test.ts` gained the new route's fake and the new area.
+
+**Walk.** No browser tool in this session and LB1's routes not served on this branch: the section was rendered in
+Chromium (Playwright) from a temporary harness page with the fake API, at 1280 and 390 px, in English and Bosnian
+(list, form with two values, release confirmation). First pass: the values table scrolled sideways inside its card at
+390 px; fixed by stacking. No page overflow at either width after it. The harness was removed.
+
+**Checks** (`salus-cms-lb2`): `runner.sh full` (sets web, mobile from the session's start): mobile-analyze, mobile-test
+(705) and web-lint, web-typecheck passed; web-test failed on three existing tests that needed the new fake route and
+catalog area; after the fix `make web-test` 1359 passed. i18n-check passed (inside mobile-analyze).
+
+**Strings for the owner.** Web `labResults.*` (40 keys, five languages; `releaseEffect` legal); mobile `myLabResults`,
+`labResultsIntro` (draft), `noLabResults`, `labResultSampleDate`, `labResultReleasedOn`, `labResultValue`,
+`labResultRange`, `labResultFlag` (ten languages).
+
+**For the integration** (against LB1's server): the list, attach, PDF upload (bytes, `Content-Type`, If-Match, the size
+limit, `invalid_diagnostic_report` for a non-PDF), release and its 403 for an admin; the Vite proxy's `/clinic/` covers
+the routes; the `/me/diagnostic-reports` list hides unreleased results; the PDF link opens with the session cookie.
+
+## TP2: treatment plans on the web and in the app
+
+Status: done, 2026-11-25, on `wt/cms/TP2`, one commit `cms(TP2)`. No Go, no migration, no schema: built against 6.0's
+generated clients (web `schema.d.ts`, Dart `CarePlansApi`) with a fake API in every test, as WAVE6.md says for the
+second half's web and mobile packages. No Jira export for this run: built from `WAVE6.md` (U6) and 6.0's record.
+
+**Built.**
+
+- **Web, the visit page.** A "Show treatment plans" toggle beside the quotes, for the clinic's admin and the visit's
+  own practitioner on a visit that happens (as quotes; never a receptionist, who has no clinical content), reads
+  (and so audits) the patient's plans only once asked (`GET /clinic/patients/{id}/care-plans`). `CarePlans.tsx`: each
+  plan with its title, state (draft, booked, completed, cancelled), first day and its steps in order, each with its
+  service, visit type and day (the date once booked, "day N" in a draft). A draft has "Change" and "Book"; a draft or
+  a booked plan "Cancel plan", which asks first and says the effect (future visits cancelled, past ones kept; the
+  `legal` tag), then `POST /cancel` at the version read. `CarePlanDialog.tsx` lays out or changes a draft
+  (`POST /clinic/care-plans`, `PUT` with If-Match): a title, steps of the active price list moved up and down in place,
+  each with its days from the start (0 to 730) and a visit type its service is offered in, and optionally one of the
+  visit's quotes (X1). `CarePlanBook.tsx` books a draft (`POST /book` with If-Match): one practitioner (the signed-in
+  practitioner's own role first), the first day (today or later in the clinic's zone), then for each step one free
+  slot of its visit type on its day (FHIR `Slot` search of the role's schedule, as the desk's move), no slot twice; the
+  server books every visit or none. Every refusal code of the contract has its sentence (`invalid_care_plan`,
+  `care_plan_not_draft`, `care_plan_ended`, `version_conflict`, `slot_unavailable` with the times read again,
+  `resource_busy`, `forbidden`/`not_found`). Shared helpers in `carePlan.ts`. Catalog area `carePlans` in the five
+  staff languages.
+- **Mobile.** "My treatment plans" on the home screen opens `CarePlansScreen` (`GET /me/care-plans` through
+  `Booking.carePlans`): each booked plan with its clinic from the directory (or "no longer listed"), its state, first
+  day and each step as a visit on its date and of its type. Eight strings in the ten languages (`app_sr.arb` too).
+
+**Decisions** (where the contract left a choice):
+
+| Point | As built | Why |
+| --- | --- | --- |
+| Where plans are laid out | On the visit page, beside the quotes, not a screen of its own | A plan is written for a patient the practitioner is seeing, as a quote; the visit names the patient and its quotes |
+| One practitioner per booking | One role for every step | The simplest booking; a plan with steps at two practitioners books twice (two plans) for now; for the owner |
+| The step's day | Its slot must start on the first day plus its offset, in the clinic's zone | U6 "a day offset"; the server checks the slots it gets (TP1) |
+| The patient's step | Date and visit type, no service name | `/me/care-plans` carries the service's id only and the app has no clinic price list to read; for TP1 or the owner |
+
+**Test first.** The web tests (`CarePlans.test.tsx`, `CarePlanBook.test.tsx`, the visit page's toggle in
+`AppointmentDetail.test.tsx`) and the mobile test (`care_plans_test.dart`) were written before their code, but their
+first run came after it (the missing modules would only have failed the import), so they were never seen red for the
+right reason. The first run found a test's own mistake (it read the first slot search, made for today's default, not
+the one after the first day was chosen). The catalog test's area list gained `carePlans`; the visit page's button list
+gained "Show treatment plans".
+
+**Walk** (`docs/clinic-cms/walk/tp2/WALK.md`, 1280 and 390 px against a fake API): the plan dialog ran past the right
+edge at 390 px with a long service name, the state tag was stretched in the row's buttons, and "Cancel plan" wrapped
+in red at 1280 px: fixed and walked again.
+
+**Checks** (this worktree's compose project, `salus-cms-tp2`): `runner.sh full` (sets web, mobile: `web-lint`,
+`web-typecheck`, `web-test`, `mobile-analyze`, `mobile-test`): the first run failed on the catalog test's area list
+and an oxlint purity warning (both fixed) and on `DeskMove.test.tsx` "reads the times again", which TP2 does not
+touch and which passed alone (flaky under the suite's load). The rerun, after the fixes and the walk's CSS: passed
+(oxlint 0 warnings, typecheck, web-test 1357, flutter analyze no issues, mobile-test 704). Not run: the go and e2e sets (no
+file of theirs changed).
+
+**Copy waiting for the owner:** the `carePlans` web area (63 strings, five languages) and the eight mobile strings in
+ten languages, the cancel question and its effect tagged `legal`.
+
+**For the integration** (against the real server, once TP1 is merged): every plan route answers as the fakes do
+(201 on write with `ETag`, the plan's `versionId` in the body, the error codes); a receptionist gets no plan button
+and the server refuses them; a booked plan's steps come in their visits' order after a move; `/me/care-plans` never
+lists a draft; a cancelled plan's future visits are gone from the patient's visits; the booking's slot search finds the
+role's in-person slots (LC1's location) and `resource_busy` (RM1) reads as built; the e2e journey of a plan if the
+owner wants one.
+
+## LC3: the location in the patient app
+
+Status: done, 2026-11-25, on `wt/cms/LC3`, one commit `cms(LC3)`. Mobile only (check set `mobile`), built against 6.0's
+generated Dart client with the fake API of `test/support.dart`; no Go, no migration. No Jira export for this run: built
+from `WAVE6.md` (U1, U2).
+
+**Built.**
+
+- **Picking the location before the time** (`slots_screen.dart`, `locations.dart`). The practitioner's times screen reads
+  the clinic's active locations once (`GET /organizations/{id}/locations`, `Booking.locations`). When the day's
+  in-person times (after the visit mode, when a day has both) are at more than one location, it asks "Where would you
+  like to come?" with one chip per location in the clinic's order, the first picked, the picked one's address below,
+  and shows only that location's times; the pick is kept on the next day that has it. A day at one location names it
+  and its address and asks nothing; a video day names none.
+- **The address on the visit.** The booking screen shows the slot's location and address under the visit mode; the
+  appointments list shows them under "At the clinic" for an in-person visit (the clinics' locations read once per
+  load, only for clinics with a located visit).
+- **Rescheduling** offers only times at the visit's own location, as it already kept the visit mode.
+- **FHIR reads** (`fhir.dart`): `Slot.locationId` from a `slot-location` extension (`valueReference` to `Location/<id>`),
+  `Appointment.locationId` from the `Location/<id>` participant (FHIR R4's Appointment.participant.actor).
+- **Copy.** One string, `locationQuestion`, in all ten languages (marked a draft for the owner in `app_en.arb`).
+
+**Readings and decisions.**
+
+- The FHIR form of a slot's location is LC1's (6.0 left "the location on the FHIR Slot and Appointment" to it), and LC1
+  ran beside this package. FHIR R4's Slot has no location element, so the app reads an extension
+  `https://salus.invalid/fhir/StructureDefinition/slot-location` with a `valueReference`; the Appointment's location is
+  the standard Location participant. If LC1 chose otherwise, `Fhir._slotLocation` and the fixture `slotLocation` in
+  `test/support.dart` change together.
+- The location is picked per day among the day's locations (not once before the days): the times screen already picks
+  the mode per day, and a clinic's practitioner may work at different sites on different days.
+- When the locations cannot be read, times are not split by location and the visit shows no address: booking goes on
+  (the server knows the slot's location), as the prices do when they fail.
+- The address is the location's street line and postal code. The city is a Wikidata id, and its name comes only from
+  `GET /places`, which is for staff: the patient's app cannot name it.
+- No web screen in this package, so no browser walk; the 390 px width is a widget test (long location names wrap, no
+  overflow).
+
+**Checks.** `flutter analyze`: no issues. `test/locations_test.dart` (9 cases) red first (no question, no address, no
+locations read, the reschedule at both sites), then green. `runner.sh full` (set `mobile`: `make mobile-analyze` with
+`i18n-check`, `mobile-test` 710): passed. The fast layer ran `test/support.dart` as a test file (it has no `main`), a
+quirk of its "matching tests" rule, not a failure of the package.
+
+**For the integration** (against LC1's server): the slot's location in FHIR (the extension above, on `Slot?schedule=…`);
+the Location participant on the patient's `Appointment` search; `GET /organizations/{id}/locations` answering a signed-in
+patient; that a reschedule to another location is refused or not (the app never offers one).
+
+**Deferred.** The location's phone on the visit (not asked); the city's name for patients (needs a public read of the
+places or the name on `Location`, for the owner); the location in the waitlist (SAL-35 joins a practitioner's list, not
+a site's).
+
+## BG4: backend hardening, second pass
+
+Done 2026-11-25 in the worktree `wt/cms/BG4` (compose project `salus-cms-bg4`), from BG1's "Deferred" paragraph and
+`docs/clinic-cms/notes/BG4.txt`. No Jira export for this run. Migration `00085_signup_link.sql` (00081 to 00084 left to
+LC1, RM1, LB1, TP1 in WAVE6.md's order; the integration renumbers). No schema or route of LC1, RM1, LB1 or TP1 touched.
+
+**Decisions applied** (WAVE6.md, agent's defaults 2026-11-25, owner to confirm): U8 built here.
+
+**Built** (each with its failing test first):
+
+- **U8, the link's 72 hours from the latest e-mail.** `clinic_signup.token_issued_at` (backfilled from `created_at`,
+  default now): `IssueVerification` sets it with the new token (`SetSignupToken`), `Verify` counts `TokenLifetime` from
+  it. Tests: `TestVerify_CountsTheLinksLifetimeFromTheLatestEmail` (a signup made 144 hours ago whose e-mail job ran
+  now verifies), the expiry test now ages the issue, and the repository test reads the time back. The retention rule
+  (30 days after `created_at` for an unverified signup) is unchanged.
+- **U8, the verified row drops the e-mail.** `clinic_signup.email` is nullable with `clinic_signup_email_kept` (only a
+  verified signup may lose it); salus_app may update `email` and `token_issued_at`. `signup.Service.AdminJoined`
+  (`ForgetSignupEmail`) is the hook: `auth.Ports.Signups` (a port declared by auth, nil where no invite is accepted:
+  the worker's and salusctl's auth services) is called by `acceptInvite` in the acceptance's transaction, for an admin's
+  invite only. `internal/api/app.go` gives auth a signup service on Repo and Tx alone, built before auth, so the
+  construction order stays (signupRoutes still builds the full one on auth). The migration blanks the e-mail of the
+  verified signups whose clinic already has an admin account. Tests: `TestAcceptInvite_TellsTheSignupThatTheAdminJoined`
+  (admin yes, in the transaction; practitioner and receptionist no), `TestAdminJoined_ForgetsTheSignupsEmail`, the
+  repository's `ForgetEmail` and `TestPostgresRepository_AnUnverifiedSignupKeepsItsEmail` (the constraint).
+- **The 500 probe of the staff routes.** `internal/api/staff_probe_test.go`: every operation of `receptionRoutes`
+  (the whole contract, kept complete by the existing classification test) as the clinic's admin, its practitioner and
+  its receptionist, with four malformed path ids (not a UUID, `%00`, invalid UTF-8, 300 characters) and five malformed
+  bodies (`{`, `null`, `[1]`, a string, an object of wrong field types); none may answer 5xx. It found one:
+  `GET /appointments/{id}/consultation` as the practitioner with `%00` or invalid UTF-8 answered 500, as the room rule
+  (`videosession` `attended`) put the id into `app.appointment_id` and Postgres refused the byte sequence. Fixed: an id
+  that is no UUID never reaches the scope (`fhir.IsUUID`), not found, audited without the entity
+  (`TestStatus_TheRoomRuleIgnoresAMalformedID`). Logout and account closure are left out (they end the session the probe
+  goes on with).
+- **Refusals that row-level security turns into a rollback** (survey of every repository that maps a Postgres refusal to
+  a domain error, and of every trigger raising one). Two left the transaction aborted, so the refusal had no audit row:
+  - `organization.Update`: the signup trigger (`ErrNotApproved`) was audited in the aborted transaction, a 500 with no
+    audit row; a city outside its region (`ErrInvalidLocation`, the foreign keys) was not audited at all. The update now
+    runs in a savepoint (consent's `GrantInPerson` pattern) and both are audited as refused updates. The repository tests
+    now read in the same transaction after each refusal (failed first with `25P02`);
+    `TestUpdate_RefusesAndAuditsAnInvalidLocation`.
+  - `datarequest` `File` and `FileOnBehalf`: a filing that row-level security refuses (a profile or clinic outside the
+    scope, `ErrNotFound`) was returned unaudited. The insert runs in a savepoint and the refusal is audited as a refused
+    create in the same transaction, naming no entity (`insert` in `service.go`); the repository test reads after the
+    refusal, and `TestFile_AuditsAFilingRowLevelSecurityRefuses` and the on-behalf test check the event.
+  - The others need nothing: consent's in-person grant (BG1's savepoint), and allergy, medication, quote, appointment and
+    consent sharing refusals, which audit in a transaction of their own after the failed one (correct while no caller
+    wraps them in an outer transaction; none does today). Unmapped trigger errors stay internal errors by design.
+- **The erasure's answer has its own `data_request` event.** `ErasurePorts.Audit` (wired in `internal/worker/erasure.go`):
+  the job's answer is audited as an update of the request, `datarequest.ErasureAgent` (`data_request_erasure`, the
+  name auth, consent and patient use) as the agent, about the patient, in the answer's transaction. Tests: the service's
+  erasure test and the worker's Postgres test (one event; a second run adds none).
+- **A River worker test of `clinicExportWorker`'s last attempt** (M2's deferral):
+  `internal/worker/clinicexport_internal_test.go` against Postgres with an object store that refuses the archive: the
+  attempt before the last returns the error and leaves the export queued, unaudited, unlogged; the last marks it failed
+  with one serious-failure event of `clinic_export_build`, returns nil, and logs the export's id only.
+
+**Checks** (compose project `salus-cms-bg4`): the fast layer (every Go package, as `migrations/` changed): passed but
+for `internal/worker`'s `TestChatNotifications_NeverCarryTheMessageText` (`"5c1d" is in what was sent, enqueued or
+logged`), which passed on its one rerun: flaky, and not this package's. Its forbidden string `5c1d` is four hex digits,
+which a random UUID or request id in the jobs or logs it searches contains now and then.
+The full set (`runner.sh full e2e`: `make check`, sets go and e2e): its first run stopped at `make lint` (funlen of
+`api.New` at 81 lines, the probe's cognitive complexity, a field order in the probe) and was stopped before its tests;
+after the fixes `make lint` 0 issues and the probe passed, and the second run passed: `make gen-clients` with no diff,
+`lint`, `test`, `archcheck`, `cover` (90.0% total, every package at 80% or more), `i18n-check`, and `make e2e` on its own
+project (`salus-cms-bg4-e2e`, removed after). Not run: `make fhir-validate` (no golden FHIR file changed).
+
+**Deferred:**
+
+- The chat test's `5c1d` probe string (above): a longer marker would end the collisions; outside this package.
+- List and refusal audit events without an entity (BG1's open point for the owner): unchanged; the new refusals follow
+  it.
+- The probe covers path ids and bodies, not query parameters; the routes' query parsing was not probed.
+
+## Wave 6, second half
+
+Done 2026-11-25 on `feat/cms` (from `b6bec6d0`, the first half): `wt/cms/LC1`, `RM1b`, `LB1`, `TP1`, `BG4`, `LC2`, `LB2`,
+`TP2`, `LC3` merged with `--no-ff` in that order; then the joins below, each test first, three of them built by agents
+in worktrees of their own (`wt/cms/W6LB`, `W6TP`, `W6RM`, merged with `--no-ff`); then the integration's commit
+`cms(wave 6): integrate the second half`.
+
+**Decisions of the owner** (2026-11-25, with the integration's request): a receipt of an in-person visit gets a "place
+of service" line with the visit location's name and address, while the seller stays the clinic's registered details
+(the seller's address is a fiscal matter). Only the visit's practitioner releases a lab result. Released results are in
+the patient's own export; lab results stay out of the admin's record hand-over, like other clinical documents, and its
+manifest says so. A practitioner works with the treatment plans of patients they have or had a visit with; the admin
+with any patient of the clinic.
+
+**Before the merges: `internal/api`'s tests.** 68 of its 97 tests ran one after another: 90 of the package's 104 s alone
+(`go test -json`, the compose stack otherwise idle), and 180, 294, 302 and once 603 s in full runs, past `go test`'s
+10-minute package limit (it cut RM1's and LC1's checks short). Every test builds its own App on its own database and
+Redis database, so all now start with `t.Parallel()`, and `TestEveryTestRunsInParallel` (a parse of the package's test
+files, build-tagged load tests aside) keeps it so; the merges' new tests (LB1, TP1, BG4, the joins) were made parallel
+by it. After: 38 s alone, 88 s in a full `make test` (249 s for the suite), 65 to 135 s in later runs with three agents'
+checks on the same machine. No timeout raised. Postgres stayed within its connections (no 53300). The same run caught a
+four-character log check in `internal/patient` (`"1990"` in a log line's digits); it now checks the whole birth date.
+
+**RM1.** Its run stopped at its budget with the work in `RM1.wip.patch` (which also held a 25,000-line `coverage.raw`,
+left out). Applied on `wt/cms/RM1b` from `feat/cms`, `scripts/check.sh --base b6bec6d0` (sets go and web) passed: lint 0
+issues, tests, archcheck, cover 90.0%, web 96 files. Committed `cms(RM1): rooms and devices`; the worktree
+`../salus-cms-RM1` and `wt/cms/RM1` removed.
+
+**Merges.** LC1 and RM1 met in 19 files. `location/repository_postgres.go` keeps LC1's location methods and RM1's rooms
+and devices (each side's stubs of the other dropped); the location service keeps one `Transactor`, `Auditor`, `refused`
+and `event` (both had them); the two packages' "refuses until built" tests went, the repository tests split into
+`repository_postgres_test.go` (LC1) and `repository_postgres_room_test.go` (RM1). A rule carries `LocationID` and
+`RoomID` (handler, JSON row, model in one field order); `SaveAvailability` places the rule (LC1) and then checks its rooms
+(RM1). Slot generation keys a slot on its location and its room; a rule from before LC1 that names a room but no location
+takes the room's location, on insert and in the delete's comparison (found by RM1's test: a re-run replaced every slot).
+`locationdb`'s two sqlc entries are one. The records, `dpia.md`, `sqlc.yaml`, the catalog area test, `app.css`, the ARB
+catalogs (a JSON union, checked to round-trip) and `notServedYet` were joined; generated code was never hand-merged:
+`make sqlc`, `make gen-clients` and `flutter gen-l10n` after the merges. BG4's probe of the staff routes, now reaching
+TP1's routes, found three 500s on a NUL or invalid UTF-8 plan id (22021): mapped to not found, test first. Migrations:
+`00080` 6.0, `00081` LC1, `00082` RM1, `00083` BG4 (`00085` in its worktree), `00084` lab result PDFs, `00085` the plan's
+guard, `00086` the receipt's place of service: no gap, no test file names a number that changed.
+
+**Joins** (test first; who built it):
+
+- *The visit's location and room* (integration). `Appointment.locationId` and `roomId` in JSON; the FHIR Appointment's
+  `Location/<id>` participant; the FHIR Slot's `slot-location` extension (`api/fhir/StructureDefinition-slot-location.json`),
+  which LC3 reads; the slot reads carry the location. LC1's trigger already sets a visit's location from its slot on any
+  change; now tested through the repository (a direct change of `location_id` is set back). The desk's day filters by
+  `locationId` in the service (its patients read and audited are that location's and the video visits'), a malformed id
+  answers 400; the web desk names each in-person visit's location while every location is shown.
+- *Addresses* (integration). Reminders (e-mail and SMS), the booking, reschedule and reminder e-mails of an in-person
+  visit give its location's address (`location.Service.Address`, the city's name from terminology's places, as a
+  clinic's address), the clinic's registered one when the location has none. A receipt copies a place of service at
+  issue (`invoice.place_of_service`, `00086`, frozen by the existing guard, printed under the payment, kept by a
+  reversal); the seller is unchanged.
+- *Devices and rooms* (agent, `W6RM`). A device picker on the price list's service form (the devices in use by
+  location; the current device always sent back); a service cannot be saved with an unknown, another clinic's or inactive
+  device (held `FOR SHARE` for the save); an inactive role's rules hold no room; a rule's room must be of the rule's
+  location. Staff reads of locations, rooms and devices were already open to every staff member of the clinic.
+- *Lab result PDFs* (agent, `W6LB`, `00084`). The report is a third parent of `binary`: PDF only, 20 MB, envelope
+  encrypted, scanned by ClamAV, served only once clean; uploads on a preliminary report at its version, frozen at release
+  by a trigger that holds every role; the three routes are served and `notServedYet` is empty. The staff download follows
+  the report's read rule, the patient's only a final report of their own. Released results' PDFs are in the patient's
+  export (`files/`); the hand-over's `manifest.txt` says lab results are not part of it.
+- *Treatment plans* (agent, `W6TP`, `00085`). `resource_busy` on a plan's booking (it was a 500); an unknown patient 404;
+  the missing 403 codes in the contract; a guard for forward-only status and booked steps; the care relationship
+  (`access.CarePlan`: a practitioner with a visit with the patient, the admin with any patient of the clinic; a
+  restricted record refuses every staff role), tested at the service and through the API; each step names its service and
+  its visit's start (web and app date a moved step right); booked plans in the patient's export as FHIR `CarePlan`.
+- *BG4's deferred*: the chat test's marker is `QZX-MARK`, which no hex id can hold.
+
+**Integration notes checked against the real server.** LC2: rooms and devices shapes, If-Match and ETag, `resource_busy`
+on availability (in the contract), practitioner and receptionist reads, `/locations` not proxied: match. LC3: the slot
+extension and the Location participant now served; `GET /organizations/{id}/locations` is public; a reschedule to another
+location is allowed (the visit takes the new slot's location) and the app never offers one. LB2: the routes and codes as
+built (a quarantined PDF answers 404 until clean). TP2: all match but `resource_busy` (fixed) and a moved step's day
+(fixed with `visitStart`).
+
+**e2e journeys** (`test/e2e/locations_test.go`, `lab_plans_test.go`, on fresh compose projects):
+`TestLocations_HoursRoomsDevicesAndTheVisitsAddress` (the annex with Room 1 and an ultrasound, hours at the annex in the
+room, a second practitioner refused the room at the same time with `resource_busy` and working there without it, a
+patient's in-person booking at the annex whose confirmation gives the annex's address and not the clinic's, a second
+booking needing the device at the same time refused with `resource_busy` and accepted without the device);
+`TestLabResults_ReleasedToThePatientAndNeverToTheDesk` (values and a PDF attached, nothing for the patient before
+release, released, the values and the scanned PDF read by the patient, every lab route refused to a receptionist);
+`TestCarePlans_BookedWholeMovedAndCancelled` (three steps booked in one go, one visit moved and shown last at its new
+time, the plan cancelled with its visits; a plan whose second step's time another patient took books nothing and frees
+its other slots). All pass. The plan journey's first run failed on the journey itself (the staff move needs the visit's
+If-Match); fixed in the test.
+
+**Walk**: `docs/clinic-cms/walk/wave6/WALK.md`, on the real stack at 1280 and 390 px, with BG2's deferred pass over every
+staff screen with real rows. Three findings fixed (the analytics filter's width at 1280 px, a booked step's time, empty
+lab cells at 390 px), five listed there.
+
+**Review** (a fresh subagent over `git diff origin/main...959d22c5`; Copilot's quota is out until 2026-12-01). On the
+three questions: a receptionist is refused every lab result and plan route by the services before any read (row-level
+security scopes those tables by clinic only, so the services are the guard for the role); another clinic's staff see
+nothing (the clinic scope); the generic file routes answer 404 for a lab PDF. An unreleased result or its PDF reaches the
+patient by no route: `/me`, the export (`MineAt` and `MyPDF` in the patient's scope), the hand-over (none) and the
+notifications (none); the release, the upload and the freeze trigger lock the same row. Two visits in one room or on one
+device: no path, as every appointment write takes its room from its slot (triggers) and the exclusion constraints and the
+device's advisory lock hold under READ COMMITTED; a deadlock of two plans taking two devices in opposite order is a
+refusal (`slot_unavailable`), not a double booking. **Fixed**: a NUL in a lab result's, plan's or location's, room's or
+device's text gave a 500 (or a 404 for a plan) instead of `invalid_*`: refused at validation, test first; careplan's
+comment on 22021 corrected. **Declined, for the owner**: (a) slots are generated in the clinic's time zone, not a
+location's own (LC1's open question; a location in another zone gets its slots at the clinic's wall times); (b) a role
+re-activated with a room another role took meanwhile is not re-checked: no double booking is possible (the slots'
+exclusion constraint), the second schedule's clashing slots are not generated and nobody is told; (c) list and refusal
+audit events name no entity (BG1's open question); (d) after a consent revocation staff still read and release a past
+visit's lab results (6.0's rule, as for other clinical records).
+
+**Open** (for the owner, or a later wave): copy of the new strings (below); the patient app shows a plan step's day
+without its time and a service in the clinic's language; a device taken out of use stays on the services that name it
+until their next save; an unscannable PDF stays quarantined (after release, for good); the plan in the hand-over and as a
+FHIR read (CapabilityStatement); a golden file and the HL7 validator for the `CarePlan` and `DiagnosticReport` FHIR forms
+(both are checked by exact-JSON unit tests only); a plan whose author left the clinic cannot be changed (TP1's note);
+the time zone picker for a location (LC2).
+
+**New user-facing strings at the integration**: web `prices.device` "Device (optional)", `prices.deviceNone` "None",
+`prices.deviceHint` "Two visits at the clinic that need the same device cannot overlap.", `prices.deviceInactive`
+"{name} (not in use)", in bs, hr, sr-Latn, sr-Cyrl and en; the receipt PDF's `place_of_service` "Place of service" (bs,
+hr, sr-Latn "Mjesto pružanja usluge", sr-Cyrl "Мјесто пружања услуге"); the patient export's manifest line "lab result
+PDF (in files/)" and the hand-over manifest's "Lab results (DiagnosticReport), their values and their PDFs are clinical
+documents too: they are not part of the hand-over." (English, as the manifests are). The packages' own strings are in
+their records (LC2 46, LB2, TP2 63 + 8, LC3 1).
+
+**Checks** (the main checkout's compose project `salus`): `make check BASE=origin/main SETS=landing,e2e` (every set: `make
+gen-clients` with no diff, `make lint` 0 issues with i18n-check, migrations and caddy routes, `test`, `archcheck`, `cover`
+89.9% total and every package at 80% or more, `fhir-validate` over 133 golden files with the new slot and appointment
+forms, `web-lint`, `web-typecheck`, `web-test` 100 files, `mobile-analyze`, `mobile-test` 718, the landing set, `make
+e2e` 468 s on `salus-e2e`, which it removed): passed, 853 s. Its first run, before the review's fix, failed only on
+`make lint` (two `time.Now` and two field layouts in the new e2e file); every other set passed. The joins' agents each
+ran `scripts/check.sh --base af1079c0` in their worktrees: W6LB and W6TP passed on their first run; W6RM's failed on two
+timing tests outside its diff (`TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks` under `make cover`,
+`CallScreen.test.tsx` "no sound for 5 seconds"), each passed on its one rerun, and both passed in the integration's runs.

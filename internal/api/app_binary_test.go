@@ -53,6 +53,7 @@ func send(c *client, method, path string, body []byte, headers map[string]string
 // is quarantined, downloads it whole and by a range once clean; the practitioner sees nothing before the submit;
 // staff cannot upload or delete; the patient deletes it. Every call is audited and the log holds no title.
 func TestNew_ServesTheFilesOfAResponseUnderItsAccessRuleAndAuditsThem(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)

@@ -87,6 +87,7 @@ describe('ClinicSettings', () => {
     renderSettings({ [`GET ${path}`]: () => new Promise<Response>(() => {}) })
 
     expect(screen.getByRole('link', { name: 'Price list' }).getAttribute('href')).toBe('/price-list')
+    expect(screen.getByRole('link', { name: 'Locations' }).getAttribute('href')).toBe('/locations')
   })
 
   // A screen path, not under /clinic/: the dev proxy and the production Caddyfile send /clinic/* to the API.
@@ -104,6 +105,8 @@ describe('ClinicSettings', () => {
     })
 
     expect(screen.queryByRole('heading', { name: 'Import patients' })).toBeNull()
+    // A button in the style of the page's other buttons, not bare text (walk/wave6-polish).
+    expect(screen.getByRole('button', { name: 'Import patients' }).closest('.actions')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Import patients' }))
     expect(screen.getByRole('heading', { name: 'Import patients' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))

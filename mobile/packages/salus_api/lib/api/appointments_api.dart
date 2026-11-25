@@ -565,8 +565,12 @@ class AppointmentsApi {
   /// Parameters:
   ///
   /// * [DateTime] date:
+  ///
+  /// * [String] locationId:
+  ///   Only the visits at this location, and the video visits (x-salus-package cms-lc1).
   Future<Response> getDeskDayWithHttpInfo({
     DateTime? date,
+    String? locationId,
     Future<void>? abortTrigger,
   }) async {
     // ignore: prefer_const_declarations
@@ -581,6 +585,9 @@ class AppointmentsApi {
 
     if (date != null) {
       queryParams.addAll(_queryParams('', 'date', date));
+    }
+    if (locationId != null) {
+      queryParams.addAll(_queryParams('', 'locationId', locationId));
     }
 
     const contentTypes = <String>[];
@@ -604,12 +611,17 @@ class AppointmentsApi {
   /// Parameters:
   ///
   /// * [DateTime] date:
+  ///
+  /// * [String] locationId:
+  ///   Only the visits at this location, and the video visits (x-salus-package cms-lc1).
   Future<DeskDay?> getDeskDay({
     DateTime? date,
+    String? locationId,
     Future<void>? abortTrigger,
   }) async {
     final response = await getDeskDayWithHttpInfo(
       date: date,
+      locationId: locationId,
       abortTrigger: abortTrigger,
     );
     if (response.statusCode >= HttpStatus.badRequest) {

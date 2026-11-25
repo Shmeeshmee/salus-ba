@@ -91,10 +91,11 @@ func (s *Service) composePush(ctx context.Context, agent string, d Delivery, tem
 }
 
 // startTimes is the start of n in the clinic's zone and, when the patient's zone (in p) gives another wall time, in
-// theirs (zero otherwise), with the clinic and its zone's name.
+// theirs (zero otherwise), with the clinic, its zone's name and where an in-person visit is (address).
 type startTimes struct {
 	there, local time.Time
 	localZone    string
+	address      string
 	clinic       organization.Organization
 }
 
@@ -108,6 +109,9 @@ func (s *Service) startTimes(ctx context.Context, d Delivery, n appointment.Remi
 		return startTimes{}, fmt.Errorf("the clinic's time zone: %w", err)
 	}
 	out := startTimes{clinic: clinic, there: n.Start.In(loc)}
+	if out.address, err = s.address(ctx, clinic, n.Mode, n.LocationID); err != nil {
+		return startTimes{}, err
+	}
 	if p.TimeZone == "" || p.TimeZone == clinic.TimeZone {
 		return out, nil
 	}
@@ -131,7 +135,7 @@ func (s *Service) composeEmail(ctx context.Context, agent string, d Delivery, n 
 	if err != nil {
 		return outgoing{}, err
 	}
-	data := whereToCome(letter{Clinic: st.clinic.Name, Link: s.patientAppURL + "/appointments"}, n.Mode, st.clinic)
+	data := whereToCome(letter{Clinic: st.clinic.Name, Link: s.patientAppURL + "/appointments"}, n.Mode, st.address)
 	if data.When, err = l.when(st.there, st.clinic.TimeZone); err != nil {
 		return outgoing{}, err
 	}
@@ -182,7 +186,7 @@ func reminderSMS(st startTimes, n appointment.ReminderNotice, link string) lette
 	data := whereToCome(letter{
 		Clinic: st.clinic.Name, ActionLink: link, Zone: st.clinic.TimeZone,
 		Day: st.there.Format("02"), Month: st.there.Format("01"), Year: st.there.Year(), Time: st.there.Format("15:04"),
-	}, n.Mode, st.clinic)
+	}, n.Mode, st.address)
 	if !st.local.IsZero() {
 		data.ZoneLocal, data.DayLocal, data.MonthLocal, data.TimeLocal = st.localZone, st.local.Format("02"), st.local.Format("01"), st.local.Format("15:04")
 	}

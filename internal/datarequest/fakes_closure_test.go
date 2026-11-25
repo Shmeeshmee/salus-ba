@@ -259,6 +259,7 @@ type closureFixture struct {
 	restrictions *fakeRestrictions
 	scope        *fakeScope
 	repo         *closureRepo
+	audit        *fakeAudit
 	profile      string
 }
 
@@ -267,7 +268,7 @@ func newClosureFixture(profile string, consents ...consent.Consent) *closureFixt
 	return &closureFixture{
 		accounts: &fakeAccounts{}, consents: &closureConsents{all: consents}, devices: &fakeDevices{},
 		restrictions: &fakeRestrictions{restricted: map[string]bool{}}, scope: scope, repo: &closureRepo{scope: scope},
-		profile: profile,
+		audit: &fakeAudit{}, profile: profile,
 	}
 }
 

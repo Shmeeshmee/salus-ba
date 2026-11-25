@@ -1,0 +1,2 @@
+Package 6.0. Your specification is the "6.0" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Contract only, no behaviour, as 3.0 and 5.0 did. The four fix packages BG1, BG2, BG3 and PX run in parallel: they add no schema of yours.

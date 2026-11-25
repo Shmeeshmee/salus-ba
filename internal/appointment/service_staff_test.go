@@ -258,7 +258,7 @@ func TestDeskDay_GivesTheClinicsDayInItsZoneWithEachPatientAndAuditsTheReads(t *
 	late := booked("ac000000-0000-4000-8000-0000000000ac", patientA, roleA1, clinicA, day.Add(10*time.Hour))
 	next := booked("ad000000-0000-4000-8000-0000000000ad", patientA, roleA1, clinicA, day.Add(24*time.Hour))
 	f := staffFixture(early, late, next)
-	out, err := f.svc.DeskDay(t.Context(), desk, time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC))
+	out, err := f.svc.DeskDay(t.Context(), desk, time.Date(2030, 1, 7, 0, 0, 0, 0, time.UTC), "")
 	got := out.Visits
 	if err != nil || len(got) != 2 || got[0].Appointment.ID != early.ID || got[1].Appointment.ID != late.ID || got[0].Patient.GivenName != "Ada" ||
 		!out.Day.Equal(day) {
@@ -271,8 +271,30 @@ func TestDeskDay_GivesTheClinicsDayInItsZoneWithEachPatientAndAuditsTheReads(t *
 	if !slices.Equal(f.audit.events, want) {
 		t.Errorf("audit %+v, want %+v", f.audit.events, want)
 	}
-	if _, err := f.svc.DeskDay(t.Context(), pract, day); !errors.Is(err, appointment.ErrForbidden) {
+	if _, err := f.svc.DeskDay(t.Context(), pract, day, ""); !errors.Is(err, appointment.ErrForbidden) {
 		t.Errorf("a practitioner = %v, want ErrForbidden", err)
+	}
+}
+
+// With a location the desk's day is that location's in-person visits and every video visit (docs/clinic-cms/WAVE6.md
+// U2).
+func TestDeskDay_AtALocationGivesItsVisitsAndTheVideoVisits(t *testing.T) {
+	t.Parallel()
+	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
+	day := time.Date(2030, 1, 7, 0, 0, 0, 0, sarajevo)
+	const siteA, siteB = "a3000000-0000-4000-8000-0000000000a1", "a3000000-0000-4000-8000-0000000000a2"
+	here := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
+	here.Mode, here.LocationID = schedule.ModeInPerson, siteA
+	there := booked("ac000000-0000-4000-8000-0000000000ac", patientA, roleA1, clinicA, day.Add(10*time.Hour))
+	there.Mode, there.LocationID = schedule.ModeInPerson, siteB
+	video := booked("ad000000-0000-4000-8000-0000000000ad", patientA, roleA1, clinicA, day.Add(11*time.Hour))
+	f := staffFixture(here, there, video)
+	out, err := f.svc.DeskDay(t.Context(), desk, day, siteA)
+	if err != nil || len(out.Visits) != 2 || out.Visits[0].Appointment.ID != here.ID || out.Visits[1].Appointment.ID != video.ID {
+		t.Fatalf("DeskDay(site A) = %+v, %v; want site A's visit and the video visit", out.Visits, err)
+	}
+	if all, err := f.svc.DeskDay(t.Context(), desk, day, ""); err != nil || len(all.Visits) != 3 {
+		t.Errorf("DeskDay(every location) = %d visits, %v; want 3", len(all.Visits), err)
 	}
 }
 
@@ -291,7 +313,7 @@ func TestDeskDay_IsTodayInTheClinicsZoneAndNamesEachService(t *testing.T) {
 		Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: today.Add(30 * time.Minute)},
 		Patients: f.patients, Clinics: f.clinics, Services: services, Rules: f.rules, Consents: f.consents,
 	})
-	out, err := svc.DeskDay(t.Context(), desk, time.Time{})
+	out, err := svc.DeskDay(t.Context(), desk, time.Time{}, "")
 	if err != nil || !out.Day.Equal(today) || len(out.Visits) != 2 {
 		t.Fatalf("DeskDay(no date) = %+v, %v; want 7 January in Sarajevo with its two visits", out, err)
 	}
@@ -337,7 +359,7 @@ func TestDeskDay_LeavesOutAVisitWhosePatientTheScopeHides(t *testing.T) {
 	seen := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
 	hidden := booked("ac000000-0000-4000-8000-0000000000ac", "ee000000-0000-4000-8000-0000000000ee", roleA1, clinicA, day.Add(10*time.Hour))
 	f := staffFixture(seen, hidden)
-	out, err := f.svc.DeskDay(t.Context(), desk, day)
+	out, err := f.svc.DeskDay(t.Context(), desk, day, "")
 	if err != nil || len(out.Visits) != 1 || out.Visits[0].Appointment.ID != seen.ID {
 		t.Fatalf("DeskDay = %+v, %v; want the one visit whose patient the scope shows", out, err)
 	}
@@ -352,7 +374,7 @@ func TestDeskDay_LeavesOutARestrictedPatient(t *testing.T) {
 	restricted := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
 	f := staffFixture(restricted)
 	f.consents.state[patientA+clinicA] = access.Consent{Active: true, Restricted: true}
-	out, err := f.svc.DeskDay(t.Context(), desk, day)
+	out, err := f.svc.DeskDay(t.Context(), desk, day, "")
 	if err != nil || len(out.Visits) != 0 {
 		t.Fatalf("DeskDay = %+v, %v; want no visit of the restricted patient", out, err)
 	}
@@ -389,7 +411,7 @@ func TestDeskDay_GivesEachVisitItsReceiptsAndAuditsThem(t *testing.T) {
 	receipts := fakeReceipts{receipted.ID: {{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7, Reversed: true}, {ID: "e2000000-0000-4000-8000-0000000000e2", Number: 8}}}
 	svc := appointment.NewService(appointment.Ports{Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
 		Patients: f.patients, Clinics: f.clinics, Receipts: receipts, Rules: f.rules, Consents: f.consents})
-	out, err := svc.DeskDay(t.Context(), desk, day)
+	out, err := svc.DeskDay(t.Context(), desk, day, "")
 	if err != nil || len(out.Visits) != 2 {
 		t.Fatalf("DeskDay = %+v, %v", out, err)
 	}

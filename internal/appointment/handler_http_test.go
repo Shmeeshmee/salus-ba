@@ -92,6 +92,21 @@ func TestHandler_BooksWithTheServiceNamed(t *testing.T) {
 	}
 }
 
+// An in-person visit names its location and room (docs/clinic-cms/WAVE6.md U2, U3); a video visit names neither.
+func TestHandler_AnInPersonVisitNamesItsLocationAndRoom(t *testing.T) {
+	inPerson := bookedA
+	inPerson.Mode, inPerson.LocationID, inPerson.RoomID = schedule.ModeInPerson, "a3000000-0000-4000-8000-0000000000a3", "a6000000-0000-4000-8000-0000000000a6"
+	rec := serveAppt(t, &stubAppointments{out: inPerson}, as(me), &bytes.Buffer{}, http.MethodPost, "/appointments", `{"slotId":"`+slotFree+`"}`)
+	if body := rec.Body.String(); !strings.Contains(body, `"locationId":"a3000000-0000-4000-8000-0000000000a3"`) ||
+		!strings.Contains(body, `"roomId":"a6000000-0000-4000-8000-0000000000a6"`) {
+		t.Errorf("POST /appointments = %d %s, want the location and room", rec.Code, body)
+	}
+	rec = serveAppt(t, &stubAppointments{out: bookedA}, as(me), &bytes.Buffer{}, http.MethodPost, "/appointments", `{"slotId":"`+slotFree+`"}`)
+	if body := rec.Body.String(); strings.Contains(body, "locationId") || strings.Contains(body, "roomId") {
+		t.Errorf("a video visit: %s, want no location or room", body)
+	}
+}
+
 func TestHandler_CancelsAndSetsTheStatus(t *testing.T) {
 	cancelled := bookedA
 	cancelled.Status, cancelled.Reason, cancelled.CancelledAt, cancelled.CancelledBy, cancelled.VersionID = appointment.StatusCancelled, appointment.ReasonPatient, now, accountA, 2

@@ -299,6 +299,12 @@ func TestReadListAndMine_ShowOnlyWhatTheCallerMaySee(t *testing.T) {
 	if _, err := f.svc.Mine(t.Context(), adminC); !errors.Is(err, invoice.ErrForbidden) {
 		t.Errorf("staff's Mine() = %v, want ErrForbidden", err)
 	}
+	if got, err := f.svc.MineAt(t.Context(), patientC, org); err != nil || len(got) != 1 {
+		t.Errorf("MineAt(the clinic) = %d receipts, %v; want the patient's one", len(got), err)
+	}
+	if got, err := f.svc.MineAt(t.Context(), patientC, "00000000-0000-4000-8000-0000000000ee"); err != nil || len(got) != 0 {
+		t.Errorf("MineAt(another clinic) = %d receipts, %v; want none", len(got), err)
+	}
 }
 
 // A draft issued twice with the same idempotency key (a double click, a retried request) issues one receipt: the

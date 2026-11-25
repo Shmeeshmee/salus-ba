@@ -100,9 +100,9 @@ func (s *Service) acceptOffer(ctx context.Context, c Caller, pre Offer) (Appoint
 		return s.record(ctx, c, auditevent.CodeCreate, "Appointment", out.ID, auditevent.OutcomeSuccess)
 	})
 	switch {
-	case errors.Is(err, ErrSlotUnavailable):
+	case errors.Is(err, ErrSlotUnavailable), errors.Is(err, ErrResourceBusy):
 		// The insert aborted the transaction: the refusal is audited in a transaction of its own.
-		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, ErrSlotUnavailable)
+		return Appointment{}, s.refuse(ctx, c, auditevent.CodeCreate, err)
 	case err != nil:
 		return Appointment{}, fmt.Errorf("appointment: accept an offer: %w", err)
 	case refused != nil:

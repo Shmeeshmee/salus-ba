@@ -25,6 +25,10 @@ type Period struct {
 	Start time.Time
 	End   time.Time
 	Mode  schedule.VisitMode // its rule's: in-person or video
+	// LocationID is an in-person slot's location, its rule's (docs/clinic-cms/WAVE6.md U2); empty for a video slot.
+	LocationID string
+	// RoomID is its rule's room, at generation only (RM1): reads leave it empty.
+	RoomID string
 }
 
 // Slot is a bookable time of one schedule.

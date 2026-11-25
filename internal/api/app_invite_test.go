@@ -50,6 +50,7 @@ func accept(t *testing.T, c *client, token string) string {
 }
 
 func TestNew_AnAdminInvitesAPractitionerWhoAcceptsAndIsInTheDirectory(t *testing.T) {
+	t.Parallel()
 	app, cfg := newApp(t)
 	count := openDB(t, cfg)
 	owner, err := postgres.Open(t.Context(), cfg.DatabaseURL)

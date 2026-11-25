@@ -69,6 +69,9 @@ var (
 	ErrCorrectionWindowClosed = errors.New("appointment: correction window closed")
 	// ErrInvalidRange is returned for a range of the no-show flags that is missing, reversed or too long (SAL-36).
 	ErrInvalidRange = errors.New("appointment: invalid range")
+	// ErrResourceBusy is returned when the visit's service needs a device another visit holds at an overlapping time
+	// (U4 of docs/clinic-cms/WAVE6.md, RM1).
+	ErrResourceBusy = errors.New("appointment: device busy")
 )
 
 // ErrShortKey is returned for a pseudonym key shorter than 32 bytes (nil asks for no pseudonyms at all).

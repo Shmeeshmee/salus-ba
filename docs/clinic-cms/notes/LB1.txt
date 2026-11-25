@@ -1,0 +1,2 @@
+Package LB1. Your specification is the "LB1" section or row of docs/clinic-cms/WAVE6.md; read that file whole first.
+Read 6.0 record in docs/clinic-cms/PROGRESS.md first (every place the contract changed). Go only: the screens are another package's. Other Go packages run in parallel: in internal/appointment add one file of your own and one appended block per core file.

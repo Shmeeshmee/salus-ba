@@ -608,5 +608,22 @@
   "closeAccountCopyFirst": "Ако желите да задржите копију својих података, затражите је под Приватност прије него што затворите налог: када је затворен, не можете да се пријавите да бисте је преузели.",
   "closeAccountConfirm": "Унесите лозинку да бисте потврдили.",
   "accountClosed": "Ваш налог је затворен и одјављени сте.",
-  "accountClosedReopen": "Ако желите да Salus поново отвори налог у року од 21 дана, пишите на {email}."
+  "accountClosedReopen": "Ако желите да Salus поново отвори налог у року од 21 дана, пишите на {email}.",
+  "myLabResults": "Моји лабораторијски налази",
+  "labResultsIntro": "Лабораторијски налази које је ваш љекар прегледао и објавио вама. Питајте свог љекара шта за вас значе.",
+  "noLabResults": "Још немате лабораторијских налаза.",
+  "labResultSampleDate": "Узорак узет {date}",
+  "labResultReleasedOn": "Објављено {date}",
+  "labResultValue": "{test}: {value}",
+  "labResultRange": "Референтни опсег {range}",
+  "labResultFlag": "{flag, select, N{Уредно} L{Ниско} H{Високо} LL{Критично ниско} HH{Критично високо} A{Одступа} other{}}",
+  "myCarePlans": "Моји планови лијечења",
+  "carePlansIntro": "Планови лијечења које су вам клинике заказале. Сваки корак плана је термин, који налазите међу својим терминима.",
+  "noCarePlans": "Још немате план лијечења.",
+  "carePlanActive": "Заказан",
+  "carePlanCompleted": "Завршен",
+  "carePlanRevoked": "Отказан",
+  "carePlanStartsOn": "Почиње {date}",
+  "carePlanStep": "{n}. {date} · {mode}",
+  "locationQuestion": "Гдје желите да дођете?"
 }

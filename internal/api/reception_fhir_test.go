@@ -120,6 +120,7 @@ func fhirEmpty(body string) bool {
 // as for one that does not exist, with none of the patient's data. The desk's reads of the clinic and its roles are
 // audited with the receptionist as the agent.
 func TestReceptionFHIR_AReceptionistReadsTheDesksDirectoryAndNoPatientsRecord(t *testing.T) {
+	t.Parallel()
 	r, count := newReception(t)
 	ids := map[string]string{"Organization": inviteClinic, "Practitioner": r.practitionerID, "PractitionerRole": r.roleID,
 		"Patient": r.patientID, "Appointment": r.visit}

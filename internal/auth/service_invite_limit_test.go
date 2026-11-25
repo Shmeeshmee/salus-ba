@@ -68,3 +68,15 @@ func TestInvite_CountsOnlyOpenInvites(t *testing.T) {
 		t.Errorf("with an accepted and an expired invite: %v, %v, %v; want two stored, then ErrInviteLimit", err1, err2, err3)
 	}
 }
+
+func TestInvite_CountsTheOpenInvitesUnderTheClinicsLock(t *testing.T) {
+	f := newFixture(staff())
+
+	if _, err := f.svc.Invite(t.Context(), adminSession(), practitionerInvite()); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(f.repo.locks) != 1 || f.repo.locks[0] != clinicID || len(f.repo.counted) != 1 || !f.repo.counted[0] {
+		t.Errorf("locks %v, counted under the lock %v; want the clinic locked before its open invites are counted", f.repo.locks, f.repo.counted)
+	}
+}

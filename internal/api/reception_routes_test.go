@@ -60,7 +60,7 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /clinic/appointments/{id}/arrive": desk, "GET /clinic/desk/today": desk,
 
 	// Staff administration and the clinic's settings: the admin's.
-	"POST /invites": refused, "GET /invites": refused,
+	"POST /invites": refused, "GET /invites": refused, "DELETE /invites/{id}": refused,
 	"PUT /practitioner-roles/{id}/specialty": refused, "GET /practitioner-roles/{id}/availability": refused,
 	"PUT /practitioner-roles/{id}/availability": refused,
 	"GET /clinic/chat-settings":                 refused, "PUT /clinic/chat-settings": refused,
@@ -164,11 +164,25 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /clinic/data-requests/{id}/answer": refused, "POST /clinic/data-requests/{id}/extend": refused,
 	"POST /clinic/patients/{id}/data-requests": desk, "PUT /clinic/patients/{id}/restriction": refused,
 	"DELETE /clinic/patients/{id}/restriction": refused, "GET /clinic/patients/{id}/restriction": refused,
+	// Wave 6 (docs/clinic-cms/WAVE6.md): the desk reads the locations, rooms and devices (its day by location, why a
+	// device is busy), the admin writes them; lab results and treatment plans are clinical content, never the desk's.
+	"GET /clinic/locations": desk, "POST /clinic/locations": refused, "PUT /clinic/locations/{id}": refused,
+	"GET /organizations/{id}/locations": public, "GET /clinic/locations/{id}/rooms": desk,
+	"POST /clinic/locations/{id}/rooms": refused, "PUT /clinic/rooms/{id}": refused, "GET /clinic/locations/{id}/devices": desk,
+	"POST /clinic/locations/{id}/devices": refused, "PUT /clinic/devices/{id}": refused,
+	"GET /clinic/appointments/{id}/diagnostic-reports": refused, "POST /clinic/appointments/{id}/diagnostic-reports": refused,
+	"GET /clinic/diagnostic-reports/{id}": refused, "PUT /clinic/diagnostic-reports/{id}": refused,
+	"GET /clinic/diagnostic-reports/{id}/pdf": refused, "PUT /clinic/diagnostic-reports/{id}/pdf": refused,
+	"POST /clinic/diagnostic-reports/{id}/release": refused, "GET /me/diagnostic-reports": stranger,
+	"GET /me/diagnostic-reports/{id}": stranger, "GET /me/diagnostic-reports/{id}/pdf": stranger,
+	"POST /clinic/care-plans": refused, "GET /clinic/patients/{id}/care-plans": refused, "GET /clinic/care-plans/{id}": refused,
+	"PUT /clinic/care-plans/{id}": refused, "POST /clinic/care-plans/{id}/book": refused,
+	"POST /clinic/care-plans/{id}/cancel": refused, "GET /me/care-plans": stranger,
 }
 
-// notServedYet are the routes in the contract that are not mounted: wave 5's, declared by its contract (5.0) and
-// served by D1 to D4. A route declared before it is built goes here and answers the router's own 404; when it is
-// mounted, the test fails until it is taken off this list, and the route is then held to its class above.
+// notServedYet are the routes in the contract that are not mounted (none today: wave 6's last, the lab results' PDFs,
+// are served). A route declared before it is built goes here and answers the router's own 404; when it is mounted,
+// the test fails until it is taken off this list, and the route is then held to its class above.
 var notServedYet = []string{}
 
 // contractOperations reads every operation of api/openapi.yaml as "METHOD /path", with whether it takes no session.
@@ -235,6 +249,7 @@ type reception struct {
 	visit, patientID, receptionAccount, receipt string  // receipt: one the receptionist issued for the visit
 	registered                                  string  // a patient the receptionist registered (docs/clinic-cms R2)
 	request                                     string  // the booked patient's data request to the clinic, which names them (wave 5)
+	site                                        string  // a location of the clinic, for its rooms and devices (RM1)
 }
 
 func newReception(t *testing.T) (reception, func(string, ...any) int) {
@@ -276,6 +291,10 @@ func newReception(t *testing.T) (reception, func(string, ...any) int) {
 	decode(t, rec, &reg)
 	r.registered = reg.ID
 	r.request = receptionRequests(t, r)
+	if err := owner.QueryRow(t.Context(), `INSERT INTO location (organization_id, name) VALUES ($1, 'Synthetic site') RETURNING id::text`, inviteClinic).
+		Scan(&r.site); err != nil {
+		t.Fatal(err)
+	}
 	return r, count
 }
 
@@ -338,15 +357,16 @@ var receptionQueries = map[string]string{
 // are the clinic's own (real) or ids that do not exist; the clinic and its practitioner's role, which the public directory lists, are
 // always the clinic's own; every other id does not exist.
 func receptionPath(r reception, route string, real bool) string {
-	visit, patient, receipt, registered, request := r.visit, r.patientID, r.receipt, r.registered, r.request
+	visit, patient, receipt, registered, request, site := r.visit, r.patientID, r.receipt, r.registered, r.request, r.site
 	if !real {
-		visit, patient, receipt, registered, request = unknownID, unknownID, unknownID, unknownID, unknownID
+		visit, patient, receipt, registered, request, site = unknownID, unknownID, unknownID, unknownID, unknownID, unknownID
 	}
 	path := route
 	for prefix, id := range map[string]string{
 		"/appointments/{id}": visit, "/clinic/appointments/{id}": visit, "/patients/{id}": patient,
 		"/practitioner-roles/{id}": r.roleID, "/organizations/{id}": inviteClinic, "/history-sharing/{organizationId}": inviteClinic,
 		"/clinic/receipts/{id}": receipt, "/clinic/patients/{id}": registered, "/clinic/data-requests/{id}": request,
+		"/clinic/locations/{id}": site,
 	} {
 		if strings.HasPrefix(path, prefix) {
 			path = strings.Replace(path, prefix[strings.LastIndex(prefix, "{"):], id, 1)
@@ -370,6 +390,7 @@ var registeredPatientData = []string{"Rina", "Registeredova", "1966-06-06"}
 // A receptionist reaches the desk's routes and is refused, as a stranger, on every other route of the contract
 // (docs/clinic-cms, F1).
 func TestReceptionRoutes_AReceptionistReachesTheDeskAndIsRefusedEverythingElse(t *testing.T) {
+	t.Parallel()
 	r, count := newReception(t)
 	unserved := map[string]bool{}
 	for _, op := range notServedYet {
@@ -465,6 +486,7 @@ func checkRefused(t *testing.T, r reception, op string, code int, body string) {
 
 // The receptionist's own session says what they are, and the price list is theirs to read.
 func TestReceptionRoutes_AReceptionistSeesTheirRoleAndThePriceList(t *testing.T) {
+	t.Parallel()
 	r, _ := newReception(t)
 	if rec := r.receptionist.do(http.MethodGet, "/auth/me", ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"role":"reception"`) {
 		t.Errorf("GET /auth/me as the receptionist = %d %s, want the reception role", rec.Code, rec.Body)

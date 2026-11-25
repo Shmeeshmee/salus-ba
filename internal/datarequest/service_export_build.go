@@ -220,6 +220,9 @@ func exportManifest(record *clinicexport.OwnExport, account bool) string {
 			for _, h := range p.Holds {
 				out += "  " + h + "\n"
 			}
+			for _, f := range p.Unreadable { // WAVE6.md PX: named, the rest of the archive still built
+				out += "  could not be opened, so not in this archive: " + f + "\n"
+			}
 		}
 	}
 	return out

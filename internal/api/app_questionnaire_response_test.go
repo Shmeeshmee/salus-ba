@@ -56,6 +56,7 @@ func request(t *testing.T, m matrix, appointment, questionnaire string) requeste
 // revocation (D9), every error code, the audit of each read and of each response a search returns, and a log
 // without a title, a question or an answer.
 func TestNew_ServesQuestionnaireResponsesUnderTheAccessRuleAndAuditsIt(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)
@@ -263,6 +264,7 @@ func checkResponseAudit(t *testing.T, m matrix, owner *pgxpool.Pool, first strin
 // Between a cancellation and its discard job (not run here), the response of the cancelled appointment takes
 // no answers and no submit, and the appointment no new request: 409 appointment_closed, audited as refusals.
 func TestNew_RefusesQuestionnaireChangesOnACancelledAppointment(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	owner := ownerPool(t, cfg)
 	cfg.DatabaseURL = pgtest.AppURL(t, cfg.DatabaseURL)

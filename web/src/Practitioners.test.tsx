@@ -197,6 +197,76 @@ describe('Practitioners', () => {
     expect(within(screen.getByRole('list', { name: 'Open invites' })).getAllByText('dana@example.test')).toHaveLength(1)
   })
 
+  // DELETE /invites/{id} (wave 6, U7): the fake answers as the route does, 204 when withdrawn, 404 when no longer open.
+  const withdrawRoute = `DELETE /invites/${openInvite.id}`
+
+  it('withdraws an open invite after asking, and takes it off the list (wave 6, U7)', async () => {
+    const fake = renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [openInvite] }),
+      'GET /specialties': specialties,
+      [withdrawRoute]: () => new Response(null, { status: 204 }),
+    })
+
+    const invites = await screen.findByRole('list', { name: 'Open invites' })
+    fireEvent.click(within(invites).getByRole('button', { name: 'Withdraw the invite for dana@example.test' }))
+    const ask = screen.getByRole('alertdialog', { name: 'Withdraw the invite for dana@example.test?' })
+    expect(ask.textContent).toContain('The link in the e-mail stops working.')
+    expect(paths(fake.requests)).not.toContain(withdrawRoute)
+
+    fireEvent.click(within(ask).getByRole('button', { name: 'Withdraw' }))
+
+    expect(await screen.findByText('No open invites.')).toBeTruthy()
+    expect((await screen.findByRole('status')).textContent).toBe('The invite was withdrawn.')
+    expect(paths(fake.requests)).toContain(withdrawRoute)
+    expectCsrfOnWrites(fake.requests)
+  })
+
+  it('keeps the invite when the withdrawal is cancelled', async () => {
+    const fake = renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [openInvite] }),
+      'GET /specialties': specialties,
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw the invite for dana@example.test' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Keep the invite' }))
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(within(screen.getByRole('list', { name: 'Open invites' })).getByText('dana@example.test')).toBeTruthy()
+    expect(paths(fake.requests)).not.toContain(withdrawRoute)
+  })
+
+  it('takes an invite that is no longer open off the list and says so', async () => {
+    renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [openInvite] }),
+      'GET /specialties': specialties,
+      [withdrawRoute]: () => apiError(404, 'not_found'),
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw the invite for dana@example.test' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Withdraw' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('This invite is no longer open: it was accepted, withdrawn or has expired.')
+    expect(screen.getByText('No open invites.')).toBeTruthy()
+  })
+
+  it('keeps the invite and says so when the withdrawal fails', async () => {
+    renderPractitioners(admin, {
+      [search]: () => fhirJSON(bundle),
+      'GET /invites': () => Response.json({ invites: [openInvite] }),
+      'GET /specialties': specialties,
+      [withdrawRoute]: () => apiError(500, 'internal error'),
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw the invite for dana@example.test' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Withdraw' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('The invite could not be withdrawn. Try again.')
+    expect(within(screen.getByRole('list', { name: 'Open invites' })).getByText('dana@example.test')).toBeTruthy()
+  })
+
   it.each([
     [400, 'invalid_email', 'Enter a valid e-mail address.'],
     [400, 'invalid_name', 'Enter the given and family name.'],

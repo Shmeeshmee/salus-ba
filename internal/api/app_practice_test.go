@@ -23,6 +23,7 @@ type practiceRow struct {
 // each visit mode, the visit held (fulfilled) and the amount of its receipt, a reversed receipt left out; only the
 // admin reads it, and a visit corrected to a no-show counts for nothing.
 func TestNew_ThePracticeReportCountsOfferedHeldAndReceiptedWorkByMode(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.DiscardHandler))
 	if err != nil {

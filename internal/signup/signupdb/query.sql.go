@@ -57,6 +57,17 @@ func (q *Queries) DeleteUnverifiedSignupsBefore(ctx context.Context, before pgty
 	return result.RowsAffected(), nil
 }
 
+const forgetSignupEmail = `-- name: ForgetSignupEmail :exec
+UPDATE clinic_signup SET email = NULL
+WHERE organization_id = $1 AND verified_at IS NOT NULL AND email IS NOT NULL
+`
+
+// U8: once the clinic's admin joined, its verified signup forgets the admin's e-mail.
+func (q *Queries) ForgetSignupEmail(ctx context.Context, organizationID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, forgetSignupEmail, organizationID)
+	return err
+}
+
 const insertSignup = `-- name: InsertSignup :one
 INSERT INTO clinic_signup (email, clinic_name, language, token_hash)
 VALUES ($1, $2, $3, $4)
@@ -64,7 +75,7 @@ RETURNING id, created_at
 `
 
 type InsertSignupParams struct {
-	Email      string
+	Email      pgtype.Text
 	ClinicName string
 	Language   Language
 	TokenHash  []byte
@@ -88,7 +99,7 @@ func (q *Queries) InsertSignup(ctx context.Context, arg InsertSignupParams) (Ins
 }
 
 const listSignups = `-- name: ListSignups :many
-SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash
+SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash, token_issued_at
 FROM clinic_signup
 WHERE verified_at IS NOT NULL
 ORDER BY approved_at IS NOT NULL, verified_at, id
@@ -114,6 +125,7 @@ func (q *Queries) ListSignups(ctx context.Context) ([]ClinicSignup, error) {
 			&i.ClinicName,
 			&i.Language,
 			&i.TokenHash,
+			&i.TokenIssuedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -149,18 +161,19 @@ func (q *Queries) PutSetupStep(ctx context.Context, arg PutSetupStepParams) erro
 }
 
 const setSignupToken = `-- name: SetSignupToken :execrows
-UPDATE clinic_signup SET token_hash = $1
-WHERE id = $2 AND verified_at IS NULL
+UPDATE clinic_signup SET token_hash = $1, token_issued_at = $2
+WHERE id = $3 AND verified_at IS NULL
 `
 
 type SetSignupTokenParams struct {
-	TokenHash []byte
-	ID        pgtype.UUID
+	TokenHash     []byte
+	TokenIssuedAt pgtype.Timestamptz
+	ID            pgtype.UUID
 }
 
-// A new verification link replaces the last one, only while the signup is not verified.
+// A new verification link replaces the last one, only while the signup is not verified; its 72 hours start now (U8).
 func (q *Queries) SetSignupToken(ctx context.Context, arg SetSignupTokenParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setSignupToken, arg.TokenHash, arg.ID)
+	result, err := q.db.Exec(ctx, setSignupToken, arg.TokenHash, arg.TokenIssuedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -198,7 +211,7 @@ func (q *Queries) SetupSteps(ctx context.Context, organizationID pgtype.UUID) ([
 }
 
 const signupByID = `-- name: SignupByID :one
-SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash
+SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash, token_issued_at
 FROM clinic_signup
 WHERE id = $1
 `
@@ -216,12 +229,13 @@ func (q *Queries) SignupByID(ctx context.Context, id pgtype.UUID) (ClinicSignup,
 		&i.ClinicName,
 		&i.Language,
 		&i.TokenHash,
+		&i.TokenIssuedAt,
 	)
 	return i, err
 }
 
 const signupByTokenHash = `-- name: SignupByTokenHash :one
-SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash
+SELECT id, created_at, verified_at, approved_at, organization_id, email, clinic_name, language, token_hash, token_issued_at
 FROM clinic_signup
 WHERE token_hash = $1
 FOR UPDATE
@@ -241,6 +255,7 @@ func (q *Queries) SignupByTokenHash(ctx context.Context, tokenHash []byte) (Clin
 		&i.ClinicName,
 		&i.Language,
 		&i.TokenHash,
+		&i.TokenIssuedAt,
 	)
 	return i, err
 }

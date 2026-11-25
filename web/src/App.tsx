@@ -15,6 +15,7 @@ import { ClinicReports } from './ClinicReports'
 import { DataRequestDetail } from './DataRequestDetail'
 import { DataRequests } from './DataRequests'
 import { Desk } from './Desk'
+import { Locations } from './Locations'
 import { OnlinePractice } from './OnlinePractice'
 import { PriceList } from './PriceList'
 import { ClinicSettingsWaitlist } from './ClinicSettingsWaitlist'
@@ -305,6 +306,7 @@ function Screen({ api, fhir, path, account }: Clients & { path: string; account:
   }
   if (path === '/desk' && deskRoles.has(account.role)) return <Desk api={api} fhir={fhir} account={account} />
   if (path === '/price-list' && account.role === 'admin') return <PriceList api={api} />
+  if (path === '/locations' && account.role === 'admin') return <Locations api={api} /> // clinic-cms LC2
   if (path === '/setup' && account.role === 'admin') return <SetupWizard api={api} /> // clinic-cms O1
   return <p className="panel">{t('shell.notFound')}</p>
 }

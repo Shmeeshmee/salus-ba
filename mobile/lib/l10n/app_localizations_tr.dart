@@ -2326,4 +2326,80 @@ class AppLocalizationsTr extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Hesabınızın 21 gün içinde yeniden açılmasını istemek için $email adresine yazın.';
   }
+
+  @override
+  String get myLabResults => 'Laboratuvar sonuçlarım';
+
+  @override
+  String get labResultsIntro =>
+      'Doktorunuzun incelediği ve sizinle paylaştığı laboratuvar sonuçları. Sizin için ne anlama geldiklerini doktorunuza sorun.';
+
+  @override
+  String get noLabResults => 'Henüz laboratuvar sonucunuz yok.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Numune alındı: $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Paylaşıldı: $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Referans aralığı $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normal',
+      'L': 'Düşük',
+      'H': 'Yüksek',
+      'LL': 'Kritik düşük',
+      'HH': 'Kritik yüksek',
+      'A': 'Anormal',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get myCarePlans => 'Tedavi planlarım';
+
+  @override
+  String get carePlansIntro =>
+      'Kliniklerin sizin için ayırdığı tedavi planları. Bir planın her adımı, randevularınız arasında bulacağınız bir randevudur.';
+
+  @override
+  String get noCarePlans => 'Henüz tedavi planınız yok.';
+
+  @override
+  String get carePlanActive => 'Rezerve edildi';
+
+  @override
+  String get carePlanCompleted => 'Tamamlandı';
+
+  @override
+  String get carePlanRevoked => 'İptal edildi';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Başlangıç: $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Nereye gelmek istersiniz?';
 }

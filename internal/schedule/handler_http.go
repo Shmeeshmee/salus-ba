@@ -50,15 +50,28 @@ type ruleBody struct {
 	End   *string `json:"end"`
 	// Mode is optional: a rule without one is a video rule (the service's validation).
 	Mode VisitMode `json:"mode"`
+	// LocationID is an in-person rule's location; optional when the clinic has one active location (LC1).
+	LocationID string `json:"locationId"`
+	RoomID     string `json:"roomId"` // optional (RM1)
+}
+
+// ruleOut is a Rule in the AvailabilityRule schema of a response.
+type ruleOut struct {
+	Start      string    `json:"start"`
+	End        string    `json:"end"`
+	Mode       VisitMode `json:"mode"`
+	LocationID string    `json:"locationId,omitempty"`
+	RoomID     string    `json:"roomId,omitempty"`
+	Day        int       `json:"day"`
 }
 
 // availabilityJSON is the Availability schema.
 type availabilityJSON struct {
-	ID                 string     `json:"id,omitempty"`
-	PractitionerRoleID string     `json:"practitionerRoleId"`
-	Rules              []ruleJSON `json:"availability"`
-	SlotMinutes        int32      `json:"slotMinutes,omitempty"`
-	VersionID          int32      `json:"versionId"`
+	ID                 string    `json:"id,omitempty"`
+	PractitionerRoleID string    `json:"practitionerRoleId"`
+	Rules              []ruleOut `json:"availability"`
+	SlotMinutes        int32     `json:"slotMinutes,omitempty"`
+	VersionID          int32     `json:"versionId"`
 }
 
 func (h *HTTPHandler) availability(w http.ResponseWriter, r *http.Request) {
@@ -106,10 +119,10 @@ func (h *HTTPHandler) write(w http.ResponseWriter, r *http.Request, s Schedule, 
 		h.writeError(w, r, err)
 		return
 	}
-	out := availabilityJSON{ID: s.ID, PractitionerRoleID: s.PractitionerRoleID, Rules: make([]ruleJSON, 0, len(s.Rules)),
+	out := availabilityJSON{ID: s.ID, PractitionerRoleID: s.PractitionerRoleID, Rules: make([]ruleOut, 0, len(s.Rules)),
 		SlotMinutes: s.SlotMinutes, VersionID: s.VersionID}
 	for _, rule := range s.Rules {
-		out.Rules = append(out.Rules, ruleJSON(rule))
+		out.Rules = append(out.Rules, ruleOut(rule))
 	}
 	w.Header().Set("ETag", fhir.ETag(strconv.FormatInt(int64(s.VersionID), 10)))
 	httpx.JSON(w, http.StatusOK, out)
@@ -132,7 +145,7 @@ func decodeAvailability(w http.ResponseWriter, r *http.Request) (Availability, b
 		if rule.Day == nil || rule.Start == nil || rule.End == nil {
 			return Availability{}, false
 		}
-		in.Rules = append(in.Rules, Rule{Day: *rule.Day, Start: *rule.Start, End: *rule.End, Mode: rule.Mode})
+		in.Rules = append(in.Rules, Rule{Day: *rule.Day, Start: *rule.Start, End: *rule.End, Mode: rule.Mode, LocationID: rule.LocationID, RoomID: rule.RoomID})
 	}
 	return in, true
 }
@@ -155,9 +168,11 @@ var errorCodes = []struct {
 }{
 	{ErrInvalidSlotMinutes, "invalid_slot_minutes", http.StatusBadRequest},
 	{ErrInvalidAvailability, "invalid_availability", http.StatusBadRequest},
+	{ErrInvalidLocation, "invalid_location", http.StatusBadRequest},
 	{ErrForbidden, "forbidden", http.StatusForbidden},
 	{ErrNotFound, "not_found", http.StatusNotFound},
 	{ErrConflict, "version_conflict", http.StatusPreconditionFailed},
+	{ErrResourceBusy, "resource_busy", http.StatusConflict},
 }
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {

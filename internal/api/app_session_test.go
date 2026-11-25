@@ -94,6 +94,7 @@ func openDB(t *testing.T, cfg config.Config) func(query string, args ...any) int
 }
 
 func TestNew_SignsAMobilePatientInAndOut(t *testing.T) {
+	t.Parallel()
 	app, cfg := newApp(t)
 	c := &client{t: t, h: app.Handler}
 	c.do(http.MethodPost, "/auth/register", `{"email":"ana@example.test","password":"`+testPassword+`"}`)
@@ -151,6 +152,7 @@ func redisClient(t *testing.T, cfg config.Config) *goredis.Client {
 }
 
 func TestNew_SignsAWebPatientInWithTheCookieAndChecksCSRF(t *testing.T) {
+	t.Parallel()
 	app, _ := newApp(t)
 	c := &client{t: t, h: app.Handler, web: true}
 	c.do(http.MethodPost, "/auth/register", `{"email":"ana@example.test","password":"`+testPassword+`"}`)
@@ -172,6 +174,7 @@ func TestNew_SignsAWebPatientInWithTheCookieAndChecksCSRF(t *testing.T) {
 }
 
 func TestNew_EnrolsStaffAtTheirFirstLoginAndThenAsksForACode(t *testing.T) {
+	t.Parallel()
 	app, cfg := newApp(t)
 	hash, err := auth.NewArgon2Hasher(auth.DefaultArgon2Params(), 1).Hash(t.Context(), testPassword)
 	if err != nil {

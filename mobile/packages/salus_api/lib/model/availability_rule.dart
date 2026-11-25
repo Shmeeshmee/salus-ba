@@ -17,6 +17,8 @@ class AvailabilityRule {
     required this.start,
     required this.end,
     this.mode,
+    this.locationId,
+    this.roomId,
   });
 
   /// ISO weekday, 1 Monday to 7 Sunday.
@@ -39,6 +41,24 @@ class AvailabilityRule {
   ///
   VisitMode? mode;
 
+  /// The location of an in-person rule, a location of the clinic (U2 of docs/clinic-cms/WAVE6.md, x-salus-package cms-lc1); never on a video rule. Every in-person rule made before wave 6 is at the clinic's first location. Its slots and the visits booked in them carry it.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? locationId;
+
+  /// Optional: a room of the rule's location (U3, x-salus-package cms-rm1). Two practitioners' in-person hours never overlap in one room: a PUT that would is refused with `resource_busy`.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? roomId;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -46,7 +66,9 @@ class AvailabilityRule {
           other.day == day &&
           other.start == start &&
           other.end == end &&
-          other.mode == mode;
+          other.mode == mode &&
+          other.locationId == locationId &&
+          other.roomId == roomId;
 
   @override
   int get hashCode =>
@@ -54,11 +76,13 @@ class AvailabilityRule {
       (day.hashCode) +
       (start.hashCode) +
       (end.hashCode) +
-      (mode == null ? 0 : mode!.hashCode);
+      (mode == null ? 0 : mode!.hashCode) +
+      (locationId == null ? 0 : locationId!.hashCode) +
+      (roomId == null ? 0 : roomId!.hashCode);
 
   @override
   String toString() =>
-      'AvailabilityRule[day=$day, start=$start, end=$end, mode=$mode]';
+      'AvailabilityRule[day=$day, start=$start, end=$end, mode=$mode, locationId=$locationId, roomId=$roomId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -69,6 +93,16 @@ class AvailabilityRule {
       json[r'mode'] = this.mode;
     } else {
       json[r'mode'] = null;
+    }
+    if (this.locationId != null) {
+      json[r'locationId'] = this.locationId;
+    } else {
+      json[r'locationId'] = null;
+    }
+    if (this.roomId != null) {
+      json[r'roomId'] = this.roomId;
+    } else {
+      json[r'roomId'] = null;
     }
     return json;
   }
@@ -104,6 +138,8 @@ class AvailabilityRule {
         start: mapValueOfType<String>(json, r'start')!,
         end: mapValueOfType<String>(json, r'end')!,
         mode: VisitMode.fromJson(json[r'mode']),
+        locationId: mapValueOfType<String>(json, r'locationId'),
+        roomId: mapValueOfType<String>(json, r'roomId'),
       );
     }
     return null;

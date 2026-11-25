@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
+	"github.com/Shmeeshmee/salus/internal/careplan"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
+	"github.com/Shmeeshmee/salus/internal/diagnosticreport"
 	"github.com/Shmeeshmee/salus/internal/encounter"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/patient"
@@ -33,8 +35,8 @@ type collectionEntry struct {
 func bundleJSON(r Record) ([]byte, error) { return ownBundleJSON(r, clinical{}) }
 
 // ownBundleJSON is bundleJSON with the patient's own clinical content after the Appointments (D7): the Encounters,
-// the signed documents as Compositions and the submitted QuestionnaireResponses, each attachment naming its file in
-// the archive (files/<Binary id>.<ext>).
+// the signed documents as Compositions, the submitted QuestionnaireResponses, the released DiagnosticReports and the
+// booked CarePlans, each attachment naming its file in the archive (files/<Binary id>.<ext>).
 func ownBundleJSON(r Record, c clinical) ([]byte, error) {
 	p := r.Patient.Patient
 	latest := p.LastUpdated
@@ -65,6 +67,16 @@ func ownBundleJSON(r Record, c clinical) ([]byte, error) {
 		}
 		add(a.seen.Response.ID, a.seen.Response.LastUpdated,
 			questionnaireresponse.FHIR(a.seen, a.version, func(id string) string { return names[id] }))
+	}
+	for _, x := range c.labResults {
+		at := x.CreatedAt
+		if x.ReleasedAt != nil {
+			at = *x.ReleasedAt
+		}
+		add(x.ID, at, diagnosticreport.FHIR(x))
+	}
+	for _, x := range c.carePlans {
+		add(x.ID, x.LastUpdated(), careplan.FHIR(x))
 	}
 	for _, i := range r.Receipts {
 		add(i.ID, i.IssuedAt, invoice.FHIR(i))

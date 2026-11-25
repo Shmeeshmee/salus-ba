@@ -10,6 +10,7 @@ import (
 )
 
 func TestNew_TheClinicsAdminSetsARolesSpecialtyAuditedAndNobodyElseCan(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	var log syncBuffer
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&log, nil)))
@@ -70,6 +71,7 @@ func TestNew_TheClinicsAdminSetsARolesSpecialtyAuditedAndNobodyElseCan(t *testin
 }
 
 func TestNew_AnyoneListsTheSpecialties(t *testing.T) {
+	t.Parallel()
 	cfg := testConfig(t)
 	app, err := api.New(t.Context(), cfg, testLiveKit(), testObjectStore(t), testDrafter(), testSummarizer(), slog.New(slog.NewTextHandler(&syncBuffer{}, nil)))
 	if err != nil {

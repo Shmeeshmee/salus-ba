@@ -67,8 +67,9 @@ Checks run in two layers:
   `make i18n-check` when a catalog changed. For a single test, run it through `check` in the `tools` container
   (`bash scripts/runner.sh check one -- docker compose -f deployments/docker-compose.yml run --rm -T tools go test -run TestX ./internal/x`);
   `make test TESTFLAGS=…` still runs every package, so do not use it for this.
-- **Full, once, at the end**: `bash scripts/runner.sh full` (the Go set, plus the app sets the diff touched),
-  and any extra check the package's definition of done or the plan's check sets name, through
+- **Full, once, at the end**: `bash scripts/runner.sh full [sets]`, which is `make check` from the session's start
+  commit: exactly the plan's check sets that the diff's files select; name a set the package's row lists and the
+  files do not select (`full e2e`). Any other check the package's definition of done names runs through
   `bash scripts/runner.sh check <name> [min] -- <command>`. Do not rerun the full set after each small fix: fix
   with the fast layer, then run the full set once more at most.
 

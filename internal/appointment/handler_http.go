@@ -59,6 +59,8 @@ type appointmentJSON struct {
 	PractitionerRoleID string             `json:"practitionerRoleId"`
 	SlotID             string             `json:"slotId"`
 	ServiceID          string             `json:"serviceId,omitempty"`
+	LocationID         string             `json:"locationId,omitempty"` // an in-person visit's (U2)
+	RoomID             string             `json:"roomId,omitempty"`     // an in-person visit's, when its slot has one (U3)
 	Status             Status             `json:"status"`
 	Reason             Reason             `json:"cancellationReason,omitempty"`
 	ConfirmedVia       Via                `json:"confirmedVia,omitempty"`
@@ -71,7 +73,7 @@ type appointmentJSON struct {
 func toJSON(a Appointment) appointmentJSON {
 	out := appointmentJSON{
 		Start: a.Start.UTC(), End: a.End.UTC(), ID: a.ID, OrganizationID: a.OrganizationID, PractitionerRoleID: a.PractitionerRoleID,
-		SlotID: a.SlotID, ServiceID: a.ServiceID, Status: a.Status, Reason: a.Reason, VersionID: a.VersionID,
+		SlotID: a.SlotID, ServiceID: a.ServiceID, LocationID: a.LocationID, RoomID: a.RoomID, Status: a.Status, Reason: a.Reason, VersionID: a.VersionID,
 		ConfirmedVia: a.ConfirmedVia, BookedVia: bookedVia(a.BookedVia), Mode: visitMode(a.Mode), RescheduleCount: a.RescheduleCount,
 	}
 	if !a.CancelledAt.IsZero() {
@@ -234,6 +236,7 @@ var errorCodes = []struct {
 	{ErrProfileRequired, "profile_required", http.StatusConflict},
 	{ErrConsentRequired, "consent_required", http.StatusConflict},
 	{ErrSlotUnavailable, "slot_unavailable", http.StatusConflict},
+	{ErrResourceBusy, "resource_busy", http.StatusConflict}, // a device (RM1)
 	{ErrCancellationWindowClosed, "cancellation_window_closed", http.StatusConflict},
 	{ErrClosed, "appointment_closed", http.StatusConflict},
 	{ErrNotStarted, "appointment_not_started", http.StatusConflict},

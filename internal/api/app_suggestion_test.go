@@ -15,6 +15,7 @@ import (
 // theirs, and the suggestion with its new status comes on the stream, to every open view. A suggestion that is
 // not the encounter's is answered with a command_error and changes nothing.
 func TestNew_ThePractitionerDismissesASuggestionOverTheEventStream(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	const id = "5a000000-0000-4000-8000-000000000001"
 	if _, err := s.owner.Exec(t.Context(), `INSERT INTO suggestion (id, encounter_id, type, text, confidence, source_segment_ids)

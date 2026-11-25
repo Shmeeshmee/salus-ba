@@ -13,6 +13,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/internal/auth"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/patient"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
@@ -44,6 +45,11 @@ func (s *Service) Build(ctx context.Context, args BuildArgs) error {
 	case x.Status != StatusQueued:
 		return nil
 	}
+	if ok, err := s.p.Admins.IsClinicAdmin(ctx, auth.Session{AccountID: x.RequestedBy, OrganizationID: x.OrganizationID}); err != nil {
+		return fmt.Errorf("clinicexport: build: %w", err)
+	} else if !ok {
+		return s.refuseBuild(ctx, x)
+	}
 	archive, err := s.archive(ctx, x)
 	if err != nil {
 		return fmt.Errorf("clinicexport: build: %w", err)
@@ -61,6 +67,25 @@ func (s *Service) Build(ctx context.Context, args BuildArgs) error {
 			return err
 		}
 		return s.p.Audit.Record(ctx, jobEvent(x.OrganizationID, auditevent.CodeUpdate, auditevent.OutcomeSuccess))
+	})
+	if err != nil {
+		return fmt.Errorf("clinicexport: build: %w", err)
+	}
+	return nil
+}
+
+// refuseBuild marks the export x failed without reading anything of the clinic: the admin who asked is no longer its
+// admin. Audited as the job's refused write.
+func (s *Service) refuseBuild(ctx context.Context, x Export) error {
+	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.p.Repo.SetOrganization(ctx, x.OrganizationID); err != nil {
+			return err
+		}
+		ok, err := s.p.Repo.MarkFailed(ctx, x.ID)
+		if err != nil || !ok {
+			return err
+		}
+		return s.p.Audit.Record(ctx, jobEvent(x.OrganizationID, auditevent.CodeUpdate, auditevent.OutcomeMinorFailure))
 	})
 	if err != nil {
 		return fmt.Errorf("clinicexport: build: %w", err)
@@ -197,7 +222,9 @@ func manifest(patients int, restricted []string) string {
 		"Patients' records in this archive: " + strconv.Itoa(patients) + "\n\n" +
 		"Not in this archive: clinical documents, questionnaire answers and the patient's history. Who may hand\n" +
 		"them over is not decided yet. A patient with their own Salus account has no file in patients/; their\n" +
-		"appointments, receipts and quotes at the clinic are in the CSV files.\n\n" +
+		"appointments, receipts and quotes at the clinic are in the CSV files.\n" +
+		"Lab results (DiagnosticReport), their values and their PDFs are clinical documents too: they are not\n" +
+		"part of the hand-over.\n\n" +
 		"After a patient withdraws their consent, the clinic's screens show only their visits from before the\n" +
 		"withdrawal; this archive holds every visit at the clinic: the visits a withdrawal of consent cancelled are in it too,\n" +
 		"in appointments.csv and in the patient's record, with the status cancelled.\n" +

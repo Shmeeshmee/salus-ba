@@ -40,6 +40,7 @@ type env struct {
 	jobs    *fakeJobs
 	store   *fakeStore
 	sources *fakeSources
+	admins  *fakeAdmins
 	clk     *clock.Fixed
 }
 
@@ -52,11 +53,12 @@ func newEnv(t *testing.T) *env {
 	e := &env{
 		repo: newFakeRepo(), audit: &fakeAudit{}, jobs: &fakeJobs{}, store: &fakeStore{objects: map[string][]byte{}},
 		sources: &fakeSources{people: map[string]practitioner.Practitioner{}, records: map[string]patient.ClinicRecord{}}, clk: &clock.Fixed{T: asked},
+		admins: &fakeAdmins{admins: map[string]string{adminA: clinicA}},
 	}
 	e.svc = clinicexport.NewService(clinicexport.Ports{
 		Repo: e.repo, Audit: e.audit, Tx: fakeTx{}, Clock: e.clk, Jobs: e.jobs, Store: e.store, KEK: kek,
 		PriceList: e.sources, Roles: e.sources, Practitioners: practitioners{e.sources}, Appointments: visits{e.sources},
-		Receipts: e.sources, Quotes: e.sources, Patients: patients{e.sources},
+		Receipts: e.sources, Quotes: e.sources, Patients: patients{e.sources}, Admins: e.admins,
 	})
 	return e
 }
@@ -206,6 +208,7 @@ func TestBuild_StoresTheClinicsDataEncryptedAndTheAdminDownloadsIt(t *testing.T)
 	}
 	checkPatientFile(t, files["patients/pt1.json"])
 	checkManifest(t, files["manifest.txt"])
+	checkNoLabResults(t, files)
 	if len(files) != len(want)+2 {
 		t.Errorf("archive holds %d files, want %d (the CSVs, one patient's record and the manifest)", len(files), len(want)+2)
 	}
@@ -266,6 +269,33 @@ func TestBuild_OnlyAQueuedExportAndAFailedOneIsMarked(t *testing.T) {
 	}
 	if next, err := e.svc.Request(context.Background(), admin); err != nil || next.ID == x.ID {
 		t.Errorf("ask after a failure = %+v, %v; want a new export", next, err)
+	}
+}
+
+// TestBuild_FailsTheExportOfAnAdminWhoIsNoLongerTheClinicsAdmin: the job re-checks its requester when it runs
+// (docs/clinic-cms/WAVE6.md BG1): an admin removed or demoted after asking gets no archive of the clinic.
+func TestBuild_FailsTheExportOfAnAdminWhoIsNoLongerTheClinicsAdmin(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	x, err := e.svc.Request(context.Background(), admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(e.admins.admins, adminA)
+	e.audit.events = nil
+
+	if err := e.svc.Build(context.Background(), clinicexport.BuildArgs{ExportID: x.ID, OrganizationID: clinicA}); err != nil {
+		t.Fatalf("Build() = %v, want the export failed without a retry", err)
+	}
+
+	if got := e.repo.rows[x.ID]; got.Status != clinicexport.StatusFailed {
+		t.Errorf("status = %s, want failed", got.Status)
+	}
+	if len(e.store.objects) != 0 || len(e.sources.roleCallers)+len(e.sources.visitCallers) != 0 {
+		t.Errorf("stored %d objects after %d reads; want nothing of the clinic read or stored", len(e.store.objects), len(e.sources.roleCallers)+len(e.sources.visitCallers))
+	}
+	if len(e.audit.events) != 1 || e.audit.events[0].Outcome != auditevent.OutcomeMinorFailure || e.audit.events[0].AgentName != clinicexport.AgentBuild {
+		t.Errorf("audit %+v, want the job's one refusal", e.audit.events)
 	}
 }
 
@@ -339,14 +369,55 @@ func checkReadAsTheAdmin(t *testing.T, f *fakeSources) {
 	}
 }
 
-// checkManifest checks the manifest of the clinic's export: one patient's record, what is not in it, the cancelled
-// visits (S11) and the records the clinic restricts (S7).
+// checkNoLabResults: the hand-over's files carry no lab result (U5); only the manifest names them, as left out.
+func checkNoLabResults(t *testing.T, files map[string]string) {
+	t.Helper()
+	for name, body := range files {
+		if strings.Contains(body, "DiagnosticReport") && name != "manifest.txt" {
+			t.Errorf("%s carries a lab result: the hand-over leaves them out", name)
+		}
+	}
+}
+
+// checkManifest checks the manifest of the clinic's export: one patient's record, what is not in it (the lab results
+// among the clinical documents, U5), the cancelled visits (S11) and the records the clinic restricts (S7).
 func checkManifest(t *testing.T, m string) {
 	t.Helper()
 	if !strings.Contains(m, "Patients' records in this archive: 1\n") ||
 		!strings.Contains(m, "Not in this archive: clinical documents, questionnaire answers and the patient's history.") ||
+		!strings.Contains(m, "Lab results (DiagnosticReport), their values and their PDFs are clinical documents too: they are not\n"+
+			"part of the hand-over.") ||
 		!strings.Contains(m, "the visits a withdrawal of consent cancelled are in it too") || strings.Contains(m, "in neither") ||
 		!strings.Contains(m, "Restricted records (GDPR Art. 18), by patient id:\npt1\npt9\n") {
 		t.Errorf("manifest.txt =\n%s", m)
+	}
+}
+
+// TestGetAndDownload_AuditAProbeForAnotherClinicsExport: a request for an export id the clinic does not have is a
+// refused read, audited (docs/clinic-cms/WAVE6.md BG1).
+func TestGetAndDownload_AuditAProbeForAnotherClinicsExport(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	other := clinicexport.Caller{AccountID: adminA, OrganizationID: clinicB, Admin: true}
+	x, err := e.svc.Request(context.Background(), other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.audit.events = nil
+
+	if _, err := e.svc.Get(context.Background(), admin, x.ID); !errors.Is(err, clinicexport.ErrNotFound) {
+		t.Errorf("Get() of another clinic's export = %v, want ErrNotFound", err)
+	}
+	if _, _, err := e.svc.Download(context.Background(), admin, x.ID); !errors.Is(err, clinicexport.ErrNotFound) {
+		t.Errorf("Download() of another clinic's export = %v, want ErrNotFound", err)
+	}
+
+	if len(e.audit.events) != 2 {
+		t.Fatalf("audit %+v, want the two refused reads", e.audit.events)
+	}
+	for _, ev := range e.audit.events {
+		if ev.Outcome != auditevent.OutcomeMinorFailure || ev.AgentAccountID != adminA || ev.OrganizationID != clinicA || ev.Subtype.Code != auditevent.CodeRead {
+			t.Errorf("audit event %+v, want a refused read by the admin in their clinic", ev)
+		}
 	}
 }

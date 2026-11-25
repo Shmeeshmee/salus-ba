@@ -12,6 +12,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/invoice"
 	"github.com/Shmeeshmee/salus/internal/organization"
+	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/fiscal"
 	"github.com/Shmeeshmee/salus/pkg/fiscal/fiscaltest"
@@ -32,8 +33,11 @@ const (
 	// registeredVisit is a visit of a patient the clinic registered, without an account (docs/clinic-cms W1), with an
 	// active care consent.
 	registeredVisit = "appt-registered"
-	exam            = "svc-exam"
-	lab             = "svc-lab"
+	// inPersonVisit is an in-person visit of patientA at the clinic's annex (docs/clinic-cms/WAVE6.md U2).
+	inPersonVisit = "appt-in-person"
+	annex         = "site-annex"
+	exam          = "svc-exam"
+	lab           = "svc-lab"
 )
 
 var (
@@ -266,6 +270,8 @@ func (fakeVisits) Lookup(_ context.Context, id string) (appointment.Appointment,
 		return appointment.Appointment{ID: registeredVisit, OrganizationID: org, PatientID: "patient-registered"}, nil
 	case restrictedVisit:
 		return appointment.Appointment{ID: restrictedVisit, OrganizationID: org, PatientID: "patient-restricted"}, nil
+	case inPersonVisit:
+		return appointment.Appointment{ID: inPersonVisit, OrganizationID: org, PatientID: patientA, Mode: schedule.ModeInPerson, LocationID: annex}, nil
 	}
 	return appointment.Appointment{}, appointment.ErrNotFound
 }
@@ -277,6 +283,16 @@ func (fakeVisits) PatientHasAccount(_ context.Context, id string) (bool, error) 
 		return false, nil
 	}
 	return true, nil
+}
+
+// fakeSites names the clinic's annex with its address, as location.Service.Place.
+type fakeSites struct{}
+
+func (fakeSites) Place(_ context.Context, o, id string) (string, error) {
+	if o == org && id == annex {
+		return "Synthetic annex, Synthetic annex 2, 88000 Mostar", nil
+	}
+	return "", nil
 }
 
 // fakeCare: the clinic treats patientA (a visit and an active care consent) and "patient-consented" (an active care
@@ -343,7 +359,7 @@ func newFixtureAt(seller invoice.Seller, clk clock.Fixed) fixture {
 	f := fixture{repo: &fakeRepo{}, jobs: &fakeJobs{}, audit: &fakeAudit{}, reporter: &fiscaltest.Reporter{Clock: clk}}
 	f.svc = invoice.NewService(invoice.Ports{
 		Repo: f.repo, Prices: fakePrices{}, Reporter: f.reporter, Sellers: fakeSellers{seller}, Clinics: fakeClinics{},
-		Visits: fakeVisits{}, Consents: fakeCare{}, Care: fakeCare{}, Jobs: f.jobs, Audit: f.audit,
+		Visits: fakeVisits{}, Sites: fakeSites{}, Consents: fakeCare{}, Care: fakeCare{}, Jobs: f.jobs, Audit: f.audit,
 		Tx: fakeTx{repo: f.repo, jobs: f.jobs}, Clock: clk,
 	})
 	return f

@@ -212,6 +212,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Withdraw an open invite
+         * @description An admin of the clinic withdraws one of its open invites (U7 of docs/clinic-cms/WAVE6.md, package BG1): it ends now and its e-mailed link no longer works. Audited, also when refused.
+         */
+        delete: operations["withdrawInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invites/accept": {
         parameters: {
             query?: never;
@@ -3685,6 +3705,434 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clinic/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The clinic's locations
+         * @description Every site of the clinic, active first, by name (U1 of docs/clinic-cms/WAVE6.md). For the clinic's staff. Not personal data. Built in package LC1.
+         */
+        get: operations["listClinicLocations"];
+        put?: never;
+        /**
+         * Add a location to the clinic
+         * @description By the clinic's admin. A clinic has at least one location: the first is its address of before wave 6, made by the migration. Built in package LC1. Audited, also when refused.
+         */
+        post: operations["addClinicLocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/locations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a location of the clinic
+         * @description By the clinic's admin, at the version of If-Match. Never deleted: `active` false takes it off the booking; past visits keep its address. Built in package LC1. Audited, also when refused.
+         */
+        put: operations["updateClinicLocation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{id}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A listed clinic's locations
+         * @description The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2). Public, as `/organizations/{id}/services`. Built in package LC1.
+         */
+        get: operations["listOrganizationLocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/locations/{id}/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A location's rooms
+         * @description A room an in-person availability rule may name; two practitioners' in-person hours never overlap in one room (U3). By name. For the clinic's staff. Not personal data. Built in package RM1.
+         */
+        get: operations["listClinicLocationRooms"];
+        put?: never;
+        /**
+         * Add a room to a location
+         * @description By the clinic's admin. A room an in-person availability rule may name; two practitioners' in-person hours never overlap in one room (U3). Built in package RM1. Audited, also when refused.
+         */
+        post: operations["addClinicLocationRoom"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/rooms/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a room
+         * @description By the clinic's admin, at the version of If-Match. Never deleted: `active` false takes it out of use; it never moves to another location. Built in package RM1. Audited, also when refused.
+         */
+        put: operations["updateClinicRoom"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/locations/{id}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A location's devices
+         * @description A device a price-list service may require; two visits that need one device never overlap, the booking is refused with `resource_busy` (U4). By name. For the clinic's staff. Not personal data. Built in package RM1.
+         */
+        get: operations["listClinicLocationDevices"];
+        put?: never;
+        /**
+         * Add a device to a location
+         * @description By the clinic's admin. A device a price-list service may require; two visits that need one device never overlap, the booking is refused with `resource_busy` (U4). Built in package RM1. Audited, also when refused.
+         */
+        post: operations["addClinicLocationDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/devices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a device
+         * @description By the clinic's admin, at the version of If-Match. Never deleted: `active` false takes it out of use; it never moves to another location. Built in package RM1. Audited, also when refused.
+         */
+        put: operations["updateClinicDevice"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/appointments/{id}/diagnostic-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A visit's lab results
+         * @description Released or not, oldest first (U5 of docs/clinic-cms/WAVE6.md). For the clinic's admin and the practitioners who may see the visit; never a receptionist (no clinical content). Built in package LB1. Audited.
+         */
+        get: operations["listVisitDiagnosticReports"];
+        put?: never;
+        /**
+         * Attach a lab result to a visit
+         * @description Values typed in (test, value, unit, reference range, a flag), the lab's PDF after it (`PUT …/pdf`), or both; `preliminary` until a practitioner releases it, and the patient does not see it before. For the visit's patient with the clinic's active care consent. By the clinic's admin or a practitioner who may see the visit, never a receptionist. Built in package LB1. Audited, also when refused.
+         */
+        post: operations["attachDiagnosticReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/diagnostic-reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A lab result of the clinic
+         * @description Built in package LB1. Audited.
+         */
+        get: operations["getClinicDiagnosticReport"];
+        /**
+         * Change a lab result before its release
+         * @description Its title, code, date and every value, at the version of If-Match. A released result never changes. Built in package LB1. Audited, also when refused.
+         */
+        put: operations["updateClinicDiagnosticReport"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/diagnostic-reports/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A lab result's PDF
+         * @description The lab's PDF as attached, to the clinic's admin and the practitioners who may see the result. Built in package LB1. Audited, also when refused.
+         */
+        get: operations["getClinicDiagnosticReportPdf"];
+        /**
+         * Attach the lab's PDF to a result
+         * @description Before its release, at the version of If-Match; replaces a PDF already there. Scanned and encrypted as every Binary (docs/attachments). Built in package LB1. Audited, also when refused.
+         */
+        put: operations["putClinicDiagnosticReportPdf"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/diagnostic-reports/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release a lab result to the patient
+         * @description The practitioner's review: the result becomes `final`, never changes after, and the patient sees it in the app. By a practitioner of the clinic who may see the visit, at the version of If-Match. Built in package LB1. Audited, also when refused.
+         */
+        post: operations["releaseDiagnosticReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/diagnostic-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own lab results
+         * @description The released ones from every clinic, newest first. Built in package LB1. Audited.
+         */
+        get: operations["listMyDiagnosticReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/diagnostic-reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of the patient's own lab results
+         * @description Released only. Built in package LB1. Audited.
+         */
+        get: operations["getMyDiagnosticReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/diagnostic-reports/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The PDF of one of the patient's own lab results
+         * @description Released only. Built in package LB1. Audited.
+         */
+        get: operations["getMyDiagnosticReportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/care-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lay out a treatment plan
+         * @description A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner who has or had a visit with the patient (the care relationship); never a receptionist. The patient does not see a draft. Built in package TP1. Audited, also when refused.
+         */
+        post: operations["writeCarePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/patients/{id}/care-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A patient's treatment plans at the clinic
+         * @description Newest first, drafts included. For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
+         */
+        get: operations["listClinicPatientCarePlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/care-plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A treatment plan of the clinic
+         * @description Its steps in the order of their visits once booked (a moved step shows in its new place). For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
+         */
+        get: operations["getClinicCarePlan"];
+        /**
+         * Change a draft treatment plan
+         * @description Its title, quote and every step, at the version of If-Match. Once booked, a step is moved by moving its visit (`POST /clinic/appointments/{id}/reschedule`) and the plan shows the new order. Built in package TP1. Audited, also when refused.
+         */
+        put: operations["updateClinicCarePlan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/care-plans/{id}/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book every step of a treatment plan
+         * @description One free slot per step, in the steps' order, in one transaction: every visit is booked or none is. The plan becomes `active` and the patient sees it. By the clinic's admin or a practitioner, at the version of If-Match. Built in package TP1. Audited, also when refused.
+         */
+        post: operations["bookCarePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clinic/care-plans/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a treatment plan
+         * @description The plan becomes `revoked`; its steps' future visits are cancelled (by staff, `prov`), its past ones kept. By the clinic's admin or a practitioner, at the version of If-Match. Built in package TP1. Audited, also when refused.
+         */
+        post: operations["cancelCarePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/care-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The patient's own treatment plans
+         * @description Booked ones from every clinic, newest first, never a draft; each step names its service and its visit's start. Built in package TP1. Audited.
+         */
+        get: operations["listMyCarePlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3722,6 +4170,11 @@ export interface components {
             modes: components["schemas"]["VisitMode"][];
             active: boolean;
             translations: components["schemas"]["ServiceTranslation"][];
+            /**
+             * Format: uuid
+             * @description The device a visit for it needs (U4 of docs/clinic-cms/WAVE6.md, x-salus-package cms-rm1); absent for none.
+             */
+            deviceId?: string;
             /** Format: int32 */
             versionId: number;
         };
@@ -3744,6 +4197,11 @@ export interface components {
             modes: components["schemas"]["VisitMode"][];
             active: boolean;
             translations: components["schemas"]["ServiceTranslation"][];
+            /**
+             * Format: uuid
+             * @description A device of the clinic in use a visit for it needs (x-salus-package cms-rm1): a booking when it is busy is refused with `resource_busy`; an unknown device, another clinic's or one not in use is `invalid_service`. Omitted for none: a change without it clears the device.
+             */
+            deviceId?: string;
         };
         /** @description A service as a patient sees it at booking. Paid at the clinic. */
         OfferedService: {
@@ -4733,6 +5191,16 @@ export interface components {
             end: string;
             /** @description The visit mode of the rule's slots; always in a response, `video` for every rule made before the clinic system. A PUT may name it (x-salus-package cms-a); a rule that names none is a video rule. The slots generated from the rule carry it, and an appointment keeps the mode of the slot it was booked in. */
             mode?: components["schemas"]["VisitMode"];
+            /**
+             * Format: uuid
+             * @description The location of an in-person rule, a location of the clinic (U2 of docs/clinic-cms/WAVE6.md, x-salus-package cms-lc1); never on a video rule. Every in-person rule made before wave 6 is at the clinic's first location. Its slots and the visits booked in them carry it.
+             */
+            locationId?: string;
+            /**
+             * Format: uuid
+             * @description Optional: a room of the rule's location (U3, x-salus-package cms-rm1). Two practitioners' in-person hours never overlap in one room: a PUT that would is refused with `resource_busy`.
+             */
+            roomId?: string;
         };
         Availability: {
             /**
@@ -4818,6 +5286,16 @@ export interface components {
              * @description The price-list service the booking named; absent for none (package E).
              */
             serviceId?: string;
+            /**
+             * Format: uuid
+             * @description Where an in-person visit takes place, from its slot (U2 of docs/clinic-cms/WAVE6.md, x-salus-package cms-lc1); absent for a video visit. Receipts, reminders and e-mails use its address.
+             */
+            locationId?: string;
+            /**
+             * Format: uuid
+             * @description The room, from its slot; absent for none (U3, x-salus-package cms-rm1).
+             */
+            roomId?: string;
             /** Format: date-time */
             start: string;
             /** Format: date-time */
@@ -5088,11 +5566,244 @@ export interface components {
         /** @description Every JSON API error. The code is fixed per case; it never carries internal text. */
         Error: {
             /** @enum {string} */
-            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person" | "invalid_data_request" | "data_request_closed" | "already_extended" | "request_overdue" | "export_in_progress";
+            error: "invalid_request" | "invalid_email" | "invalid_password" | "email_taken" | "unauthenticated" | "wrong_credentials" | "rate_limited" | "invalid_challenge" | "wrong_code" | "already_enrolled" | "not_enrolled" | "csrf" | "forbidden" | "invalid_role" | "invalid_name" | "invalid_invite" | "invalid_birth_date" | "invalid_phone" | "not_found" | "version_conflict" | "consent_active" | "consent_inactive" | "consent_active" | "profile_required" | "invalid_specialty" | "invalid_slot_minutes" | "invalid_availability" | "consent_required" | "transcription_consent_required" | "slot_unavailable" | "not_reschedulable" | "cancellation_window_closed" | "appointment_closed" | "appointment_not_started" | "invalid_status" | "join_window_not_open" | "consultation_ended" | "practitioner_did_not_join" | "consultation_not_started" | "not_draft" | "not_active" | "draft_exists" | "invalid_questionnaire" | "already_requested" | "appointment_started" | "submitted" | "withdrawn" | "past_due" | "answers_invalid" | "not_attachment_item" | "length_required" | "too_large" | "response_full" | "too_many_files" | "unsupported_type" | "scanning" | "range_not_satisfiable" | "attachments_pending" | "language_unavailable" | "language_locked" | "translation_incomplete" | "note_required" | "internal error" | "timeout" | "invalid_cursor" | "if_match_required" | "websocket_required" | "origin" | "correction_window_closed" | "invalid_service" | "invalid_receipt" | "already_reversed" | "billing_details_missing" | "fiscal_report_failed" | "answer_not_enabled" | "fiscal_report_not_failed" | "invalid_signup" | "invalid_verification" | "invalid_import" | "invalid_quote" | "invalid_profile" | "not_in_person" | "invalid_data_request" | "data_request_closed" | "already_extended" | "request_overdue" | "export_in_progress" | "invalid_location" | "resource_busy" | "invalid_diagnostic_report" | "report_released" | "invalid_care_plan" | "care_plan_not_draft" | "care_plan_ended";
             /** @description With `invalid_questionnaire`, `answers_invalid`, `answer_not_enabled` and `translation_incomplete` only, the offending items' linkIds in document order. */
             linkIds?: string[];
             /** @description With `translation_incomplete` only, the translation that is incomplete. */
             language?: components["schemas"]["Language"];
+        };
+        /** @description A site of the clinic (FHIR Location, U1 of docs/clinic-cms/WAVE6.md). Not personal data. */
+        Location: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            name: string;
+            /** @description Absent for none. */
+            addressLine?: string;
+            /** @description Absent for none. */
+            postalCode?: string;
+            /** @description The city, a place's id (a Wikidata item); absent for none. */
+            cityId?: string;
+            /** @description E.164; absent for none. */
+            phone?: string;
+            /**
+             * @description IANA, the clinic's by default.
+             * @example Europe/Sarajevo
+             */
+            timeZone: string;
+            active: boolean;
+            /** Format: int32 */
+            versionId: number;
+        };
+        SaveLocationRequest: {
+            name: string;
+            addressLine?: string;
+            postalCode?: string;
+            cityId?: string;
+            phone?: string;
+            /** @description IANA; the clinic's when omitted. */
+            timeZone?: string;
+            active: boolean;
+        };
+        /** @description A room of a location (FHIR Location partOf its site, U3). Not personal data. */
+        Room: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            locationId: string;
+            name: string;
+            active: boolean;
+            /** Format: int32 */
+            versionId: number;
+        };
+        SaveRoomRequest: {
+            name: string;
+            active: boolean;
+        };
+        /** @description A device of a location a service may require (FHIR Device, U4). Not personal data. */
+        Device: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            locationId: string;
+            name: string;
+            active: boolean;
+            /** Format: int32 */
+            versionId: number;
+        };
+        SaveDeviceRequest: {
+            name: string;
+            active: boolean;
+        };
+        /**
+         * @description http://hl7.org/fhir/diagnostic-report-status: `preliminary` attached and not released, `final` released to the patient (never changed after).
+         * @enum {string}
+         */
+        DiagnosticReportStatus: "preliminary" | "final";
+        /**
+         * @description http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation: normal, low, high, critically low, critically high, abnormal.
+         * @enum {string}
+         */
+        ObservationInterpretation: "N" | "L" | "H" | "LL" | "HH" | "A";
+        /** @description One typed-in value (FHIR Observation in DiagnosticReport.result). Exactly one of value and valueText. */
+        DiagnosticReportResult: {
+            /** @description The test's name as the lab prints it (Observation.code.text). */
+            test: string;
+            /** @description Its LOINC code (http://loinc.org); absent for none. */
+            loinc?: string;
+            /** @description Observation.valueQuantity.value. */
+            value?: number;
+            /** @description A UCUM unit (http://unitsofmeasure.org), with value only. */
+            unit?: string;
+            /** @description A text value instead of a number (Observation.valueString). */
+            valueText?: string;
+            /** @description As the lab prints it. */
+            referenceRange?: string;
+            interpretation?: components["schemas"]["ObservationInterpretation"];
+        };
+        /** @description A lab result on a visit (FHIR DiagnosticReport, U5). Health data. */
+        DiagnosticReport: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            patientId: string;
+            /** Format: uuid */
+            appointmentId: string;
+            status: components["schemas"]["DiagnosticReportStatus"];
+            /** @description The report's name (DiagnosticReport.code.text). */
+            title: string;
+            /** @description Its LOINC code; absent for none. */
+            loinc?: string;
+            /**
+             * Format: date
+             * @description The sample's day, as the lab says; absent if it does not.
+             */
+            effectiveDate?: string;
+            results: components["schemas"]["DiagnosticReportResult"][];
+            /** @description Whether the lab's PDF is attached. */
+            hasPdf: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Absent until released.
+             */
+            releasedAt?: string;
+            /** Format: int32 */
+            versionId: number;
+        };
+        SaveDiagnosticReportRequest: {
+            title: string;
+            loinc?: string;
+            /** Format: date */
+            effectiveDate?: string;
+            results: components["schemas"]["DiagnosticReportResult"][];
+        };
+        /**
+         * @description http://hl7.org/fhir/request-status: `draft` laid out, `active` booked, `completed` every visit past, `revoked` cancelled.
+         * @enum {string}
+         */
+        CarePlanStatus: "draft" | "active" | "completed" | "revoked";
+        /** @description One step (FHIR CarePlan.activity). In a response, in the order of its visits once booked. */
+        CarePlanStep: {
+            /**
+             * Format: uuid
+             * @description In a response only.
+             */
+            id?: string;
+            /**
+             * Format: int32
+             * @description In a response only.
+             */
+            position?: number;
+            /**
+             * Format: uuid
+             * @description A service of the clinic's price list.
+             */
+            serviceId: string;
+            /** @description The service's name in the clinic's price list; in a response only, absent for a service gone from it. */
+            serviceName?: string;
+            /**
+             * Format: int32
+             * @description Days from the plan's start.
+             */
+            dayOffset: number;
+            visitMode: components["schemas"]["VisitMode"];
+            /**
+             * Format: uuid
+             * @description Its visit once booked; in a response only.
+             */
+            appointmentId?: string;
+            /**
+             * Format: date-time
+             * @description Its visit's start once booked (a moved visit's new time); in a response only.
+             */
+            visitStart?: string;
+        };
+        /** @description A treatment plan for a patient (FHIR CarePlan, U6). Health data. */
+        CarePlan: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            patientId: string;
+            status: components["schemas"]["CarePlanStatus"];
+            title: string;
+            /**
+             * Format: uuid
+             * @description Its quote (package X1); absent for none.
+             */
+            quoteId?: string;
+            /**
+             * Format: date
+             * @description Day 0 of the steps; absent for a draft.
+             */
+            startsOn?: string;
+            steps: components["schemas"]["CarePlanStep"][];
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Absent for a draft.
+             */
+            bookedAt?: string;
+            /**
+             * Format: date-time
+             * @description Absent unless cancelled.
+             */
+            revokedAt?: string;
+            /** Format: int32 */
+            versionId: number;
+        };
+        SaveCarePlanRequest: {
+            /**
+             * Format: uuid
+             * @description Required when writing a new plan; ignored on a change.
+             */
+            patientId?: string;
+            title: string;
+            /** Format: uuid */
+            quoteId?: string;
+            steps: {
+                /** Format: uuid */
+                serviceId: string;
+                /** Format: int32 */
+                dayOffset: number;
+                visitMode: components["schemas"]["VisitMode"];
+            }[];
+        };
+        BookCarePlanRequest: {
+            /**
+             * Format: date
+             * @description Day 0 of the steps.
+             */
+            startsOn: string;
+            /** @description One free slot per step, in the steps' order. */
+            slotIds: string[];
         };
         /** @description What a client needs to join the room. The token is a secret: it is never logged or stored. Health data: it shows whom the patient consults. */
         ConsultationJoin: {
@@ -7344,6 +8055,57 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    withdrawInvite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invite is withdrawn. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `unauthenticated`: no valid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `forbidden`: not an admin of the clinic; or `csrf`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invalid_invite`: no open invite of the clinic with this id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     acceptInvite: {
         parameters: {
             query?: never;
@@ -7883,7 +8645,7 @@ export interface operations {
                     "application/json": components["schemas"]["Availability"];
                 };
             };
-            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, or rules that overlap on a day. */
+            /** @description `invalid_request`: no or an unreadable If-Match, or a body that is not the request; `invalid_slot_minutes`: a slot length outside 5 to 240 or not a multiple of 5; `invalid_availability`: a day outside 1 to 7, a time that is not HH:MM, an end not after its start, rules that overlap on a day, or a video rule at a location; `invalid_location`: an in-person rule at no active location of the clinic, or naming none when the clinic has more than one active location (x-salus-package cms-lc1; with one, a rule that names none is at it); a room on a video rule, or one that is not an active room of the clinic or is a room of another location than the rule's (x-salus-package cms-rm1). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7912,6 +8674,15 @@ export interface operations {
             };
             /** @description `not_found`: no such role in the caller's clinic. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `resource_busy`: an in-person rule names a room another practitioner's in-person hours hold at an overlapping time (U3 of docs/clinic-cms/WAVE6.md, x-salus-package cms-rm1). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8327,7 +9098,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed; `payment_declined`: a priced booking's payment was declined (none before the payments epic). */
+            /** @description `profile_required`: the patient has no profile yet; `consent_required`: no active consent with the slot's clinic (consent, then book again); `slot_unavailable`: the slot is not free, has started, or its clinic is not listed; `payment_declined`: a priced booking's payment was declined (none before the payments epic); `resource_busy`: the visit's service needs a device another visit holds then (U4, x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12443,7 +13214,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked; `consent_required`: the patient's consent with the clinic is no longer active. */
+            /** @description `reschedule_window_closed`: inside the clinic's notice; `reschedule_limit`: moved as often as the clinic allows; `not_reschedulable`: another role's slot, the join window open, or self-service rescheduling off; `slot_unavailable`: the slot is not free or has started; `appointment_closed`: no longer booked; `consent_required`: the patient's consent with the clinic is no longer active; `resource_busy`: the visit's service needs a device another visit holds at the new time (U4, x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12856,7 +13627,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `offer_expired`, `slot_unavailable`, `consent_required`; `payment_declined` once prices exist. */
+            /** @description `offer_expired`, `slot_unavailable`, `consent_required`; `payment_declined` once prices exist; `resource_busy`: the service needs a device another visit holds then (x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -13080,7 +13851,7 @@ export interface operations {
                     "application/json": components["schemas"]["Service"];
                 };
             };
-            /** @description `invalid_request`: unreadable or a field unknown; `invalid_service`: a blank name, a negative price, an unknown mode, or a VAT rate out of range. */
+            /** @description `invalid_request`: unreadable or a field unknown; `invalid_service`: a blank name, a negative price, an unknown mode, a VAT rate out of range, or a device that is not one of the clinic's in use (x-salus-package cms-rm1). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -14191,7 +14962,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped. */
+            /** @description `slot_unavailable`: no such free slot of the clinic ahead (taken, held, of an inactive role or another clinic's), or the clinic's bookings are stopped; `resource_busy`: the service needs a device another visit holds then (U4, x-salus-package cms-rm1). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14262,7 +15033,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened) or `version_conflict`. */
+            /** @description `slot_unavailable` (a slot the clinic does not have, not free and ahead, or a time the practitioner is booked at), `appointment_closed` (arrived, fulfilled, cancelled or a no-show), `not_reschedulable` (a slot of the other visit mode, or a video visit whose join window opened), `resource_busy` (the service needs a device another visit holds at the new time; x-salus-package cms-rm1) or `version_conflict`. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14401,6 +15172,8 @@ export interface operations {
         parameters: {
             query?: {
                 date?: string;
+                /** @description Only the visits at this location, and the video visits (x-salus-package cms-lc1). */
+                locationId?: string;
             };
             header?: never;
             path?: never;
@@ -15695,6 +16468,1384 @@ export interface operations {
             403: components["responses"]["ClinicAdminOnly"];
             /** @description `not_found`: no patient with a record at the clinic with that id. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicLocations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The locations. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no clinic for the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addClinicLocation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description The location stored. */
+            201: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_location`: an empty name, an unknown time zone or city, or a malformed phone. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateClinicLocation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description The location stored. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_location`, as for a new one; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such location of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listOrganizationLocations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The locations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"][];
+                };
+            };
+            /** @description `not_found`: no listed clinic with that id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicLocationRooms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rooms. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Room"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such location of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addClinicLocationRoom: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveRoomRequest"];
+            };
+        };
+        responses: {
+            /** @description The room stored. */
+            201: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Room"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_location`: an empty name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such location of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateClinicRoom: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveRoomRequest"];
+            };
+        };
+        responses: {
+            /** @description The room stored. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Room"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_location`; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such room of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicLocationDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The devices. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such location of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addClinicLocationDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description The device stored. */
+            201: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_location`: an empty name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such location of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateClinicDevice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description The device stored. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_location`; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["ClinicAdminOnly"];
+            /** @description `not_found`: no such device of the caller's clinic the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listVisitDiagnosticReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The results. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such visit the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    attachDiagnosticReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDiagnosticReportRequest"];
+            };
+        };
+        responses: {
+            /** @description The result attached. */
+            201: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_diagnostic_report`: no title, a value with both a number and a text or neither, a unit without a number, an unknown flag. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such visit the caller may see, or its patient has no active care consent. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicDiagnosticReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The result. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such result the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateClinicDiagnosticReport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDiagnosticReportRequest"];
+            };
+        };
+        responses: {
+            /** @description The result stored. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_diagnostic_report`, as when attaching; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such result the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `report_released`: the result was released. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicDiagnosticReportPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such result with a PDF the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    putClinicDiagnosticReportPdf: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+                /** @description The file's size in bytes. */
+                "Content-Length": number;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/pdf": string;
+            };
+        };
+        responses: {
+            /** @description The result with its PDF. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"];
+                };
+            };
+            /** @description `invalid_request`: the body ended before `Content-Length` bytes; `invalid_diagnostic_report`: not a PDF; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such result the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `report_released`: the result was released. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `too_large`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    releaseDiagnosticReport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The result released. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"];
+                };
+            };
+            /** @description `invalid_request`: no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: not a practitioner of the clinic. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such result the caller may see. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `report_released`: released already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyDiagnosticReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The results. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMyDiagnosticReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The result. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticReport"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such released result of the patient's. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMyDiagnosticReportPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `not_found`: no such released result of the patient's with a PDF. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    writeCarePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCarePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft stored. */
+            201: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_care_plan`: no title or steps, a service the price list does not have or not offered in the step's mode, a day offset out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such patient of the clinic with its active care consent, a patient the practitioner has no visit with, or no such quote of theirs. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listClinicPatientCarePlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plans. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such patient of the clinic, or one the practitioner has no visit with. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getClinicCarePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateClinicCarePlan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCarePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft stored. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"];
+                };
+            };
+            /** @description `invalid_request` or `invalid_care_plan`, as for a new one; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `care_plan_not_draft`: booked or ended already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    bookCarePlan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookCarePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description The plan booked. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"];
+                };
+            };
+            /** @description `invalid_request`, or `invalid_care_plan`: not one slot per step, a slot in another mode than its step's; or no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a receptionist (no clinical content), or a practitioner booking another practitioner's slot. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `care_plan_not_draft`: booked or ended already; `slot_unavailable`: a slot is taken (nothing was booked); `resource_busy`: a step's service needs a device that is busy then. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelCarePlan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Sent as `1` by the web app on every write. Required with the session cookie on POST, PUT, PATCH and DELETE (403 `csrf` without it). On the login steps it asks for the session in the cookie instead of the body. */
+                "X-Salus-CSRF"?: components["parameters"]["CSRF"];
+                /** @description The version read, as a weak ETag, `W/"<versionId>"`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan cancelled. */
+            200: {
+                headers: {
+                    /** @description The new version, W/"<versionId>". */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"];
+                };
+            };
+            /** @description `invalid_request`: no If-Match. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `care_plan_ended`: completed or cancelled already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `version_conflict`: If-Match is not the current version. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listMyCarePlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plans. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarePlan"][];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description `profile_required`: a staff account, or a patient with no profile yet. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

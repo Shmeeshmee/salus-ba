@@ -12,6 +12,7 @@ import (
 // Composition and downloads its PDF, also after revoking the consent (their own record), and the signature has
 // enqueued their e-mail. The transcript copy is theirs only once the clinic shares it.
 func TestNew_ServesThePatientTheirSignedDocumentsAndTheTranscriptCopy(t *testing.T) {
+	t.Parallel()
 	s := newStreamApp(t)
 	created := s.d.practitioner.do(http.MethodPost, "/document-templates", templateBody)
 	var tpl struct{ ID string }

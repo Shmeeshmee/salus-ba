@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/pkg/fhir"
@@ -21,7 +22,7 @@ type StaffAppointments interface {
 	CancelForPatient(ctx context.Context, c Caller, id string, version int32) (Appointment, error)
 	MoveForPatient(ctx context.Context, c Caller, id, slotID string, version int32) (Appointment, error)
 	Arrive(ctx context.Context, c Caller, id string) (Appointment, error)
-	DeskDay(ctx context.Context, c Caller, day time.Time) (Desk, error)
+	DeskDay(ctx context.Context, c Caller, day time.Time, locationID string) (Desk, error)
 }
 
 // StaffHandler serves the bookings staff make for patients and the desk's day in the JSON API (package F2 of
@@ -156,7 +157,12 @@ func (h *StaffHandler) desk(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	desk, err := h.svc.DeskDay(r.Context(), c, day)
+	site := r.URL.Query().Get("locationId") // only that location's visits and the video visits (U2)
+	if site != "" && !fhir.IsUUID(site) {
+		writeCode(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	desk, err := h.svc.DeskDay(r.Context(), c, day, strings.ToLower(site))
 	if err != nil {
 		h.writeStaffError(w, r, err)
 		return

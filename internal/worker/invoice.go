@@ -9,6 +9,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/invoice"
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/fiscal"
 	"github.com/Shmeeshmee/salus/pkg/fiscal/fiscaltest"
@@ -39,8 +40,10 @@ func newReceipts(pool *pgxpool.Pool, clk clock.Clock) *invoice.Service {
 
 func newReceiptsOn(pool *pgxpool.Pool, reporter fiscal.Reporter, clk clock.Clock) *invoice.Service {
 	tx := postgres.NewTransactor(pool)
+	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk)
 	return invoice.NewService(invoice.Ports{
-		Repo: invoice.NewPostgresRepository(pool), Reporter: reporter, Tx: tx, Clock: clk,
-		Audit: auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clk),
+		Repo: invoice.NewPostgresRepository(pool), Reporter: reporter, Tx: tx, Clock: clk, Audit: audit,
+		// The letterhead of the receipts' and quotes' PDFs in the patient's export (WAVE6.md PX).
+		Clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clk, nil),
 	})
 }

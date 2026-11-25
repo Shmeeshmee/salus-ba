@@ -2341,4 +2341,80 @@ class AppLocalizationsIt extends AppLocalizations {
   String accountClosedReopen(String email) {
     return 'Per chiedere che il Suo account sia riaperto entro 21 giorni, scriva a $email.';
   }
+
+  @override
+  String get myLabResults => 'I miei esami di laboratorio';
+
+  @override
+  String get labResultsIntro =>
+      'Gli esiti di laboratorio che il medico ha esaminato e reso disponibili per te. Chiedi al medico che cosa significano per te.';
+
+  @override
+  String get noLabResults => 'Non hai ancora esiti di laboratorio.';
+
+  @override
+  String labResultSampleDate(String date) {
+    return 'Campione prelevato il $date';
+  }
+
+  @override
+  String labResultReleasedOn(String date) {
+    return 'Reso disponibile il $date';
+  }
+
+  @override
+  String labResultValue(String test, String value) {
+    return '$test: $value';
+  }
+
+  @override
+  String labResultRange(String range) {
+    return 'Intervallo di riferimento $range';
+  }
+
+  @override
+  String labResultFlag(String flag) {
+    String _temp0 = intl.Intl.selectLogic(flag, {
+      'N': 'Normale',
+      'L': 'Basso',
+      'H': 'Alto',
+      'LL': 'Criticamente basso',
+      'HH': 'Criticamente alto',
+      'A': 'Anomalo',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get myCarePlans => 'I miei piani di cura';
+
+  @override
+  String get carePlansIntro =>
+      'I piani di cura che le cliniche hanno prenotato per lei. Ogni fase di un piano è una visita, che trova tra le sue visite.';
+
+  @override
+  String get noCarePlans => 'Non ha ancora piani di cura.';
+
+  @override
+  String get carePlanActive => 'Prenotato';
+
+  @override
+  String get carePlanCompleted => 'Completato';
+
+  @override
+  String get carePlanRevoked => 'Annullato';
+
+  @override
+  String carePlanStartsOn(String date) {
+    return 'Inizia il $date';
+  }
+
+  @override
+  String carePlanStep(int n, String date, String mode) {
+    return '$n. $date · $mode';
+  }
+
+  @override
+  String get locationQuestion => 'Dove desidera venire?';
 }

@@ -81,8 +81,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: make e2e
-      - if: failure()
-        run: docker compose -f deployments/docker-compose.yml logs --no-color
+        env:
+          E2E_LOGS: e2e-logs.txt
+      # scripts/e2e.sh runs on its own compose project (salus-e2e here) and removes its containers when it ends, so
+      # it writes that project's full logs to E2E_LOGS on a failure, before the cleanup.
+      - name: Logs of the salus-e2e project
+        if: failure()
+        run: |
+          cat e2e-logs.txt || echo "No e2e logs: the run failed before its stack started."
       # The consultation pipeline's latency against the plan's targets (SAL-10), per run: the job summary and an
       # artifact.
       - name: Latency report

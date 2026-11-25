@@ -34,6 +34,7 @@ const statusPost = `POST /appointments/${id}/status`
 const cancelPost = `POST /appointments/${id}/cancel`
 const statusGet = `GET /appointments/${id}/consultation`
 const questionnaireSearch = 'GET /fhir/R4/QuestionnaireResponse'
+const labResults = `GET /clinic/appointments/${id}/diagnostic-reports`
 
 function answer(status: string) {
   return Response.json({ id, organizationId: org, practitionerRoleId: cy.roleId, slotId: id, start: booked.start, end: booked.end, status, bookedVia: 'direct', versionId: 2, rescheduleCount: 0 })
@@ -46,6 +47,7 @@ function renderDetail(account: Account, routes: Record<string, Route>, now = aft
     [questionnaireSearch]: () => fhirJSON({ resourceType: 'Bundle', type: 'searchset' }),
     'GET /clinic/noshow-flags': () => Response.json({ flags: [] }),
     'GET /clinic/receipts': () => Response.json([]),
+    [labResults]: () => Response.json([]),
     [`GET /patients/${patientId}/history`]: () => Response.json({ items: [] }),
     [`GET /patients/${patientId}/history/summary`]: () => Response.json({ allergies: [], medications: [], openItems: [] }),
     ...routes,
@@ -62,13 +64,13 @@ describe('AppointmentDetail', () => {
     expect(screen.getByText('Booked')).toBeTruthy()
   })
 
-  it('shows the patient profile behind a disclosure when the Patient read answers', async () => {
+  it('shows the patient profile behind a disclosure when the Patient read answers, its phone grouped', async () => {
     renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => fhirJSON(patient) })
 
     expect(await screen.findByText('Patient details')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Ada Example' })).toBeTruthy()
     expect(screen.getByText('1 January 1990')).toBeTruthy()
-    expect(screen.getByText('+38760000001')).toBeTruthy()
+    expect(screen.getByText('+387 60 000 001')).toBeTruthy() // grouped as on the desk (wave 6, BG2)
   })
 
   it('hides the profile on a 404 and shows the name the appointment gives', async () => {
@@ -154,13 +156,16 @@ describe('AppointmentDetail', () => {
 
     expect(await screen.findByText('Cancelled')).toBeTruthy()
     // Only the toggles of the history and the changes, which open a view, not an action on the appointment.
+    expect(await screen.findByText('No lab results on this visit.')).toBeTruthy()
     expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes'])
     cleanup()
 
     // A fulfilled one may be corrected within 30 days (SAL-36, docs/plans/appointments.md Q6), and nothing else.
     renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
     expect(await screen.findByText('Fulfilled')).toBeTruthy()
-    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Show history', 'Show changes', 'Issue receipt', 'Write a quote', 'Show quotes', 'Correct to no-show'])
+    // and its lab results (clinic-cms LB2): a result is attached to a visit that took place, never to a cancelled one.
+    expect(await screen.findByRole('button', { name: 'Add a lab result' })).toBeTruthy()
+    expect(screen.queryAllByRole('button').map((b) => b.textContent)).toEqual(['Add a lab result', 'Show history', 'Show changes', 'Issue receipt', 'Write a quote', 'Show quotes', 'Show treatment plans', 'Correct to no-show'])
   })
 
   it("lets the visit's practitioner write its patient a quote and then shows the visit's quotes (clinic-cms X1)", async () => {
@@ -186,6 +191,20 @@ describe('AppointmentDetail', () => {
     expect(body).toEqual({ patientId, appointmentId: id, lines: [{ serviceId: exam, quantity: 1, discountMinor: 0 }] })
     fireEvent.click(screen.getByRole('button', { name: 'Show quotes' }))
     expect(await screen.findByText('Sent')).toBeTruthy()
+  })
+
+  it("shows the visit's practitioner the patient's treatment plans once asked, read only then (clinic-cms TP2)", async () => {
+    const fake = renderDetail(practitioner, {
+      [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }),
+      [patientRead]: () => outcome(404, 'not-found'),
+      'GET /clinic/services': () => Response.json([]),
+      [`GET /clinic/patients/${patientId}/care-plans`]: () => Response.json([]),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Show treatment plans' }))
+    expect(await screen.findByText('No treatment plans for this patient yet.')).toBeTruthy()
+    expect(fake.requests.filter((r) => r.url.includes('/care-plans'))).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Hide treatment plans' }))
+    expect(screen.queryByText('No treatment plans for this patient yet.')).toBeNull()
   })
 
   describe('issue receipt (clinic-cms C)', () => {
@@ -343,6 +362,27 @@ describe('AppointmentDetail', () => {
     const fake = renderDetail(practitioner, { [read]: () => fhirJSON({ ...booked, status: 'fulfilled' }), [patientRead]: () => outcome(404, 'not-found') })
     expect(await screen.findByRole('button', { name: 'Issue receipt' })).toBeTruthy()
     expect(fake.requests.some((r) => r.url.includes('/clinic/receipts'))).toBe(false)
+  })
+
+  it("shows the visit's lab results to its practitioner and the admin, never to another practitioner (clinic-cms LB2)", async () => {
+    const result = { id: 'd5000000-0000-4000-8000-000000000001', organizationId: org, patientId, appointmentId: id, status: 'preliminary', title: 'Placeholder panel', results: [], hasPdf: false, createdAt: '2026-11-09T08:40:00Z', versionId: 1 }
+    renderDetail(practitioner, { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found'), [labResults]: () => Response.json([result]) })
+    const own = within(await screen.findByRole('region', { name: 'Lab results' }))
+    expect(await own.findByRole('heading', { name: 'Placeholder panel' })).toBeTruthy()
+    expect(own.getByRole('button', { name: 'Release to the patient' })).toBeTruthy()
+    cleanup()
+
+    renderDetail(admin, { [read]: () => fhirJSON(booked), [labResults]: () => Response.json([result]) })
+    const clinic = within(await screen.findByRole('region', { name: 'Lab results' }))
+    expect(await clinic.findByRole('heading', { name: 'Placeholder panel' })).toBeTruthy()
+    expect(clinic.queryByRole('button', { name: 'Release to the patient' })).toBeNull()
+    cleanup()
+
+    const other = { ...practitioner, practitionerId: dee.practitionerId }
+    const fake = renderDetail(other, { [read]: () => fhirJSON(booked), [patientRead]: () => outcome(404, 'not-found') })
+    expect(await screen.findByRole('heading', { level: 1 })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Lab results' })).toBeNull()
+    expect(paths(fake.requests)).not.toContain(labResults)
   })
 
   it('says when the appointment cannot be found', async () => {
