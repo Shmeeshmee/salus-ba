@@ -3144,6 +3144,15 @@ values only; the lab's PDF waits for its storage (see "Left" below), so no file 
   cancellation cancels is audited as the appointment's, in the same transaction.
 - **Minimisation.** No new field: a plan's visits are ordinary appointments (their e-mails, reminders and statistics as
   for a staff booking); nothing of a plan goes into a log line, a metric or a job argument.
+- **Wave 6 follow-ups (no new column; migration 00085 adds triggers only).** Who: a practitioner works only with the
+  plans of a patient they have or had a visit with (any status, the care relationship, `access.CarePlan`), the admin
+  with any patient of the clinic; anyone else, and a patient the clinic does not have, is answered 404 and audited; a
+  restricted record refuses every staff role, as the other care-record rules. The response names each step's service
+  (the price list's name, not personal data) and its visit's start (the patient's own visit, which staff and the patient
+  already see). The patient's own export (the data request's archive, `record.json` of each clinic) now holds their booked plans
+  as FHIR `CarePlan`s (never a draft), read through the careplan service as the patient and audited there, narrowed to
+  the target clinic in a clinic-target export; nothing else of a plan leaves the system. The database refuses a status
+  change backwards and deleting or re-pointing a booked plan's steps (00085).
 
 ### Package BG4: backend hardening, second pass (migration 00083, numbered 00085 in its worktree, docs/clinic-cms/WAVE6.md U8)
 

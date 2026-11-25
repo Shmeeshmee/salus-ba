@@ -21,3 +21,7 @@ var (
 
 // ErrSlotUnavailable is returned for a booking whose slot is taken, not ahead or not the clinic's: nothing was booked.
 var ErrSlotUnavailable = errors.New("careplan: slot unavailable")
+
+// ErrResourceBusy is returned for a booking a step of which needs a device another visit holds then: nothing was
+// booked.
+var ErrResourceBusy = errors.New("careplan: resource busy")

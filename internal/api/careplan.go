@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
 	"github.com/Shmeeshmee/salus/internal/consent"
 	"github.com/Shmeeshmee/salus/internal/patient"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 	"github.com/Shmeeshmee/salus/pkg/postgres"
 )
@@ -24,6 +25,8 @@ type carePlanPorts struct {
 	audit        *auditevent.Service
 	tx           *postgres.Transactor
 	appointments *appointment.Service
+	care         *appointment.Facts
+	roles        *practitionerrole.Service
 	consents     *consent.Service
 	prices       *chargeitemdefinition.Service
 	accounts     *auth.Service
@@ -31,11 +34,12 @@ type carePlanPorts struct {
 }
 
 // carePlanRoutes are the treatment plans' (docs/clinic-cms/WAVE6.md U6, package TP1): laid out, booked and cancelled
-// by the clinic's admin and practitioners, read by their patient once booked. The visits are the appointments'.
+// by the clinic's admin and the practitioners who have or had a visit with the patient, read by their patient once
+// booked. The visits are the appointments'.
 func carePlanRoutes(p carePlanPorts, log *slog.Logger) func(*http.ServeMux) {
 	svc := careplan.NewService(careplan.Ports{
 		Repo: careplan.NewPostgresRepository(p.pool), Tx: p.tx, Audit: p.audit, Consents: p.consents, Prices: p.prices,
-		Visits: p.appointments, Clock: clock.System{},
+		Visits: p.appointments, Care: p.care, Roles: p.roles, Clock: clock.System{},
 	})
 	return careplan.NewHTTPHandler(svc, carePlanCaller(p.accounts, p.patients), log).Routes
 }

@@ -48,6 +48,21 @@ void main() {
     expect(find.text('2. Monday 7 December 2026 · By video'), findsNWidgets(2));
   });
 
+  testWidgets('names each step\'s service and shows its visit\'s day after a move', (tester) async {
+    final moved = plan(booked, 'active');
+    moved['steps'] = [
+      {'id': 'd3000000-0000-4000-8000-000000000002', 'position': 1, 'serviceId': 'c1000000-0000-4000-8000-000000000002', 'serviceName': 'Placeholder video check-up', 'dayOffset': 7, 'visitMode': 'video', 'appointmentId': 'e1000000-0000-4000-8000-000000000002', 'visitStart': '2026-12-07T09:00:00Z'},
+      // The examination's visit was moved after the check-up: the step shows the visit's day, not its offset's.
+      {'id': 'd3000000-0000-4000-8000-000000000001', 'position': 2, 'serviceId': 'c1000000-0000-4000-8000-000000000001', 'serviceName': 'Placeholder examination', 'dayOffset': 0, 'visitMode': 'in-person', 'appointmentId': 'e1000000-0000-4000-8000-000000000001', 'visitStart': '2026-12-09T23:30:00Z'},
+    ];
+    await atPlans(tester, [moved]);
+
+    expect(find.text('Placeholder video check-up'), findsOneWidget);
+    expect(find.text('Placeholder examination'), findsOneWidget);
+    expect(find.text('1. Monday 7 December 2026 · By video'), findsOneWidget);
+    expect(find.text('2. Thursday 10 December 2026 · At the clinic'), findsOneWidget); // in the clinic's zone
+  });
+
   testWidgets('says when there are no plans', (tester) async {
     await atPlans(tester, const []);
 

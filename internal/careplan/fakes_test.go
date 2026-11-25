@@ -3,6 +3,7 @@ package careplan_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/careplan"
 	"github.com/Shmeeshmee/salus/internal/chargeitemdefinition"
+	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 	"github.com/Shmeeshmee/salus/pkg/clock"
 )
@@ -21,6 +23,8 @@ const (
 	patientA  = "0b000000-0000-4000-8000-0000000000b0"
 	serviceIn = "0c000000-0000-4000-8000-0000000000c1" // in person only
 	serviceVd = "0c000000-0000-4000-8000-0000000000c2" // video only
+	roleDoc   = "0a000000-0000-4000-8000-0000000000a1" // the practitioner role of doc, who has a visit with patient A
+	roleOther = "0a000000-0000-4000-8000-0000000000a2" // the role of other, who has none
 )
 
 var (
@@ -28,6 +32,8 @@ var (
 	admin = careplan.Staff{AccountID: "0d000000-0000-4000-8000-0000000000d1", OrganizationID: clinicA, Admin: true}
 	desk  = careplan.Staff{AccountID: "0d000000-0000-4000-8000-0000000000d2", OrganizationID: clinicA, Reception: true}
 	me    = careplan.Patient{AccountID: "0d000000-0000-4000-8000-0000000000d3", PatientID: patientA}
+	doc   = careplan.Staff{AccountID: "0d000000-0000-4000-8000-0000000000d4", OrganizationID: clinicA, PractitionerID: "p-doc", Practitioner: true}
+	other = careplan.Staff{AccountID: "0d000000-0000-4000-8000-0000000000d5", OrganizationID: clinicA, PractitionerID: "p-other", Practitioner: true}
 )
 
 type txKey struct{}
@@ -139,8 +145,8 @@ func (fakePrices) OfClinic(_ context.Context, org string) ([]chargeitemdefinitio
 		return nil, nil
 	}
 	return []chargeitemdefinition.Definition{
-		{ID: serviceIn, Active: true, Modes: []schedule.VisitMode{schedule.ModeInPerson}},
-		{ID: serviceVd, Active: true, Modes: []schedule.VisitMode{schedule.ModeVideo}},
+		{ID: serviceIn, Name: "Synthetic exam", Active: true, Modes: []schedule.VisitMode{schedule.ModeInPerson}},
+		{ID: serviceVd, Name: "Synthetic video check", Active: true, Modes: []schedule.VisitMode{schedule.ModeVideo}},
 	}, nil
 }
 
@@ -155,8 +161,11 @@ func (v *fakeVisits) BookPlan(_ context.Context, _ appointment.Caller, patientID
 	for _, b := range steps {
 		var mode string
 		var hours int
-		if b.SlotID == "taken" {
+		switch b.SlotID {
+		case "taken":
 			return nil, appointment.ErrSlotUnavailable
+		case "busy": // its service needs a device another visit holds then
+			return nil, fmt.Errorf("appointment: book plan: %w", appointment.ErrResourceBusy)
 		}
 		for i := range b.SlotID {
 			if b.SlotID[i] == '@' {
@@ -195,6 +204,24 @@ func (v *fakeVisits) CancelPlan(_ context.Context, _ appointment.Caller, ids []s
 	return nil
 }
 
+// fakeCare is the patients' visits by patient and clinic: patient A has one with doc's role.
+type fakeCare map[string][]access.Visit
+
+func (c fakeCare) Visits(_ context.Context, patientID, org string) ([]access.Visit, error) {
+	return c[patientID+org], nil
+}
+
+// fakeRoles gives each practitioner's role in clinic A.
+type fakeRoles struct{}
+
+func (fakeRoles) OfPractitioner(_ context.Context, org, practitionerID string) (practitionerrole.PractitionerRole, error) {
+	role := map[string]string{"p-doc": roleDoc, "p-other": roleOther}[practitionerID]
+	if org != clinicA || role == "" {
+		return practitionerrole.PractitionerRole{}, practitionerrole.ErrNotFound
+	}
+	return practitionerrole.PractitionerRole{ID: role, OrganizationID: org, PractitionerID: practitionerID, Active: true}, nil
+}
+
 type fixture struct {
 	repo   *fakeRepo
 	audit  *fakeAudit
@@ -208,6 +235,7 @@ func newFixture() *fixture {
 	f.svc = careplan.NewService(careplan.Ports{
 		Repo: f.repo, Tx: fakeTx{f: f}, Audit: f.audit, Prices: fakePrices{}, Visits: f.visits, Clock: f.clock,
 		Consents: fakeConsents{state: map[string]access.Consent{patientA + clinicA: {Active: true}}},
+		Care:     fakeCare{patientA + clinicA: {{PractitionerRole: roleDoc, Start: now.Add(-24 * time.Hour)}}}, Roles: fakeRoles{},
 	})
 	return f
 }

@@ -207,7 +207,7 @@ class CarePlansApi {
 
   /// A treatment plan of the clinic
   ///
-  /// Its steps in the order of their visits once booked (a moved step shows in its new place). Built in package TP1. Audited.
+  /// Its steps in the order of their visits once booked (a moved step shows in its new place). For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -244,7 +244,7 @@ class CarePlansApi {
 
   /// A treatment plan of the clinic
   ///
-  /// Its steps in the order of their visits once booked (a moved step shows in its new place). Built in package TP1. Audited.
+  /// Its steps in the order of their visits once booked (a moved step shows in its new place). For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -275,7 +275,7 @@ class CarePlansApi {
 
   /// A patient's treatment plans at the clinic
   ///
-  /// Newest first, drafts included. For the clinic's admin and its practitioners; never a receptionist. Built in package TP1. Audited.
+  /// Newest first, drafts included. For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -312,7 +312,7 @@ class CarePlansApi {
 
   /// A patient's treatment plans at the clinic
   ///
-  /// Newest first, drafts included. For the clinic's admin and its practitioners; never a receptionist. Built in package TP1. Audited.
+  /// Newest first, drafts included. For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
   ///
   /// Parameters:
   ///
@@ -344,7 +344,7 @@ class CarePlansApi {
 
   /// The patient's own treatment plans
   ///
-  /// Booked ones from every clinic, newest first, never a draft. Built in package TP1. Audited.
+  /// Booked ones from every clinic, newest first, never a draft; each step names its service and its visit's start. Built in package TP1. Audited.
   ///
   /// Note: This method returns the HTTP [Response].
   Future<Response> listMyCarePlansWithHttpInfo({
@@ -376,7 +376,7 @@ class CarePlansApi {
 
   /// The patient's own treatment plans
   ///
-  /// Booked ones from every clinic, newest first, never a draft. Built in package TP1. Audited.
+  /// Booked ones from every clinic, newest first, never a draft; each step names its service and its visit's start. Built in package TP1. Audited.
   Future<List<CarePlan>?> listMyCarePlans({
     Future<void>? abortTrigger,
   }) async {
@@ -500,7 +500,7 @@ class CarePlansApi {
 
   /// Lay out a treatment plan
   ///
-  /// A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner. The patient does not see a draft. Built in package TP1. Audited, also when refused.
+  /// A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner who has or had a visit with the patient (the care relationship); never a receptionist. The patient does not see a draft. Built in package TP1. Audited, also when refused.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -545,7 +545,7 @@ class CarePlansApi {
 
   /// Lay out a treatment plan
   ///
-  /// A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner. The patient does not see a draft. Built in package TP1. Audited, also when refused.
+  /// A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner who has or had a visit with the patient (the care relationship); never a receptionist. The patient does not see a draft. Built in package TP1. Audited, also when refused.
   ///
   /// Parameters:
   ///

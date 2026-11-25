@@ -12,6 +12,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/careplan"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
 	"github.com/Shmeeshmee/salus/internal/consent"
@@ -57,6 +58,12 @@ type OwnQuotes interface {
 // (diagnosticreport.Service).
 type OwnLabResults interface {
 	MineAt(ctx context.Context, c diagnosticreport.Patient, org string) ([]diagnosticreport.Report, error)
+}
+
+// OwnCarePlans reads the calling patient's booked treatment plans, of every clinic or one, each audited
+// (careplan.Service).
+type OwnCarePlans interface {
+	MineAt(ctx context.Context, c careplan.Patient, org string) ([]careplan.Plan, error)
 }
 
 // OwnEncounters reads the calling patient's encounters of an appointment, each audited (encounter.Service).
@@ -111,6 +118,7 @@ type OwnPorts struct {
 	Files          OwnFiles
 	Chat           OwnChat
 	LabResults     OwnLabResults
+	CarePlans      OwnCarePlans
 }
 
 // OwnRecords is the record builder in the patient's own scope (docs/clinic-cms/WAVE5.md D2, D7, S4): what the patient
@@ -195,6 +203,7 @@ type own struct {
 	receipts   []invoice.Invoice
 	quotes     []invoice.Quote
 	labResults []diagnosticreport.Report
+	carePlans  []careplan.Plan
 }
 
 // answered is a submitted response with the questionnaire version it answers.
@@ -226,6 +235,9 @@ func (o *OwnRecords) read(ctx context.Context, c appointment.Caller, org string)
 		return own{}, err
 	}
 	if out.labResults, err = o.p.LabResults.MineAt(ctx, diagnosticreport.Patient{AccountID: c.AccountID, PatientID: c.PatientID}, org); err != nil {
+		return own{}, err
+	}
+	if out.carePlans, err = o.p.CarePlans.MineAt(ctx, careplan.Patient{AccountID: c.AccountID, PatientID: c.PatientID}, org); err != nil {
 		return own{}, err
 	}
 	return out, nil
@@ -372,6 +384,9 @@ func (x own) clinics(org string) []string {
 	for _, r := range x.labResults {
 		add(r.OrganizationID)
 	}
+	for _, p := range x.carePlans {
+		add(p.OrganizationID)
+	}
 	slices.Sort(out)
 	return out
 }
@@ -406,7 +421,7 @@ func (x own) part(me patient.Patient, org string) (OwnPart, error) {
 	}
 	out.Files = append(out.Files, x.files[org]...)
 	out.Holds = holds([]int{len(rec.Patient.Consents), len(rec.Visits), len(b.encounters), len(b.documents), len(b.answers),
-		x.uploads[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org], len(b.labResults)})
+		x.uploads[org], len(rec.Receipts), len(quotes), chats.n, x.chatFiles[org], len(b.labResults), len(b.carePlans)})
 	return out, nil
 }
 
@@ -449,6 +464,11 @@ func (x own) at(me patient.Patient, org string) (Record, clinical) {
 			b.labResults = append(b.labResults, r)
 		}
 	}
+	for _, p := range x.carePlans {
+		if p.OrganizationID == org && p.BookedAt != nil { // never a draft: the patient sees none
+			b.carePlans = append(b.carePlans, p)
+		}
+	}
 	return rec, b
 }
 
@@ -458,6 +478,7 @@ type clinical struct {
 	documents  []composition.Document
 	answers    []answered
 	labResults []diagnosticreport.Report // released only: the patient sees no other
+	carePlans  []careplan.Plan           // booked only
 }
 
 // holdsOf names the counts holds takes, in its order.
@@ -466,6 +487,7 @@ var holdsOf = []string{
 	"submitted questionnaire answer", "file you uploaded with your answers (in files/)", "receipt (its PDF in files/)",
 	"quote (quotes.json, its PDF in files/)",
 	"chat conversation (chat.json)", "file of the chat (in files/)", "released lab result (DiagnosticReport)",
+	"booked treatment plan (CarePlan)",
 }
 
 // holds are the manifest's lines of a part: what it holds, by count in holdsOf's order, leaving out what it has none

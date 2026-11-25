@@ -4020,7 +4020,7 @@ export interface paths {
         put?: never;
         /**
          * Lay out a treatment plan
-         * @description A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner. The patient does not see a draft. Built in package TP1. Audited, also when refused.
+         * @description A draft for a patient with the clinic's active care consent: ordered steps, each a service of the price list, a day offset and a visit mode, and optionally its quote (U6 of docs/clinic-cms/WAVE6.md). By the clinic's admin or a practitioner who has or had a visit with the patient (the care relationship); never a receptionist. The patient does not see a draft. Built in package TP1. Audited, also when refused.
          */
         post: operations["writeCarePlan"];
         delete?: never;
@@ -4038,7 +4038,7 @@ export interface paths {
         };
         /**
          * A patient's treatment plans at the clinic
-         * @description Newest first, drafts included. For the clinic's admin and its practitioners; never a receptionist. Built in package TP1. Audited.
+         * @description Newest first, drafts included. For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
          */
         get: operations["listClinicPatientCarePlans"];
         put?: never;
@@ -4058,7 +4058,7 @@ export interface paths {
         };
         /**
          * A treatment plan of the clinic
-         * @description Its steps in the order of their visits once booked (a moved step shows in its new place). Built in package TP1. Audited.
+         * @description Its steps in the order of their visits once booked (a moved step shows in its new place). For the clinic's admin and a practitioner who has or had a visit with the patient; never a receptionist. Built in package TP1. Audited, also when refused.
          */
         get: operations["getClinicCarePlan"];
         /**
@@ -4122,7 +4122,7 @@ export interface paths {
         };
         /**
          * The patient's own treatment plans
-         * @description Booked ones from every clinic, newest first, never a draft. Built in package TP1. Audited.
+         * @description Booked ones from every clinic, newest first, never a draft; each step names its service and its visit's start. Built in package TP1. Audited.
          */
         get: operations["listMyCarePlans"];
         put?: never;
@@ -5724,6 +5724,8 @@ export interface components {
              * @description A service of the clinic's price list.
              */
             serviceId: string;
+            /** @description The service's name in the clinic's price list; in a response only, absent for a service gone from it. */
+            serviceName?: string;
             /**
              * Format: int32
              * @description Days from the plan's start.
@@ -5735,6 +5737,11 @@ export interface components {
              * @description Its visit once booked; in a response only.
              */
             appointmentId?: string;
+            /**
+             * Format: date-time
+             * @description Its visit's start once booked (a moved visit's new time); in a response only.
+             */
+            visitStart?: string;
         };
         /** @description A treatment plan for a patient (FHIR CarePlan, U6). Health data. */
         CarePlan: {
@@ -17474,7 +17481,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `forbidden`. */
+            /** @description `forbidden`: a receptionist (no clinical content). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17483,7 +17490,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such patient of the clinic with its active care consent, or no such quote of theirs. */
+            /** @description `not_found`: no such patient of the clinic with its active care consent, a patient the practitioner has no visit with, or no such quote of theirs. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17517,7 +17524,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `not_found`: no such patient of the clinic. */
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such patient of the clinic, or one the practitioner has no visit with. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17551,7 +17567,16 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `not_found`: no such plan the caller may see. */
+            /** @description `forbidden`: a receptionist (no clinical content). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17604,7 +17629,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `forbidden`. */
+            /** @description `forbidden`: a receptionist (no clinical content). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17613,7 +17638,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such plan the caller may see. */
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17684,7 +17709,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `forbidden`. */
+            /** @description `forbidden`: a receptionist (no clinical content), or a practitioner booking another practitioner's slot. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17693,7 +17718,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such plan the caller may see. */
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17760,7 +17785,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
-            /** @description `forbidden`. */
+            /** @description `forbidden`: a receptionist (no clinical content). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17769,7 +17794,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `not_found`: no such plan the caller may see. */
+            /** @description `not_found`: no such plan the caller may see (also one of a patient the practitioner has no visit with). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17819,6 +17844,15 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthenticated"];
+            /** @description `profile_required`: a staff account, or a patient with no profile yet. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

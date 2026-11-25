@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
+	"github.com/Shmeeshmee/salus/internal/careplan"
 	"github.com/Shmeeshmee/salus/internal/clinicexport"
 	"github.com/Shmeeshmee/salus/internal/communication"
 	"github.com/Shmeeshmee/salus/internal/composition"
@@ -35,6 +36,7 @@ type ownSources struct {
 	receipts   []invoice.Invoice
 	quotes     []invoice.Quote
 	labs       []diagnosticreport.Report
+	plans      []careplan.Plan
 	encs       []encounter.Encounter
 	docs       []composition.Document
 	answers    []questionnaireresponse.Seen
@@ -64,6 +66,21 @@ func (l ownLabs) MineAt(_ context.Context, c diagnosticreport.Patient, org strin
 		if ofClinic(r.OrganizationID, org) && c.PatientID == r.PatientID {
 			l.o.call("lab result " + r.ID)
 			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// ownPlans is the patient's treatment plans as the source gives them (careplan.Service never gives a draft: the
+// export leaves one out all the same).
+type ownPlans struct{ o *ownSources }
+
+func (l ownPlans) MineAt(_ context.Context, c careplan.Patient, org string) ([]careplan.Plan, error) {
+	var out []careplan.Plan
+	for _, p := range l.o.plans {
+		if ofClinic(p.OrganizationID, org) && c.PatientID == p.PatientID {
+			l.o.call("care plan " + p.ID)
+			out = append(out, p)
 		}
 	}
 	return out, nil
@@ -227,6 +244,11 @@ func newOwn() (*ownSources, *clinicexport.OwnRecords) {
 		labs: []diagnosticreport.Report{{ID: "l2", PatientID: "pt1", OrganizationID: clinicB, AppointmentID: "a2", Title: "Synthetic panel",
 			Status: diagnosticreport.StatusFinal, ReleasedAt: &released, VersionID: 2,
 			Results: []diagnosticreport.Result{{Test: "Synthetic marker", ValueText: "negative"}}}},
+		plans: []careplan.Plan{
+			{ID: "cp2", PatientID: "pt1", OrganizationID: clinicB, Status: careplan.StatusActive, Title: "Synthetic plan", StartsOn: &released,
+				BookedAt: &released, VersionID: 2, Steps: []careplan.Step{{ID: "s1", ServiceName: "Synthetic exam", AppointmentID: "a2"}}},
+			{ID: "cpd", PatientID: "pt1", OrganizationID: clinicB, Status: careplan.StatusDraft, Title: "Synthetic draft", VersionID: 1},
+		},
 		encs: []encounter.Encounter{{ID: "e2", AppointmentID: "a2", PatientID: "pt1", OrganizationID: clinicB}},
 		docs: []composition.Document{{
 			Encounter: encounter.Encounter{ID: "e2", PatientID: "pt1", OrganizationID: clinicB},
@@ -244,7 +266,7 @@ func newOwn() (*ownSources, *clinicexport.OwnRecords) {
 	return o, clinicexport.NewOwnRecords(clinicexport.OwnPorts{
 		Profile: o, Consents: o, Appointments: o, Receipts: inv, Quotes: inv, Encounters: ownEncounters{o},
 		Documents: ownDocuments{o}, Answers: ownAnswers{o}, Questionnaires: ownAnswers{o}, Files: ownFiles{o}, Chat: ownChat{o},
-		LabResults: ownLabs{o},
+		LabResults: ownLabs{o}, CarePlans: ownPlans{o},
 	})
 }
 
@@ -316,7 +338,7 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 		t.Errorf("clinic A's record %v", got)
 	}
 	if got := entries(t, file(t, b, "record.json")); !slices.Equal(got, []string{"urn:uuid:pt1", "urn:uuid:c2", "urn:uuid:a2",
-		"urn:uuid:e2", "urn:uuid:d2", "urn:uuid:r2", "urn:uuid:l2", "urn:uuid:i2"}) {
+		"urn:uuid:e2", "urn:uuid:d2", "urn:uuid:r2", "urn:uuid:l2", "urn:uuid:cp2", "urn:uuid:i2"}) {
 		t.Errorf("clinic B's record %v", got)
 	}
 	if want := []string{"record.json", "files/i1.pdf"}; !slices.Equal(names(a), want) {
@@ -339,7 +361,8 @@ func TestOwnRecords_OnePartPerClinicWithTheClinicalContent(t *testing.T) {
 	}
 	if want := []string{"1 consent", "1 appointment (the cancelled ones too)", "1 visit record (Encounter)",
 		"1 signed document (its PDF in files/)", "1 submitted questionnaire answer", "1 file you uploaded with your answers (in files/)",
-		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)", "1 released lab result (DiagnosticReport)"}; !slices.Equal(b.Holds, want) {
+		"1 receipt (its PDF in files/)", "1 quote (quotes.json, its PDF in files/)", "1 released lab result (DiagnosticReport)",
+		"1 booked treatment plan (CarePlan)"}; !slices.Equal(b.Holds, want) {
 		t.Errorf("clinic B holds %q", b.Holds)
 	}
 	if !slices.Contains(o.calls, "answers a2 completed") || !slices.Contains(o.calls, "file b3") {
@@ -363,7 +386,7 @@ func TestOwnRecords_AClinicTargetReadsThatClinic(t *testing.T) {
 	}
 	for _, c := range o.calls {
 		if strings.Contains(c, "a2") || strings.Contains(c, "e2") || strings.Contains(c, "b2") ||
-			strings.Contains(c, "c2") || strings.Contains(c, "i2") || strings.Contains(c, "q2") || strings.Contains(c, "l2") {
+			strings.Contains(c, "c2") || strings.Contains(c, "i2") || strings.Contains(c, "q2") || strings.Contains(c, "l2") || strings.Contains(c, "cp") {
 			t.Errorf("read %q of clinic B", c)
 		}
 	}
@@ -418,5 +441,23 @@ func TestOwnRecords_NoProfileNoRecord(t *testing.T) {
 	o.meErr = errors.New("down")
 	if _, err := own.Export(t.Context(), "acc1", ""); err == nil {
 		t.Error("no error when the profile cannot be read")
+	}
+}
+
+// The patient's booked treatment plans are in their clinic's record.json as FHIR CarePlans; a draft never is, as the app
+// never shows one.
+func TestOwnRecords_TheBookedPlansAndNeverADraft(t *testing.T) {
+	t.Parallel()
+	_, own := newOwn()
+	x, err := own.Export(t.Context(), "acc1", clinicB)
+	if err != nil || len(x.Parts) != 1 {
+		t.Fatalf("Export = %+v, %v", x, err)
+	}
+	rec := file(t, x.Parts[0], "record.json")
+	if !bytes.Contains(rec, []byte(`"resourceType":"CarePlan","id":"cp2"`)) || !bytes.Contains(rec, []byte(`"description":"Synthetic exam"`)) {
+		t.Errorf("record.json %s, want the booked plan as a CarePlan", rec)
+	}
+	if bytes.Contains(rec, []byte("cpd")) || bytes.Contains(rec, []byte("Synthetic draft")) {
+		t.Errorf("record.json %s holds the draft", rec)
 	}
 }

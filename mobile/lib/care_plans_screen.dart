@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:salus_api/api.dart' show CarePlan, CarePlanStatus, VisitMode;
+import 'package:salus_api/api.dart' show CarePlan, CarePlanStatus, CarePlanStep, VisitMode;
 
 import 'booking.dart';
 import 'fhir.dart';
@@ -10,9 +10,10 @@ import 'visit_mode.dart';
 import 'zones.dart';
 
 /// The patient's booked treatment plans from every clinic, newest first (docs/clinic-cms, U6, package TP2): each with
-/// its clinic, its state, its first day and its steps in order, each a visit on its day (the first day plus the
-/// step's days) and of its type. A step's visit is one of the patient's visits; moving or cancelling it is done
-/// there. The server never sends a draft. Each card names its clinic from the directory, as the quotes screen does.
+/// its clinic, its state, its first day and its steps in order, each a visit on its day (its visit's, in the clinic's
+/// zone, which a move changes) and of its type, with its service as the clinic's price list names it. A step's visit
+/// is one of the patient's visits; moving or cancelling it is done there. The server never sends a draft. Each card
+/// names its clinic from the directory, as the quotes screen does.
 class CarePlansScreen extends StatefulWidget {
   const CarePlansScreen({super.key, required this.booking});
 
@@ -57,19 +58,32 @@ class _CarePlansScreenState extends LoadingState<CarePlansScreen, _Plans> {
             Text(_status(plan.status)),
             if (startsOn != null) ...[
               Text(t.carePlanStartsOn(Zone.longDate(startsOn, t.localeName))),
-              for (final (i, step) in plan.steps.indexed)
+              for (final (i, step) in plan.steps.indexed) ...[
                 Text(
                   t.carePlanStep(
                     i + 1,
-                    Zone.longDate(DateTime.utc(startsOn.year, startsOn.month, startsOn.day + step.dayOffset), t.localeName),
+                    _day(step, startsOn, clinic),
                     visitModeName(t, inPerson: step.visitMode == VisitMode.inPerson),
                   ),
                 ),
+                if (step.serviceName case final name? when name.isNotEmpty) Text(name),
+              ],
             ],
           ],
         ),
       ),
     );
+  }
+
+  /// The step's day: its visit's, in the clinic's zone (a moved visit's new day), or the first day plus its days.
+  String _day(CarePlanStep step, DateTime startsOn, Organization? clinic) {
+    final locale = context.t.localeName;
+    final visit = step.visitStart;
+    if (visit != null) {
+      final zone = clinic == null || clinic.timeZone.isEmpty ? 'Europe/Sarajevo' : clinic.timeZone;
+      return Zone(zone).date(visit, locale);
+    }
+    return Zone.longDate(DateTime.utc(startsOn.year, startsOn.month, startsOn.day + step.dayOffset), locale);
   }
 
   String _status(CarePlanStatus status) {

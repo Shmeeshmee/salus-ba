@@ -16,9 +16,11 @@ class CarePlanStep {
     this.id,
     this.position,
     required this.serviceId,
+    this.serviceName,
     required this.dayOffset,
     required this.visitMode,
     this.appointmentId,
+    this.visitStart,
   });
 
   /// In a response only.
@@ -44,6 +46,15 @@ class CarePlanStep {
   /// A service of the clinic's price list.
   String serviceId;
 
+  /// The service's name in the clinic's price list; in a response only, absent for a service gone from it.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? serviceName;
+
   /// Days from the plan's start.
   ///
   /// Minimum value: 0
@@ -61,6 +72,15 @@ class CarePlanStep {
   ///
   String? appointmentId;
 
+  /// Its visit's start once booked (a moved visit's new time); in a response only.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  DateTime? visitStart;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -68,9 +88,11 @@ class CarePlanStep {
           other.id == id &&
           other.position == position &&
           other.serviceId == serviceId &&
+          other.serviceName == serviceName &&
           other.dayOffset == dayOffset &&
           other.visitMode == visitMode &&
-          other.appointmentId == appointmentId;
+          other.appointmentId == appointmentId &&
+          other.visitStart == visitStart;
 
   @override
   int get hashCode =>
@@ -78,13 +100,15 @@ class CarePlanStep {
       (id == null ? 0 : id!.hashCode) +
       (position == null ? 0 : position!.hashCode) +
       (serviceId.hashCode) +
+      (serviceName == null ? 0 : serviceName!.hashCode) +
       (dayOffset.hashCode) +
       (visitMode.hashCode) +
-      (appointmentId == null ? 0 : appointmentId!.hashCode);
+      (appointmentId == null ? 0 : appointmentId!.hashCode) +
+      (visitStart == null ? 0 : visitStart!.hashCode);
 
   @override
   String toString() =>
-      'CarePlanStep[id=$id, position=$position, serviceId=$serviceId, dayOffset=$dayOffset, visitMode=$visitMode, appointmentId=$appointmentId]';
+      'CarePlanStep[id=$id, position=$position, serviceId=$serviceId, serviceName=$serviceName, dayOffset=$dayOffset, visitMode=$visitMode, appointmentId=$appointmentId, visitStart=$visitStart]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -99,12 +123,22 @@ class CarePlanStep {
       json[r'position'] = null;
     }
     json[r'serviceId'] = this.serviceId;
+    if (this.serviceName != null) {
+      json[r'serviceName'] = this.serviceName;
+    } else {
+      json[r'serviceName'] = null;
+    }
     json[r'dayOffset'] = this.dayOffset;
     json[r'visitMode'] = this.visitMode;
     if (this.appointmentId != null) {
       json[r'appointmentId'] = this.appointmentId;
     } else {
       json[r'appointmentId'] = null;
+    }
+    if (this.visitStart != null) {
+      json[r'visitStart'] = this.visitStart!.toUtc().toIso8601String();
+    } else {
+      json[r'visitStart'] = null;
     }
     return json;
   }
@@ -139,9 +173,11 @@ class CarePlanStep {
         id: mapValueOfType<String>(json, r'id'),
         position: mapValueOfType<int>(json, r'position'),
         serviceId: mapValueOfType<String>(json, r'serviceId')!,
+        serviceName: mapValueOfType<String>(json, r'serviceName'),
         dayOffset: mapValueOfType<int>(json, r'dayOffset')!,
         visitMode: VisitMode.fromJson(json[r'visitMode'])!,
         appointmentId: mapValueOfType<String>(json, r'appointmentId'),
+        visitStart: mapDateTime(json, r'visitStart', r''),
       );
     }
     return null;
