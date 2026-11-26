@@ -15,7 +15,12 @@ import (
 // a visit is, the clinic's profile, a schedule. Each answers them as before, body and all.
 var servedReads = map[string]bool{
 	"FHIR read Schedule": true, "GET /organizations/{id}/locations": true, "GET /organizations/{id}/profile": true,
+	"FHIR read Organization": true, "FHIR read PractitionerRole": true,
 }
+
+// clinicReads are the reads by id that name a visit's clinic to its patient (the clinic of a care consent, active or
+// revoked), whatever its membership, and to its staff; to anyone else they answer as for an unknown id.
+var clinicReads = []string{"FHIR read Organization", "FHIR read PractitionerRole"}
 
 // A suspended clinic takes no new bookings, from the patient, the desk or a treatment plan, and nothing else changes for
 // its own: every read answers each of its staff and its patient as it did before (the directory's searches show it to
@@ -122,14 +127,39 @@ func TestRoleMatrix_ASuspendedClinicIsOutOfTheDirectoryUntilItsMembershipReturns
 		for who, c := range staffOf(m.a) {
 			check("its "+who+", "+status, c, func(op string) bool { return servedReads[op] || deskSearches[op] })
 		}
+		m.namesTheClinicToItsOwnOnly(t, others, status)
 	}
 	m.exec(t, `UPDATE clinic_subscription SET status = 'active' WHERE organization_id = $1`, m.a.org)
+	m.namesTheClinicToItsOwnOnly(t, others, "active again")
 	for who, c := range others {
 		check(who+", active again", c, everything)
 	}
 	for name, rec := range newBookings(t, m, m.a) {
 		if rec.Code >= 400 {
 			t.Errorf("%s once the membership is active again = %d %s, want it booked", name, rec.Code, rec.Body)
+		}
+	}
+}
+
+// namesTheClinicToItsOwnOnly holds the reads that name clinic A: they answer A's patient and staff with A's clinic and
+// role, and every other caller as for an id that does not exist.
+func (m *roleWorld) namesTheClinicToItsOwnOnly(t *testing.T, others map[string]*client, state string) {
+	t.Helper()
+	own := staffOf(m.a)
+	own["patient"] = m.a.patient.c
+	for _, op := range clinicReads {
+		method, path, _ := matrixRequest(t, op, m.a.ids)
+		_, unknown, _ := matrixRequest(t, op, map[string]string{})
+		for who, c := range own {
+			if code, body := answer(c, method, path, "", nil); code != http.StatusOK || !strings.Contains(body, m.a.org) {
+				t.Errorf("%s as its %s, %s = %d %.200s; want the clinic's", op, who, state, code, body)
+			}
+		}
+		for who, c := range others {
+			code, body := answer(c, method, path, "", m.a.ids)
+			if wantCode, want := answer(c, method, unknown, "", nil); code != wantCode || body != want {
+				t.Errorf("%s as %s, %s = %d %.200s; want the unknown id's %d %.200s", op, who, state, code, body, wantCode, want)
+			}
 		}
 	}
 }

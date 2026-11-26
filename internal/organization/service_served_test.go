@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 	"github.com/Shmeeshmee/salus/internal/organization"
 )
 
@@ -94,5 +95,38 @@ func TestProfile_AStoppedMembershipKeepsTheProfileForThoseTheClinicServes(t *tes
 	// Not listed: no one gets it, served or not.
 	if _, err := svc.Profile(t.Context(), clinicA, servedAs(clinicA)); !errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Profile(unlisted A) to whom it serves = %v, want ErrNotFound", err)
+	}
+}
+
+// A patient reads a clinic they are served by (its directory form is the handler's), in its scope and audited as a
+// read by them, so that the app names the clinic of a visit the directory no longer shows; any other clinic is not
+// found, as for anyone outside it. Staff read their own as before, Served not asked.
+func TestReadFor_GivesAServedPatientTheirClinicAuditedAndNoOneElse(t *testing.T) {
+	served := organization.Caller{AccountID: patient.AccountID, PatientID: patientOfB}
+	repo, audit := newFakeRepository(), &fakeAuditor{}
+	got, err := newService(repo, audit).ReadFor(t.Context(), served, clinicB, servedAs(clinicB))
+	if err != nil || got.ID != clinicB || got.Name != "Synthetic clinic B" || repo.clinic != clinicB || slices.Contains(repo.calls, "outside:ByID") {
+		t.Errorf("ReadFor(B) as its patient = %+v, %v (scope %q, calls %v); want B in its scope", got, err, repo.clinic, repo.calls)
+	}
+	if len(audit.events) != 1 || audit.events[0].Subtype.Code != auditevent.CodeRead || audit.events[0].AgentAccountID != patient.AccountID ||
+		audit.events[0].EntityReference != "Organization/"+clinicB || audit.events[0].OrganizationID != clinicB || audit.events[0].Outcome != auditevent.OutcomeSuccess {
+		t.Errorf("audit events %+v, want one read of clinic B by the patient", audit.events)
+	}
+	for name, sv := range map[string]organization.Served{"A's patient": servedAs(clinicA), "no one served": servedAs(), "no Served": nil} {
+		repo, audit := newFakeRepository(), &fakeAuditor{}
+		if _, err := newService(repo, audit).ReadFor(t.Context(), served, clinicB, sv); !errors.Is(err, organization.ErrNotFound) || len(repo.calls) != 0 {
+			t.Errorf("ReadFor(B) as %s = %v after %v, want ErrNotFound without reading", name, err, repo.calls)
+		}
+	}
+	broken := func(context.Context) ([]string, error) { return nil, errors.New("connection reset") }
+	if _, err := newService(newFakeRepository(), &fakeAuditor{}).ReadFor(t.Context(), served, clinicB, broken); err == nil || errors.Is(err, organization.ErrNotFound) {
+		t.Errorf("ReadFor() with a failing Served = %v, want its error", err)
+	}
+	repo = newFakeRepository()
+	if got, err := newService(repo, &fakeAuditor{}).ReadFor(t.Context(), admin, clinicA, broken); err != nil || got != repo.orgs[clinicA] {
+		t.Errorf("ReadFor(A) as its admin = %+v, %v; want A without asking Served", got, err)
+	}
+	if _, err := newService(newFakeRepository(), &fakeAuditor{}).ReadFor(t.Context(), otherAdmin, clinicA, servedAs(clinicA)); !errors.Is(err, organization.ErrNotFound) {
+		t.Errorf("ReadFor(A) as B's admin = %v, want ErrNotFound", err)
 	}
 }

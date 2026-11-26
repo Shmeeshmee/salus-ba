@@ -149,10 +149,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Session: authHandler.Session,
 		Routes: append([]func(*http.ServeMux){
 			authHandler.Routes,
-			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).Routes,
+			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).WithServed(served).Routes,
 			organization.NewProfileHandler(clinics, organizationCaller(accounts), log).WithServed(served).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
-			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
+			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).WithServed(served).Routes,
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			patient.NewFHIRHandler(patients, patientReadCaller(accounts, roles), log).Routes,

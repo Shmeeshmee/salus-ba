@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+
+	"github.com/Shmeeshmee/salus/internal/auditevent"
 )
 
 // Served gives the clinics whose public reads the signed-in caller keeps once their membership stops (Service.Served).
@@ -61,4 +64,37 @@ func (s *Service) Served(ctx context.Context, c Caller) ([]string, error) {
 		return nil, fmt.Errorf("organization: served: %w", err)
 	}
 	return out, nil
+}
+
+// ReadFor is the FHIR read of the clinic id: Read for its staff, and for a patient a clinic served gives (Served: a
+// care consent with it, active or revoked), read in its scope and audited as a read by them with the clinic named, so
+// that the app names the clinic of a visit the directory no longer shows. ErrNotFound to anyone else, as Read.
+func (s *Service) ReadFor(ctx context.Context, c Caller, id string, served Served) (Organization, error) {
+	if c.OrganizationID != "" || served == nil {
+		return s.Read(ctx, c, id)
+	}
+	ids, err := served(ctx)
+	switch {
+	case err != nil:
+		return Organization{}, fmt.Errorf("organization: read served: %w", err)
+	case !slices.Contains(ids, id):
+		return Organization{}, ErrNotFound
+	}
+	var o Organization
+	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
+		var err error
+		if o, err = s.byID(ctx, id); err != nil {
+			return err
+		}
+		e := event(auditevent.CodeRead, auditevent.ActionRead, c, id, auditevent.OutcomeSuccess)
+		e.OrganizationID = id
+		return s.audit.Record(ctx, e)
+	})
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Organization{}, ErrNotFound
+	case err != nil:
+		return Organization{}, fmt.Errorf("organization: read served: %w", err)
+	}
+	return o, nil
 }

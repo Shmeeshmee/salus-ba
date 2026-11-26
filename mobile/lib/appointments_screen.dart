@@ -109,7 +109,10 @@ class _AppointmentsScreenState extends LoadingState<AppointmentsScreen, _Appoint
     final all = await widget.booking.fhir.appointments(me.id);
     if (all.isEmpty) return _nothing(all);
     final consents = await widget.booking.consents();
-    final places = await widget.booking.places(consents.map((c) => c.organizationId));
+    final places = await widget.booking.places(
+      consents.map((c) => c.organizationId),
+      roleIds: [for (final a in all) ?a.roleId],
+    );
     return (
       all: all,
       places: places,

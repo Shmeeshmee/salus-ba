@@ -4797,7 +4797,19 @@ suspended clinic served and an unlisted one not, `TestPublicLocations_AStoppedCl
 **Contracts.** `api/openapi.yaml`'s locations and profile descriptions and 404s, and the CapabilityStatement's Schedule
 documentation, say who keeps a stopped clinic; no route, field or golden file changed.
 
-**Open, for the owner**: the patient app names a visit's clinic from the directory's Organization and PractitionerRole
-searches (`Booking.places`), which keep hiding a stopped clinic, so its visits show "A clinic no longer listed" and,
-without the role's clinic, no address, though the server now answers the locations. Naming it needs a read of the
-clinic by id for its patients (the FHIR Organization read is staff-only today) and the app to use it; not built here.
+**Second commit: the clinic's name in the app.** The app named a visit's clinic only from the directory's Organization
+and PractitionerRole searches (`Booking.places`), which hide a stopped clinic, so its visits showed "A clinic no longer
+listed" and no address. Server, test first: the FHIR Organization and PractitionerRole reads by id now also answer a
+patient of the clinic (`Served`: a care consent, active or revoked), whatever its membership, read in the clinic's scope
+and audited as a read by them (`organization.Service.ReadFor`, `practitionerrole.Service.ReadFor`; the ports' `Read`
+unchanged). The Organization is the directory's form (golden `organization_served.json`: no address, no contribution);
+the role the same resource as the staff's. Anyone else gets the unknown id's answer, as before. The matrix: both reads
+classed allowed for the patient on their own clinic, and held in the suspended tests (`servedReads`, and
+`namesTheClinicToItsOwnOnly`: the clinic's patient and staff get it suspended, cancelled and active again; a signed-out
+caller, an account without a profile, another clinic's patient and admin the unknown id's answer). App: `places` reads
+a consent's clinic the directory does not list by id, and each visit's role not placed by then (`Fhir.clinic`,
+`Fhir.role`); the card then names the clinic (without the practitioner, whose name only the search includes), shows its
+zone and, through the locations the server now answers, the address. "A clinic no longer listed" stays for a clinic
+the read refuses too. No new string. `mobile/test/stopped_clinic_test.dart`: named with zone and address; unnamed in
+UTC when the read fails; a listed clinic never read by id. The CapabilityStatement's Organization and PractitionerRole
+documentation says so.

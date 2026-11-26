@@ -60,6 +60,15 @@ func NewService(p Ports) *Service {
 	return &Service{repo: p.Repo, audit: p.Audit, tx: p.Tx, clock: p.Clock, clinics: p.Clinics, people: p.People}
 }
 
+// ReadFor is the FHIR read of the role id: Read for staff, and for a caller of no clinic a role of a clinic served
+// gives (readServed). Audited, also when refused.
+func (s *Service) ReadFor(ctx context.Context, c Caller, id string, served organization.Served) (PractitionerRole, error) {
+	if c.OrganizationID == "" && served != nil {
+		return s.readServed(ctx, c, id, served)
+	}
+	return s.Read(ctx, c, id)
+}
+
 // Read returns the role id to staff of its clinic, or ErrNotFound to anyone else.
 func (s *Service) Read(ctx context.Context, c Caller, id string) (PractitionerRole, error) {
 	if c.OrganizationID == "" {
@@ -93,6 +102,42 @@ func (s *Service) Read(ctx context.Context, c Caller, id string) (PractitionerRo
 		return PractitionerRole{}, ErrNotFound
 	}
 	return p, nil
+}
+
+// readServed is Read for a caller of no clinic: a role of a clinic served gives (a patient's, with a care consent
+// there: organization.Service.Served), read in that clinic's scope and audited, so that the app names the clinic of a
+// visit the directory no longer shows (readiness: suspended clinics); ErrNotFound, audited, for any other.
+func (s *Service) readServed(ctx context.Context, c Caller, id string, served organization.Served) (PractitionerRole, error) {
+	clinics, err := served(ctx)
+	if err != nil {
+		return PractitionerRole{}, fmt.Errorf("practitionerrole: served: %w", err)
+	}
+	for _, org := range clinics {
+		var p PractitionerRole
+		err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+			if err := s.repo.SetOrganization(ctx, org); err != nil {
+				return err
+			}
+			var err error
+			if p, err = s.repo.ByID(ctx, id); err == nil && p.OrganizationID != org { // not on row-level security alone
+				err = ErrNotFound
+			}
+			if err != nil {
+				return err
+			}
+			return s.record(ctx, c, auditevent.CodeRead, p.ID, auditevent.OutcomeSuccess)
+		})
+		if !errors.Is(err, ErrNotFound) {
+			if err != nil {
+				return PractitionerRole{}, fmt.Errorf("practitionerrole: read: %w", err)
+			}
+			return p, nil
+		}
+	}
+	if err := s.record(ctx, c, auditevent.CodeRead, "", auditevent.OutcomeMinorFailure); err != nil {
+		return PractitionerRole{}, fmt.Errorf("practitionerrole: read: %w", err)
+	}
+	return PractitionerRole{}, ErrNotFound
 }
 
 // Search returns the roles of the clinic org (PractitionerRole?organization=org), oldest first, to staff of

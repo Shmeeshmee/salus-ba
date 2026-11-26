@@ -125,6 +125,28 @@ class Fhir {
     ];
   }
 
+  /// The clinic [id], read by id: a patient's clinic the directory no longer lists (its membership stopped).
+  Future<Organization> clinic(String id) async {
+    final r = await _get('Organization/$id');
+    return Organization(id: _string(r['id']), name: _string(r['name']), timeZone: _zone(r['extension']));
+  }
+
+  /// The practitioner role [id], read by id, with its clinic's id: for a visit at a clinic the directory no longer
+  /// lists. Without the practitioner's name, which only the directory's search includes.
+  Future<(String, PractitionerRole)> role(String id) async {
+    final r = await _get('PractitionerRole/$id');
+    final clinic = _reference(r['organization']);
+    return (
+      clinic.startsWith('Organization/') ? clinic.substring('Organization/'.length) : '',
+      PractitionerRole(
+        id: _string(r['id']),
+        name: '',
+        specialty: _specialty(r['specialty']),
+        specialtyCode: _specialtyCode(r['specialty']),
+      ),
+    );
+  }
+
   /// The id of [roleId]'s schedule, or null when the role has none yet.
   Future<String?> scheduleOf(String roleId) async {
     final all = await _search('Schedule', [QueryParam('actor', 'PractitionerRole/$roleId')]);
