@@ -4741,3 +4741,11 @@ checked to be the load stack's (temporary state only).
 718, the landing set, `make e2e` on `salus-cms-int-e2e`, which it removed). The review's fixes were made while its last
 sets ran; the same command on the final tree, with them, passed too (cover 89.7%). Two full runs, no rerun of a failing
 check, nothing flaky.
+
+**After the commit**: the session's Stop hook (`make arch-gate`, in the main checkout on the `salus` stack, which it
+starts with `--no-recreate`) failed the demo seed's tests: a Postgres started before `cluster_name=salus-dev` answers
+`""`, so on any stack not yet recreated the guard refused the tests' own runs. The required name is now `run`'s constant
+and the tests pass their server's own (`runOn`); `TestDemoSeed_IsRefusedOnAnyServerButTheDevStacks` holds the refusal
+on any other, writing nothing. `cmd/salusctl` passed on a fresh stack and on one whose Postgres has no `cluster_name`
+(a worktree of its own, recreated with an override), `make lint` 0 issues, coverage 85.2%. Commit `cms(wave 7): the demo
+seed's tests run on a stack whose Postgres predates cluster_name`.
