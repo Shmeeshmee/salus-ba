@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
+	"github.com/Shmeeshmee/salus/pkg/keyset"
 )
 
 // Read returns the encounter id to whoever access.Appointment gives the name or more of its appointment (its
@@ -89,58 +91,100 @@ func (s *Service) attendance(ctx context.Context, c appointment.Caller, e Encoun
 // clinic's. PractitionerID is the practitioner behind the role. Each encounter returned is audited; a search
 // that returns none writes one event without an entity.
 func (s *Service) Search(ctx context.Context, c appointment.Caller, f Filter) ([]Encounter, error) {
-	var out []Encounter
+	f.AfterStart, f.AfterID = time.Time{}, ""
+	p, err := s.find(ctx, c, f, 0)
+	return p.Encounters, err
+}
+
+// SearchPage is Search, a page at a time, for the FHIR search (api/fhir/CapabilityStatement.json): the first count
+// encounters after f's position (AfterStart, AfterID) in the search's order, by period start then id. A staff search
+// not narrowed to one appointment (which has one encounter at most) returns the clinic's or the role's whole history,
+// so it is paged, by appointment.DefaultCount unless count asks for another number; so is any search given a count or
+// a position. A patient's own returns every match, as Search does. The encounters the caller may not see are read
+// past and left out as Search leaves them out; the page's are audited as Search audits them.
+func (s *Service) SearchPage(ctx context.Context, c appointment.Caller, f Filter, count int) (Page, error) {
+	if count == 0 && (f.AfterID != "" || (c.OrganizationID != "" && f.AppointmentID == "")) {
+		count = appointment.DefaultCount
+	}
+	return s.find(ctx, c, f, count)
+}
+
+// find is Search, a page of count when count is set: it runs the search in a transaction and audits a refusal or
+// an empty result with one event.
+func (s *Service) find(ctx context.Context, c appointment.Caller, f Filter, count int) (Page, error) {
+	var out Page
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		if out, refused, err = s.search(ctx, c, f); err != nil {
+		if out, refused, err = s.search(ctx, c, f, count); err != nil {
 			return err
 		}
 		switch {
 		case refused != nil:
 			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeMinorFailure)
-		case len(out) == 0:
+		case len(out.Encounters) == 0:
 			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
-		return nil, fmt.Errorf("encounter: search: %w", err)
+		return Page{}, fmt.Errorf("encounter: search: %w", err)
 	case refused != nil:
-		return nil, refused
+		return Page{}, refused
 	}
 	return out, nil
 }
 
 // search runs the caller's search in the transaction in ctx and audits each result, or gives the refusal.
-func (s *Service) search(ctx context.Context, c appointment.Caller, f Filter) (out []Encounter, refused, err error) {
+func (s *Service) search(ctx context.Context, c appointment.Caller, f Filter, count int) (out Page, refused, err error) {
 	staff, practitioner := c.OrganizationID != "", c.OrganizationID != "" && !c.Admin
 	switch {
 	case practitioner && f.PractitionerID != "" && f.PractitionerID != c.PractitionerID:
-		return nil, ErrForbidden, nil
+		return Page{}, ErrForbidden, nil
 	case !staff:
 		f.PatientID = c.PatientID
 	}
 	if ok, err := s.scope(ctx, c); err != nil || !ok {
-		return nil, nil, err
+		return Page{}, nil, err
 	}
-	all, err := s.Repo.Search(ctx, f)
+	f.Limit = 0
+	keep := func(batch []Encounter) ([]Encounter, error) {
+		var kept []Encounter
+		for _, e := range batch {
+			att, ok, err := s.attendance(ctx, c, e)
+			switch {
+			case err != nil:
+				return nil, err
+			case !ok, practitioner && !att.Practitioner, f.PractitionerID != "" && att.PractitionerID != f.PractitionerID:
+				continue
+			}
+			kept = append(kept, e)
+		}
+		return kept, nil
+	}
+	if count == 0 {
+		var all []Encounter
+		if all, err = s.Repo.Search(ctx, f); err == nil {
+			out.Encounters, err = keep(all)
+		}
+	} else {
+		out.Encounters, out.More, err = keyset.Fill(count, func(after *Encounter, limit int) ([]Encounter, error) {
+			g := f
+			if after != nil {
+				g.AfterStart, g.AfterID = after.PeriodStart, after.ID
+			}
+			g.Limit = limit
+			return s.Repo.Search(ctx, g)
+		}, keep)
+	}
 	if err != nil {
-		return nil, nil, err
+		return Page{}, nil, err
 	}
-	for _, e := range all {
-		att, ok, err := s.attendance(ctx, c, e)
-		switch {
-		case err != nil:
-			return nil, nil, err
-		case !ok, practitioner && !att.Practitioner, f.PractitionerID != "" && att.PractitionerID != f.PractitionerID:
-			continue
-		}
+	for _, e := range out.Encounters {
 		if err := s.record(ctx, c, auditevent.CodeSearchType, e.ID, auditevent.OutcomeSuccess); err != nil {
-			return nil, nil, err
+			return Page{}, nil, err
 		}
-		out = append(out, e)
 	}
 	return out, nil, nil
 }

@@ -3,21 +3,26 @@ package questionnaireresponse_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/binary"
 	"github.com/Shmeeshmee/salus/internal/questionnaire"
 	"github.com/Shmeeshmee/salus/internal/questionnaireresponse"
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -48,6 +53,8 @@ type stubReader struct {
 	filter questionnaireresponse.Filter
 	out    []questionnaireresponse.Seen
 	calls  int
+	count  int  // the count SearchPage was asked
+	more   bool // SearchPage's answer: more follow
 }
 
 func (s *stubReader) Read(_ context.Context, c appointment.Caller, id string) (questionnaireresponse.Seen, error) {
@@ -59,10 +66,10 @@ func (s *stubReader) Read(_ context.Context, c appointment.Caller, id string) (q
 	return s.out[0], nil
 }
 
-func (s *stubReader) Search(_ context.Context, c appointment.Caller, f questionnaireresponse.Filter) ([]questionnaireresponse.Seen, error) {
-	s.caller, s.filter = c, f
+func (s *stubReader) SearchPage(_ context.Context, c appointment.Caller, f questionnaireresponse.Filter, count int) (questionnaireresponse.Page, error) {
+	s.caller, s.filter, s.count = c, f, count
 	s.calls++
-	return s.out, s.err
+	return questionnaireresponse.Page{Seen: s.out, More: s.more}, s.err
 }
 
 // stubVersions gives the version hQuestionnaire (version(), or v when set) and counts the reads of each id.
@@ -317,7 +324,11 @@ func TestHandler_SearchReadsEachParameterOnce(t *testing.T) {
 		"patient=Appointment/" + patientA,
 		"_include=QuestionnaireResponse:subject",
 		"_include=QuestionnaireResponse:questionnaire&_include=QuestionnaireResponse:questionnaire",
-		"_count=10",
+		"_count=0",
+		"_count=ten",
+		"_count=1&_count=2",
+		"_cursor=nonsense",
+		"_cursor=" + fhir.NewCursor(now, hResponse), // an Appointment's or an Encounter's: a response's is its id alone
 		"appointment=%zz",
 	} {
 		svc := &stubReader{}
@@ -325,7 +336,7 @@ func TestHandler_SearchReadsEachParameterOnce(t *testing.T) {
 		if rec.Code != http.StatusBadRequest || svc.calls != 0 {
 			t.Errorf("search %q = %d with %d calls, want 400 without a call", query, rec.Code, svc.calls)
 		}
-		if query == "_count=10" {
+		if query == "_count=0" {
 			assertGolden(t, "unsupported_search.json", rec.Body.Bytes())
 		}
 	}
@@ -429,4 +440,68 @@ func TestHandler_ReadLeavesOutTheTitleOfAnUntitledFile(t *testing.T) {
 		t.Fatalf("read = %d %s, want no title", rec.Code, rec.Body)
 	}
 	assertGolden(t, "response_attachment_untitled.json", rec.Body.Bytes())
+}
+
+// _count asks for a page of that many, 200 at most; _cursor is the position a next link gave: the last response's id.
+func TestHandler_SearchPassesTheCountAndThePosition(t *testing.T) {
+	t.Parallel()
+	for query, want := range map[string]struct {
+		after string
+		count int
+	}{
+		"":           {"", 0},
+		"_count=2":   {"", 2},
+		"_count=500": {"", 200},
+		"_count=3&_cursor=" + fhir.NewCursor(time.Time{}, hResponse): {hResponse, 3},
+	} {
+		svc := &stubReader{}
+		rec := getFHIR(t, svc, &stubVersions{}, asCaller(admin), &bytes.Buffer{}, "/fhir/R4/QuestionnaireResponse?"+query)
+		if rec.Code != http.StatusOK || svc.count != want.count || svc.filter.AfterID != want.after {
+			t.Errorf("search %q = %d %s after %+v, %d; want 200, %+v", query, rec.Code, rec.Body, svc.filter, svc.count, want)
+		}
+	}
+}
+
+// A page with more after it links the next one from after its last response (its id), with the versions of the page's
+// responses included once each, and no total; a position the scope no longer shows is a 400: search again.
+func TestHandler_SearchLinksTheNextPageWithThePagesIncludes(t *testing.T) {
+	t.Parallel()
+	second := completed()
+	second.ID, second.Answers = "c5000000-0000-4000-8000-0000000000c2", nil
+	matches := []questionnaireresponse.Seen{{Response: completed(), Level: access.Full}, {Response: second, Level: access.Name}}
+	svc := &stubReader{out: matches, more: true}
+	rec := getFHIR(t, svc, &stubVersions{}, asCaller(admin), &bytes.Buffer{},
+		"/fhir/R4/QuestionnaireResponse?_count=2&_include=QuestionnaireResponse:questionnaire")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("search = %d %s", rec.Code, rec.Body)
+	}
+	assertGolden(t, "search_page.json", rec.Body.Bytes())
+	var b struct {
+		Total *int `json:"total"`
+		Link  []struct {
+			Relation string `json:"relation"`
+			URL      string `json:"url"`
+		} `json:"link"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if b.Total != nil || len(b.Link) != 2 || b.Link[1].Relation != "next" {
+		t.Fatalf("bundle %s, want a self and a next link and no total", rec.Body)
+	}
+	next, err := url.Parse(b.Link[1].URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, id, ok := fhir.ParseCursor(next.Query().Get("_cursor"))
+	if next.Query().Get("_count") != "2" || next.Query().Get("_include") != "QuestionnaireResponse:questionnaire" || !ok || !at.IsZero() || id != second.ID {
+		t.Errorf("next = %s, want the search from after the page's last response", b.Link[1].URL)
+	}
+
+	rec = getFHIR(t, &stubReader{err: fmt.Errorf("questionnaireresponse: search: %w", questionnaireresponse.ErrPosition)}, &stubVersions{}, asCaller(admin),
+		&bytes.Buffer{}, strings.TrimPrefix(b.Link[1].URL, "https://api.example.test"))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("a gone position = %d %s, want 400", rec.Code, rec.Body)
+	}
+	assertGolden(t, "position_gone.json", rec.Body.Bytes())
 }

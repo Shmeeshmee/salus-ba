@@ -146,7 +146,8 @@ type Bundle struct {
 	Total        int           `json:"total"`
 }
 
-// BundleLink is a link of a Bundle; a searchset has its self link, the search that was run.
+// BundleLink is a link of a Bundle; a searchset has its self link, the search that was run, and a page of a longer
+// answer its next link.
 type BundleLink struct {
 	Relation string `json:"relation"`
 	URL      string `json:"url"`

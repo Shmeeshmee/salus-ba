@@ -225,17 +225,30 @@ SELECT id, created_at, updated_at, period_start, period_end, appointment_id, org
 FROM encounter
 WHERE ($1::uuid IS NULL OR appointment_id = $1::uuid)
   AND ($2::uuid IS NULL OR patient_id = $2::uuid)
+  AND ($3::uuid IS NULL OR (period_start, id) > ($4::timestamptz, $3::uuid))
 ORDER BY period_start, id
+LIMIT $5::integer
 `
 
 type SearchEncountersParams struct {
 	AppointmentID pgtype.UUID
 	PatientID     pgtype.UUID
+	AfterID       pgtype.UUID
+	AfterStart    pgtype.Timestamptz
+	RowLimit      pgtype.Int4
 }
 
-// Encounter?appointment=…&patient=…; an absent parameter matches everything, the scope decides the rest.
+// Encounter?appointment=…&patient=…; an absent parameter matches everything, the scope decides the rest. A page starts
+// after the position (after_start, after_id) in the order and holds row_limit rows at most; a null bound or limit does
+// not narrow.
 func (q *Queries) SearchEncounters(ctx context.Context, arg SearchEncountersParams) ([]Encounter, error) {
-	rows, err := q.db.Query(ctx, searchEncounters, arg.AppointmentID, arg.PatientID)
+	rows, err := q.db.Query(ctx, searchEncounters,
+		arg.AppointmentID,
+		arg.PatientID,
+		arg.AfterID,
+		arg.AfterStart,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

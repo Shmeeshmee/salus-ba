@@ -1,1 +1,1 @@
-{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search by patient, practitioner, date (ge and lt, instants with an offset) and status, each once."}]}
+{"resourceType":"OperationOutcome","issue":[{"severity":"error","code":"not-supported","diagnostics":"Search by patient, practitioner, date (ge and lt, instants with an offset), status and _count (1 to 200), each once, from a next link's _cursor."}]}

@@ -4749,3 +4749,47 @@ and the tests pass their server's own (`runOn`); `TestDemoSeed_IsRefusedOnAnySer
 on any other, writing nothing. `cmd/salusctl` passed on a fresh stack and on one whose Postgres has no `cluster_name`
 (a worktree of its own, recreated with an override), `make lint` 0 issues, coverage 85.2%. Commit `cms(wave 7): the demo
 seed's tests run on a stack whose Postgres predates cluster_name`.
+
+## Readiness follow-ups: paged staff searches
+
+Done 2026-11-26 on `wt/readiness/paging` (from `origin/main`), for `load/REPORT.md` "Left for later" (the unbounded
+staff appointment search). The owner's scope: Appointment, Encounter and QuestionnaireResponse; the patient- and
+encounter-scoped searches (AllergyIntolerance, MedicationStatement, DocumentReference) and the public directory
+(Organization, PractitionerRole, Schedule, Slot) are unchanged.
+
+**The rule** (each service's `SearchPage`; `Search` and `ClinicRecord`, the reads inside the app, stay unpaged). A
+search is paged when a staff member (a caller with a clinic) runs it without a bound on its size, or when any caller
+gives `_count` or a next link's `_cursor`: Appointment without a closed date range (a `ge` and an `lt`; one bound is
+not a range), Encounter and QuestionnaireResponse unless narrowed to one appointment (an encounter at most, a response
+per questionnaire). The calendar's week, `Encounter?appointment=…`, `QuestionnaireResponse?appointment=…` and every
+patient's own search (web and mobile send no `_count`) answer as before, byte for byte. `_count`: 1 to 200, 50 by
+default (`appointment.DefaultCount`, `MaxCount`); a larger number gives 200 (FHIR lets a server return fewer), 0, a
+non-number or a repeat is a 400.
+
+**Pages.** Keyset, in each search's existing order: Appointment by `start_at, id`, Encounter by `period_start, id`,
+QuestionnaireResponse by `due_at, created_at, id`, one statement a batch (`LIMIT`, `(…) > (…)`). The next link is the
+same search with `_cursor`, base64url of the page's last match's start and id (Appointment, Encounter: both in the
+resource) or its id alone (QuestionnaireResponse: its order's times are not in the resource, so the repository reads
+them back in the caller's scope; a response gone since, or never the caller's, is a 400 `not-found`: search again). A
+page reads `count+1` rows, keeps those the caller may see as the unpaged search does, and reads on past the rest
+(`keyset.Fill`), so the cursor is always a match the caller was given, never a row they may not see; a page may hold
+fewer than `_count`, the last none. Each page's consents, restrictions, visits and profiles are read in one statement
+each and its events written in one insert (RD2), per page; a page's events are exactly those of its matches, an empty
+page's the one event of a search that finds none. `total` stays where the page is the whole answer (the first, no
+next link), as before; other pages have none (no count is run). `_include=QuestionnaireResponse:questionnaire` includes
+the versions of the page's own responses.
+
+**Tests.** `pkg/fhir` (`Count`, `NewCursor`/`ParseCursor`, `NewPage`, the whole-answer page equal to `NewSearchset`),
+`pkg/keyset` (`Fill`, pages concatenated equal the whole); each service (the rule's table, the concatenated pages of
+every count equal to the unpaged search's matches and audit events, refusals unchanged); each repository on `pgtest`
+(order with ties, page boundaries, the QuestionnaireResponse position refused out of scope); each handler (`_count`,
+`_cursor`, the next link, no total, new goldens `search_page.json`, `position_gone.json`; `unsupported_search.json`
+names `_count`; `search.json` and `search_include.json` unchanged); `internal/api`
+`TestNew_PagesTheStaffSearchesWithoutChangingTheirEntries` (through the api: the pages of 1, 2 and 3, followed by their
+next links, are byte for byte the closed range's or the per-appointment searches' entries, audited alike).
+`api/fhir/CapabilityStatement.json` (and the served `metadata.json`) documents `_count` and the paging.
+
+**Not changed, noted.** A page bounds what is returned, not what is read when the caller may see few rows: a receptionist's
+`QuestionnaireResponse?patient=…` (nothing visible) or a practitioner's encounters without `practitioner=` read the
+clinic's rows in batches of `count+1`, as the unpaged search read them all at once. Pushing those filters into SQL is
+left for later.

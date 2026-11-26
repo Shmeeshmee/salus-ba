@@ -20,6 +20,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/schedule"
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -50,6 +51,8 @@ type stubReader struct {
 	filter appointment.Filter
 	out    []appointment.Seen
 	calls  int
+	count  int  // the count SearchPage was asked
+	more   bool // SearchPage's answer: more follow
 }
 
 func (s *stubReader) Read(_ context.Context, c appointment.Caller, id string) (appointment.Seen, error) {
@@ -61,10 +64,10 @@ func (s *stubReader) Read(_ context.Context, c appointment.Caller, id string) (a
 	return s.out[0], nil
 }
 
-func (s *stubReader) Search(_ context.Context, c appointment.Caller, f appointment.Filter) ([]appointment.Seen, error) {
-	s.caller, s.filter = c, f
+func (s *stubReader) SearchPage(_ context.Context, c appointment.Caller, f appointment.Filter, count int) (appointment.Page, error) {
+	s.caller, s.filter, s.count = c, f, count
 	s.calls++
-	return s.out, s.err
+	return appointment.Page{Seen: s.out, More: s.more}, s.err
 }
 
 func getAppt(t *testing.T, svc *stubReader, caller func(context.Context) (appointment.Caller, bool, error), log *bytes.Buffer, path string) *httptest.ResponseRecorder {
@@ -163,9 +166,11 @@ func TestHandlerSearch_PassesTheFilterAndSendsASearchset(t *testing.T) {
 
 func TestHandlerSearch_RejectsAnUnknownOrRepeatedParameterWithoutCallingTheService(t *testing.T) {
 	for _, query := range []string{
-		"_count=10", "name=Ada", "patient=Patient/" + patientA + "&patient=Patient/" + patientB, "patient=Practitioner/" + practA1,
+		"name=Ada", "patient=Patient/" + patientA + "&patient=Patient/" + patientB, "patient=Practitioner/" + practA1,
 		"practitioner=PractitionerRole/" + roleA1, "status=proposed", "status=booked&status=cancelled", "status=booked,cancelled",
 		"date=2030-01-07", "date=ge2030-01-07", "date=gt2030-01-07T00:00:00Z", "actor=Patient/" + patientA, "patient=",
+		"_count=0", "_count=ten", "_count=-1", "_count=5&_count=6", "_cursor=nonsense", "_cursor=" + fhir.NewCursor(time.Time{}, apptA),
+		"_cursor=" + fhir.NewCursor(now, apptA) + "&_cursor=" + fhir.NewCursor(now, apptB),
 	} {
 		var log bytes.Buffer
 		svc := &stubReader{}
@@ -286,4 +291,73 @@ func TestHandlerRead_SendsTheServiceTheBookingNamed(t *testing.T) {
 		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
 	}
 	assertGolden(t, "appointment_service.json", rec.Body.Bytes())
+}
+
+// _count asks for a page of that many, 200 at most (FHIR lets a server return fewer); none leaves the page to the
+// service's rule. _cursor is the position a next link gave, read back into the filter.
+func TestHandlerSearch_PassesTheCountAndThePosition(t *testing.T) {
+	at := time.Date(2030, 1, 7, 9, 0, 0, 500, time.UTC)
+	for _, tt := range []struct {
+		query string
+		after appointment.Filter
+		count int
+	}{
+		{"", appointment.Filter{}, 0},
+		{"_count=1", appointment.Filter{}, 1},
+		{"_count=200", appointment.Filter{}, 200},
+		{"_count=201", appointment.Filter{}, 200},
+		{"_count=007", appointment.Filter{}, 7},
+		{"_cursor=" + fhir.NewCursor(at, apptA), appointment.Filter{AfterStart: at, AfterID: apptA}, 0},
+		{"_count=3&_cursor=" + fhir.NewCursor(at, apptA), appointment.Filter{AfterStart: at, AfterID: apptA}, 3},
+	} {
+		var log bytes.Buffer
+		svc := &stubReader{}
+		rec := getAppt(t, svc, as(admin), &log, "/fhir/R4/Appointment?"+tt.query)
+		if rec.Code != http.StatusOK || svc.count != tt.count || !svc.filter.AfterStart.Equal(tt.after.AfterStart) || svc.filter.AfterID != tt.after.AfterID {
+			t.Errorf("?%s = %d %s after SearchPage(%+v, %d), want 200 after (%v, %q) and %d", tt.query, rec.Code, rec.Body, svc.filter, svc.count,
+				tt.after.AfterStart, tt.after.AfterID, tt.count)
+		}
+	}
+}
+
+// A page with more after it links the next one: the same search, its _count as given, from after the page's last
+// appointment (its start and id, opaque). A page of a longer answer has no total: the matches are not counted.
+func TestHandlerSearch_LinksTheNextPage(t *testing.T) {
+	var log bytes.Buffer
+	svc := &stubReader{out: []appointment.Seen{pastB, fullA}, more: true}
+	rec := getAppt(t, svc, as(admin), &log, "/fhir/R4/Appointment?patient=Patient/"+patientA+"&_count=2")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "search_page.json", rec.Body.Bytes())
+	var b struct {
+		Total *int `json:"total"`
+		Link  []struct {
+			Relation string `json:"relation"`
+			URL      string `json:"url"`
+		} `json:"link"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if b.Total != nil || len(b.Link) != 2 || b.Link[0].Relation != "self" || b.Link[1].Relation != "next" {
+		t.Fatalf("bundle %s, want a self and a next link and no total", rec.Body)
+	}
+	next, err := url.Parse(b.Link[1].URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, id, ok := fhir.ParseCursor(next.Query().Get("_cursor"))
+	if !strings.HasPrefix(b.Link[1].URL, "https://api.example.test/fhir/R4/Appointment?") || next.Query().Get("_count") != "2" ||
+		next.Query().Get("patient") != "Patient/"+patientA || !ok || !at.Equal(fullA.Appointment.Start) || id != apptA {
+		t.Errorf("next = %s, want the search from after the page's last appointment", b.Link[1].URL)
+	}
+
+	// following it: the page asked for is the next link's, and the last page has no next and no total
+	svc = &stubReader{out: []appointment.Seen{fullA}}
+	rec = getAppt(t, svc, as(admin), &log, strings.TrimPrefix(b.Link[1].URL, "https://api.example.test"))
+	if rec.Code != http.StatusOK || svc.count != 2 || svc.filter.AfterID != apptA || svc.filter.PatientID != patientA ||
+		strings.Contains(rec.Body.String(), `"next"`) || strings.Contains(rec.Body.String(), `"total"`) {
+		t.Errorf("the next page = %d %s after %+v, %d; want the last page, without a next link or a total", rec.Code, rec.Body, svc.filter, svc.count)
+	}
 }

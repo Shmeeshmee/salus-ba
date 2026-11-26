@@ -269,6 +269,79 @@ func TestPostgres_SearchFiltersAndOrdersByDueTime(t *testing.T) {
 	}
 }
 
+// A page of the search starts after the response AfterID, strictly, in the search's order (due time, creation, id),
+// holds Limit at most: the pages, concatenated, are the search without them, ties on both times included. A position
+// the scope does not show is ErrPosition.
+func TestPostgres_SearchPagesAfterTheResponse(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner, dbStart)
+	for _, at := range []struct{ due, created time.Duration }{{time.Hour, 0}, {0, time.Minute}, {0, 0}, {0, 0}, {0, 2 * time.Minute}} {
+		in := s.request(0, 0)
+		in.DueAt = dbStart.Add(at.due)
+		var id string
+		if err := inScope(t, app, s.clinic, "", func(ctx context.Context, r questionnaireresponse.Repository) error {
+			got, _, err := r.Insert(ctx, in, dbStart.Add(-48*time.Hour+at.created))
+			id = got.ID
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := owner.Exec(t.Context(), "UPDATE questionnaire_response SET status = 'stopped' WHERE id = $1", id); err != nil {
+			t.Fatal(err) // withdrawn, so that the next request of the series may be made
+		}
+	}
+	search := func(f questionnaireresponse.Filter) ([]string, error) {
+		t.Helper()
+		var got []string
+		err := inScope(t, app, s.clinic, "", func(ctx context.Context, r questionnaireresponse.Repository) error {
+			all, err := r.Search(ctx, f)
+			for _, x := range all {
+				got = append(got, x.ID)
+			}
+			return err
+		})
+		return got, err
+	}
+	var whole []string
+	if err := owner.QueryRow(t.Context(), "SELECT array_agg(id::text ORDER BY due_at, created_at, id) FROM questionnaire_response").Scan(&whole); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := search(questionnaireresponse.Filter{}); err != nil || !slices.Equal(got, whole) {
+		t.Fatalf("Search() = %v, %v; want %v, by due time, creation and id", got, err, whole)
+	}
+	for limit := 1; limit <= len(whole)+1; limit++ {
+		var got []string
+		f := questionnaireresponse.Filter{Limit: limit}
+		for range len(whole) + 1 {
+			page, err := search(f)
+			if err != nil || len(page) > limit {
+				t.Fatalf("a page of %d = %v, %v", limit, page, err)
+			}
+			got = append(got, page...)
+			if len(page) < limit {
+				break
+			}
+			f.AfterID = page[len(page)-1]
+		}
+		if !slices.Equal(got, whole) {
+			t.Errorf("pages of %d = %v, want %v", limit, got, whole)
+		}
+	}
+	for name, id := range map[string]string{"an unknown response": "d9999999-0000-4000-8000-000000000000", "not a UUID": "x"} {
+		if _, err := search(questionnaireresponse.Filter{AfterID: id}); !errors.Is(err, questionnaireresponse.ErrPosition) {
+			t.Errorf("after %s = %v, want ErrPosition", name, err)
+		}
+	}
+	other := seedDB(t, owner, dbStart)
+	if err := inScope(t, app, other.clinic, "", func(ctx context.Context, r questionnaireresponse.Repository) error {
+		_, err := r.Search(ctx, questionnaireresponse.Filter{AfterID: whole[0]})
+		return err
+	}); !errors.Is(err, questionnaireresponse.ErrPosition) {
+		t.Errorf("after another clinic's response = %v, want ErrPosition", err)
+	}
+}
+
 // The purger, on salus_retention's pool, deletes in every clinic the unsubmitted responses (in progress or
 // withdrawn) whose due time is before the cut-off, to the second, and keeps completed ones and those not yet
 // due.

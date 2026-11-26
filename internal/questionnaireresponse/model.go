@@ -88,9 +88,20 @@ type Attached struct {
 	File     binary.Attachment
 }
 
-// Filter narrows a search: the appointment, the patient and the status, when set.
+// Filter narrows a search: the appointment, the patient and the status, when set. A page of it starts after the
+// response AfterID in the search's order (by due time, then creation, then id: neither time is in the resource, so
+// the position is the response's id alone, its times read back) when AfterID is set, and holds Limit responses at
+// most when Limit is (SearchPage).
 type Filter struct {
 	AppointmentID string
 	PatientID     string
 	Status        Status
+	AfterID       string
+	Limit         int // set by the service; 0 for every match
+}
+
+// Page is one page of a search: its responses, and whether more may follow the last (the next page starts after it).
+type Page struct {
+	Seen []Seen
+	More bool
 }

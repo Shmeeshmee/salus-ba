@@ -39,9 +39,20 @@ type Visit struct {
 	Shared bool
 }
 
-// Filter narrows a search: the appointment, the patient and the practitioner behind the role, when set.
+// Filter narrows a search: the appointment, the patient and the practitioner behind the role, when set. A page of it
+// starts after the position (AfterStart, AfterID) in the search's order, by period start then id, when AfterID is set,
+// and holds Limit encounters at most when Limit is (SearchPage).
 type Filter struct {
+	AfterStart     time.Time
 	AppointmentID  string
 	PatientID      string
 	PractitionerID string
+	AfterID        string
+	Limit          int // set by the service; 0 for every match
+}
+
+// Page is one page of a search: its encounters, and whether more may follow the last (the next page starts after it).
+type Page struct {
+	Encounters []Encounter
+	More       bool
 }

@@ -2147,7 +2147,9 @@ WHERE ($1::uuid IS NULL OR patient_id = $1::uuid)
   AND ($4::text IS NULL OR status = $4::text)
   AND ($5::timestamptz IS NULL OR start_at >= $5::timestamptz)
   AND ($6::timestamptz IS NULL OR start_at < $6::timestamptz)
-ORDER BY lower(period), id
+  AND ($7::uuid IS NULL OR (start_at, id) > ($8::timestamptz, $7::uuid))
+ORDER BY start_at, id
+LIMIT $9::integer
 `
 
 type SearchAppointmentsParams struct {
@@ -2157,6 +2159,9 @@ type SearchAppointmentsParams struct {
 	Status             pgtype.Text
 	FromAt             pgtype.Timestamptz
 	ToAt               pgtype.Timestamptz
+	AfterID            pgtype.UUID
+	AfterStart         pgtype.Timestamptz
+	RowLimit           pgtype.Int4
 }
 
 type SearchAppointmentsRow struct {
@@ -2188,7 +2193,8 @@ type SearchAppointmentsRow struct {
 
 // Appointment?patient=…&date=ge…&date=lt…&status=…, a clinic's calendar, a patient's visits in a clinic. An
 // absent parameter matches everything; the scope decides the rest. The dates are on start_at, not lower(period), so
-// the range is read through the index under row-level security (00087).
+// the range is read through the index under row-level security (00087). A page starts after the position (after_start,
+// after_id) in the order and holds row_limit rows at most; a null bound or limit does not narrow.
 func (q *Queries) SearchAppointments(ctx context.Context, arg SearchAppointmentsParams) ([]SearchAppointmentsRow, error) {
 	rows, err := q.db.Query(ctx, searchAppointments,
 		arg.PatientID,
@@ -2197,6 +2203,9 @@ func (q *Queries) SearchAppointments(ctx context.Context, arg SearchAppointments
 		arg.Status,
 		arg.FromAt,
 		arg.ToAt,
+		arg.AfterID,
+		arg.AfterStart,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err
