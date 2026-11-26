@@ -4267,7 +4267,58 @@ Planned 2026-11-25 (`WAVE7.md`).
 
 ## RD4: operations drill
 
-Planned 2026-11-25 (`WAVE7.md`).
+Status: done, 2026-11-26, on `wt/cms/RD4`, one commit `cms(RD4)`. No behaviour under `internal/`, no migration.
+
+**Built.** `scripts/restore-drill.sh` (the backup and restore runbook end to end on a worktree's own stack: seed by the
+drill's journey `test/e2e/restore_drill_test.go`, tags `e2e,drill`, never run by `make e2e`; the real `backup.sh` to a
+throwaway SFTP server; the project's database and object store volumes removed; restored by the runbook; every table's
+count compared; signed in again, the attachment decrypted through the api, the receipt's PDF), `scripts/migration-drill.sh`
+with `scripts/migration-drill/seed-00059.sql` and `check-head.sql` (empty to head; a 00059 dump with data restored and
+migrated to head), `scripts/audit.sh` (govulncheck v1.9.0, npm audit of the three lock files, osv-scanner v2.6.0 on the
+mobile lock file, Trivy at the Images workflow's pin over the four production images and the five third-party images),
+and `docs/deploy/BEFORE-PRODUCTION.md` (deploy blockers, the placeholders, every setting and what refuses without it,
+the audit). The drills are recorded in `docs/deploy/restore-drills.md`.
+
+**Restore drill: passed** (third run, 2026-11-25): 95 tables and 5 018 rows equal, 3 objects, 0 rows without an object and
+0 objects without a row, staff signed in with password and TOTP, the attachment's SHA-1 equal, the receipt's PDF
+byte-identical; backup 15 s, fetch to restored 43 s. **Migration drill: passed**: empty to 00086, and 00059 with data
+through `pg_dump`/`pg_restore` to 00086 with every count equal and the backfills (video modes, first locations) and
+row-level security holding.
+
+**Runbook fixes** (`docs/deploy/backup-restore.md`): the bucket's contents (lab PDFs, chat files, `clinicexport/`,
+`datarequest/` were missing); the erasure paragraph said erasure was not built (wave 5 built it: the daily job erases
+again by itself an account erased after the dump; a closure after the dump is lost and must be redone with the patient);
+a new **sessions** point and step 9 of "Restoring onto a new server": a restored database reopens every session signed
+out after the dump (proved: 200 before the step, 401 after), so every session is closed before the stack opens; the
+Postgres version note; "The local rehearsal".
+
+**Dependencies.** Fixed: Go 1.27.3 to 1.27.4 (GO-2026-6859, reachable from `cmd/api`'s HTTP server; the three Go images
+and both `toolchain` lines), postgres 18.6 to 18.7 in production and the backup test (55 HIGH fewer; dev already ran
+18.7), clamav 1.5.4 to 1.5.5 (libxml2 HIGH), redis 8.10.3 repinned to its rebuilt digest. All patch or minor bumps of
+fixes-only releases; no Go module or npm or pub dependency needed an update (govulncheck, npm audit and osv-scanner
+found nothing else). Left, with their reach, in BEFORE-PRODUCTION.md §4: Caddy's go-jose (no fix), LiveKit's x/net (no
+release), Debian packages of postgres and redis (no Debian fix), gosu's Go stdlib in the postgres image.
+
+**Findings for the owner** (BEFORE-PRODUCTION.md §1, not fixed: production wiring and behaviour are outside RD4): the
+notifier refuses to start in production (`SALUS_OPERATOR_EMAIL` is not passed to it by the production compose file); the
+`SELLER_*` and several other settings reach no production container; the landing image is built without `VITE_APP_URL`;
+the patient app has no release build setting `SUPPORT_EMAIL` and `PRIVACY_NOTICE_URL`.
+
+**Readings.** The drill runs on the worktree's own project (`salus-cms-rd4`) and refuses `salus`; it needs
+`SALUS_IMAGE_TAG` set so it never rebuilds the shared `salus:dev`. The drill's harness is a build-tagged test file in
+`test/e2e/` (outside RD4's listed files) because it reuses the journeys' helpers; `make e2e` never compiles it.
+`configs/.env.example` gained the engine settings it did not name (commented, defaults). The backup counts are taken
+with the app services stopped, so every table compares exactly; the production backup runs with the stack live and the
+runbook's "Order and consistency" covers that.
+
+**Checks** (sets go and e2e, selected by the files): `make gen-clients` no diff, `make lint` 0 issues with i18n-check,
+`make test`, `make archcheck`, `make cover` 89.9% (every package at 80% or more), `make e2e` passed; `make
+deploy-check` steps shellcheck, backup and deploy passed (the backup test's Postgres moved); shellcheck clean on the new
+scripts; `go vet -tags e2e,drill ./test/e2e/`. The first two `scripts/runner.sh full` runs did not finish: the first was
+cut short by this session's own wait, the second hit the runner's 20-minute limit after `go test`'s 10-minute package
+timeout in `cmd/salusctl`, `internal/worker` and `migrations` (each stuck in pgtest's `DROP DATABASE … WITH (FORCE)`, on
+IPC, with three stacks' suites on the machine, load 14 to 16). Those packages passed alone (80 s), then `make test`,
+`make archcheck cover` and `make e2e` passed one after another on the same tree.
 
 ## RD5: the demo
 

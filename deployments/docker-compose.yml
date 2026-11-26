@@ -241,7 +241,7 @@ services:
   # developer machine. Set through the image's CLAMD_CONF_* variables, no bind mount. Healthy once clamd
   # answers PING with PONG, which waits for the signatures to load.
   clamd:
-    image: clamav/clamav:1.5.4
+    image: clamav/clamav:1.5.5
     environment:
       CLAMD_CONF_StreamMaxLength: 250M
       CLAMD_CONF_MaxFileSize: 250M
