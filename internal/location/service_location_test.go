@@ -93,7 +93,7 @@ func (r *lcRepo) PublicLocations(ctx context.Context, org string) ([]location.Lo
 	r.seen(ctx)
 	var out []location.Location
 	for _, l := range r.rows {
-		if r.directory && l.OrganizationID == org && l.Active {
+		if l.OrganizationID == org && (r.directory && l.Active || l.OrganizationID == r.clinic) { // as Locations: the scope decides
 			out = append(out, l)
 		}
 	}
@@ -203,12 +203,43 @@ func TestPublicLocations_TheActiveLocationsOfAListedClinic(t *testing.T) {
 		{ID: "b1", OrganizationID: lcClinicB, Name: "Unlisted", Active: true},
 	}}
 	s := newLC(repo, &lcAuditor{}, lcClinicA)
-	got, err := s.PublicLocations(t.Context(), lcClinicA)
+	got, err := s.PublicLocations(t.Context(), lcClinicA, nil)
 	if err != nil || len(got) != 1 || got[0].ID != "a1" || repo.outside {
 		t.Errorf("PublicLocations(A) = %+v, %v; want its active one", got, err)
 	}
-	if _, err := s.PublicLocations(t.Context(), lcClinicB); !errors.Is(err, location.ErrNotFound) {
+	if _, err := s.PublicLocations(t.Context(), lcClinicB, nil); !errors.Is(err, location.ErrNotFound) {
 		t.Errorf("PublicLocations(an unlisted clinic) = %v, want ErrNotFound", err)
+	}
+}
+
+// A clinic the directory no longer shows (its membership stopped) keeps its active locations, read in its own scope,
+// for those it serves (its staff, its patients: organization.Service.Served), and for no one else; the directory's
+// read asks nothing of the caller (readiness: suspended clinics).
+func TestPublicLocations_AStoppedClinicKeepsItsLocationsForThoseItServes(t *testing.T) {
+	t.Parallel()
+	repo := &lcRepo{rows: []location.Location{
+		{ID: "b1", OrganizationID: lcClinicB, Name: "Centre", Active: true}, {ID: "b2", OrganizationID: lcClinicB, Name: "Closed"},
+		{ID: "a1", OrganizationID: lcClinicA, Name: "Listed", Active: true},
+	}}
+	s := newLC(repo, &lcAuditor{}, lcClinicA)
+	served := func(ids ...string) organization.Served {
+		return func(context.Context) ([]string, error) { return ids, nil }
+	}
+	got, err := s.PublicLocations(t.Context(), lcClinicB, served(lcClinicA, lcClinicB))
+	if err != nil || len(got) != 1 || got[0].ID != "b1" || repo.clinic != lcClinicB || repo.outside {
+		t.Errorf("PublicLocations(stopped B) to whom it serves = %+v, %v (scope %q); want its active one, in its scope", got, err, repo.clinic)
+	}
+	for name, sv := range map[string]organization.Served{"no one": nil, "A's": served(lcClinicA), "none": served()} {
+		if _, err := s.PublicLocations(t.Context(), lcClinicB, sv); !errors.Is(err, location.ErrNotFound) {
+			t.Errorf("PublicLocations(stopped B) to %s = %v, want ErrNotFound", name, err)
+		}
+	}
+	broken := func(context.Context) ([]string, error) { return nil, errors.New("connection reset") }
+	if _, err := s.PublicLocations(t.Context(), lcClinicB, broken); err == nil || errors.Is(err, location.ErrNotFound) {
+		t.Errorf("PublicLocations() with a failing Served = %v, want its error", err)
+	}
+	if got, err := s.PublicLocations(t.Context(), lcClinicA, broken); err != nil || len(got) != 1 || !repo.directory {
+		t.Errorf("PublicLocations(listed A) = %+v, %v; want the directory's, without asking Served", got, err)
 	}
 }
 

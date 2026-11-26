@@ -68,7 +68,7 @@
         {
           "type": "Schedule",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
-          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope.",
+          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope. A clinic whose membership is suspended or cancelled is out of the directory; its listed schedules are still read, in its scope, by its own staff and by the patients with a care consent with it, active or revoked.",
           "searchParam": [
             {
               "name": "actor",

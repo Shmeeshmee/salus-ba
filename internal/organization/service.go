@@ -41,11 +41,12 @@ type Auditor interface {
 // it is listed, its time zone, its default language), only the operator command creates one, and anyone may list the listed clinics.
 // Reads are not audited (nothing in a clinic is personal data); every write is, also when it is refused.
 type Service struct {
-	repo   Repository
-	audit  Auditor
-	tx     Transactor
-	clock  clock.Clock
-	places Places
+	repo     Repository
+	audit    Auditor
+	tx       Transactor
+	clock    clock.Clock
+	places   Places
+	patients PatientClinics // the clinics of a patient's care consents (Served); nil: no patient is served
 }
 
 // NewService returns a Service on its ports. places checks and names a clinic's location; nil in the binaries

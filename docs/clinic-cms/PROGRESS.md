@@ -4749,3 +4749,55 @@ and the tests pass their server's own (`runOn`); `TestDemoSeed_IsRefusedOnAnySer
 on any other, writing nothing. `cmd/salusctl` passed on a fresh stack and on one whose Postgres has no `cluster_name`
 (a worktree of its own, recreated with an override), `make lint` 0 issues, coverage 85.2%. Commit `cms(wave 7): the demo
 seed's tests run on a stack whose Postgres predates cluster_name`.
+
+## Readiness follow-ups: suspended clinics
+
+Done 2026-11-26 on `wt/readiness/suspended` (from `origin/main`), no migration. The owner's answer to RD1's question 2:
+a suspended or cancelled clinic stays out of the public directory and takes no new booking, but its own staff still
+see everything of theirs, and a patient with a visit or record there still sees the clinic and their own data. Test
+first: the matrix's two tests were written and run before the code (the served reads failed as below; the directory's
+side and the bookings already passed and are now held).
+
+**What was lost.** RD1's suspended state, run with every answer compared (code and body), showed three reads by id
+that `00064`'s directory policy took from the clinic's own: `GET /organizations/{id}/locations` and `/profile` (404 to
+its admin, practitioner, receptionist and patient) and the FHIR Schedule read (404 to its patient; its staff read it in
+the clinic's scope since F3). Nothing else changed: the FHIR Organization, Practitioner and PractitionerRole reads are
+the staff's in the clinic's scope and were never a patient's (404 before and after); there is no Slot read; the
+patient's visits, receipts, results, plans, chat, history and export are read in the patient's scope and answered as
+before. The directory's searches (Organization, PractitionerRole, Schedule, Slot) and the prices shown at booking
+(`/organizations/{id}/services`) stop showing the clinic to everyone, as `00064` means; its staff's role, schedule and
+slot searches are the desk's own scope (F3) and unchanged.
+
+**The fix.** The three reads try the directory first, as before; only when it no longer shows the clinic they ask
+`organization.Service.Served`, and a clinic it gives is read in its own scope (no policy changed, no migration):
+`Profile`, `location.Service.PublicLocations` and `schedule.Service.ReadFor` take an `organization.Served`, which the
+handlers get with `WithServed` and `app.go` builds (`servedBy`: the session's clinic for staff, the patient profile
+for a patient, asked only then, so the directory's reads cost what they did). The listing, the searches, the prices
+and the bookings (`bookableClinics`) are untouched.
+
+**The definition.** `Served` gives, among listed clinics only: a staff account's own clinic; a patient's clinics of a
+care consent, active or revoked (`consent.Service.CareClinics`, in the patient's scope, unaudited as `State`). Every
+visit at a clinic, of any status, the app's, the desk's, a waitlist offer's or a plan's, is booked on an active care
+consent, and a revocation keeps it (inactive); the erasure job counts the same consents as the clinics that keep a record
+(`ClinicsOf`). A clinic-registered profile has no account and so no session. A history or transcription consent alone
+does not count. A clinic that is not listed is out for everyone, as before.
+
+**Tests.** `internal/api/role_matrix_suspended_test.go` (the suspended state moved out of `_states`, 152 lines):
+`TestRoleMatrix_ASuspendedClinicTakesNoNewBookingsAndCareGoesOn` now compares every read's code for each role as
+before (the `directoryOnly` exception is gone) and the three served reads' bodies too, and holds them for a patient
+who revoked their consent; the four new bookings refused, B's accepted, care going on.
+`TestRoleMatrix_ASuspendedClinicIsOutOfTheDirectoryUntilItsMembershipReturns`: suspended and then cancelled, the eight
+directory reads show the clinic to no caller it does not serve (signed out, without a patient profile, another
+clinic's patient, another clinic's admin); its patient gets the three served reads only, its staff those and the
+desk's searches; active again, everything is back for the others and the four bookings are accepted. Domain tests:
+`TestCareClinics_…`, `TestServed_…`, `TestProfile_AStoppedMembership…` (fakes), the Postgres profile test with a
+suspended clinic served and an unlisted one not, `TestPublicLocations_AStoppedClinic…`,
+`TestReadFor_AStoppedClinicsSchedule…`, and each handler's `WithServed` pass-through.
+
+**Contracts.** `api/openapi.yaml`'s locations and profile descriptions and 404s, and the CapabilityStatement's Schedule
+documentation, say who keeps a stopped clinic; no route, field or golden file changed.
+
+**Open, for the owner**: the patient app names a visit's clinic from the directory's Organization and PractitionerRole
+searches (`Booking.places`), which keep hiding a stopped clinic, so its visits show "A clinic no longer listed" and,
+without the role's clinic, no address, though the server now answers the locations. Naming it needs a read of the
+clinic by id for its patients (the FHIR Organization read is staff-only today) and the app to use it; not built here.

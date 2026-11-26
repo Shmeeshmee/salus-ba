@@ -3,7 +3,6 @@ package api_test
 import (
 	"maps"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -36,68 +35,6 @@ func readsOf(t *testing.T, c *client, ids map[string]string) map[string]reply {
 		code, body := answer(c, method, path, "", nil)
 		out[op] = reply{body: body, code: code}
 	}
-	return out
-}
-
-// directoryOnly are the reads a suspended membership changes on purpose: the public directory stops listing the
-// clinic (docs/clinic-cms I), and its public reads answer as for a clinic that is not listed, to everyone.
-var directoryOnly = map[string]bool{
-	"FHIR search-type Organization": true, "FHIR read Schedule": true, "GET /organizations/{id}/locations": true,
-	"GET /organizations/{id}/profile": true,
-}
-
-// A suspended clinic takes no new bookings, from the patient, the desk or a treatment plan, and nothing else changes:
-// every read answers each role as it did before, and care goes on (docs/plans/clinic-cms.md Q4: care never stops).
-func TestRoleMatrix_ASuspendedClinicTakesNoNewBookingsAndCareGoesOn(t *testing.T) {
-	t.Parallel()
-	m := newRoleWorld(t)
-	callers := staffOf(m.a)
-	callers["patient"] = m.a.patient.c
-	before := map[string]map[string]reply{}
-	for who, c := range callers {
-		before[who] = readsOf(t, c, m.a.ids)
-	}
-	m.exec(t, `UPDATE clinic_subscription SET status = 'suspended' WHERE organization_id = $1`, m.a.org)
-	for who, c := range callers {
-		for op, got := range readsOf(t, c, m.a.ids) {
-			if was := before[who][op]; was.code != got.code && !directoryOnly[op] {
-				t.Errorf("%s as the %s of a suspended clinic = %d %.200s, was %d %.200s", op, who, got.code, got.body, was.code, was.body)
-			}
-		}
-	}
-	for _, c := range []*matrixClinic{m.b, m.a} { // B, whose membership is in its trial, books: the same requests
-		for name, rec := range newBookings(t, m, c) {
-			if refused := rec.Code >= 400; refused != (c == m.a) {
-				t.Errorf("%s at the clinic %s = %d %s, refused %v", name, c.tag, rec.Code, rec.Body, c == m.a)
-			}
-		}
-	}
-	// Care goes on: the visit's practitioner records a lab result, the desk issues a receipt.
-	created(t, m.a.practitioner, http.StatusCreated, http.MethodPost, "/clinic/appointments/"+m.a.neighbour.ids["visit"]+"/diagnostic-reports",
-		`{"title":"Placeholder blood count","results":[]}`)
-	created(t, m.a.receptionist, http.StatusCreated, http.MethodPost, "/clinic/receipts",
-		`{"kind":"receipt","appointmentId":"`+m.a.neighbour.ids["visit"]+`","paymentMethod":"cash","lines":[{"serviceId":"`+m.a.ids["service"]+`","quantity":1}]}`)
-}
-
-// newBookings makes a booking of each kind at clinic c for its neighbour patient: theirs in the app, the desk's, a
-// waitlist entry and a treatment plan's; it gives the answers by kind.
-func newBookings(t *testing.T, m *roleWorld, c *matrixClinic) map[string]*httptest.ResponseRecorder {
-	t.Helper()
-	p := c.neighbour
-	slots := []string{m.slot(t, c, "120 hours"), m.slot(t, c, "121 hours"), m.slot(t, c, "122 hours")}
-	plan := created(t, c.practitioner, http.StatusCreated, http.MethodPost, "/clinic/care-plans",
-		`{"patientId":"`+p.ids["patient"]+`","title":"Synthetic plan","steps":[{"serviceId":"`+c.ids["service"]+`","dayOffset":0,"visitMode":"in-person"}]}`)
-	startsOn := m.id(t, `SELECT to_char(lower(period) AT TIME ZONE 'Europe/Sarajevo', 'YYYY-MM-DD') FROM slot WHERE id = $1`, slots[2])
-	out := map[string]*httptest.ResponseRecorder{}
-	p.c.do(http.MethodDelete, "/waitlist/"+p.ids["waitlist"], "") // the patient's entry, so that they may join again
-	out["the patient's booking"] = p.c.do(http.MethodPost, "/appointments", `{"slotId":"`+slots[0]+`"}`)
-	out["the desk's booking"] = c.receptionist.do(http.MethodPost, "/clinic/appointments", `{"patientId":"`+p.ids["patient"]+`","slotId":"`+slots[1]+`"}`)
-	out["a waitlist entry"] = p.c.do(http.MethodPost, "/waitlist",
-		`{"organization_id":"`+c.org+`","practitioner_role_id":"`+c.ids["role"]+`","earliest":"`+day(5)+`","latest":"`+day(20)+`"}`)
-	c.practitioner.ifMatch = `W/"1"`
-	out["a treatment plan's booking"] = c.practitioner.do(http.MethodPost, "/clinic/care-plans/"+plan+"/book",
-		`{"startsOn":"`+startsOn+`","slotIds":["`+slots[2]+`"]}`)
-	c.practitioner.ifMatch = ""
 	return out
 }
 

@@ -25,12 +25,13 @@ func locations(pool *pgxpool.Pool, audit *auditevent.Service, tx *postgres.Trans
 	})
 }
 
-// locationRoutes are the clinic's locations and a listed clinic's for the patient booking in person.
-func locationRoutes(svc *location.Service, accounts *auth.Service, log *slog.Logger) func(*http.ServeMux) {
+// locationRoutes are the clinic's locations and a listed clinic's for the patient booking in person, and for the
+// address of a visit at a clinic whose membership stopped to those it serves.
+func locationRoutes(svc *location.Service, accounts *auth.Service, served organization.Served, log *slog.Logger) func(*http.ServeMux) {
 	clinicCaller := organizationCaller(accounts)
 	caller := func(ctx context.Context) (location.Staff, bool, error) {
 		c, ok, err := clinicCaller(ctx)
 		return location.Staff{AccountID: c.AccountID, OrganizationID: c.OrganizationID, Admin: c.Admin}, ok, err
 	}
-	return location.NewHandler(svc, caller, log).Routes
+	return location.NewHandler(svc, caller, log).WithServed(served).Routes
 }

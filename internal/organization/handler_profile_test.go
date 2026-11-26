@@ -17,6 +17,7 @@ import (
 // stubProfiles answers with what it is given and keeps what it was asked.
 type stubProfiles struct {
 	err     error
+	served  organization.Served
 	caller  organization.Caller
 	id      string
 	in      organization.Profile
@@ -24,8 +25,8 @@ type stubProfiles struct {
 	version int32
 }
 
-func (s *stubProfiles) Profile(_ context.Context, id string) (organization.Profile, error) {
-	s.id = id
+func (s *stubProfiles) Profile(_ context.Context, id string, served organization.Served) (organization.Profile, error) {
+	s.id, s.served = id, served
 	return s.profile, s.err
 }
 
@@ -124,5 +125,22 @@ func TestProfileHandler_ServesAListedClinicsProfileToAnyone(t *testing.T) {
 	rec = serveProfile(t, svc, false, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/organizations/"+clinicB+"/profile", nil))
 	if rec.Code != http.StatusNotFound || rec.Body.String() != `{"error":"not_found"}`+"\n" {
 		t.Errorf("GET profile of a hidden clinic = %d %q, want 404 not_found", rec.Code, rec.Body)
+	}
+}
+
+// The public profile is read with the clinics the handler is given as served (readiness: suspended clinics).
+func TestProfileHandler_ThePublicProfileGoesWithTheServedClinics(t *testing.T) {
+	svc := &stubProfiles{profile: stubbedProfile}
+	served := func(context.Context) ([]string, error) { return []string{clinicB}, nil }
+	h := organization.NewProfileHandler(svc, nil, slog.New(slog.DiscardHandler)).WithServed(served)
+	mux := http.NewServeMux()
+	h.Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/organizations/"+clinicB+"/profile", nil))
+	if rec.Code != http.StatusOK || svc.served == nil {
+		t.Fatalf("GET public profile = %d, served %v; want 200 with the served clinics", rec.Code, svc.served != nil)
+	}
+	if got, err := svc.served(t.Context()); err != nil || len(got) != 1 || got[0] != clinicB {
+		t.Errorf("served() = %v, %v; want clinic B", got, err)
 	}
 }

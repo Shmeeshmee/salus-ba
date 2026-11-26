@@ -10,15 +10,17 @@ import (
 	"testing"
 
 	"github.com/Shmeeshmee/salus/internal/location"
+	"github.com/Shmeeshmee/salus/internal/organization"
 )
 
 // lcStub answers every call with its values and remembers what it was asked.
 type lcStub struct {
-	err   error
-	org   string
-	staff location.Staff
-	out   []location.Location
-	saved location.Location
+	err    error
+	served organization.Served
+	org    string
+	staff  location.Staff
+	out    []location.Location
+	saved  location.Location
 }
 
 func (s *lcStub) Locations(_ context.Context, st location.Staff) ([]location.Location, error) {
@@ -35,8 +37,8 @@ func (s *lcStub) SaveLocation(_ context.Context, st location.Staff, l location.L
 	return l, s.err
 }
 
-func (s *lcStub) PublicLocations(_ context.Context, org string) ([]location.Location, error) {
-	s.org = org
+func (s *lcStub) PublicLocations(_ context.Context, org string, served organization.Served) ([]location.Location, error) {
+	s.org, s.served = org, served
 	return s.out, s.err
 }
 
@@ -103,5 +105,22 @@ func TestHandler_PassesTheLocationAsSent(t *testing.T) {
 	want := location.Location{ID: "10000000-0000-4000-8000-000000000001", Name: "Centre", PostalCode: "71000", CityID: "Q1", TimeZone: "Europe/Zagreb", VersionID: 7, Active: true}
 	if svc.saved != want || svc.staff != lcAdmin {
 		t.Errorf("saved %+v by %+v, want %+v by the admin", svc.saved, svc.staff, want)
+	}
+}
+
+// The public locations are read with the clinics the handler is given as served (readiness: suspended clinics).
+func TestHandler_PublicLocationsGoWithTheServedClinics(t *testing.T) {
+	t.Parallel()
+	svc := &lcStub{}
+	mux := http.NewServeMux()
+	served := func(context.Context) ([]string, error) { return []string{lcClinicB}, nil }
+	location.NewHandler(svc, nil, slog.New(slog.NewTextHandler(io.Discard, nil))).WithServed(served).Routes(mux)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/organizations/"+lcClinicB+"/locations", nil))
+	if w.Code != http.StatusOK || svc.served == nil {
+		t.Fatalf("GET public locations = %d, served %v; want 200 with the served clinics", w.Code, svc.served != nil)
+	}
+	if got, err := svc.served(t.Context()); err != nil || len(got) != 1 || got[0] != lcClinicB {
+		t.Errorf("served() = %v, %v; want clinic B", got, err)
 	}
 }

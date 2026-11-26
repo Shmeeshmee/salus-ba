@@ -51,3 +51,31 @@ func (s *Service) ClinicsOf(ctx context.Context, patientID string) ([]string, er
 	slices.Sort(out)
 	return out, nil
 }
+
+// CareClinics returns, sorted, the clinics the patient has a care consent with, active or revoked, in the patient's
+// scope: those that keep the patient's visits and records (every booking needs one), and whose public reads the
+// patient keeps once the clinic's membership stops (organization.Service.Served). Not audited, as State: the access
+// check of the caller's own read, which discloses nothing of the patient. None for no patient.
+func (s *Service) CareClinics(ctx context.Context, patientID string) ([]string, error) {
+	if patientID == "" {
+		return nil, nil
+	}
+	var out []string
+	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.repo.SetPatient(ctx, patientID); err != nil {
+			return err
+		}
+		all, err := s.repo.ByPatient(ctx, patientID)
+		for _, x := range all {
+			if x.Kind == KindCare && x.PatientID == patientID && !slices.Contains(out, x.OrganizationID) { // not on row-level security alone
+				out = append(out, x.OrganizationID)
+			}
+		}
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("consent: care clinics: %w", err)
+	}
+	slices.Sort(out)
+	return out, nil
+}
