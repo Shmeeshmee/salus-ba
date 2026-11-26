@@ -1,5 +1,10 @@
 import { afterEach, expect, it } from 'vitest'
+import analyticsCSS from './analytics/analytics.css?raw'
 import appCSS from './app.css?raw'
+import chatCSS from './chat/chat.css?raw'
+import cheatsheetCSS from './terminology/cheatsheet.css?raw'
+import explainCSS from './terminology/explain.css?raw'
+import reviewCSS from './terminology/review.css?raw'
 
 afterEach(() => {
   document.head.innerHTML = ''
@@ -87,4 +92,30 @@ it('gives every disabled button one grey look, and an enabled primary its own', 
   expect(rule).toContain('color: var(--color-disabled-text);')
   expect(rule).toContain('box-shadow: inset 0 0 0 1px var(--color-disabled-border);')
   expect(appCSS).not.toMatch(/button\.primary:disabled \{ opacity/)
+})
+
+// WAVE7 RD3: the keyboard's focus is seen at 3:1 or more, and a finger's targets are 44 px (test/e2e/web/a11y.spec.ts).
+const focusCSS = [analyticsCSS, appCSS, chatCSS, cheatsheetCSS, explainCSS, reviewCSS]
+
+it('draws every focus ring in the brand green, not the mint, which is 1.9:1 on white', () => {
+  const rings = focusCSS.flatMap((css) => css.match(/[^{}]*:focus[^{]*\{[^}]*outline:[^}]*\}/g) ?? [])
+  expect(rings.length).toBeGreaterThan(0)
+  for (const r of rings) expect(r).not.toMatch(/outline: 2px solid var\(--color-mint\)/)
+  expect(appCSS).toMatch(/input:focus-visible, button:focus-visible[^{]*\{ outline: 2px solid var\(--color-brand\)/)
+})
+
+it('keeps a focus ring on the medical terms search', () => {
+  expect(cheatsheetCSS).toMatch(/\.cheatsheet-search input/)
+  expect(cheatsheetCSS).not.toMatch(/\.cheatsheet-search input:focus-visible \{ outline: none/)
+})
+
+it('gives every control at least 44 px on a touch screen', () => {
+  const touch = appCSS.match(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
+  expect(touch).toMatch(/button, select,[^{]*\{[^}]*min-height: 44px/)
+  expect(touch).toMatch(/button\.icon[^{]*\{[^}]*width: 44px; height: 44px/)
+  expect(touch).toMatch(/\.check label, \.choice label[^{]*\{[^}]*min-height: 44px/)
+})
+
+it("keeps the focused heatmap cell's 2 px ring when it is also the cell shown", () => {
+  expect(analyticsCSS).toMatch(/\.chart-svg \.cell\.active \{[^}]*\}[\s\S]*\.chart-svg \.cell\.active:focus-visible \{ stroke-width: 2; \}/)
 })

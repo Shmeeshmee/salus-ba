@@ -154,5 +154,9 @@ const problems = {
 function Problem({ kind, problem }: { kind: Kind; problem?: Opened['problem'] }) {
   const t = useT()
   if (!problem) return null
-  return <p className="alert">{t(problems[kind][problem])}</p>
+  return (
+    <p className="alert" role="alert">
+      {t(problems[kind][problem])}
+    </p>
+  )
 }

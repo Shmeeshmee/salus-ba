@@ -1,7 +1,7 @@
 /* The plain-language explanation of a tagged term (SAL-13): the term is marked with a dotted underline, its
    explanation in a tooltip on hover and on focus. */
 .term { position: relative; display: inline; text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
-.term:focus-visible { outline: 2px solid var(--color-mint); outline-offset: 1px; border-radius: 2px; }
+.term:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; border-radius: 2px; }
 .term [role='tooltip'] {
   position: absolute; left: 0; top: calc(100% + 4px); z-index: 3; width: max-content; max-width: min(280px, 80vw);
   display: grid; gap: 4px; padding: 8px 10px; border-radius: 8px; background: var(--color-ink); color: #FFFFFF;

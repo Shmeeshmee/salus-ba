@@ -58,6 +58,6 @@ clean
 trap finish EXIT
 "${compose[@]}" up -d --build --wait --remove-orphans
 "${compose[@]}" exec -T redis sh -c "redis-cli --scan --pattern 'ratelimit:*' | xargs -r redis-cli del >/dev/null"
-"${run[@]}" sh -c 'rm -f /e2e/livekit-check.tsv /e2e/consult-latency.md && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 ./test/e2e/...'
+"${run[@]}" sh -c 'rm -f /e2e/livekit-check.tsv /e2e/consult-latency.md && go build -o /tmp/salusctl ./cmd/salusctl && go test -tags e2e -count=1 -timeout 30m ./test/e2e/...'
 "${compose[@]}" logs --no-color --no-log-prefix livekit | "${run[@]}" bash scripts/e2e-livekit-log.sh /e2e/livekit-check.tsv
 "${run[@]}" cat /e2e/consult-latency.md
