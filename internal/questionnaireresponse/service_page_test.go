@@ -123,4 +123,9 @@ func TestSearchPage_RefusesAPositionTheScopeDoesNotShow(t *testing.T) {
 	if _, err := f.svc.SearchPage(t.Context(), admin, questionnaireresponse.Filter{AfterID: "d9999999-0000-4000-8000-000000000000"}, 2); !errors.Is(err, questionnaireresponse.ErrPosition) {
 		t.Errorf("SearchPage(after an unknown response) = %v, want ErrPosition", err)
 	}
+	// The refusal is audited, as the other searches audit theirs: one search event without an entity, a minor failure.
+	if n := len(f.audit.events); n == 0 || f.audit.events[n-1].Outcome != auditevent.OutcomeMinorFailure ||
+		f.audit.events[n-1].EntityReference != "" || f.audit.events[n-1].Subtype.Code != auditevent.CodeSearchType {
+		t.Errorf("events = %+v, want the refused search audited as a minor failure", f.audit.events)
+	}
 }

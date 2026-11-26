@@ -68,7 +68,7 @@
         {
           "type": "Schedule",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
-          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope. A clinic whose membership is suspended or cancelled is out of the directory; its listed schedules are still read, in its scope, by its own staff and by the patients with a care consent with it, active or revoked.",
+          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope. A clinic whose membership is suspended or cancelled is out of the directory; its schedules (an inactive role's included) are still read, in its scope, by its own staff and by the patients with a care consent with it, active or revoked.",
           "searchParam": [
             {
               "name": "actor",
@@ -136,6 +136,11 @@
               "name": "_count",
               "type": "number",
               "documentation": "Matches a page, 1 to 200: a larger number gives 200. Pages the search."
+            },
+            {
+              "name": "_cursor",
+              "type": "string",
+              "documentation": "The position of the next page, opaque: taken from the bundle's next link, never written by hand. A position the caller can no longer see is refused (400); run the search again."
             }
           ]
         },
@@ -166,6 +171,11 @@
               "name": "_count",
               "type": "number",
               "documentation": "Matches a page, 1 to 200: a larger number gives 200. Pages the search."
+            },
+            {
+              "name": "_cursor",
+              "type": "string",
+              "documentation": "The position of the next page, opaque: taken from the bundle's next link, never written by hand. A position the caller can no longer see is refused (400); run the search again."
             }
           ]
         },
@@ -276,6 +286,11 @@
               "name": "_count",
               "type": "number",
               "documentation": "Matches a page, 1 to 200: a larger number gives 200. Pages the search."
+            },
+            {
+              "name": "_cursor",
+              "type": "string",
+              "documentation": "The position of the next page, opaque: taken from the bundle's next link, never written by hand. A position the caller can no longer see is refused (400); run the search again."
             }
           ]
         }

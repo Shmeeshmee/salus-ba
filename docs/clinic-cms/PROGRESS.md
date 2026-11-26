@@ -4857,3 +4857,32 @@ next links, are byte for byte the closed range's or the per-appointment searches
 `QuestionnaireResponse?patient=…` (nothing visible) or a practitioner's encounters without `practitioner=` read the
 clinic's rows in batches of `count+1`, as the unpaged search read them all at once. Pushing those filters into SQL is
 left for later.
+
+## Readiness follow-ups: wiring, phone menu, screenshots, integration
+
+Done 2026-11-26 on `fix/readiness` (from `9d39936c`, PR #126's squash), one PR with the two notes above.
+
+- **Production wiring** (`b1c50f8f`): `deployments/production/docker-compose.prod.yml` passes every setting each
+  binary reads, with `SALUS_ENV` fixed to `production` for every Go service; `.env.production.example` names every key;
+  `deployments/production/wiring_test.go` (in `make test` and CI's `make cover`) derives each binary's variables from
+  `internal/config` and `cmd/*` and fails when one is not passed to its service. Outside dev, `LoadSeller` refuses an
+  empty or bracketed `SELLER_*` (api, notifier) and any bracketed operator address counts as unset; the deploy
+  workflow refuses a bracketed env-file value; the landing image gets `VITE_APP_URL`; `scripts/mobile-release.sh` and
+  the mobile workflow's `release` job build a release APK with `API_BASE_URL`, `PRIVACY_NOTICE_URL` and `SUPPORT_EMAIL`
+  from repository variables, refusing placeholders, and a release build of the app refuses them at start.
+  `docs/deploy/BEFORE-PRODUCTION.md` §1 now lists only values.
+- **Phone menu** (`f0f56297`): at 520 px and below the staff header is the brand and a "Menu" disclosure button
+  (`web/src/HeaderMenu.tsx`); above it the header is unchanged (screenshots compared byte for byte). RD3's specs check
+  the menu at 390 px (keyboard, axe and 44 px targets with it open) and its absence at 1280 px. Walk:
+  `docs/clinic-cms/walk/readiness-menu/`. One new string, `shell.menu`.
+- **Demo screenshots** retaken on this branch's own stack after `make demo-seed` (all at 1280 px, so the menu does
+  not show in them).
+- **Integration** (review fixes): the merged CapabilityStatement's golden (`internal/api/router/testdata/metadata.json`)
+  regenerated; `api/fhir`'s served-interactions test names `_count`; `_cursor` declared on the three paged searches;
+  a QuestionnaireResponse page position the scope does not show is audited as a refused search (it rolled back
+  unaudited); the Schedule read's documentation says a stopped clinic's own also read an inactive role's schedule.
+- **Left, from the review** (low): a patient with a care consent can read the clinic's Organization and its roles by
+  id whatever the membership (the clinic's directory form and roles: no personal data), and each such read also
+  audits the patient lookup; the QuestionnaireResponse cursor is a response id looked up again, so a 400 or 200 tells
+  whether that id exists in the caller's clinic scope (opaque UUIDs); the landing page's `[PRICE]`, `[YOUR EMAIL]`,
+  `[Hosting]` and `[Certification]` still ship as written (BEFORE-PRODUCTION §2).

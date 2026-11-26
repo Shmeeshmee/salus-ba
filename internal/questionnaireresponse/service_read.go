@@ -2,6 +2,7 @@ package questionnaireresponse
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -55,7 +56,7 @@ func (s *Service) Search(ctx context.Context, c appointment.Caller, f Filter) ([
 // few responses at most) returns the clinic's whole history, so it is paged, by appointment.DefaultCount unless count
 // asks for another number; so is any search given a count or a position. A patient's own returns every match, as
 // Search does. The responses the caller may not see are read past and left out as Search leaves them out; the page's
-// are audited as Search audits them. ErrPosition for a position the scope does not show.
+// are audited as Search audits them. ErrPosition for a position the scope does not show, audited as a refused search.
 func (s *Service) SearchPage(ctx context.Context, c appointment.Caller, f Filter, count int) (Page, error) {
 	if count == 0 && (f.AfterID != "" || (c.OrganizationID != "" && f.AppointmentID == "")) {
 		count = appointment.DefaultCount
@@ -67,16 +68,24 @@ func (s *Service) SearchPage(ctx context.Context, c appointment.Caller, f Filter
 // with one event.
 func (s *Service) find(ctx context.Context, c appointment.Caller, f Filter, count int) (Page, error) {
 	var out Page
+	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		if out, err = s.search(ctx, c, f, count); err != nil {
+		out, err = s.search(ctx, c, f, count)
+		switch {
+		case errors.Is(err, ErrPosition):
+			refused = err // audited as the other searches audit a refusal, and committed with it
+			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeMinorFailure)
+		case err != nil:
 			return err
-		}
-		if len(out.Seen) == 0 {
+		case len(out.Seen) == 0:
 			return s.record(ctx, c, auditevent.CodeSearchType, "", auditevent.OutcomeSuccess)
 		}
 		return nil
 	})
+	if err == nil {
+		err = refused
+	}
 	if err != nil {
 		return Page{}, fmt.Errorf("questionnaireresponse: search: %w", err)
 	}
