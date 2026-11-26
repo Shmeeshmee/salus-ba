@@ -71,6 +71,9 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if cfg.WebhookKey, err = config.LoadWebhookKey(); err != nil { // each environment sets its own; dev generates one
 		return err
 	}
+	if cfg.Seller, err = config.LoadSeller(); err != nil { // the membership invoices' seller: no placeholder outside dev
+		return err
+	}
 	app, err := api.New(ctx, cfg, lk, files, drafter, &llmtest.Summarizer{DiscardCalls: true}, log)
 	if err != nil {
 		return err

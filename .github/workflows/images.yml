@@ -131,10 +131,14 @@ jobs:
             context: web
             file: build/package/web.Dockerfile
             no-cache-filters: runtime
+          # The sign-up link's web app address (VITE_APP_URL, landing/src/lib/appHref.ts): the repository variable
+          # VITE_APP_URL, else https://app.<SALUS_DOMAIN>. With neither, the page links to [APP URL]/signup and the
+          # build warns (below).
           - image: salus-landing
             context: landing
             file: build/package/landing.Dockerfile
             no-cache-filters: runtime
+            app-url: ${{ vars.VITE_APP_URL || (vars.SALUS_DOMAIN && format('https://app.{0}', vars.SALUS_DOMAIN)) || '' }}
           - image: salus-caddy
             context: build/package
             file: build/package/caddy.Dockerfile
@@ -150,12 +154,16 @@ jobs:
       - name: Image name
         id: name
         run: echo "ref=ghcr.io/$GHCR_OWNER/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - name: The landing page's sign-up link
+        if: matrix.image == 'salus-landing' && matrix.app-url == ''
+        run: echo "::warning::salus-landing is built without VITE_APP_URL (set the repository variable VITE_APP_URL or SALUS_DOMAIN); its sign-up link is [APP URL]/signup (docs/deploy/BEFORE-PRODUCTION.md)"
       - name: Build and push by digest, untagged, with an SBOM attestation
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-args: ${{ matrix.image == 'salus-landing' && format('VITE_APP_URL={0}', matrix.app-url) || '' }}
           platforms: linux/amd64
           outputs: type=image,name=${{ steps.name.outputs.ref }},push-by-digest=true,name-canonical=true,push=true
           labels: |

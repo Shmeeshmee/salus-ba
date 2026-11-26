@@ -25,10 +25,10 @@ func TestLoadOperator_ReadsTheAddressAndTheLanguage(t *testing.T) {
 	}
 }
 
-// Outside dev the operator's deadline warnings need an address; the .env.example placeholder is none. In dev there
-// may be none (the worker logs the warning instead).
+// Outside dev the operator's deadline warnings need an address; the .env.example placeholder, or any other value still in
+// brackets, is none. In dev there may be none (the worker logs the warning instead).
 func TestLoadOperator_TheAddressIsRequiredOutsideDev(t *testing.T) {
-	for _, email := range []string{"", "[OPERATOR EMAIL]"} {
+	for _, email := range []string{"", "[OPERATOR EMAIL]", " [operator address] "} {
 		t.Setenv("SALUS_OPERATOR_EMAIL", email)
 		t.Setenv("SALUS_OPERATOR_LANGUAGE", "")
 		t.Setenv("SALUS_ENV", "production")

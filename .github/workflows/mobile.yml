@@ -1,12 +1,14 @@
-# Mobile: flutter analyze (after the catalog check), flutter test, the generated Dart client, and the debug APK.
-# Runs on every pull request so its required checks always report; the jobs skip when no path matching the
-# filter changed (a skipped job counts as passed). Everything runs through make in Docker, as locally.
+# Mobile: flutter analyze (after the catalog check), flutter test, the generated Dart client, the debug APK, and on a
+# manual run or a mobile-v* tag the release APK. Runs on every pull request so its required checks always report; the
+# jobs skip when no path matching the filter changed (a skipped job counts as passed). Everything runs through make in
+# Docker, as locally, except the two APK builds (below).
 name: mobile
 
 on:
   pull_request:
   push:
     branches: [main]
+    tags: ['mobile-v*']
   workflow_dispatch:
 
 permissions:
@@ -70,5 +72,46 @@ jobs:
         with:
           name: app-debug
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # The release APK (docs/deploy/BEFORE-PRODUCTION.md): scripts/mobile-release.sh passes API_BASE_URL,
+  # PRIVACY_NOTICE_URL and SUPPORT_EMAIL as --dart-define and refuses, naming the variable, when one is missing or
+  # still a placeholder (and the app itself refuses to start a release build that has one). From the repository
+  # variables MOBILE_API_BASE_URL (default https://api.<SALUS_DOMAIN>), MOBILE_PRIVACY_NOTICE_URL and
+  # MOBILE_SUPPORT_EMAIL: values the app shows or calls, none of them secret. Only on a manual run or a mobile-v* tag,
+  # never on a pull request. Signed with the debug key (android/app/build.gradle.kts): no release keystore exists, so
+  # this APK is for testing on the owner's phones, not for Google Play. iOS needs a macOS runner and Apple signing, and
+  # is not built here.
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/mobile-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The release settings (before any download)
+        env:
+          API_BASE_URL: ${{ vars.MOBILE_API_BASE_URL || (vars.SALUS_DOMAIN && format('https://api.{0}', vars.SALUS_DOMAIN)) || '' }}
+          PRIVACY_NOTICE_URL: ${{ vars.MOBILE_PRIVACY_NOTICE_URL }}
+          SUPPORT_EMAIL: ${{ vars.MOBILE_SUPPORT_EMAIL }}
+        run: bash scripts/mobile-release.sh --check
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+      - name: flutter build apk --release
+        env:
+          API_BASE_URL: ${{ vars.MOBILE_API_BASE_URL || (vars.SALUS_DOMAIN && format('https://api.{0}', vars.SALUS_DOMAIN)) || '' }}
+          PRIVACY_NOTICE_URL: ${{ vars.MOBILE_PRIVACY_NOTICE_URL }}
+          SUPPORT_EMAIL: ${{ vars.MOBILE_SUPPORT_EMAIL }}
+        run: bash scripts/mobile-release.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-release
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

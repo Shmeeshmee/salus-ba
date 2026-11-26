@@ -38,13 +38,15 @@ func LoadPush() (Push, error) {
 			return Push{}, err
 		}
 	}
-	vars := []string{"APNS_KEY_FILE", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_BUNDLE_ID"}
 	var set, missing []string
-	for _, v := range vars {
-		if os.Getenv(v) == "" {
-			missing = append(missing, v)
+	for _, v := range []struct{ name, value string }{ // names as literals: deployments/production's wiring test reads them
+		{"APNS_KEY_FILE", os.Getenv("APNS_KEY_FILE")}, {"APNS_KEY_ID", os.Getenv("APNS_KEY_ID")},
+		{"APNS_TEAM_ID", os.Getenv("APNS_TEAM_ID")}, {"APNS_BUNDLE_ID", os.Getenv("APNS_BUNDLE_ID")},
+	} {
+		if v.value == "" {
+			missing = append(missing, v.name)
 		} else {
-			set = append(set, v)
+			set = append(set, v.name)
 		}
 	}
 	sandbox := os.Getenv("APNS_SANDBOX")

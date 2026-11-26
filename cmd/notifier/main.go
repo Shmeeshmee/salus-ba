@@ -59,6 +59,9 @@ func run(ctx context.Context, logOut io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if cfg.Seller, err = config.LoadSeller(); err != nil { // the membership invoices' seller: no placeholder outside dev
+		return err
+	}
 	pushCfg, err := config.LoadPush()
 	if err != nil {
 		return err

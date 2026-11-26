@@ -1,56 +1,71 @@
 # Before production
 
 Everything that has to be filled in, decided or fixed before Salus takes its first real patient, in one place: the
-placeholders, every setting and what refuses to start without it, the deploy blockers found in the wave 7 drill, and
-the dependency audit. Written 2026-11-25 by the operations drill (docs/clinic-cms/WAVE7.md, RD4) from the code as it
-is on that day; what it says refuses or does not refuse was read from `internal/config`, `cmd/*/main.go` and
-`deployments/production/docker-compose.prod.yml`, not assumed. The legal and owner questions of the clinic system are
+values left for the owner, the placeholders, every setting and what refuses to start without it, and the dependency
+audit. Written 2026-11-25 by the operations drill (docs/clinic-cms/WAVE7.md, RD4) and updated 2026-11-26 when the
+production wiring it found missing was fixed; what it says refuses or does not refuse was read from `internal/config`,
+`cmd/*/main.go` and `deployments/production/docker-compose.prod.yml`, not assumed. The legal and owner questions of the clinic system are
 in docs/clinic-cms/PROGRESS.md "Before production"; the server's own setup is docs/deploy/README.md.
 
-## 1. Deploy blockers (found 2026-11-25, not fixed here)
+## 1. What is left for the owner: values
 
-The drill changes no behaviour and no production wiring; these are for the owner or a later package.
+The four deploy blockers the drill found on 2026-11-25 (the notifier not given `SALUS_OPERATOR_EMAIL` and
+`SALUS_ENV`; the `SELLER_*`, analytics, retention, push, SMS, fiscal and chat-summary settings reaching no container;
+the landing image built without `VITE_APP_URL`; no mobile release build) were fixed on 2026-11-26 (readiness wiring):
+the production compose file passes every setting each binary reads, `SALUS_ENV` is fixed to `production` there for
+every Go service (an env file cannot make production run as dev), and `deployments/production/wiring_test.go` (run by
+`make test` and CI's `make cover`) fails when a variable internal/config reads for a binary is not passed to its
+service, or a compose variable is not named in `.env.production.example`. A placeholder that would otherwise ship now
+stops the start-up or the build (§2). What remains is filling in values; nothing in the repository holds them.
 
-1. **The notifier does not start in production.** `LoadOperator` (internal/config/config_operator.go) refuses
-   outside `SALUS_ENV=dev` without `SALUS_OPERATOR_EMAIL`, and the `notifier` service of
-   `deployments/production/docker-compose.prod.yml` passes neither `SALUS_OPERATOR_EMAIL` nor `SALUS_ENV`; compose
-   passes only the variables a service lists. So the notifier exits 1 at start (`config: SALUS_OPERATOR_EMAIL is
-   required outside SALUS_ENV=dev`), and `docker compose up --wait` of a deploy fails on it. Fix: add
-   `SALUS_OPERATOR_EMAIL: ${SALUS_OPERATOR_EMAIL:?SALUS_OPERATOR_EMAIL is required}` and
-   `SALUS_OPERATOR_LANGUAGE: ${SALUS_OPERATOR_LANGUAGE:-bs}` to the notifier's environment, and both to
-   `deployments/production/.env.production.example` (the deploy workflow warns about any key that file does not
-   name), then fill them in the `SALUS_ENV_FILE` secret.
-2. **Settings that cannot reach production.** These are read by the binaries but listed for no service in the
-   production compose file and absent from `.env.production.example`, so a value put in the env file never reaches a
-   container: `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` (api, notifier: the membership
-   invoices print `[SELLER]` and the others for ever), `SALUS_OPERATOR_LANGUAGE`, `ANALYTICS_PLATFORM_ENABLED` and
-   `ANALYTICS_MIN_COUNT` (off and 10, which is the decided default until the legal answers), `RETENTION_CLINICAL_DATA`
-   and `RETENTION_OPERATIONAL_LOG_DAYS` (keep and 90, the defaults), `FCM_CREDENTIALS_FILE` and `APNS_*` (push stays
-   on the fake, docs/deploy/push.md), `SMS_ENGINE`, `FISCAL_ENGINE` and `CHAT_SUMMARY_ENGINE` (each has only the fake
-   today, so nothing is lost yet). The seller's four are the ones that matter before the first membership invoice.
-3. **The landing page's sign-up link.** The Images workflow builds `salus-landing` with no build arguments, so
-   `VITE_APP_URL` is never set and the published page links to `[APP URL]/signup`. Fix: pass
-   `VITE_APP_URL=https://app.<domain>` as a build argument of the landing image (or decide the landing page is not
-   deployed yet; CLAUDE.md "Layout" says it is not).
-4. **The patient app's build-time values.** `SUPPORT_EMAIL` (`[SUPPORT EMAIL]` on the closed-account screen),
-   `PRIVACY_NOTICE_URL` (`https://salus.invalid/privacy`) and `API_BASE_URL` (`http://localhost:8080`) are
-   `--dart-define`s with no release build that sets them; the mobile workflow builds a debug APK only.
+**The `SALUS_ENV_FILE` secret** (the `production` environment; `deployments/production/.env.production.example`
+names every key). New since the drill, and refused while empty or still in brackets:
+
+| Key | What | Refused by |
+| --- | --- | --- |
+| `SALUS_OPERATOR_EMAIL` | who answers the data requests to the Salus account (their deadline warnings) | the deploy (empty or `[…]`) and the notifier |
+| `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` | the owner's company on the membership invoices: legal name, JIB/IDB, address on one line, IBAN (clinic-cms Q3) | the deploy (empty or `[…]`) and the api and the notifier |
+
+Optional, with the decided default when left out: `SALUS_OPERATOR_LANGUAGE` (bs), `ANALYTICS_PLATFORM_ENABLED`
+(false) and `ANALYTICS_MIN_COUNT` (10) until the legal answers L1 to L8, `RETENTION_CLINICAL_DATA` (keep) and
+`RETENTION_OPERATIONAL_LOG_DAYS` (90) until lawyer L1 to L3, `SMS_ENGINE`, `FISCAL_ENGINE` and `CHAT_SUMMARY_ENGINE`
+(fake: the only value each takes today), and the push keys `FCM_CREDENTIALS_FILE`, `APNS_KEY_FILE`, `APNS_KEY_ID`,
+`APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` (off; the two key files also need their compose secrets, which land
+with the app's token registration: docs/deploy/push.md). The keys that existed before (domain, passwords, LiveKit,
+Garage, SMTP, `PATIENT_APP_URL`) are unchanged: docs/deploy/README.md.
+
+**Repository variables** (GitHub, Settings, Variables; none is secret, each ends up in a published page or app):
+
+| Variable | Used by | Default | Unset |
+| --- | --- | --- | --- |
+| `SALUS_DOMAIN` | the deploy (already required), and the defaults below | none | the deploy refuses |
+| `VITE_APP_URL` | the Images workflow: the landing image's build argument, the sign-up link | `https://app.<SALUS_DOMAIN>` | with no `SALUS_DOMAIN` either: a warning, and the page links to `[APP URL]/signup` |
+| `MOBILE_API_BASE_URL` | the mobile workflow's release job: `--dart-define=API_BASE_URL` | `https://api.<SALUS_DOMAIN>` | the release build refuses |
+| `MOBILE_PRIVACY_NOTICE_URL` | the same: `PRIVACY_NOTICE_URL`, the published privacy notice (https) | none | the release build refuses |
+| `MOBILE_SUPPORT_EMAIL` | the same: `SUPPORT_EMAIL`, where a patient asks to reopen a closed account | none | the release build refuses |
+
+The release job (`scripts/mobile-release.sh`) runs on a manual run of the mobile workflow or a `mobile-v*` tag. Its
+APK is signed with the debug key, as `mobile/android/app/build.gradle.kts` is set up: for the owner's test phones, not
+for Google Play. A Play release needs an upload keystore (created by the owner, kept in Bitwarden, given to CI as
+secrets) and its signing config; an App Store build needs a macOS runner and Apple signing. Neither exists yet.
 
 ## 2. Placeholders
 
-Each is printed or linked as-is while it is not filled; none of them stops anything from starting except
-`[OPERATOR EMAIL]`.
+Outside `SALUS_ENV=dev` (production sets `production`) a placeholder of a server setting stops the binary at start, and
+one of the patient app stops its release build and the release app's start; the landing page's are still printed
+as-is (it has no start to stop: the Images workflow warns about `[APP URL]`, the others are hand edits).
 
 | Placeholder | Where | Filled by | In production while unfilled |
 | --- | --- | --- | --- |
-| `[OPERATOR EMAIL]` | `SALUS_OPERATOR_EMAIL` (configs/.env.example; the placeholder counts as unset) | the env file, once the notifier is given it (blocker 1) | **The notifier refuses to start** outside `SALUS_ENV=dev` |
-| `[SELLER]`, `[SELLER TAX ID]`, `[SELLER ADDRESS]`, `[SELLER ACCOUNT]` | `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` (internal/config/config_seller.go) | the env file, once compose passes them (blocker 2); the owner's company (clinic-cms Q3) | Printed on every membership invoice PDF and e-mail; nothing refuses |
+| `[OPERATOR EMAIL]` | `SALUS_OPERATOR_EMAIL` (configs/.env.example, .env.production.example; any value in brackets counts as unset) | the env file | **The deploy and the notifier refuse** |
+| `[SELLER]`, `[SELLER TAX ID]`, `[SELLER ADDRESS]`, `[SELLER ACCOUNT]` | `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` (internal/config/config_seller.go; .env.production.example) | the env file; the owner's company (clinic-cms Q3) | **The deploy, the api and the notifier refuse** (empty or any value in brackets); in dev they are printed on the invoice |
 | `[PRICE]` | landing/src/content/pricing.ts (two plans); web/src/i18n/reminders/*.json `smsHint` (the SMS option's price, five languages) | a hand edit (and every language of the web catalog) | Shown as-is on the landing page's pricing and in the clinic's reminder settings |
-| `[APP URL]` | landing/src/lib/appHref.ts, the sign-up link of landing/src/content/nav.ts | build argument `VITE_APP_URL` of the landing image | The link is `[APP URL]/signup` (blocker 3) |
+| `[APP URL]` | landing/src/lib/appHref.ts, the sign-up link of landing/src/content/nav.ts | build argument `VITE_APP_URL` of the landing image: the repository variable `VITE_APP_URL`, else `https://app.<SALUS_DOMAIN>` | Only with neither variable: the link is `[APP URL]/signup`, and the Images workflow warns |
 | `[YOUR EMAIL]` | landing/src/content/demo.ts (`mailto:[YOUR EMAIL]`) | a hand edit | "Book a demo" opens a broken mail link |
 | `[Hosting]` / `[Where data is stored]`, `[Certification]` / `[Audit or standard]` | landing/src/content/standards.ts | a hand edit | Shown as-is on the landing page's standards tiles |
-| `[SUPPORT EMAIL]` | mobile/lib/close_account_screen.dart | `--dart-define=SUPPORT_EMAIL=…` of the release build | Shown on the closed-account screen ("write to [SUPPORT EMAIL]") |
-| `https://salus.invalid/privacy` | mobile/lib/main.dart `PRIVACY_NOTICE_URL` | `--dart-define` of the release build | The privacy notice link goes nowhere |
+| `[SUPPORT EMAIL]` | mobile/lib/close_account_screen.dart | the repository variable `MOBILE_SUPPORT_EMAIL`, `--dart-define=SUPPORT_EMAIL` of the release build | **The release build refuses** (scripts/mobile-release.sh), and a release app built without it does not start (mobile/lib/release_settings.dart); debug builds show it |
+| `https://salus.invalid/privacy` | mobile/lib/main.dart `PRIVACY_NOTICE_URL` | the repository variable `MOBILE_PRIVACY_NOTICE_URL` | The same: refused by the release build and the release app |
+| `http://localhost:8080` | mobile/lib/main.dart `API_BASE_URL` | the repository variable `MOBILE_API_BASE_URL`, else `https://api.<SALUS_DOMAIN>` | The same |
 | Plan prices (no bracket) | no plan is seeded | `salusctl subscription plan` (docs/plans/clinic-cms.md Q2) | No membership can be invoiced |
 
 Not placeholders, though they look like one: `[DEPLOY_HOST]` in docs/deploy/README.md (known_hosts syntax) and the
@@ -61,8 +76,10 @@ usage arguments of the scripts (`[FILE]`, `[SERVICE]`, …).
 Read from `internal/config` (the only package that reads the environment) and the binaries' `main.go`. "Refuses"
 means the binary exits at start with a message naming the variable (never its value). Production's values come from
 `deployments/production/docker-compose.prod.yml`, the `SALUS_ENV_FILE` secret
-(`deployments/production/.env.production.example`) and the key files on the encrypted volume (ADR 0011).
-`SALUS_ENV` is unset in production, and anything but `dev` counts as production.
+(`deployments/production/.env.production.example`) and the key files on the encrypted volume (ADR 0011). Every
+variable below that a binary reads is passed to its service (`deployments/production/wiring_test.go` fails
+otherwise). `SALUS_ENV` is fixed to `production` by the compose file for every Go service, never read from the env
+file; anything but `dev` counts as production.
 
 ### Every Go binary (`config.Load`: api, worker, notifier, scheduler, agent, migrate, salusctl)
 
@@ -76,9 +93,9 @@ means the binary exits at start with a message naming the variable (never its va
 | `TOTP_KEY` / `TOTP_KEY_FILE` | none | key file `/run/secrets/totp_key` | Invalid base64, both set, or an unreadable file: every binary refuses; unset: the api refuses (not 32 bytes) |
 | `RATE_LIMIT_KEY` | none | env file (`:?`) | Invalid base64: every binary refuses; under 32 bytes: the api refuses |
 | `TRUSTED_PROXY_CIDRS` | empty (no proxy trusted) | compose (the private ranges) | A non-CIDR entry is refused; empty is silent |
-| `ANALYTICS_PLATFORM_ENABLED` | `false` | not passed (blocker 2) | A value other than true, false or empty is refused |
-| `ANALYTICS_MIN_COUNT` | 10 | not passed | Below 10 or not a number is refused |
-| `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` | the `[SELLER…]` placeholders | not passed (blocker 2) | Never refused: the placeholder is printed |
+| `ANALYTICS_PLATFORM_ENABLED` | `false` | api, worker, scheduler, migrate (salusctl): env file, `:-false` | A value other than true, false or empty is refused |
+| `ANALYTICS_MIN_COUNT` | 10 | the same, `:-10` | Below 10 or not a number is refused |
+| `SALUS_ENV` | none (production) | compose: `production`, every Go service | `dev` only on the compose stack of deployments/docker-compose.yml |
 | `APP_DATABASE_PASSWORD` | none | env file (`:?`) | migrate only; empty: migrate leaves salus_app's password alone |
 
 ### api, worker, agent
@@ -90,7 +107,8 @@ means the binary exits at start with a message naming the variable (never its va
 | `BINARY_KEK` / `BINARY_KEK_FILE` | api, worker | none | Refused when missing or not base64 of 32 bytes; production: the key file |
 | `WEBHOOK_KEY` / `WEBHOOK_KEY_FILE` | api, worker | none (dev: a random key per process) | **Refused outside `SALUS_ENV=dev`**; production: the key file |
 | `LLM_ENGINE`, `ANTHROPIC_API_KEY`, `LLM_MODEL` | api, worker, agent | `fake`, none, `claude-opus-5-5` | An engine other than fake or anthropic is refused; anthropic without a key is refused (stays fake until its DPA, ADR 0011 point 6) |
-| `CHAT_SUMMARY_ENGINE` | api | `fake` | Anything else is refused |
+| `CHAT_SUMMARY_ENGINE` | api | `fake` | Anything else is refused; production `:-fake` |
+| `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` | api (and the notifier) | dev: the `[SELLER…]` placeholders | **Refused outside `SALUS_ENV=dev`** when empty or in brackets; production `:?` |
 | `FAKE_ENGINE_SCRIPT` | api, worker, agent | empty | Refused beside a real engine; set only by docker-compose.e2e.yml |
 | `STT_ENGINE`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_KEY` | agent | `fake` | An engine other than fake or azure is refused; azure without both is refused |
 
@@ -100,24 +118,25 @@ means the binary exits at start with a message naming the variable (never its va
 | --- | --- | --- |
 | `RETENTION_DATABASE_URL`, `STATS_DATABASE_URL` | none | Refused (compose builds both from the env file's passwords) |
 | `CLAMD_ADDR` | none | Refused when not host:port |
-| `FISCAL_ENGINE` | `fake` | `eset` and anything else are refused (package G writes the adapter) |
-| `RETENTION_CLINICAL_DATA` | `keep` | Anything but keep is refused |
-| `RETENTION_OPERATIONAL_LOG_DAYS` | 90 | Outside 1 to 3653 is refused |
+| `FISCAL_ENGINE` | `fake` | `eset` and anything else are refused (package G writes the adapter); production `:-fake` |
+| `RETENTION_CLINICAL_DATA` | `keep` | Anything but keep is refused; production `:-keep` |
+| `RETENTION_OPERATIONAL_LOG_DAYS` | 90 | Outside 1 to 3653 is refused; production `:-90` |
 | `GOMEMLIMIT` | Go's | Read by the Go runtime; compose sets it from `SALUS_WORKER_GOMEMLIMIT` |
 
 ### notifier
 
 | Setting | Default | Unset or wrong |
 | --- | --- | --- |
-| `SALUS_OPERATOR_EMAIL` | none (`[OPERATOR EMAIL]` counts as none) | **Refused outside `SALUS_ENV=dev`** (blocker 1) |
-| `SALUS_OPERATOR_LANGUAGE` | `bs` | A value that is not one of the ten languages is refused |
+| `SALUS_OPERATOR_EMAIL` | none (any value in brackets counts as none) | **Refused outside `SALUS_ENV=dev`**; production `:?` |
+| `SALUS_OPERATOR_LANGUAGE` | `bs` | A value that is not one of the ten languages is refused; production `:-bs` |
+| `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`, `SELLER_ACCOUNT` | dev: the placeholders | As the api's |
 | `SMTP_ADDR` | none | Refused when not host:port; production `:?` |
 | `SMTP_TLS` | none in Go; production compose `starttls` | Anything but starttls, tls or none is refused; none with a login is refused |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | none | Optional, but both or neither; production `:?` both |
 | `SMTP_FROM` | none | Refused when not one RFC 5322 address; production `:?` |
-| `SMS_ENGINE` | `fake` | `infobip` and anything else are refused until its DPA |
-| `FCM_CREDENTIALS_FILE` | off | An unreadable or blank file is refused |
-| `APNS_KEY_FILE`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | off | All four or none (a partial set is refused); `APNS_SANDBOX` without them, or not a boolean, is refused |
+| `SMS_ENGINE` | `fake` | `infobip` and anything else are refused until its DPA; production `:-fake` |
+| `FCM_CREDENTIALS_FILE` | off | An unreadable or blank file is refused; production `:-` (the key file's compose secret lands with push, docs/deploy/push.md) |
+| `APNS_KEY_FILE`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | off | All four or none (a partial set is refused); `APNS_SANDBOX` without them, or not a boolean, is refused; production `:-` |
 
 ### migrate
 
@@ -131,9 +150,13 @@ Compose itself refuses to start without (`${VAR:?}`): `SALUS_TAG`, `SALUS_DOMAIN
 `POSTGRES_PASSWORD`, `APP_DATABASE_PASSWORD`, `RETENTION_DATABASE_PASSWORD`, `STATS_DATABASE_PASSWORD`,
 `RATE_LIMIT_KEY`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_NODE_IP`, `S3_ACCESS_KEY_ID`,
 `S3_SECRET_ACCESS_KEY`, `BINARY_KEK_ID`, `GARAGE_RPC_SECRET`, `SMTP_ADDR`, `SMTP_USERNAME`, `SMTP_PASSWORD`,
-`SMTP_FROM`, `PATIENT_APP_URL`. With a default: `GHCR_OWNER`, `SALUS_ACME_CA`, `S3_BUCKET`, `LLM_ENGINE`,
-`ANTHROPIC_API_KEY`, `LLM_MODEL`, `SMTP_TLS`, `STT_ENGINE`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_KEY`,
-`SALUS_DATA_DIR`, `SALUS_WORKER_GOMEMLIMIT`, `SALUS_REDIS_MAXMEMORY` and the `SALUS_MEM_*` limits. The server's own
+`SMTP_FROM`, `PATIENT_APP_URL`, `SALUS_OPERATOR_EMAIL`, `SELLER_NAME`, `SELLER_TAX_ID`, `SELLER_ADDRESS`,
+`SELLER_ACCOUNT`. With a default: `GHCR_OWNER`, `SALUS_ACME_CA`, `S3_BUCKET`, `LLM_ENGINE`, `ANTHROPIC_API_KEY`,
+`LLM_MODEL`, `CHAT_SUMMARY_ENGINE`, `SMTP_TLS`, `STT_ENGINE`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_KEY`,
+`SALUS_OPERATOR_LANGUAGE`, `ANALYTICS_PLATFORM_ENABLED`, `ANALYTICS_MIN_COUNT`, `RETENTION_CLINICAL_DATA`,
+`RETENTION_OPERATIONAL_LOG_DAYS`, `FISCAL_ENGINE`, `SMS_ENGINE`, `FCM_CREDENTIALS_FILE`, the `APNS_*` keys,
+`SALUS_DATA_DIR`, `SALUS_WORKER_GOMEMLIMIT`, `SALUS_REDIS_MAXMEMORY` and the `SALUS_MEM_*` limits. The deploy
+workflow refuses an env file without a value for each required key, or with a value still in brackets. The server's own
 settings (`bootstrap.conf`: the deploy key, SSH, the firewall, upgrades, the backup's `BACKUP_*` and `ALERT_EMAIL`)
 are documented in `deployments/production/bootstrap/bootstrap.conf.example` and docs/deploy/backup-restore.md.
 
@@ -141,9 +164,9 @@ are documented in `deployments/production/bootstrap/bootstrap.conf.example` and 
 
 | Setting | Where | Default |
 | --- | --- | --- |
-| `VITE_APP_URL` | landing image build argument | empty: `[APP URL]` (blocker 3) |
+| `VITE_APP_URL` | landing image build argument (Images workflow: the variable `VITE_APP_URL`, else `https://app.<SALUS_DOMAIN>`) | empty: `[APP URL]`, with a warning |
 | `API_URL` | the web dev server's proxy only | `http://localhost:8080` |
-| `API_BASE_URL`, `PRIVACY_NOTICE_URL`, `SUPPORT_EMAIL` | the patient app's `--dart-define`s | localhost, `salus.invalid`, `[SUPPORT EMAIL]` (blocker 4) |
+| `API_BASE_URL`, `PRIVACY_NOTICE_URL`, `SUPPORT_EMAIL` | the patient app's `--dart-define`s; the release job takes them from `MOBILE_API_BASE_URL` (else `https://api.<SALUS_DOMAIN>`), `MOBILE_PRIVACY_NOTICE_URL`, `MOBILE_SUPPORT_EMAIL` | debug: localhost, `salus.invalid`, `[SUPPORT EMAIL]`; release: refused by scripts/mobile-release.sh and at the app's start |
 
 ### Tests and local stacks
 
