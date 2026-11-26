@@ -40,7 +40,12 @@ a { color: var(--color-brand); }
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
-.bar nav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+.bar nav { flex: 1; }
+.bar nav ul { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.bar nav li { display: flex; }
+/* The header's menu (HeaderMenu): on a wide screen its panel's contents sit in the bar and the button is not there. */
+.bar-menu { display: contents; }
+.bar .menu-button { display: none; }
 .bar svg { flex: none; }
 .bar nav a, .quiet {
   display: inline-flex;
@@ -517,8 +522,14 @@ p.hint.join { margin-bottom: 20px; }
   .panel { padding: 20px 16px; }
   .page { padding-top: 16px; }
   .pair { grid-template-columns: 1fr; }
-  .bar nav { order: 3; flex-basis: 100%; }
-  .bar .quiet { margin-left: auto; }
+  /* On a phone the header is the brand and the menu button; the panel opens below them, one link per row. */
+  .bar .menu-button { display: inline-flex; margin-left: auto; }
+  .bar-menu { display: none; }
+  .bar-menu.open { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-basis: 100%; padding-top: 8px; border-top: 1px solid var(--color-border); }
+  .bar-menu nav { flex-basis: 100%; }
+  .bar-menu nav ul { display: grid; gap: 2px; }
+  .bar-menu nav a { flex: 1; }
+  .bar-menu > .quiet:last-child { margin-left: auto; }
   .hours-rows { gap: 14px; }
   .hours-rows li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; }
   .hours-rows select { grid-column: 1 / -1; width: 100%; }

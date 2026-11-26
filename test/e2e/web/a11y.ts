@@ -194,3 +194,74 @@ export async function dialog(page: Page, where: string, opener: Locator, opened:
 export function report() {
   expect(findings, `accessibility findings:\n${findings.join('\n')}\n`).toEqual([])
 }
+
+// The header's menu button (readiness, after RD3), found by what it controls.
+export const menuButton = (page: Page) => page.locator('header button[aria-controls]')
+const menuPanel = async (page: Page) => page.locator(`[id="${await menuButton(page).getAttribute('aria-controls')}"]`)
+
+// headerLinks lists the header navigation's links as they are shown now: name, address and whether it is the current page.
+export async function headerLinks(page: Page): Promise<string[]> {
+  return page.locator('header nav a:visible').evaluateAll((links) => links.map((a) => `${a.textContent?.trim()} ${a.getAttribute('href')}${a.getAttribute('aria-current') === 'page' ? ' (current)' : ''}`))
+}
+
+// wideHeader checks the header at 1280 px: no menu button, the links shown in the header as before. It returns them.
+export async function wideHeader(page: Page, where: string): Promise<string[]> {
+  if (await menuButton(page).isVisible()) findings.push(`${where}: the header shows the menu button on a wide screen`)
+  const links = await headerLinks(page)
+  if (links.length === 0) findings.push(`${where}: the header shows no link`)
+  return links
+}
+
+// phoneMenu checks the header's menu on a phone, the disclosure pattern: the button is shown and says it is closed, the
+// links are not; Space and Enter open it, Escape closes it and leaves the focus on the button; open, Tab goes from the
+// button into the panel and through every link in it in order; the engine and the 44 px targets pass with it open (the
+// header links are checked here now that a closed panel hides them); and its links are wide's, the same set and the same
+// current page. It leaves the panel closed.
+export async function phoneMenu(page: Page, where: string, wide: string[]) {
+  const button = menuButton(page)
+  if (!(await button.isVisible())) {
+    findings.push(`${where}: no menu button in the header`)
+    return
+  }
+  const panel = await menuPanel(page)
+  const expanded = () => button.getAttribute('aria-expanded')
+  if ((await expanded()) !== 'false' || (await panel.isVisible())) findings.push(`${where}: the menu is not closed when the page opens`)
+  if ((await headerLinks(page)).length > 0) findings.push(`${where}: header links are shown with the menu closed`)
+  for (const key of ['Space', 'Enter']) {
+    await button.focus()
+    await page.keyboard.press(key)
+    if ((await expanded()) !== 'true' || !(await panel.isVisible())) findings.push(`${where}: ${key} on the menu button does not open the menu`)
+    await page.keyboard.press('Escape')
+    await expect(panel).toBeHidden({ timeout: 5_000 })
+    if ((await expanded()) !== 'false') findings.push(`${where}: Escape does not close the menu`)
+    if (!(await button.evaluate((b) => b === document.activeElement))) findings.push(`${where}: the focus does not go back to the menu button on Escape`)
+  }
+  await button.focus()
+  await page.keyboard.press('Enter')
+  await expect(panel).toBeVisible({ timeout: 5_000 })
+  const links = await headerLinks(page)
+  if (links.join('\n') !== wide.join('\n')) findings.push(`${where}: the menu's links are not the wide header's: ${links.join(', ')} against ${wide.join(', ')}`)
+  const reached: string[] = []
+  for (let i = 0; i < links.length; i++) {
+    await page.keyboard.press('Tab')
+    const at = await page.evaluate(() => {
+      const a = document.activeElement
+      return a instanceof HTMLAnchorElement && a.closest('header nav') ? a.getAttribute('href') : null
+    })
+    if (at === null) break
+    reached.push(at)
+  }
+  const hrefs = links.map((l) => l.split(' ').find((w) => w.startsWith('/')) ?? '')
+  if (reached.join(' ') !== hrefs.join(' ')) findings.push(`${where}: Tab from the menu button reaches ${reached.join(' ') || 'no link'} in the menu, not ${hrefs.join(' ')}`)
+  await axe(page, `${where}, menu open`)
+  await targets(page, `${where}, menu open`)
+  await button.focus()
+  await page.keyboard.press('Escape')
+  await expect(panel).toBeHidden({ timeout: 5_000 })
+}
+
+// openMenu opens the header's menu on a phone, where the medical terms' button is, and does nothing on a wide screen.
+export async function openMenu(page: Page) {
+  const button = menuButton(page)
+  if ((await button.isVisible()) && (await button.getAttribute('aria-expanded')) !== 'true') await button.click()
+}
