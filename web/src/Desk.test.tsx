@@ -300,6 +300,19 @@ describe('Desk by location', () => {
     await waitFor(() => expect(within(screen.getByText('Ana Example').closest('li') as HTMLElement).queryByText(/Placeholder annex/)).toBeNull())
   })
 
+  it('names a visit at a location taken out of use, also when one location is left in use (RD6)', async () => {
+    const atClosed = { ...anaVisit, appointment: { ...anaVisit.appointment, locationId: closed.id } }
+    for (const locations of [
+      [site, annex, closed],
+      [site, closed],
+    ]) {
+      renderDesk({ 'GET /clinic/locations': () => Response.json(locations), 'GET /clinic/desk/today': () => Response.json({ ...deskDay, visits: [atClosed, boVisit] }) }, reception)
+      const row = (await screen.findByText('Ana Example')).closest('li') as HTMLElement
+      expect(within(row).getByText(/Placeholder closed site \(not in use\)/)).toBeTruthy()
+      cleanup()
+    }
+  })
+
   it('offers no choice to a clinic with one location in use, or when the locations cannot be read', async () => {
     renderDesk({ 'GET /clinic/locations': () => Response.json([site, closed]) })
     await screen.findByText('Ana Example')

@@ -414,6 +414,26 @@ describe('Availability at a location', () => {
     expect(await screen.findByText('Another practitioner already works in this room at that time.')).toBeTruthy()
   })
 
+  it("warns on a row whose room another practitioner holds then, and stops warning once the row changes (RD6)", async () => {
+    const clash = { ...atClinic, availability: [{ ...atClinic.availability[0], roomBusy: true }, { day: 2, start: '09:00', end: '12:00', mode: 'in-person', locationId: annex.id, roomId: room1.id }] }
+    const { requests } = renderEditor(practitioner, {
+      ...locationRoutes,
+      [`GET ${path(cy.roleId)}`]: () => Response.json(clash),
+      [`PUT ${path(cy.roleId)}`]: async (r) => Response.json({ ...clash, ...((await r.json()) as typeof clash), versionId: 3 }),
+    })
+    const text = 'Another practitioner works in this room at these hours, so some of these times are not offered. Choose another room or time.'
+    const warning = await screen.findByText(text)
+    expect(screen.getAllByText(text)).toHaveLength(1)
+    expect(screen.getByLabelText('Room of row 1').getAttribute('aria-describedby')).toBe(warning.id)
+    expect(screen.getByLabelText('Room of row 2').getAttribute('aria-describedby')).toBeNull()
+    fireEvent.change(screen.getByLabelText('From 1'), { target: { value: '07:00' } })
+    fireEvent.change(screen.getByLabelText('To 1'), { target: { value: '08:00' } })
+    expect(screen.queryByText(text)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByRole('status')
+    expect(JSON.stringify(await requests.find((r) => r.method === 'PUT')!.json())).not.toContain('roomBusy')
+  })
+
   it('says so when an in-person row has no location in use to name', async () => {
     renderEditor(practitioner, { 'GET /clinic/locations': () => Response.json([closed]), [`GET ${path(cy.roleId)}`]: () => Response.json(saved) })
     fireEvent.change(await screen.findByLabelText('Visit type 1'), { target: { value: 'in-person' } })

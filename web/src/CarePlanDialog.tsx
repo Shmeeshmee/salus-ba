@@ -128,9 +128,11 @@ export function CarePlanDialog({ api, patientId, appointmentId, plan, services, 
           </fieldset>
         ))}
         {steps.length < 50 && (
-          <button type="button" className="quiet" onClick={() => setSteps((all) => [...all, newStep(Math.max(...all.map((s) => s.key)) + 1)])}>
-            {t('carePlans.addStep')}
-          </button>
+          <div className="actions">
+            <button type="button" onClick={() => setSteps((all) => [...all, newStep(Math.max(...all.map((s) => s.key)) + 1)])}>
+              {t('carePlans.addStep')}
+            </button>
+          </div>
         )}
         <QuotePick api={api} appointmentId={appointmentId} zone={zone} value={quoteId} onChange={setQuoteId} />
         <Alert message={error} />

@@ -45,5 +45,7 @@
   "noRoom": "No room",
   "noLocations": "The clinic has no location in use. Add one under Locations before adding hours at the clinic.",
   "busy": "Another practitioner already works in this room at that time.",
-  "resourceSaveFailed": "The change could not be saved. Try again."
+  "resourceSaveFailed": "The change could not be saved. Try again.",
+  "roomBusyHours": "Another practitioner works in this room at these hours, so some of these times are not offered. Choose another room or time.",
+  "placeNotInUse": "{name} (not in use)"
 }

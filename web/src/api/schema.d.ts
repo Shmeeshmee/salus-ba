@@ -5201,6 +5201,8 @@ export interface components {
              * @description Optional: a room of the rule's location (U3, x-salus-package cms-rm1). Two practitioners' in-person hours never overlap in one room: a PUT that would is refused with `resource_busy`.
              */
             roomId?: string;
+            /** @description In a read only, and only when true (x-salus-package cms-rd6): another active practitioner role's in-person hours hold the rule's room at an overlapping time on the same day (a role brought back into use is not re-checked), so some of the rule's slots are not generated. Never sent in a PUT. */
+            readonly roomBusy?: boolean;
         };
         Availability: {
             /**

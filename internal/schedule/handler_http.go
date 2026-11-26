@@ -63,6 +63,7 @@ type ruleOut struct {
 	LocationID string    `json:"locationId,omitempty"`
 	RoomID     string    `json:"roomId,omitempty"`
 	Day        int       `json:"day"`
+	RoomBusy   bool      `json:"roomBusy,omitempty"` // RD6
 }
 
 // availabilityJSON is the Availability schema.
