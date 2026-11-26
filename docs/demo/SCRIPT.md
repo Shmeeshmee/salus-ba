@@ -208,10 +208,12 @@ the setup.
 ## How the seed works, and why it cannot run in production
 
 `make demo-seed` runs `salusctl demo-seed` in the `tools` container with `SALUS_ENV=dev`. The seed refuses, and writes
-nothing, unless both hold:
+nothing, unless all three hold:
 
 - `SALUS_ENV` is exactly `dev` (`config.IsDev`). The compose stack sets it; production's env file does not, and staging
-  is built from production's.
+  is built from production's. `make demo-seed` sets it itself, so it is not enough alone.
+- The database server is the development stack's Postgres: its `cluster_name` is `salus-dev`, which only
+  `deployments/docker-compose.yml` sets. Production's, staging's and the load stack's servers have another.
 - The database holds no clinic but the demo clinic. Every production or staging database holds its clinics, so the seed
   refuses it whatever `SALUS_ENV` says. A database where an earlier seed stopped partway is refused too; empty it and
   run again.

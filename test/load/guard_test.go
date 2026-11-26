@@ -21,7 +21,8 @@ var wall clock.Clock = clock.System{}
 //
 //   - LOAD_CONFIRM is confirmValue: nobody seeds by accident;
 //   - SALUS_ENV is dev, as only the local stacks set it;
-//   - the server's cluster_name is loadCluster, which only docker-compose.load.yml sets;
+//   - the server's cluster_name is loadCluster, which only docker-compose.load.yml sets, for the owner's pool and
+//     (guardPools) the app's and the statistics' pools alike;
 //   - the database holds no clinic but the seed's own (every organization's name starts with seedPrefix).
 const (
 	confirmValue = "synthetic-busy-year"
@@ -56,6 +57,21 @@ func checkGuard(ctx context.Context, confirm, env string, owner *pgxpool.Pool) e
 	}
 	if others > 0 {
 		return fmt.Errorf("%w: the database holds %d clinics that are not the seed's", errRefused, others)
+	}
+	return nil
+}
+
+// guardPools holds each of the run's other pools, by the variable that named it, to the load stack's server too: a
+// URL pointing elsewhere would take the statistics writes or the driver's requests there.
+func guardPools(ctx context.Context, pools map[string]*pgxpool.Pool) error {
+	for name, pool := range pools {
+		var cluster string
+		if err := pool.QueryRow(ctx, `SELECT current_setting('cluster_name')`).Scan(&cluster); err != nil {
+			return fmt.Errorf("load: %s: cluster_name: %w", name, err)
+		}
+		if cluster != loadCluster {
+			return fmt.Errorf("%w: %s's server's cluster_name is not %q (only the load stack's Postgres has it)", errRefused, name, loadCluster)
+		}
 	}
 	return nil
 }

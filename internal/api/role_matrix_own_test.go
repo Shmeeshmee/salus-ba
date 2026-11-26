@@ -112,7 +112,10 @@ func checkOwn(t *testing.T, m *roleWorld, who string, c *client, op string, data
 // clinic's own records as on ids that do not exist.
 func checkOwnRefused(t *testing.T, m *roleWorld, who string, c *client, op string, code int, got, body string, data []string) {
 	t.Helper()
-	malformed := code == http.StatusBadRequest
+	// Only the two answers given before any access, as F1's checkRefused: a 400 of a validation after the access check
+	// (invalid_service, say) is the route's answer, not a refusal.
+	malformed := code == http.StatusBadRequest &&
+		(got == `{"error":"invalid_request"}`+"\n" || got == `{"error":"websocket_required"}`+"\n")
 	if code != http.StatusForbidden && code != http.StatusNotFound && got != "an empty searchset" && !malformed {
 		t.Errorf("%s as the %s = %d %.200s, want a refusal", op, who, code, got)
 	}

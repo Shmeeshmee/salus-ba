@@ -40,6 +40,7 @@ var matrixBodies = map[string]string{
 	"PUT /clinic/diagnostic-reports/{id}":               `{"title":"Placeholder blood count","results":[]}`,
 	"PUT /practitioner-roles/{id}/availability":         `{"slotMinutes":30,"availability":[{"day":1,"start":"09:00","end":"12:00"}]}`,
 	"PUT /practitioner-roles/{id}/specialty":            `{"code":"394579002"}`,
+	"POST /invites":                                     `{"email":"matrix-invite@example.test","role":"practitioner","givenName":"Synthetic","familyName":"Invitee"}`,
 	"POST /clinic/services":                             `{"name":"Synthetic exam","priceMinor":5000,"modes":["in-person"],"active":true,"translations":[]}`,
 	"PUT /clinic/services/{id}":                         `{"name":"Synthetic exam","priceMinor":5000,"modes":["in-person"],"active":true,"translations":[]}`,
 }

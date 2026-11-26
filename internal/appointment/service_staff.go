@@ -231,14 +231,17 @@ func (s *Service) Arrive(ctx context.Context, c Caller, id string) (Appointment,
 			return nil
 		case err != nil:
 			return err
-		case visitMode(a.Mode) != schedule.ModeInPerson:
-			refused = ErrNotInPerson
-			return nil
 		}
+		// S7: hidden from the desk's day, and not checked in through its id either. Checked before the mode, so the
+		// answer does not tell that the hidden visit exists or is a video visit.
 		if restricted, err := s.Patients.Restricted(ctx, a.PatientID, c.OrganizationID); err != nil {
 			return err
-		} else if restricted { // S7: hidden from the desk's day, and not checked in through its id either
+		} else if restricted {
 			refused = ErrNotFound
+			return nil
+		}
+		if visitMode(a.Mode) != schedule.ModeInPerson {
+			refused = ErrNotInPerson
 			return nil
 		}
 		if out, err = s.Repo.Arrive(ctx, id, s.Clock.Now()); errors.Is(err, ErrClosed) {

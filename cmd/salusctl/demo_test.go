@@ -33,6 +33,25 @@ func TestDemoSeed_IsRefusedOutsideDev(t *testing.T) {
 	}
 }
 
+// SALUS_ENV is set by make demo-seed itself, so the server is a second signal: only the dev compose stack's Postgres
+// has cluster_name salus-dev (deployments/docker-compose.yml); production's, staging's and the load stack's do not.
+func TestDemoSeed_IsRefusedOnAnyServerButTheDevStacks(t *testing.T) {
+	for _, cluster := range []string{"", "salus", "salus-load", "main", "salus-dev "} {
+		if err := devServer(cluster); !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "cluster_name") {
+			t.Errorf("cluster_name %q: error = %v, want the refusal naming cluster_name", cluster, err)
+		}
+	}
+	if err := devServer(demoCluster); err != nil {
+		t.Errorf("cluster_name %q: %v, want none", demoCluster, err)
+	}
+	// The compose stack the tests run on is that server: the full seed's test below passes the guard on it.
+	db, _ := ownerDB(t)
+	var cluster string
+	if err := db.QueryRow(t.Context(), `SELECT current_setting('cluster_name')`).Scan(&cluster); err != nil || cluster != demoCluster {
+		t.Errorf("the test stack's cluster_name = %q, %v; want %q", cluster, err, demoCluster)
+	}
+}
+
 // On a developer's stack it still refuses a database with a clinic that is not the demo's (every production or
 // staging database), and one it stopped on partway; nothing is written.
 func TestDemoSeed_RefusesADatabaseThatIsNotFresh(t *testing.T) {

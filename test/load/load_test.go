@@ -35,6 +35,9 @@ func TestLoad(t *testing.T) {
 		owner: owner, app: openPool(t, mustEnv(t, "LOAD_APP_DATABASE_URL")), stats: openPool(t, mustEnv(t, "LOAD_STATS_DATABASE_URL")),
 		appURL: mustEnv(t, "LOAD_APP_DATABASE_URL"), redisURL: mustEnv(t, "LOAD_REDIS_URL"),
 	}
+	if err := guardPools(ctx, map[string]*pgxpool.Pool{"LOAD_APP_DATABASE_URL": tg.app, "LOAD_STATS_DATABASE_URL": tg.stats}); err != nil {
+		t.Fatal(err)
+	}
 	var clinics int
 	if err := owner.QueryRow(ctx, `SELECT count(*) FROM organization`).Scan(&clinics); err != nil {
 		t.Fatal(err)

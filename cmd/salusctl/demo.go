@@ -52,9 +52,23 @@ type demoSeed struct {
 	followUp      demoVisit // the visit with the lab result, which the chat is about
 }
 
+// demoCluster is the cluster_name of the dev compose stack's Postgres (deployments/docker-compose.yml), and of no
+// production, staging or load server.
+const demoCluster = "salus-dev"
+
+// devServer refuses any server but the dev compose stack's, by its cluster_name.
+func devServer(cluster string) error {
+	if cluster != demoCluster {
+		return fmt.Errorf("%w: the database server's cluster_name is %q, not %q; the demo seed runs only on a developer's compose stack", errDemoRefused, cluster, demoCluster)
+	}
+	return nil
+}
+
 // demoSeedCommand runs demo-seed. It refuses, writing nothing:
 //   - outside a developer's stack: SALUS_ENV must be dev (config.IsDev), which deployments/docker-compose.yml's
 //     services and make demo-seed set and production's env file does not;
+//   - on any server but the dev compose stack's Postgres: its cluster_name must be demoCluster, which only
+//     deployments/docker-compose.yml sets (make demo-seed sets SALUS_ENV itself, so that alone proves little);
 //   - on any database but a fresh one: one with a clinic in it that is not the demo clinic, which every production or
 //     staging database has from its first clinic on; and one the seed stopped on partway.
 //
@@ -69,7 +83,10 @@ func (s services) demoSeedCommand(ctx context.Context, args []string, stdout io.
 	if !config.IsDev() {
 		return fmt.Errorf("%w: SALUS_ENV is not dev; the demo seed runs only on a developer's compose stack", errDemoRefused)
 	}
-	clinics, demo, complete, err := demoState(ctx, s.pool)
+	clinics, demo, complete, cluster, err := demoState(ctx, s.pool)
+	if err == nil {
+		err = devServer(cluster)
+	}
 	switch {
 	case err != nil:
 		return err

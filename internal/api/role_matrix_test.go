@@ -234,3 +234,26 @@ func checkOthers(t *testing.T, op, who string, c *client, ids map[string]string,
 			op, who, code, body, uc, ub)
 	}
 }
+
+// TestRoleMatrix_AReceptionistBookingWithARealBodyIsAnAccountWithoutAPatientProfile holds F1's stranger class of POST
+// /appointments to the answer with a real body, which the matrix's stranger check (no body) does not reach: the
+// desk's account books nothing as a patient and gets what any account without a patient profile gets.
+func TestRoleMatrix_AReceptionistBookingWithARealBodyIsAnAccountWithoutAPatientProfile(t *testing.T) {
+	t.Parallel()
+	m := newRoleWorld(t)
+	method, path, body := matrixRequest(t, "POST /appointments", m.a.ids)
+	if !strings.Contains(body, m.a.ids["slot"]) {
+		t.Fatalf("the booking's body %s names no real slot of the clinic", body)
+	}
+	before := m.count(`SELECT count(*) FROM appointment`)
+	code, got := answer(m.a.receptionist, method, path, body, nil)
+	if code != http.StatusConflict || got != `{"error":"profile_required"}`+"\n" {
+		t.Errorf("POST /appointments with a real slot as the receptionist = %d %.200s, want 409 profile_required", code, got)
+	}
+	if sc, sg := answer(m.stranger, method, path, body, nil); sc != code || sg != got {
+		t.Errorf("the stranger gets %d %.200s, the receptionist %d %.200s: want the same", sc, sg, code, got)
+	}
+	if after := m.count(`SELECT count(*) FROM appointment`); after != before {
+		t.Errorf("appointments %d before, %d after: want none booked", before, after)
+	}
+}

@@ -22,13 +22,14 @@ import (
 //     shows a member with its first invoice, which the monthly run issues only after the trial.
 
 // demoState is what the database holds: every clinic, the demo clinic's id ("" when there is none), and whether the
-// demo clinic has its membership invoice, the seed's last write.
-func demoState(ctx context.Context, db *pgxpool.Pool) (clinics int, demo string, complete bool, err error) {
+// demo clinic has its membership invoice, the seed's last write, and the server's cluster_name (devServer).
+func demoState(ctx context.Context, db *pgxpool.Pool) (clinics int, demo string, complete bool, cluster string, err error) {
 	err = db.QueryRow(ctx, `SELECT (SELECT count(*) FROM organization),
 		coalesce((SELECT id::text FROM organization WHERE name = $1 ORDER BY created_at LIMIT 1), ''),
-		EXISTS (SELECT 1 FROM subscription_invoice i JOIN organization o ON o.id = i.organization_id WHERE o.name = $1)`,
-		demoClinicName).Scan(&clinics, &demo, &complete)
-	return clinics, demo, complete, err
+		EXISTS (SELECT 1 FROM subscription_invoice i JOIN organization o ON o.id = i.organization_id WHERE o.name = $1),
+		current_setting('cluster_name')`,
+		demoClinicName).Scan(&clinics, &demo, &complete, &cluster)
+	return clinics, demo, complete, cluster, err
 }
 
 // demoPlanSet is whether the owner's default plan exists.

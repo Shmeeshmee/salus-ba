@@ -16,7 +16,9 @@
 //	salusctl datarequest list|show|answer|extend|reopen-account ... the data requests to the account (datarequest.go)
 //	salusctl demo-seed [-api <url>]                               the demo clinic on a fresh development stack (demo.go)
 //
-// It prints opaque ids only, never an e-mail. The terminology commands are not audited: the terms are reference
+// It prints opaque ids only, never an e-mail, but for demo-seed, which prints the sign-in sheet of its synthetic
+// accounts (their made-up e-mails, the shared demo password and, on the first run, their TOTP secrets) on a
+// development stack only (demo.go). The terminology commands are not audited: the terms are reference
 // data with no personal data (docs/terminology/SPEC.md §4).
 package main
 

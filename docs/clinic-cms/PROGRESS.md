@@ -58,12 +58,12 @@ writes under its own heading here.
 | TP2 | done 2026-11-25, integrated 2026-11-25; a step's service name and visit time joined at the integration | `cms(TP2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 | LC3 | done 2026-11-25, integrated 2026-11-25; the slot-location extension and the Location participant served at the integration | `cms(LC3)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 | BG4 | done 2026-11-25, integrated 2026-11-25 (migration `00083`, `00085` in its worktree) | `cms(BG4)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
-| RD1 | planned 2026-11-25 (WAVE7.md) | |
-| RD2 | planned 2026-11-25 (WAVE7.md) | |
-| RD3 | planned 2026-11-25 (WAVE7.md) | |
-| RD4 | planned 2026-11-25 (WAVE7.md) | |
-| RD5 | planned 2026-11-25 (WAVE7.md) | |
-| RD6 | planned 2026-11-25 (WAVE7.md) | |
+| RD1 | done 2026-11-25, integrated 2026-11-26 (no migration); one low hole fixed; the matrix's 400 rule and four classes tightened at the integration | `cms(RD1)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD2 | done 2026-11-26, integrated 2026-11-26 (migration `00087`) | `cms(RD2)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD3 | done 2026-11-26, integrated 2026-11-26 (no migration); five design decisions for the owner | `cms(RD3)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD4 | done 2026-11-26, integrated 2026-11-26 (no migration); four deploy blockers for the owner | `cms(RD4)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD5 | done 2026-11-25, integrated 2026-11-26 (no migration); the dev server's `cluster_name` added to its guard at the integration | `cms(RD5)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD6 | done 2026-11-26, integrated 2026-11-26 (no migration) | `cms(RD6)`, merged into `feat/cms` with `cms(wave 7)` |
 
 ## A: visit modes
 
@@ -4681,4 +4681,63 @@ faded disabled rules). `Desk.tsx` and `CarePlanDialog.tsx` may meet RD3's access
 
 ## Wave 7 integration
 
-Not started.
+Done 2026-11-26 on `feat/cms` (from `13db9fbc`, `cms(plan): wave 7, readiness`, on main's `1cb56c5d`), in the worktree
+`../salus-cms-int` (`wt/cms/int`, compose project `salus-cms-int`, image tag `cms-int`) so that no check touched the
+owner's `salus` stack. The six packages ran as subagents in their own worktrees and compose projects, at most three at
+once (RD1, RD2, RD5 first; RD3, RD4, RD6 as slots freed). Each finished on its first run; none was stopped.
+
+**Merges.** `wt/cms/RD4`, `RD2`, `RD1`, `RD6`, `RD3`, `RD5` with `--no-ff` in that order. One conflict:
+`web/src/appCss.test.ts`, where RD6's disabled-button test and RD3's focus and touch tests were both appended at the
+end; both kept. `app.css`, `tokens.css`, the records and the Makefile merged on their own, each package's block kept.
+`make sqlc` and `make gen-clients` after the merges left no diff (RD6's `roomBusy` was already in both clients).
+Migrations: `00087` RD2's `start_at`, the only one (RD1's `00089` and RD6's `00088` unused), next after main's `00086`:
+no renumbering, no gap. `go vet` with the `e2e,drill` and `loadtest` tags compiles every tagged file on the merged tree.
+
+**The demo seed on the merged code** (a fresh `salus-cms-int` stack): `make demo-seed` built the clinic ("The demo clinic
+is ready"), the second run printed "nothing changed"; with `SALUS_ENV=production` it refuses and writes nothing. The
+screenshots in `docs/demo/screenshots/` were not retaken: RD6's restyle of disabled buttons and "Add step" may show in
+two of them (`docs/demo/screenshots.sh` retakes them with the seed's TOTP secrets).
+
+**RD1's matrix and RD3's specs on the merged code**: both ran in the full check below (`internal/api` 191 to 201 s,
+`test/e2e` 446 s with the accessibility journey) and passed.
+
+**Review** (a fresh subagent over `git diff origin/main...HEAD`; Copilot's quota is out until 2026-12-01). No high or
+medium finding; on its three questions: no server refusal was weakened (three test-side looseners, below); the demo and
+load seeds write nothing before their guards and the CI budget test seeds only a throwaway database; no dependency update
+changed behaviour (Go 1.27.4, Postgres 18.7, ClamAV 1.5.5, Redis's rebuilt digest, axe-core as an e2e dev dependency).
+**Fixed**, test first:
+
+- `Arrive` checked the visit's mode before the restricted record, so the desk got `not_in_person` for a restricted
+  record's video visit, which tells that the hidden visit exists and is a video visit (RD1's S7 fix, one step short; low).
+  The restricted check comes first; `TestArrive_RefusesAVisitOfARestrictedRecordAsNotFound` covers both modes and failed
+  on the video one before.
+- The matrix counted any 400 as a refusal. Now only `invalid_request` and `websocket_required`, as F1's check. That
+  showed four routes classed "allowed" for roles the server refuses, a 400 before their access check having passed them:
+  `GET /clinic/patients` (the patient), `POST /invites` and both imports (the patient and the practitioner). With
+  requests that pass validation (a `name`, a valid invite, a CSV file) the server refuses each as it should: no hole.
+  Classes corrected, the requests given (`receptionQueries`, `matrixBodies`), and
+  `TestRoleMatrix_RequestsPastTheirValidationAreRefusedToTheRolesTheyAreNotFor` holds them with real requests and files.
+- `TestRoleMatrix_AReceptionistBookingWithARealBodyIsAnAccountWithoutAPatientProfile`: RD1 moved `POST /appointments`
+  for the desk from refused to stranger, checked only without a body; now with a real slot: 409 `profile_required`, the
+  stranger's answer, nothing booked.
+- The demo seed's guard: `make demo-seed` sets `SALUS_ENV=dev` itself, so on production before its first clinic an
+  operator passing `-e SALUS_ENV=dev` would have created accounts with a known password. Now the server must also be the
+  dev stack's: `deployments/docker-compose.yml`'s Postgres runs with `cluster_name=salus-dev`, which the seed checks
+  (`devServer`, `TestDemoSeed_IsRefusedOnAnyServerButTheDevStacks`); production's, staging's and the load stack's servers
+  have another. The owner's `salus` stack gets the setting on its next `make up` (Postgres recreated, data kept).
+- The load guard checked only the owner's pool; `guardPools` holds the app's and the statistics' pools to the load
+  server's `cluster_name` too (`TestGuard_RefusesAPoolOnAnyServerButTheLoadStacks`, the guard's first test).
+- `salusctl`'s header said it prints ids only; it names `demo-seed`'s sign-in sheet as the exception.
+
+**Declined, recorded**: `scripts/e2e.sh`'s `go test -timeout 30m` (RD3; the suite is 7 to 8 minutes with three
+accessibility passes, 10 was too close); `00087` rewrites `appointment` and `slot` under an exclusive lock (fine before
+go-live, RD2's question); consent's `HistoryShared` is still read once per patient with a history consent (rare); the
+CI budget test is a timing test on shared runners (medians, about 4x headroom); the load driver's Redis URL is not
+checked to be the load stack's (temporary state only).
+
+**Checks** (`salus-cms-int`): `make check BASE=origin/main SETS=go,web,mobile,landing,e2e` on the merged tree passed
+(`make gen-clients` no diff, `make lint` 0 issues with i18n-check and the migrations check, `test`, `archcheck`, `cover`
+89.7% total and every package at 80% or more, `web-lint`, `web-typecheck`, `web-test`, `mobile-analyze`, `mobile-test`
+718, the landing set, `make e2e` on `salus-cms-int-e2e`, which it removed). The review's fixes were made while its last
+sets ran; the same command on the final tree, with them, passed too (cover 89.7%). Two full runs, no rerun of a failing
+check, nothing flaky.
