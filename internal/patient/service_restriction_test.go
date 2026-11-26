@@ -176,3 +176,12 @@ func restrictionEvent(id string, outcome auditevent.Outcome) auditevent.AuditEve
 	e.Purpose.Code = auditevent.CodePATRQT
 	return e
 }
+
+func (r *fakeRepository) RestrictedAll(ctx context.Context, ids []string, org string) (map[string]bool, error) {
+	r.seen(ctx, "RestrictedAll")
+	out := map[string]bool{}
+	for _, id := range ids {
+		_, out[id] = r.restricted[id+"/"+org]
+	}
+	return out, r.err
+}

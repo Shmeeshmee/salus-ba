@@ -424,3 +424,31 @@ func TestDeskDay_GivesEachVisitItsReceiptsAndAuditsThem(t *testing.T) {
 		}
 	}
 }
+
+// The desk's day writes its events (each patient's read, each receipt's and the search) in one statement, not one a
+// row (docs/clinic-cms/load/REPORT.md).
+func TestDeskDay_WritesItsEventsAtOnce(t *testing.T) {
+	t.Parallel()
+	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
+	day := time.Date(2030, 1, 7, 0, 0, 0, 0, sarajevo)
+	first := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
+	second := booked("ac000000-0000-4000-8000-0000000000ac", patientA, roleA1, clinicA, day.Add(10*time.Hour))
+	f := staffFixture(first, second)
+	receipts := fakeReceipts{first.ID: {{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7}}}
+	svc := appointment.NewService(appointment.Ports{Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
+		Patients: f.patients, Clinics: f.clinics, Receipts: receipts, Rules: f.rules, Consents: f.consents})
+	if _, err := svc.DeskDay(t.Context(), desk, day, ""); err != nil {
+		t.Fatal(err)
+	}
+	want := []auditevent.AuditEvent{
+		event(desk, auditevent.CodeRead, "Patient", patientA, auditevent.OutcomeSuccess),
+		event(desk, auditevent.CodeRead, "Invoice", "e1000000-0000-4000-8000-0000000000e1", auditevent.OutcomeSuccess),
+		event(desk, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess),
+	}
+	if f.audit.writes != 1 || !slices.Equal(f.audit.events, want) {
+		t.Errorf("%d writes of %+v, want one of %+v", f.audit.writes, f.audit.events, want)
+	}
+	if f.consents.asked != 0 || f.consents.batches != 1 || f.patients.batches != 1 {
+		t.Errorf("consents %d one by one and %d at once, profiles in %d reads; want one read of each", f.consents.asked, f.consents.batches, f.patients.batches)
+	}
+}

@@ -294,16 +294,20 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time, location
 		if locationID != "" { // that location's in-person visits and every video visit (docs/clinic-cms/WAVE6.md U2)
 			all = slices.DeleteFunc(all, func(a Appointment) bool { return a.LocationID != "" && a.LocationID != locationID })
 		}
-		if out.Visits, err = s.deskVisits(ctx, c, all); err != nil {
+		var events []auditevent.AuditEvent
+		if out.Visits, events, err = s.deskVisits(ctx, c, all); err != nil {
 			return err
 		}
-		if err := s.withReceipts(ctx, c, out.Visits); err != nil {
+		read, err := s.withReceipts(ctx, c, out.Visits)
+		if err != nil {
 			return err
 		}
 		if err := s.withReminders(ctx, c.OrganizationID, out.Visits); err != nil {
 			return err
 		}
-		return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)
+		// One statement for the day's events (docs/clinic-cms/load/REPORT.md).
+		events = append(append(events, read...), s.event(c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess))
+		return s.Audit.RecordAll(ctx, events)
 	})
 	if err != nil {
 		return Desk{}, fmt.Errorf("appointment: desk day: %w", err)
@@ -311,49 +315,56 @@ func (s *Service) DeskDay(ctx context.Context, c Caller, day time.Time, location
 	return out, nil
 }
 
-// deskVisits pairs each appointment with its patient, read once each and audited as a read of Patient, and its booked
-// service's name; a patient the scope hides or whose record is restricted at the clinic is left out.
-func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) ([]DeskVisit, error) {
+// deskVisits pairs each appointment with its patient and its booked service's name, the patients' profiles and consent
+// states read at once (docs/clinic-cms/load/REPORT.md), and gives the events that audit each patient's read; a patient
+// the scope hides or whose record is restricted at the clinic is left out.
+func (s *Service) deskVisits(ctx context.Context, c Caller, all []Appointment) ([]DeskVisit, []auditevent.AuditEvent, error) {
 	names, err := s.serviceNames(ctx, c.OrganizationID, all)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	patients, hidden := map[string]patient.Patient{}, map[string]bool{}
+	var ids []string
+	for _, a := range all {
+		if !slices.Contains(ids, a.PatientID) {
+			ids = append(ids, a.PatientID)
+		}
+	}
+	if len(ids) == 0 {
+		return []DeskVisit{}, nil, nil
+	}
+	states, err := s.Consents.States(ctx, ids, c.OrganizationID)
+	if err != nil {
+		return nil, nil, err
+	}
+	profiles, err := s.Patients.LookupAll(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	var events []auditevent.AuditEvent
+	shown := map[string]bool{}
 	out := make([]DeskVisit, 0, len(all))
 	for _, a := range all {
-		p, ok := patients[a.PatientID]
-		if hidden[a.PatientID] {
+		p, ok := profiles[a.PatientID]
+		// The scope no longer shows them (a revocation), or their record is restricted at the clinic
+		// (docs/clinic-cms/WAVE5.md S7): nothing of them reaches the desk.
+		if !ok || states[a.PatientID].Restricted {
 			continue
 		}
-		if !ok {
-			state, err := s.Consents.State(ctx, a.PatientID, c.OrganizationID)
-			if err != nil {
-				return nil, err
-			}
-			p, err = s.Patients.Lookup(ctx, a.PatientID)
-			// The scope no longer shows them (a revocation), or their record is restricted at the clinic
-			// (docs/clinic-cms/WAVE5.md S7): nothing of them reaches the desk.
-			if errors.Is(err, patient.ErrNotFound) || (err == nil && state.Restricted) {
-				hidden[a.PatientID] = true
-				continue
-			} else if err != nil {
-				return nil, err
-			}
-			p.ConsentActive = state.Active
-			patients[a.PatientID] = p
-			if err := s.record(ctx, c, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess); err != nil {
-				return nil, err
-			}
+		p.ConsentActive = states[a.PatientID].Active
+		if !shown[a.PatientID] {
+			shown[a.PatientID] = true
+			events = append(events, s.event(c, auditevent.CodeRead, "Patient", p.ID, auditevent.OutcomeSuccess))
 		}
 		out = append(out, DeskVisit{Appointment: a, Patient: p, ServiceName: names[a.ServiceID]})
 	}
-	return out, nil
+	return out, events, nil
 }
 
-// withReceipts gives each visit its receipts, each audited as a read by c; nothing without a Receipts port.
-func (s *Service) withReceipts(ctx context.Context, c Caller, visits []DeskVisit) error {
+// withReceipts gives each visit its receipts and the events that audit each as a read by c; nothing without a
+// Receipts port.
+func (s *Service) withReceipts(ctx context.Context, c Caller, visits []DeskVisit) ([]auditevent.AuditEvent, error) {
 	if s.Receipts == nil || len(visits) == 0 {
-		return nil
+		return nil, nil
 	}
 	ids := make([]string, len(visits))
 	for i, v := range visits {
@@ -361,17 +372,16 @@ func (s *Service) withReceipts(ctx context.Context, c Caller, visits []DeskVisit
 	}
 	all, err := s.Receipts.VisitReceipts(ctx, c.OrganizationID, ids)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var events []auditevent.AuditEvent
 	for i := range visits {
 		visits[i].Receipts = all[visits[i].Appointment.ID]
 		for _, r := range visits[i].Receipts {
-			if err := s.record(ctx, c, auditevent.CodeRead, "Invoice", r.ID, auditevent.OutcomeSuccess); err != nil {
-				return err
-			}
+			events = append(events, s.event(c, auditevent.CodeRead, "Invoice", r.ID, auditevent.OutcomeSuccess))
 		}
 	}
-	return nil
+	return events, nil
 }
 
 // serviceNames gives the names of the services the appointments booked, by id, from the clinic's own price list; none

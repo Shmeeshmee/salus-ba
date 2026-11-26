@@ -242,6 +242,20 @@ func (s *Service) Lookup(ctx context.Context, id string) (Patient, error) {
 	return p, nil
 }
 
+// LookupAll is Lookup for several profiles in one read: those the caller's scope shows, by id. It sets no scope and
+// writes no event.
+func (s *Service) LookupAll(ctx context.Context, ids []string) (map[string]Patient, error) {
+	all, err := s.repo.ByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("patient: lookup all: %w", err)
+	}
+	out := make(map[string]Patient, len(all))
+	for _, p := range all {
+		out[p.ID] = p
+	}
+	return out, nil
+}
+
 // valid returns in with its names trimmed, or the error of the first field that breaks SPEC.md "Profile".
 // A birth date must be before today (UTC) and not before 1900-01-01.
 func (s *Service) valid(in Patient) (Patient, error) {

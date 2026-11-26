@@ -101,6 +101,18 @@ SELECT coalesce(bool_or(status = 'active'), false)::boolean AS active, max(revok
 FROM consent
 WHERE patient_id = @patient_id AND organization_id = @organization_id;
 
+-- name: ConsentStates :many
+-- ConsentState for several patients in one statement (a page of the clinic's visits, docs/clinic-cms/load/REPORT.md).
+SELECT p.id::uuid AS patient_id, coalesce(bool_or(c.status = 'active'), false)::boolean AS active,
+       max(c.revoked_at)::timestamptz AS revoked_at,
+       EXISTS (SELECT 1 FROM transcription_consent t
+               WHERE t.patient_id = p.id AND t.organization_id = @organization_id AND t.status = 'active')::boolean AS transcription,
+       EXISTS (SELECT 1 FROM history_consent h
+               WHERE h.patient_id = p.id AND h.organization_id = @organization_id AND h.status = 'active')::boolean AS history
+FROM unnest(@patient_ids::uuid[]) AS p (id)
+LEFT JOIN consent c ON c.patient_id = p.id AND c.organization_id = @organization_id
+GROUP BY p.id;
+
 -- chat_consent (migration 00044, SAL-28): the patient's consent for one conversation and one invited role.
 -- name: GrantChatConsent :one
 INSERT INTO chat_consent (patient_id, organization_id, conversation_id, practitioner_role_id, practitioner_organization_id, status,

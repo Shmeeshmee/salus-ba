@@ -286,3 +286,30 @@ func TestNewAppDatabase_PoolsAreCappedAtPoolMaxConns(t *testing.T) {
 		}
 	}
 }
+
+// Explain tells the rows a traced statement's plan read and dropped, and the conflicts of an insert.
+func TestExplain_TellsTheRowsATracedStatementDroppedAndItsConflicts(t *testing.T) {
+	t.Parallel()
+	url := pgtest.NewDatabaseURL(t)
+	traced := &pgtest.LastQuery{Match: "FROM probe_plan"}
+	pool := pgtest.TracedPool(t, url, traced)
+	ctx := t.Context()
+	if _, err := pool.Exec(ctx, `CREATE TABLE probe_plan (n integer PRIMARY KEY); INSERT INTO probe_plan SELECT generate_series(1, 100)`); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM probe_plan WHERE n % 10 = $1`, 3).Scan(&n); err != nil || n != 10 {
+		t.Fatalf("count = %d, %v", n, err)
+	}
+	if p := pgtest.Explain(t, ctx, pool, traced); p.Dropped != 90 || p.Conflicts != 0 {
+		t.Errorf("Explain(a filtered scan) = %+v, want 90 dropped", p)
+	}
+	insert := &pgtest.LastQuery{Match: "INTO probe_plan"}
+	pool = pgtest.TracedPool(t, url, insert)
+	if _, err := pool.Exec(ctx, `INSERT INTO probe_plan SELECT generate_series(1, $1::integer) ON CONFLICT DO NOTHING`, 5); err != nil {
+		t.Fatal(err)
+	}
+	if p := pgtest.Explain(t, ctx, pool, insert); p.Conflicts != 5 {
+		t.Errorf("Explain(an insert of rows there) = %+v, want 5 conflicts", p)
+	}
+}

@@ -504,7 +504,7 @@ const clinicVisits = `-- name: ClinicVisits :many
 SELECT id, practitioner_role_id, visit_mode, status
 FROM appointment
 WHERE organization_id = $1
-  AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+  AND start_at >= $2::timestamptz AND start_at < $3::timestamptz -- start_at, not lower(period): 00087
 ORDER BY lower(period), id
 `
 
@@ -1041,7 +1041,7 @@ SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_i
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE organization_id = $1 AND status <> 'cancelled'
-  AND lower(period) >= $2::timestamptz AND lower(period) < $3::timestamptz
+  AND start_at >= $2::timestamptz AND start_at < $3::timestamptz -- start_at, not lower(period): 00087
 ORDER BY practitioner_role_id, lower(period), id
 `
 
@@ -2145,8 +2145,8 @@ WHERE ($1::uuid IS NULL OR patient_id = $1::uuid)
   AND ($2::uuid IS NULL OR organization_id = $2::uuid)
   AND ($3::uuid IS NULL OR practitioner_role_id = $3::uuid)
   AND ($4::text IS NULL OR status = $4::text)
-  AND ($5::timestamptz IS NULL OR lower(period) >= $5::timestamptz)
-  AND ($6::timestamptz IS NULL OR lower(period) < $6::timestamptz)
+  AND ($5::timestamptz IS NULL OR start_at >= $5::timestamptz)
+  AND ($6::timestamptz IS NULL OR start_at < $6::timestamptz)
 ORDER BY lower(period), id
 `
 
@@ -2187,7 +2187,8 @@ type SearchAppointmentsRow struct {
 }
 
 // Appointment?patient=…&date=ge…&date=lt…&status=…, a clinic's calendar, a patient's visits in a clinic. An
-// absent parameter matches everything; the scope decides the rest.
+// absent parameter matches everything; the scope decides the rest. The dates are on start_at, not lower(period), so
+// the range is read through the index under row-level security (00087).
 func (q *Queries) SearchAppointments(ctx context.Context, arg SearchAppointmentsParams) ([]SearchAppointmentsRow, error) {
 	rows, err := q.db.Query(ctx, searchAppointments,
 		arg.PatientID,
@@ -2406,6 +2407,94 @@ func (q *Queries) UseActionToken(ctx context.Context, arg UseActionTokenParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const visitsOfPatients = `-- name: VisitsOfPatients :many
+SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at, location_id, room_id,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM appointment
+WHERE organization_id = $1 AND patient_id = ANY ($2::uuid[])
+ORDER BY lower(period), id
+`
+
+type VisitsOfPatientsParams struct {
+	OrganizationID pgtype.UUID
+	PatientIds     []pgtype.UUID
+}
+
+type VisitsOfPatientsRow struct {
+	ID                   pgtype.UUID
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+	CancelledAt          pgtype.Timestamptz
+	PatientID            pgtype.UUID
+	PractitionerRoleID   pgtype.UUID
+	OrganizationID       pgtype.UUID
+	SlotID               pgtype.UUID
+	CancelledByAccountID pgtype.UUID
+	VersionID            int32
+	Status               string
+	CancellationReason   pgtype.Text
+	ConfirmedAt          pgtype.Timestamptz
+	ConfirmedVia         pgtype.Text
+	RescheduleCount      int16
+	BookedVia            string
+	VisitMode            string
+	ServiceID            pgtype.UUID
+	BookedByAccountID    pgtype.UUID
+	ArrivedAt            pgtype.Timestamptz
+	LocationID           pgtype.UUID
+	RoomID               pgtype.UUID
+	StartAt              pgtype.Timestamptz
+	EndAt                pgtype.Timestamptz
+}
+
+// The clinic's appointments of the patients, as the scope shows them, by start: access's facts of a page of visits in one
+// statement (the calendar, docs/clinic-cms/load/REPORT.md).
+func (q *Queries) VisitsOfPatients(ctx context.Context, arg VisitsOfPatientsParams) ([]VisitsOfPatientsRow, error) {
+	rows, err := q.db.Query(ctx, visitsOfPatients, arg.OrganizationID, arg.PatientIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []VisitsOfPatientsRow
+	for rows.Next() {
+		var i VisitsOfPatientsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CancelledAt,
+			&i.PatientID,
+			&i.PractitionerRoleID,
+			&i.OrganizationID,
+			&i.SlotID,
+			&i.CancelledByAccountID,
+			&i.VersionID,
+			&i.Status,
+			&i.CancellationReason,
+			&i.ConfirmedAt,
+			&i.ConfirmedVia,
+			&i.RescheduleCount,
+			&i.BookedVia,
+			&i.VisitMode,
+			&i.ServiceID,
+			&i.BookedByAccountID,
+			&i.ArrivedAt,
+			&i.LocationID,
+			&i.RoomID,
+			&i.StartAt,
+			&i.EndAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const waitlistCandidates = `-- name: WaitlistCandidates :many

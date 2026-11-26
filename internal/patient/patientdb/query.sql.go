@@ -322,6 +322,91 @@ func (q *Queries) PatientRestriction(ctx context.Context, arg PatientRestriction
 	return items, nil
 }
 
+const patientsByIDs = `-- name: PatientsByIDs :many
+SELECT id, updated_at, account_id, version_id, birth_date, given_name, family_name, phone, registered_by_organization_id
+FROM patient
+WHERE id = ANY ($1::uuid[])
+`
+
+type PatientsByIDsRow struct {
+	ID                         pgtype.UUID
+	UpdatedAt                  pgtype.Timestamptz
+	AccountID                  pgtype.UUID
+	VersionID                  int32
+	BirthDate                  pgtype.Date
+	GivenName                  string
+	FamilyName                 string
+	Phone                      pgtype.Text
+	RegisteredByOrganizationID pgtype.UUID
+}
+
+// PatientByID for several profiles in one statement (a page of the clinic's visits, docs/clinic-cms/load/REPORT.md).
+func (q *Queries) PatientsByIDs(ctx context.Context, ids []pgtype.UUID) ([]PatientsByIDsRow, error) {
+	rows, err := q.db.Query(ctx, patientsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PatientsByIDsRow
+	for rows.Next() {
+		var i PatientsByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UpdatedAt,
+			&i.AccountID,
+			&i.VersionID,
+			&i.BirthDate,
+			&i.GivenName,
+			&i.FamilyName,
+			&i.Phone,
+			&i.RegisteredByOrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const patientsRestricted = `-- name: PatientsRestricted :many
+SELECT p.id::uuid AS patient_id, patient_record_restricted(p.id, $1::uuid)::boolean AS restricted
+FROM unnest($2::uuid[]) AS p (id)
+`
+
+type PatientsRestrictedParams struct {
+	OrganizationID pgtype.UUID
+	PatientIds     []pgtype.UUID
+}
+
+type PatientsRestrictedRow struct {
+	PatientID  pgtype.UUID
+	Restricted bool
+}
+
+// PatientRestricted for several patients in one statement (a page of the clinic's visits, docs/clinic-cms/load/REPORT.md).
+func (q *Queries) PatientsRestricted(ctx context.Context, arg PatientsRestrictedParams) ([]PatientsRestrictedRow, error) {
+	rows, err := q.db.Query(ctx, patientsRestricted, arg.OrganizationID, arg.PatientIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PatientsRestrictedRow
+	for rows.Next() {
+		var i PatientsRestrictedRow
+		if err := rows.Scan(&i.PatientID, &i.Restricted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const registerPatient = `-- name: RegisterPatient :one
 INSERT INTO patient (registered_by_organization_id, given_name, family_name, birth_date, phone, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)

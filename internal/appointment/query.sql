@@ -28,7 +28,8 @@ FOR SHARE;
 
 -- name: SearchAppointments :many
 -- Appointment?patient=…&date=ge…&date=lt…&status=…, a clinic's calendar, a patient's visits in a clinic. An
--- absent parameter matches everything; the scope decides the rest.
+-- absent parameter matches everything; the scope decides the rest. The dates are on start_at, not lower(period), so
+-- the range is read through the index under row-level security (00087).
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
        cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at, location_id, room_id,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
@@ -37,8 +38,18 @@ WHERE (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)
   AND (sqlc.narg(organization_id)::uuid IS NULL OR organization_id = sqlc.narg(organization_id)::uuid)
   AND (sqlc.narg(practitioner_role_id)::uuid IS NULL OR practitioner_role_id = sqlc.narg(practitioner_role_id)::uuid)
   AND (sqlc.narg(status)::text IS NULL OR status = sqlc.narg(status)::text)
-  AND (sqlc.narg(from_at)::timestamptz IS NULL OR lower(period) >= sqlc.narg(from_at)::timestamptz)
-  AND (sqlc.narg(to_at)::timestamptz IS NULL OR lower(period) < sqlc.narg(to_at)::timestamptz)
+  AND (sqlc.narg(from_at)::timestamptz IS NULL OR start_at >= sqlc.narg(from_at)::timestamptz)
+  AND (sqlc.narg(to_at)::timestamptz IS NULL OR start_at < sqlc.narg(to_at)::timestamptz)
+ORDER BY lower(period), id;
+
+-- name: VisitsOfPatients :many
+-- The clinic's appointments of the patients, as the scope shows them, by start: access's facts of a page of visits in one
+-- statement (the calendar, docs/clinic-cms/load/REPORT.md).
+SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
+       cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at, location_id, room_id,
+       lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
+FROM appointment
+WHERE organization_id = @organization_id AND patient_id = ANY (@patient_ids::uuid[])
 ORDER BY lower(period), id;
 
 -- name: CancelAppointment :one
@@ -391,7 +402,7 @@ GROUP BY patient_id;
 SELECT id, practitioner_role_id, visit_mode, status
 FROM appointment
 WHERE organization_id = @organization_id
-  AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+  AND start_at >= @from_at::timestamptz AND start_at < @to_at::timestamptz -- start_at, not lower(period): 00087
 ORDER BY lower(period), id;
 
 -- The patient arrived at the desk (docs/clinic-cms W6): a booked in-person visit, in the clinic's scope.
@@ -410,7 +421,7 @@ SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_i
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
 FROM appointment
 WHERE organization_id = @organization_id AND status <> 'cancelled'
-  AND lower(period) >= @from_at::timestamptz AND lower(period) < @to_at::timestamptz
+  AND start_at >= @from_at::timestamptz AND start_at < @to_at::timestamptz -- start_at, not lower(period): 00087
 ORDER BY practitioner_role_id, lower(period), id;
 
 -- The desk moves a booked visit (docs/clinic-cms WAVE4 M1): the period, the slot and the practitioner role together,

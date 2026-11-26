@@ -126,6 +126,29 @@ func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Appointmen
 	return out, nil
 }
 
+func (r *postgresRepository) VisitsOf(ctx context.Context, org string, patientIDs []string) ([]Appointment, error) {
+	var o pgtype.UUID
+	if o.Scan(org) != nil {
+		return nil, nil
+	}
+	ids := make([]pgtype.UUID, 0, len(patientIDs))
+	for _, id := range patientIDs {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			ids = append(ids, u)
+		}
+	}
+	rows, err := r.q(ctx).VisitsOfPatients(ctx, appointmentdb.VisitsOfPatientsParams{OrganizationID: o, PatientIds: ids})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Appointment, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toAppointment(appointmentdb.AppointmentByIDRow(row)))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) Cancel(ctx context.Context, id string, reason Reason, by string, at time.Time) (Appointment, error) {
 	var u, acc pgtype.UUID
 	if u.Scan(id) != nil {

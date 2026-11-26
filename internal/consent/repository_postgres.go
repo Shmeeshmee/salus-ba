@@ -219,6 +219,41 @@ func (r *postgresRepository) State(ctx context.Context, patientID, organizationI
 	return st, nil
 }
 
+func (r *postgresRepository) States(ctx context.Context, patientIDs []string, organizationID string) (map[string]access.Consent, error) {
+	var o pgtype.UUID
+	if o.Scan(organizationID) != nil {
+		return map[string]access.Consent{}, nil
+	}
+	ids := make([]pgtype.UUID, 0, len(patientIDs))
+	for _, id := range patientIDs {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			ids = append(ids, u)
+		}
+	}
+	q := consentdb.New(postgres.Conn(ctx, r.db))
+	rows, err := q.ConsentStates(ctx, consentdb.ConsentStatesParams{OrganizationID: o, PatientIds: ids})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]access.Consent, len(rows))
+	for _, row := range rows {
+		st := access.Consent{Active: row.Active, RevokedAt: row.RevokedAt.Time, Transcription: row.Transcription, History: row.History}
+		if st.History { // rare: the history's selection, as State reads it
+			shared, err := q.HistoryShared(ctx, consentdb.HistorySharedParams{PatientID: row.PatientID, OrganizationID: o})
+			if err != nil {
+				return nil, err
+			}
+			st.Shared = make([]string, 0, len(shared))
+			for _, e := range shared {
+				st.Shared = append(st.Shared, e.String())
+			}
+		}
+		out[row.PatientID.String()] = st
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) LockCare(ctx context.Context, patientID, organizationID string) (bool, error) {
 	var p, o pgtype.UUID
 	if p.Scan(patientID) != nil || o.Scan(organizationID) != nil {

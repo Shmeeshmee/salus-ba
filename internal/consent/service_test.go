@@ -924,3 +924,43 @@ func TestState_TellsARestrictedRecord(t *testing.T) {
 		t.Error("State() with a failing read = nil error")
 	}
 }
+
+func (r *fakeRepository) States(ctx context.Context, patientIDs []string, organizationID string) (map[string]access.Consent, error) {
+	out := map[string]access.Consent{}
+	for _, p := range patientIDs {
+		st, err := r.State(ctx, p, organizationID)
+		if err != nil {
+			return nil, err
+		}
+		out[p] = st
+	}
+	r.calls = append(r.calls[:len(r.calls)-len(patientIDs)], "States")
+	return out, nil
+}
+
+func (r *fakeRestrictions) RestrictedAll(ctx context.Context, patientIDs []string, organizationID string) (map[string]bool, error) {
+	out := map[string]bool{}
+	for _, p := range patientIDs {
+		out[p] = p == r.patient && organizationID == r.clinic
+	}
+	r.calls++
+	return out, r.err
+}
+
+// States is State for several patients in one read each of the consents and the restrictions, in the caller's
+// transaction and scope, without an audit.
+func TestStates_GivesEachPatientsStateInOneRead(t *testing.T) {
+	f := newFixture()
+	r := &fakeRestrictions{patient: patientA, clinic: clinicB}
+	got, err := f.svc.WithRestrictions(r).States(context.WithValue(t.Context(), txKey{}, true), []string{patientA, patientB}, clinicB)
+	if err != nil || !got[patientA].Restricted || !got[patientA].RevokedAt.Equal(revoked) || got[patientB].Restricted || got[patientB].Active {
+		t.Fatalf("States() = %+v, %v; want A's revoked and restricted, B's empty", got, err)
+	}
+	if !slices.Equal(f.repo.calls, []string{"States"}) || r.calls != 1 || len(f.audit.events) != 0 {
+		t.Errorf("calls %v, %d restriction reads, %d events; want one of each read and no event", f.repo.calls, r.calls, len(f.audit.events))
+	}
+	r.err = errors.New("boom")
+	if _, err := f.svc.WithRestrictions(r).States(t.Context(), []string{patientA}, clinicB); err == nil {
+		t.Error("States() with a failing read = nil error")
+	}
+}

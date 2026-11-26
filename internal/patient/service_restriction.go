@@ -77,6 +77,15 @@ func (s *Service) Restricted(ctx context.Context, id, org string) (bool, error) 
 	return ok, nil
 }
 
+// RestrictedAll is Restricted for several patients in one read, by id.
+func (s *Service) RestrictedAll(ctx context.Context, ids []string, org string) (map[string]bool, error) {
+	out, err := s.repo.RestrictedAll(ctx, ids, org)
+	if err != nil {
+		return nil, fmt.Errorf("patient: restricted all: %w", err)
+	}
+	return out, nil
+}
+
 // restriction runs change on the record of the clinic's patient id for the admin c, in one transaction with its audit.
 func (s *Service) restriction(ctx context.Context, c Caller, id string, change func(ctx context.Context) error) error {
 	if c.patient() || !c.Admin {
