@@ -107,7 +107,7 @@ func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Appointmen
 	for _, id := range []struct {
 		dst *pgtype.UUID
 		v   string
-	}{{&p.PatientID, f.PatientID}, {&p.OrganizationID, f.OrganizationID}, {&p.PractitionerRoleID, f.PractitionerRoleID}} {
+	}{{&p.PatientID, f.PatientID}, {&p.OrganizationID, f.OrganizationID}, {&p.PractitionerRoleID, f.PractitionerRoleID}, {&p.AfterID, f.AfterID}} {
 		if id.v != "" && id.dst.Scan(id.v) != nil {
 			return nil, nil // an id that is not a UUID names no appointment
 		}
@@ -115,6 +115,8 @@ func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Appointmen
 	p.Status = pgtype.Text{String: string(f.Status), Valid: f.Status != ""}
 	p.FromAt = pgtype.Timestamptz{Time: f.From, Valid: !f.From.IsZero()}
 	p.ToAt = pgtype.Timestamptz{Time: f.To, Valid: !f.To.IsZero()}
+	p.AfterStart = pgtype.Timestamptz{Time: f.AfterStart, Valid: f.AfterID != ""}
+	p.RowLimit = pgtype.Int4{Int32: int32(f.Limit), Valid: f.Limit > 0} //nolint:gosec // a page and one more, MaxCount+1 at most
 	rows, err := r.q(ctx).SearchAppointments(ctx, p)
 	if err != nil {
 		return nil, err

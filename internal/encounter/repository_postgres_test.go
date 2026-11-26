@@ -232,6 +232,70 @@ func TestByIDAndSearch_ReadInTheScope(t *testing.T) {
 	}
 }
 
+// A page of the search starts after the position (period start, id), strictly, holds Limit at most, and keeps the
+// search's order, by period start then id: the pages, concatenated, are the search without them, ties included.
+func TestSearch_PagesByPeriodStartThenIDAfterThePosition(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	at := time.Date(2030, 1, 7, 9, 2, 0, 0, time.UTC)
+	s := seedDB(t, owner, at)
+	for i, joined := range []time.Time{at.Add(time.Hour), at, at, at, at.Add(-time.Hour)} {
+		var appt string
+		if err := owner.QueryRow(t.Context(), `INSERT INTO appointment (patient_id, practitioner_role_id, organization_id, slot_id, period)
+			VALUES ($1, $2, $3, gen_random_uuid(), tstzrange($4::timestamptz, $4::timestamptz + interval '30 minutes')) RETURNING id::text`,
+			s.patient, s.role, s.clinic, at.Add(time.Duration(i+5)*time.Hour)).Scan(&appt); err != nil {
+			t.Fatal(err)
+		}
+		e := s.encounter(0, joined)
+		e.AppointmentID = appt
+		if _, _, err := startIn(t, app, s, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	search := func(f encounter.Filter) []encounter.Encounter {
+		t.Helper()
+		var got []encounter.Encounter
+		if err := inScope(t, app, s.clinic, "", func(ctx context.Context, r encounter.Repository) error {
+			var err error
+			got, err = r.Search(ctx, f)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	whole := search(encounter.Filter{})
+	if len(whole) != 5 {
+		t.Fatalf("Search() = %d encounters, want 5", len(whole))
+	}
+	for i := 1; i < len(whole); i++ {
+		if a, b := whole[i-1], whole[i]; a.PeriodStart.After(b.PeriodStart) || (a.PeriodStart.Equal(b.PeriodStart) && a.ID >= b.ID) {
+			t.Errorf("Search() has %s at %s before %s at %s, want by period start then id", a.ID, a.PeriodStart, b.ID, b.PeriodStart)
+		}
+	}
+	for limit := 1; limit <= len(whole)+1; limit++ {
+		var got []encounter.Encounter
+		f := encounter.Filter{Limit: limit}
+		for range len(whole) + 1 {
+			page := search(f)
+			if len(page) > limit {
+				t.Fatalf("a page of %d holds %d", limit, len(page))
+			}
+			got = append(got, page...)
+			if len(page) < limit {
+				break
+			}
+			f.AfterStart, f.AfterID = page[len(page)-1].PeriodStart, page[len(page)-1].ID
+		}
+		if !slices.Equal(ids(got), ids(whole)) {
+			t.Errorf("pages of %d = %v, want %v", limit, ids(got), ids(whole))
+		}
+	}
+	if got := search(encounter.Filter{AfterStart: at, AfterID: "x"}); got != nil {
+		t.Errorf("after an id that is not a UUID = %v, want none", ids(got))
+	}
+}
+
 // Organization gives the clinic of an encounter outside any scope, and ErrNotFound for an unknown id or one
 // that is not a UUID.
 func TestOrganization_GivesTheClinicOfAnEncounterOutsideAnyScope(t *testing.T) {

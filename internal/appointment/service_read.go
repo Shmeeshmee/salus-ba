@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/auditevent"
@@ -104,7 +105,9 @@ func minimal(a Appointment) Appointment {
 // clinic's. Each appointment returned is
 // audited, and each patient name given; a search that returns none writes one event without an entity.
 func (s *Service) Search(ctx context.Context, c Caller, f Filter) ([]Seen, error) {
-	return s.find(ctx, c, f, false)
+	f.AfterStart, f.AfterID = time.Time{}, ""
+	p, err := s.find(ctx, c, f, 0, false)
+	return p.Seen, err
 }
 
 // ClinicRecord returns the clinic's appointments of the filter as the record the clinic hands over or exports holds
@@ -120,44 +123,46 @@ func (s *Service) ClinicRecord(ctx context.Context, c Caller, f Filter) ([]Seen,
 		}
 		return nil, ErrForbidden
 	}
-	return s.find(ctx, c, f, true)
+	f.AfterStart, f.AfterID = time.Time{}, ""
+	p, err := s.find(ctx, c, f, 0, true)
+	return p.Seen, err
 }
 
-// find is Search, or ClinicRecord when record: it runs the search in a transaction and audits a refusal or an
-// empty result with one event.
-func (s *Service) find(ctx context.Context, c Caller, f Filter, record bool) ([]Seen, error) {
-	var out []Seen
+// find is Search, a page of count when count is set, or ClinicRecord when record: it runs the search in a
+// transaction and audits a refusal or an empty result with one event.
+func (s *Service) find(ctx context.Context, c Caller, f Filter, count int, record bool) (Page, error) {
+	var out Page
 	var refused error
 	err := s.Tx.WithTx(ctx, func(ctx context.Context) error {
 		var err error
-		if out, refused, err = s.search(ctx, c, f, record); err != nil {
+		if out, refused, err = s.search(ctx, c, f, count, record); err != nil {
 			return err
 		}
 		if refused != nil {
 			return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeMinorFailure)
 		}
-		if len(out) == 0 {
+		if len(out.Seen) == 0 {
 			return s.record(ctx, c, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess)
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
-		return nil, fmt.Errorf("appointment: search: %w", err)
+		return Page{}, fmt.Errorf("appointment: search: %w", err)
 	case refused != nil:
-		return nil, refused
+		return Page{}, refused
 	}
 	return out, nil
 }
 
 // search runs the caller's search in the transaction in ctx and audits each result, or gives the refusal.
-func (s *Service) search(ctx context.Context, c Caller, f Filter, record bool) (out []Seen, refused, err error) {
+func (s *Service) search(ctx context.Context, c Caller, f Filter, count int, record bool) (out Page, refused, err error) {
 	clinic := f.OrganizationID // a patient's own search may narrow to one clinic; staff's is set below
-	f.OrganizationID = ""
+	f.OrganizationID, f.Limit = "", 0
 	var viewer access.Viewer
 	switch {
 	case c.patient() && c.PatientID == "":
-		return nil, nil, nil
+		return Page{}, nil, nil
 	case c.patient():
 		f.PatientID, f.OrganizationID = c.PatientID, clinic
 		viewer = access.Viewer{Role: access.RolePatient, Patient: c.PatientID}
@@ -165,31 +170,27 @@ func (s *Service) search(ctx context.Context, c Caller, f Filter, record bool) (
 	default:
 		var none bool
 		if f, none, refused, err = s.staffFilter(ctx, c, f); none || refused != nil || err != nil {
-			return nil, refused, err
+			return Page{}, refused, err
 		}
 		if record {
 			if err := s.Repo.SetRecord(ctx); err != nil {
-				return nil, nil, err
+				return Page{}, nil, err
 			}
 		}
 		viewer, err = s.staffViewer(ctx, c, f.PractitionerRoleID)
 		if err == nil && !c.Admin && (viewer.PractitionerRole == "" || viewer.PractitionerRole != f.PractitionerRoleID) {
-			return nil, ErrForbidden, nil
+			return Page{}, ErrForbidden, nil
 		}
 	}
 	if err != nil {
-		return nil, nil, err
+		return Page{}, nil, err
 	}
-	all, err := s.Repo.Search(ctx, f)
+	views, more, err := s.matches(ctx, c, viewer, f, count, record)
 	if err != nil {
-		return nil, nil, err
+		return Page{}, nil, err
 	}
-	views, err := s.views(ctx, c, viewer, f, all, record)
-	if err != nil {
-		return nil, nil, err
-	}
-	out, err = s.showAll(ctx, c, views)
-	return out, nil, err
+	seen, err := s.showAll(ctx, c, views)
+	return Page{Seen: seen, More: more}, nil, err
 }
 
 // shownView is a view of a search's result with the practitioner of its role.

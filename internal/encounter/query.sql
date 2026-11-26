@@ -28,13 +28,17 @@ RETURNING id, created_at, updated_at, period_start, period_end, appointment_id, 
           version_id, status;
 
 -- name: SearchEncounters :many
--- Encounter?appointment=…&patient=…; an absent parameter matches everything, the scope decides the rest.
+-- Encounter?appointment=…&patient=…; an absent parameter matches everything, the scope decides the rest. A page starts
+-- after the position (after_start, after_id) in the order and holds row_limit rows at most; a null bound or limit does
+-- not narrow.
 SELECT id, created_at, updated_at, period_start, period_end, appointment_id, organization_id, patient_id, practitioner_role_id,
        version_id, status
 FROM encounter
 WHERE (sqlc.narg(appointment_id)::uuid IS NULL OR appointment_id = sqlc.narg(appointment_id)::uuid)
   AND (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)::uuid)
-ORDER BY period_start, id;
+  AND (sqlc.narg(after_id)::uuid IS NULL OR (period_start, id) > (sqlc.narg(after_start)::timestamptz, sqlc.narg(after_id)::uuid))
+ORDER BY period_start, id
+LIMIT sqlc.narg(row_limit)::integer;
 
 -- name: EncounterOrganization :one
 -- The clinic of an encounter whatever the scope (migration 00033), null for an unknown id.

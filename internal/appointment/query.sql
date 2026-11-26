@@ -29,7 +29,8 @@ FOR SHARE;
 -- name: SearchAppointments :many
 -- Appointment?patient=…&date=ge…&date=lt…&status=…, a clinic's calendar, a patient's visits in a clinic. An
 -- absent parameter matches everything; the scope decides the rest. The dates are on start_at, not lower(period), so
--- the range is read through the index under row-level security (00087).
+-- the range is read through the index under row-level security (00087). A page starts after the position (after_start,
+-- after_id) in the order and holds row_limit rows at most; a null bound or limit does not narrow.
 SELECT id, created_at, updated_at, cancelled_at, patient_id, practitioner_role_id, organization_id, slot_id,
        cancelled_by_account_id, version_id, status, cancellation_reason, confirmed_at, confirmed_via, reschedule_count, booked_via, visit_mode, service_id, booked_by_account_id, arrived_at, location_id, room_id,
        lower(period)::timestamptz AS start_at, upper(period)::timestamptz AS end_at
@@ -40,7 +41,9 @@ WHERE (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)
   AND (sqlc.narg(status)::text IS NULL OR status = sqlc.narg(status)::text)
   AND (sqlc.narg(from_at)::timestamptz IS NULL OR start_at >= sqlc.narg(from_at)::timestamptz)
   AND (sqlc.narg(to_at)::timestamptz IS NULL OR start_at < sqlc.narg(to_at)::timestamptz)
-ORDER BY lower(period), id;
+  AND (sqlc.narg(after_id)::uuid IS NULL OR (start_at, id) > (sqlc.narg(after_start)::timestamptz, sqlc.narg(after_id)::uuid))
+ORDER BY start_at, id
+LIMIT sqlc.narg(row_limit)::integer;
 
 -- name: VisitsOfPatients :many
 -- The clinic's appointments of the patients, as the scope shows them, by start: access's facts of a page of visits in one

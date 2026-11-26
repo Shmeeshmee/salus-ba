@@ -271,10 +271,22 @@ func (r *fakeRepository) Search(ctx context.Context, f questionnaireresponse.Fil
 	if r.err != nil {
 		return nil, r.err
 	}
+	// the search's order: by due time, then by creation (the order they were stored in), then by id
+	all := slices.Clone(r.responses)
+	slices.SortStableFunc(all, func(x, y questionnaireresponse.Response) int { return x.DueAt.Compare(y.DueAt) })
+	from := 0
+	if f.AfterID != "" {
+		at := slices.IndexFunc(all, func(x questionnaireresponse.Response) bool { return x.ID == f.AfterID && r.visible(x) })
+		if at < 0 {
+			return nil, questionnaireresponse.ErrPosition
+		}
+		from = at + 1
+	}
 	var out []questionnaireresponse.Response
-	for _, x := range r.responses {
+	for _, x := range all[from:] {
 		if r.visible(x) && (f.AppointmentID == "" || x.AppointmentID == f.AppointmentID) &&
-			(f.PatientID == "" || x.PatientID == f.PatientID) && (f.Status == "" || x.Status == f.Status) {
+			(f.PatientID == "" || x.PatientID == f.PatientID) && (f.Status == "" || x.Status == f.Status) &&
+			(f.Limit == 0 || len(out) < f.Limit) {
 			out = append(out, r.withFiles(x))
 		}
 	}

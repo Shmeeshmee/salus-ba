@@ -58,14 +58,23 @@ RETURNING id, created_at, updated_at, due_at, authored_at, organization_id, appo
 
 -- name: SearchQuestionnaireResponses :many
 -- QuestionnaireResponse?appointment=…&patient=…&status=…; an absent parameter matches everything, the scope
--- decides the rest.
+-- decides the rest. A page starts after the position (after_due, after_created, after_id) in the order and holds
+-- row_limit rows at most; a null bound or limit does not narrow.
 SELECT id, created_at, updated_at, due_at, authored_at, organization_id, appointment_id, patient_id, practitioner_role_id, questionnaire_id,
        series_id, version_id, source, status, answers, attachments, language
 FROM questionnaire_response
 WHERE (sqlc.narg(appointment_id)::uuid IS NULL OR appointment_id = sqlc.narg(appointment_id)::uuid)
   AND (sqlc.narg(patient_id)::uuid IS NULL OR patient_id = sqlc.narg(patient_id)::uuid)
   AND (sqlc.narg(status)::text IS NULL OR status = sqlc.narg(status)::text)
-ORDER BY due_at, created_at, id;
+  AND (sqlc.narg(after_id)::uuid IS NULL
+       OR (due_at, created_at, id) > (sqlc.narg(after_due)::timestamptz, sqlc.narg(after_created)::timestamptz, sqlc.narg(after_id)::uuid))
+ORDER BY due_at, created_at, id
+LIMIT sqlc.narg(row_limit)::integer;
+
+-- name: QuestionnaireResponsePosition :one
+-- Where a response stands in the search's order, as the scope shows it: the page of a search after it starts there.
+-- Both times are fixed once the response is stored.
+SELECT due_at, created_at FROM questionnaire_response WHERE id = @id;
 
 -- name: DeleteUnsubmittedQuestionnaireResponses :execrows
 -- The retention purger, as salus_retention in every clinic: the responses never submitted once due.

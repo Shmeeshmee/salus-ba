@@ -179,15 +179,32 @@ type Seen struct {
 }
 
 // Filter narrows a search: the start in [From, To) (zero for open), and the patient, the practitioner (or
-// their role) and the status when set.
+// their role) and the status when set. A page of it starts after the position (AfterStart, AfterID) in the search's
+// order, by start then id, when AfterID is set, and holds Limit appointments at most when Limit is (SearchPage).
 type Filter struct {
 	From               time.Time
 	To                 time.Time
+	AfterStart         time.Time
 	PatientID          string
 	PractitionerID     string // the practitioner participant (FHIR practitioner)
 	PractitionerRoleID string
 	Status             Status
 	OrganizationID     string // set by the service for staff; a patient may narrow their own to one clinic
+	AfterID            string
+	Limit              int // set by the service; 0 for every match
+}
+
+// The pages of a search (api/fhir/CapabilityStatement.json): DefaultCount matches a page unless the search's _count
+// asks for another number, MaxCount at most. The Encounter and QuestionnaireResponse searches page alike.
+const (
+	DefaultCount = 50
+	MaxCount     = 200
+)
+
+// Page is one page of a search: its matches, and whether more may follow the last (the next page starts after it).
+type Page struct {
+	Seen []Seen
+	More bool
 }
 
 // Notice is what an e-mail job needs: the appointment and the account of its patient.

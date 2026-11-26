@@ -471,6 +471,24 @@ func (q *Queries) QuestionnaireResponseByID(ctx context.Context, id pgtype.UUID)
 	return i, err
 }
 
+const questionnaireResponsePosition = `-- name: QuestionnaireResponsePosition :one
+SELECT due_at, created_at FROM questionnaire_response WHERE id = $1
+`
+
+type QuestionnaireResponsePositionRow struct {
+	DueAt     pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
+// Where a response stands in the search's order, as the scope shows it: the page of a search after it starts there.
+// Both times are fixed once the response is stored.
+func (q *Queries) QuestionnaireResponsePosition(ctx context.Context, id pgtype.UUID) (QuestionnaireResponsePositionRow, error) {
+	row := q.db.QueryRow(ctx, questionnaireResponsePosition, id)
+	var i QuestionnaireResponsePositionRow
+	err := row.Scan(&i.DueAt, &i.CreatedAt)
+	return i, err
+}
+
 const removeQuestionnaireResponseAttachment = `-- name: RemoveQuestionnaireResponseAttachment :execrows
 UPDATE questionnaire_response
 SET attachments = coalesce((SELECT jsonb_agg(a.e ORDER BY a.n) FROM jsonb_array_elements(attachments) WITH ORDINALITY AS a(e, n)
@@ -541,19 +559,35 @@ FROM questionnaire_response
 WHERE ($1::uuid IS NULL OR appointment_id = $1::uuid)
   AND ($2::uuid IS NULL OR patient_id = $2::uuid)
   AND ($3::text IS NULL OR status = $3::text)
+  AND ($4::uuid IS NULL
+       OR (due_at, created_at, id) > ($5::timestamptz, $6::timestamptz, $4::uuid))
 ORDER BY due_at, created_at, id
+LIMIT $7::integer
 `
 
 type SearchQuestionnaireResponsesParams struct {
 	AppointmentID pgtype.UUID
 	PatientID     pgtype.UUID
 	Status        pgtype.Text
+	AfterID       pgtype.UUID
+	AfterDue      pgtype.Timestamptz
+	AfterCreated  pgtype.Timestamptz
+	RowLimit      pgtype.Int4
 }
 
 // QuestionnaireResponse?appointment=…&patient=…&status=…; an absent parameter matches everything, the scope
-// decides the rest.
+// decides the rest. A page starts after the position (after_due, after_created, after_id) in the order and holds
+// row_limit rows at most; a null bound or limit does not narrow.
 func (q *Queries) SearchQuestionnaireResponses(ctx context.Context, arg SearchQuestionnaireResponsesParams) ([]QuestionnaireResponse, error) {
-	rows, err := q.db.Query(ctx, searchQuestionnaireResponses, arg.AppointmentID, arg.PatientID, arg.Status)
+	rows, err := q.db.Query(ctx, searchQuestionnaireResponses,
+		arg.AppointmentID,
+		arg.PatientID,
+		arg.Status,
+		arg.AfterID,
+		arg.AfterDue,
+		arg.AfterCreated,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -3,11 +3,13 @@ package encounter_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/Shmeeshmee/salus/internal/appointment"
 	"github.com/Shmeeshmee/salus/internal/encounter"
+	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata/")
@@ -46,6 +49,8 @@ type stubReader struct {
 	filter encounter.Filter
 	out    []encounter.Encounter
 	calls  int
+	count  int  // the count SearchPage was asked
+	more   bool // SearchPage's answer: more follow
 }
 
 func (s *stubReader) Read(_ context.Context, c appointment.Caller, id string) (encounter.Encounter, error) {
@@ -57,10 +62,10 @@ func (s *stubReader) Read(_ context.Context, c appointment.Caller, id string) (e
 	return s.out[0], nil
 }
 
-func (s *stubReader) Search(_ context.Context, c appointment.Caller, f encounter.Filter) ([]encounter.Encounter, error) {
-	s.caller, s.filter = c, f
+func (s *stubReader) SearchPage(_ context.Context, c appointment.Caller, f encounter.Filter, count int) (encounter.Page, error) {
+	s.caller, s.filter, s.count = c, f, count
 	s.calls++
-	return s.out, s.err
+	return encounter.Page{Encounters: s.out, More: s.more}, s.err
 }
 
 func as(c appointment.Caller) func(context.Context) (appointment.Caller, bool, error) {
@@ -138,7 +143,7 @@ func TestHandlerSearch_PassesTheFilterAndSendsASearchset(t *testing.T) {
 
 func TestHandlerSearch_RejectsAnUnknownOrRepeatedParameterWithoutCallingTheService(t *testing.T) {
 	for _, query := range []string{
-		"_count=10", "status=finished", "date=ge2030-01-07T00:00:00Z", "subject=Patient/" + patientA,
+		"_count=0", "_count=ten", "_count=1&_count=2", "_cursor=nonsense", "_cursor=" + fhir.NewCursor(time.Time{}, encA), "status=finished", "date=ge2030-01-07T00:00:00Z", "subject=Patient/" + patientA,
 		"patient=Patient/" + patientA + "&patient=Patient/" + patientB, "patient=Practitioner/" + practA1, "patient=",
 		"practitioner=PractitionerRole/" + roleA1, "appointment=Encounter/" + encA, "appointment=" + apptA + "," + apptA2,
 		"participant=Practitioner/" + practA1, "%zz",
@@ -197,5 +202,66 @@ func TestHandler_SendsAFixedOperationOutcomeAndLogsTheErrorOnly(t *testing.T) {
 				t.Errorf("GET %s: the log holds the patient's id from the query: %s", path, log.String())
 			}
 		}
+	}
+}
+
+// _count asks for a page of that many, 200 at most; _cursor is the position a next link gave, read back into the
+// filter.
+func TestHandlerSearch_PassesTheCountAndThePosition(t *testing.T) {
+	at := joined.Add(500)
+	for _, tt := range []struct {
+		query string
+		after encounter.Filter
+		count int
+	}{
+		{"", encounter.Filter{}, 0},
+		{"_count=1", encounter.Filter{}, 1},
+		{"_count=1000", encounter.Filter{}, 200},
+		{"_count=4&_cursor=" + fhir.NewCursor(at, encA), encounter.Filter{AfterStart: at, AfterID: encA}, 4},
+	} {
+		var log bytes.Buffer
+		svc := &stubReader{}
+		rec := getEnc(t, svc, as(admin), &log, "/fhir/R4/Encounter?"+tt.query)
+		if rec.Code != http.StatusOK || svc.count != tt.count || !svc.filter.AfterStart.Equal(tt.after.AfterStart) || svc.filter.AfterID != tt.after.AfterID {
+			t.Errorf("?%s = %d %s after SearchPage(%+v, %d), want 200, %+v and %d", tt.query, rec.Code, rec.Body, svc.filter, svc.count, tt.after, tt.count)
+		}
+	}
+}
+
+// A page with more after it links the next one from after its last encounter (its period start and id), without a
+// total; the last page of several has neither.
+func TestHandlerSearch_LinksTheNextPage(t *testing.T) {
+	var log bytes.Buffer
+	svc := &stubReader{out: []encounter.Encounter{inProgress, finished}, more: true}
+	rec := getEnc(t, svc, as(admin), &log, "/fhir/R4/Encounter?patient=Patient/"+patientA+"&_count=2")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s, want 200", rec.Code, rec.Body)
+	}
+	assertGolden(t, "search_page.json", rec.Body.Bytes())
+	var b struct {
+		Total *int `json:"total"`
+		Link  []struct {
+			Relation string `json:"relation"`
+			URL      string `json:"url"`
+		} `json:"link"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if b.Total != nil || len(b.Link) != 2 || b.Link[1].Relation != "next" {
+		t.Fatalf("bundle %s, want a self and a next link and no total", rec.Body)
+	}
+	next, err := url.Parse(b.Link[1].URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, id, ok := fhir.ParseCursor(next.Query().Get("_cursor"))
+	if next.Query().Get("_count") != "2" || next.Query().Get("patient") != "Patient/"+patientA || !ok || !at.Equal(finished.PeriodStart) || id != encA2 {
+		t.Errorf("next = %s, want the search from after the page's last encounter", b.Link[1].URL)
+	}
+	svc = &stubReader{out: []encounter.Encounter{finished}}
+	rec = getEnc(t, svc, as(admin), &log, strings.TrimPrefix(b.Link[1].URL, "https://api.example.test"))
+	if rec.Code != http.StatusOK || svc.count != 2 || svc.filter.AfterID != encA2 || strings.Contains(rec.Body.String(), `"next"`) || strings.Contains(rec.Body.String(), `"total"`) {
+		t.Errorf("the next page = %d %s after %+v; want the last page, without a next link or a total", rec.Code, rec.Body, svc.filter)
 	}
 }
