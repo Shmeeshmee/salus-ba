@@ -99,7 +99,7 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /questionnaire-responses/{id}/items/{linkId}/attachments": refused,
 
 	// The patient's appointments through the patient's and the practitioner's routes, and the consultation.
-	"POST /appointments": refused, "POST /appointments/{id}/cancel": refused, "POST /appointments/{id}/status": refused,
+	"POST /appointments": stranger, "POST /appointments/{id}/cancel": refused, "POST /appointments/{id}/status": refused,
 	"GET /appointments/{id}/changes": refused, "POST /appointments/{id}/confirm": refused,
 	"POST /appointments/{id}/reschedule": refused, "GET /appointments/{id}/actions": refused,
 	"GET /appointments/{id}/consultation": refused, "POST /appointments/{id}/consultation/join": refused,

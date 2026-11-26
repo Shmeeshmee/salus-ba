@@ -250,6 +250,28 @@ func TestArrive_MarksABookedInPersonVisitArrivedAtTheDeskOnly(t *testing.T) {
 	}
 }
 
+// A visit of a patient whose record is restricted at the clinic (docs/clinic-cms/WAVE5.md S7) is not on the desk's
+// day, and the desk cannot check it in through its id either: refused as not found, audited, nothing changed
+// (docs/clinic-cms/WAVE7.md RD1).
+func TestArrive_RefusesAVisitOfARestrictedRecordAsNotFound(t *testing.T) {
+	t.Parallel()
+	a := booked(apptA, patientA, roleA1, clinicA, now.Add(time.Hour))
+	a.Mode = schedule.ModeInPerson
+	f := staffFixture(a)
+	f.patients.restricted = patientA + clinicA
+	for _, c := range []appointment.Caller{desk, admin} {
+		if _, err := f.svc.Arrive(t.Context(), c, apptA); !errors.Is(err, appointment.ErrNotFound) {
+			t.Errorf("Arrive of a restricted record's visit as %s = %v, want ErrNotFound", c.AccountID, err)
+		}
+	}
+	if got := f.repo.appts[0]; got.Status != appointment.StatusBooked || len(f.repo.changes) != 0 {
+		t.Errorf("the visit %+v, changes %+v; want it booked and unchanged", got, f.repo.changes)
+	}
+	if n := len(f.audit.events); n != 2 || f.audit.events[0].Outcome != auditevent.OutcomeMinorFailure {
+		t.Errorf("audit %+v, want two refusals", f.audit.events)
+	}
+}
+
 func TestDeskDay_GivesTheClinicsDayInItsZoneWithEachPatientAndAuditsTheReads(t *testing.T) {
 	t.Parallel()
 	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
