@@ -14,6 +14,7 @@ import (
 	"github.com/Shmeeshmee/salus/internal/api"
 	"github.com/Shmeeshmee/salus/internal/config"
 	"github.com/Shmeeshmee/salus/pkg/llm/llmtest"
+	"github.com/Shmeeshmee/salus/pkg/postgres"
 	"github.com/Shmeeshmee/salus/pkg/postgres/pgtest"
 	"github.com/Shmeeshmee/salus/pkg/redis/redistest"
 )
@@ -23,7 +24,7 @@ func TestDemoSeed_IsRefusedOutsideDev(t *testing.T) {
 	_, count := ownerDB(t)
 	for _, env := range []string{"", "production", "staging"} {
 		t.Setenv("SALUS_ENV", env)
-		err := run(t.Context(), []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
+		err := runDemo(t, []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
 		if !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "SALUS_ENV") {
 			t.Errorf("SALUS_ENV=%q: error = %v, want the refusal naming SALUS_ENV", env, err)
 		}
@@ -35,21 +36,42 @@ func TestDemoSeed_IsRefusedOutsideDev(t *testing.T) {
 
 // SALUS_ENV is set by make demo-seed itself, so the server is a second signal: only the dev compose stack's Postgres
 // has cluster_name salus-dev (deployments/docker-compose.yml); production's, staging's and the load stack's do not.
+// On a server whose cluster_name is not the one required it refuses, in dev, on a fresh database, and writes nothing.
 func TestDemoSeed_IsRefusedOnAnyServerButTheDevStacks(t *testing.T) {
 	for _, cluster := range []string{"", "salus", "salus-load", "main", "salus-dev "} {
-		if err := devServer(cluster); !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "cluster_name") {
+		if err := devServer(cluster, demoCluster); !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "cluster_name") {
 			t.Errorf("cluster_name %q: error = %v, want the refusal naming cluster_name", cluster, err)
 		}
 	}
-	if err := devServer(demoCluster); err != nil {
+	if err := devServer(demoCluster, demoCluster); err != nil {
 		t.Errorf("cluster_name %q: %v, want none", demoCluster, err)
 	}
-	// The compose stack the tests run on is that server: the full seed's test below passes the guard on it.
-	db, _ := ownerDB(t)
-	var cluster string
-	if err := db.QueryRow(t.Context(), `SELECT current_setting('cluster_name')`).Scan(&cluster); err != nil || cluster != demoCluster {
-		t.Errorf("the test stack's cluster_name = %q, %v; want %q", cluster, err, demoCluster)
+	_, count := ownerDB(t)
+	t.Setenv("SALUS_ENV", config.EnvDev)
+	err := runOn(t.Context(), []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{}, "salus-dev-elsewhere")
+	if !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "cluster_name") {
+		t.Errorf("on a server that is not the one required: error = %v, want the refusal naming cluster_name", err)
 	}
+	if n := count("SELECT count(*) FROM organization") + count("SELECT count(*) FROM subscription_plan"); n != 0 {
+		t.Errorf("%d rows written by a refused seed, want none", n)
+	}
+}
+
+// runDemo runs demo-seed requiring the test server's own cluster_name, on the database ownerDB gave (DATABASE_URL):
+// the tests run on any compose stack, one whose Postgres predates cluster_name=salus-dev included; the requirement
+// itself is held above.
+func runDemo(t *testing.T, args []string, out *bytes.Buffer) error {
+	t.Helper()
+	db, err := postgres.Open(t.Context(), os.Getenv("DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var cluster string
+	if err := db.QueryRow(t.Context(), `SELECT current_setting('cluster_name')`).Scan(&cluster); err != nil {
+		t.Fatal(err)
+	}
+	return runOn(t.Context(), args, out, cluster)
 }
 
 // On a developer's stack it still refuses a database with a clinic that is not the demo's (every production or
@@ -60,21 +82,21 @@ func TestDemoSeed_RefusesADatabaseThatIsNotFresh(t *testing.T) {
 	if _, err := db.Exec(t.Context(), `INSERT INTO organization (name) VALUES ('Synthetic clinic')`); err != nil {
 		t.Fatal(err)
 	}
-	err := run(t.Context(), []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
+	err := runDemo(t, []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
 	if !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "fresh stack") {
 		t.Errorf("another clinic: error = %v, want the refusal", err)
 	}
 	if _, err := db.Exec(t.Context(), `UPDATE organization SET name = $1`, demoClinicName); err != nil {
 		t.Fatal(err)
 	}
-	err = run(t.Context(), []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
+	err = runDemo(t, []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
 	if !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "partway") {
 		t.Errorf("a partial demo clinic: error = %v, want the refusal", err)
 	}
 	if _, err := db.Exec(t.Context(), `INSERT INTO organization (name) VALUES ('Synthetic clinic')`); err != nil {
 		t.Fatal(err)
 	}
-	err = run(t.Context(), []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
+	err = runDemo(t, []string{"demo-seed", "-api", "http://127.0.0.1:1"}, &bytes.Buffer{})
 	if !errors.Is(err, errDemoRefused) || !strings.Contains(err.Error(), "1 clinics besides") {
 		t.Errorf("the demo clinic and another: error = %v, want the refusal", err)
 	}
@@ -126,7 +148,7 @@ func TestDemoSeed_FillsAFreshStackOnce(t *testing.T) {
 	t.Setenv("SALUS_ENV", config.EnvDev)
 	base := demoAPI(t, db.Config().ConnString())
 	var out bytes.Buffer
-	if err := run(t.Context(), []string{"demo-seed", "-api", base}, &out); err != nil {
+	if err := runDemo(t, []string{"demo-seed", "-api", base}, &out); err != nil {
 		t.Fatalf("demo-seed: %v", err)
 	}
 	for _, c := range demoCounts {
@@ -148,7 +170,7 @@ func TestDemoSeed_FillsAFreshStackOnce(t *testing.T) {
 	}
 	before := demoSnapshot(t, count)
 	out.Reset()
-	if err := run(t.Context(), []string{"demo-seed", "-api", base}, &out); err != nil {
+	if err := runDemo(t, []string{"demo-seed", "-api", base}, &out); err != nil {
 		t.Fatalf("demo-seed again: %v", err)
 	}
 	if after := demoSnapshot(t, count); after != before {

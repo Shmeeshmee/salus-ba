@@ -56,10 +56,10 @@ type demoSeed struct {
 // production, staging or load server.
 const demoCluster = "salus-dev"
 
-// devServer refuses any server but the dev compose stack's, by its cluster_name.
-func devServer(cluster string) error {
-	if cluster != demoCluster {
-		return fmt.Errorf("%w: the database server's cluster_name is %q, not %q; the demo seed runs only on a developer's compose stack", errDemoRefused, cluster, demoCluster)
+// devServer refuses any server whose cluster_name is not want (demoCluster but in the tests, runOn).
+func devServer(cluster, want string) error {
+	if cluster != want {
+		return fmt.Errorf("%w: the database server's cluster_name is %q, not %q; the demo seed runs only on a developer's compose stack (make up recreates its Postgres with it)", errDemoRefused, cluster, want)
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (s services) demoSeedCommand(ctx context.Context, args []string, stdout io.
 	}
 	clinics, demo, complete, cluster, err := demoState(ctx, s.pool)
 	if err == nil {
-		err = devServer(cluster)
+		err = devServer(cluster, s.devCluster)
 	}
 	switch {
 	case err != nil:

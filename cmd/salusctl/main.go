@@ -78,9 +78,16 @@ type services struct {
 	operator   *datarequest.Operator
 	pool       *pgxpool.Pool         // the owner's, for demo-seed (demo.go)
 	jobs       *river.Client[pgx.Tx] // the job inserter, for demo-seed
+	devCluster string                // the cluster_name demo-seed requires (runOn)
 }
 
 func run(ctx context.Context, args []string, stdout io.Writer) error {
+	return runOn(ctx, args, stdout, demoCluster)
+}
+
+// runOn is run, with devCluster the cluster_name demo-seed requires of the database server: demoCluster from run;
+// the tests give their own server's, so that they run on a stack whose Postgres predates the setting.
+func runOn(ctx context.Context, args []string, stdout io.Writer, devCluster string) error {
 	if len(args) == 0 {
 		return errors.New(usage)
 	}
@@ -100,7 +107,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
 	s := services{
-		tx: tx, pool: pool, jobs: jobs,
+		tx: tx, pool: pool, jobs: jobs, devCluster: devCluster,
 		clinics: organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{}, nil),
 		accounts: auth.NewService(auth.Ports{
 			Repo: auth.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Jobs: auth.NewRiverJobs(jobs),
