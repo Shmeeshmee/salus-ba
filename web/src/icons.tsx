@@ -99,6 +99,15 @@ export function CrossIcon() {
   )
 }
 
+// MenuIcon is the header's menu on a phone: three lines, as the links it folds away.
+export function MenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+      <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" />
+    </svg>
+  )
+}
+
 // Call controls: a slash across the icon when it is off.
 export function MicrophoneIcon({ off = false }: { off?: boolean }) {
   return (
