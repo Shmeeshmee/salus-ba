@@ -99,7 +99,7 @@ var receptionRoutes = map[string]receptionClass{
 	"POST /questionnaire-responses/{id}/items/{linkId}/attachments": refused,
 
 	// The patient's appointments through the patient's and the practitioner's routes, and the consultation.
-	"POST /appointments": refused, "POST /appointments/{id}/cancel": refused, "POST /appointments/{id}/status": refused,
+	"POST /appointments": stranger, "POST /appointments/{id}/cancel": refused, "POST /appointments/{id}/status": refused,
 	"GET /appointments/{id}/changes": refused, "POST /appointments/{id}/confirm": refused,
 	"POST /appointments/{id}/reschedule": refused, "GET /appointments/{id}/actions": refused,
 	"GET /appointments/{id}/consultation": refused, "POST /appointments/{id}/consultation/join": refused,
@@ -344,6 +344,7 @@ var receptionQueries = map[string]string{
 	"/analytics/platform/cells":      "table=gd&from=2026-01&to=2026-06&by=entity",
 	"/analytics/platform/heatmap":    "quarter=2026-Q1",
 	"/clinic/noshow-flags":           "from=2026-01-05T00:00:00Z&to=2026-01-12T00:00:00Z",
+	"/clinic/patients":               "name=Zz", // WAVE7 integration: past the name's check, to the access check
 	"/clinic/receipts":               "from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z",
 	"/clinic/reports/practice":       "from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z",
 	"/clinic/reports/receipts":       "from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z",

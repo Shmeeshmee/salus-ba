@@ -5,7 +5,7 @@
 DELETE FROM slot
 WHERE schedule_id = @schedule_id
   AND status = 'free'
-  AND lower(period) > @after::timestamptz
+  AND start_at > @after::timestamptz -- start_at, not lower(period): read through its index under the policies (00087)
   AND (lower(period), upper(period), visit_mode, coalesce(location_id::text, ''), coalesce(room_id::text, '')) NOT IN (
       SELECT g.s, g.e, g.m, coalesce(NULLIF(g.l, ''), room.location_id::text, ''), g.r
       FROM (SELECT unnest(@starts::timestamptz[]) AS s, unnest(@ends::timestamptz[]) AS e, unnest(@modes::text[]) AS m,
@@ -16,26 +16,27 @@ WHERE schedule_id = @schedule_id
 -- Generation: a free slot per period, in its rule's visit mode, at its location (its room's when it names none) and in
 -- its room ('' for none); one that overlaps a slot of the schedule (slot_no_overlap) or another's in its room
 -- (slot_room_no_overlap, which the rules' check at save leaves to a race) is skipped. The arrays are as long as each
--- other, so the unnest calls pair them up.
+-- other, so the unnest calls pair them up. A period the schedule has a slot of already is left out before the insert,
+-- so an hourly re-run sends none to the conflict check (docs/clinic-cms/load/REPORT.md).
 INSERT INTO slot (schedule_id, organization_id, period, visit_mode, location_id, room_id)
 SELECT @schedule_id::uuid, @organization_id::uuid, tstzrange(g.s, g.e), g.m, coalesce(NULLIF(g.l, '')::uuid, room.location_id),
        room.id
 FROM (SELECT unnest(@starts::timestamptz[]) AS s, unnest(@ends::timestamptz[]) AS e, unnest(@modes::text[]) AS m,
              unnest(@locations::text[]) AS l, unnest(@rooms::text[]) AS r) AS g
 LEFT JOIN room ON room.id = NULLIF(g.r, '')::uuid
+WHERE NOT EXISTS (SELECT 1 FROM slot s WHERE s.schedule_id = @schedule_id::uuid AND s.start_at = g.s AND upper(s.period) = g.e)
 ON CONFLICT DO NOTHING;
 
 -- name: SearchFreeSlots :many
--- Slot?schedule=…&start=ge…&start=lt…&status=free; the overlap lets the exclusion constraint's index serve it.
+-- Slot?schedule=…&start=ge…&start=lt…&status=free.
 SELECT id, updated_at, schedule_id, organization_id, version_id, status, visit_mode, location_id, lower(period)::timestamptz AS start_at,
        upper(period)::timestamptz AS end_at
 FROM slot
 WHERE schedule_id = @schedule_id
   AND status = 'free'
-  AND period && tstzrange(@from_at::timestamptz, @to_at::timestamptz)
-  AND lower(period) >= @from_at::timestamptz
-  AND lower(period) < @to_at::timestamptz
-ORDER BY lower(period);
+  AND start_at >= @from_at::timestamptz -- start_at, not lower(period): read through its index under the policies (00087)
+  AND start_at < @to_at::timestamptz
+ORDER BY start_at;
 
 -- name: SlotByID :one
 -- Booking: the slot to book, as the directory shows it (free, of an active role of a listed clinic).

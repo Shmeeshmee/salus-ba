@@ -117,6 +117,7 @@ type ruleJSON struct {
 	LocationID string    `json:"location_id,omitempty"` // since 00080
 	RoomID     string    `json:"room_id,omitempty"`     // RM1
 	Day        int       `json:"day"`
+	RoomBusy   bool      `json:"-"` // a read's, never stored (RD6)
 }
 
 func rulesJSON(rules []Rule) ([]byte, error) {

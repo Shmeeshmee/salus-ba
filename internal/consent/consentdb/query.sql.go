@@ -202,6 +202,58 @@ func (q *Queries) ConsentState(ctx context.Context, arg ConsentStateParams) (Con
 	return i, err
 }
 
+const consentStates = `-- name: ConsentStates :many
+SELECT p.id::uuid AS patient_id, coalesce(bool_or(c.status = 'active'), false)::boolean AS active,
+       max(c.revoked_at)::timestamptz AS revoked_at,
+       EXISTS (SELECT 1 FROM transcription_consent t
+               WHERE t.patient_id = p.id AND t.organization_id = $1 AND t.status = 'active')::boolean AS transcription,
+       EXISTS (SELECT 1 FROM history_consent h
+               WHERE h.patient_id = p.id AND h.organization_id = $1 AND h.status = 'active')::boolean AS history
+FROM unnest($2::uuid[]) AS p (id)
+LEFT JOIN consent c ON c.patient_id = p.id AND c.organization_id = $1
+GROUP BY p.id
+`
+
+type ConsentStatesParams struct {
+	OrganizationID pgtype.UUID
+	PatientIds     []pgtype.UUID
+}
+
+type ConsentStatesRow struct {
+	PatientID     pgtype.UUID
+	Active        bool
+	RevokedAt     pgtype.Timestamptz
+	Transcription bool
+	History       bool
+}
+
+// ConsentState for several patients in one statement (a page of the clinic's visits, docs/clinic-cms/load/REPORT.md).
+func (q *Queries) ConsentStates(ctx context.Context, arg ConsentStatesParams) ([]ConsentStatesRow, error) {
+	rows, err := q.db.Query(ctx, consentStates, arg.OrganizationID, arg.PatientIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ConsentStatesRow
+	for rows.Next() {
+		var i ConsentStatesRow
+		if err := rows.Scan(
+			&i.PatientID,
+			&i.Active,
+			&i.RevokedAt,
+			&i.Transcription,
+			&i.History,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const consentsByPatient = `-- name: ConsentsByPatient :many
 SELECT 'care'::text AS kind, c.id, c.updated_at, c.date_time, c.revoked_at, c.patient_id, c.organization_id, c.version_id, c.status
 FROM consent c

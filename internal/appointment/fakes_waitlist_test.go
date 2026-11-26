@@ -243,13 +243,16 @@ func (w *fakeWaitlist) DeleteOffersClosedBefore(context.Context, time.Time) (int
 	return 3, w.err
 }
 
-// RecordAll keeps the events as Record does, in a transaction only.
+// RecordAll keeps the events as Record does, in a transaction only, in one write.
 func (a *fakeAuditor) RecordAll(ctx context.Context, es []auditevent.AuditEvent) error {
-	for _, e := range es {
-		if err := a.Record(ctx, e); err != nil {
-			return err
-		}
+	if ctx.Value(txKey{}) == nil {
+		return errors.New("audited outside a transaction")
 	}
+	if a.err != nil {
+		return a.err
+	}
+	a.writes++
+	a.events = append(a.events, es...)
 	return nil
 }
 

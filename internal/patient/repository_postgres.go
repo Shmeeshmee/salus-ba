@@ -294,3 +294,47 @@ func (r *postgresRepository) SetDataRequests(ctx context.Context, on bool) error
 	}
 	return postgres.SetLocal(ctx, "app.data_requests", "")
 }
+
+func (r *postgresRepository) ByIDs(ctx context.Context, ids []string) ([]Patient, error) {
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).PatientsByIDs(ctx, uuids(ids))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Patient, 0, len(rows))
+	for _, row := range rows {
+		p, err := toPatient(patientdb.PatientByIDRow(row), nil, ErrNotFound)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) RestrictedAll(ctx context.Context, ids []string, org string) (map[string]bool, error) {
+	var o pgtype.UUID
+	if o.Scan(org) != nil {
+		return map[string]bool{}, nil
+	}
+	rows, err := patientdb.New(postgres.Conn(ctx, r.db)).PatientsRestricted(ctx, patientdb.PatientsRestrictedParams{OrganizationID: o, PatientIds: uuids(ids)})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		out[row.PatientID.String()] = row.Restricted
+	}
+	return out, nil
+}
+
+// uuids are the ids that are UUIDs, as pgtype values; the others are left out.
+func uuids(ids []string) []pgtype.UUID {
+	out := make([]pgtype.UUID, 0, len(ids))
+	for _, id := range ids {
+		var u pgtype.UUID
+		if u.Scan(id) == nil {
+			out = append(out, u)
+		}
+	}
+	return out
+}

@@ -142,7 +142,8 @@ function HoursForm({ api, saved, places, onSaved, onReload }: FormProps) {
   })
 
   function change(key: number, next: Partial<Rule>) {
-    setRows((rs) => rs.map((r) => (r.key === key ? placed({ ...r, ...next }) : r)))
+    // a changed row is no longer the one the server found busy; saving it checks the room again
+    setRows((rs) => rs.map((r) => (r.key === key ? placed({ ...r, ...next, roomBusy: undefined }) : r)))
     setDone(false)
   }
 
@@ -190,7 +191,7 @@ function HoursForm({ api, saved, places, onSaved, onReload }: FormProps) {
               </select>
               <ModeSelect label={t('calendar.modeN', { n: i + 1 })} value={r.mode ?? 'video'} onChange={(mode) => change(r.key, { mode })} />
               {r.mode === 'in-person' && (
-                <PlaceSelects places={places} n={i + 1} locationId={r.locationId} roomId={r.roomId} onChange={(next) => change(r.key, next)} />
+                <PlaceSelects places={places} n={i + 1} locationId={r.locationId} roomId={r.roomId} busy={r.roomBusy} onChange={(next) => change(r.key, next)} />
               )}
               <ClockField label={t('calendar.fromN', { n: i + 1 })} value={r.start} onChange={(start) => change(r.key, { start })} />
               <span className="muted" aria-hidden="true">

@@ -250,6 +250,31 @@ func TestArrive_MarksABookedInPersonVisitArrivedAtTheDeskOnly(t *testing.T) {
 	}
 }
 
+// A visit of a patient whose record is restricted at the clinic (docs/clinic-cms/WAVE5.md S7) is not on the desk's
+// day, and the desk cannot check it in through its id either: refused as not found, audited, nothing changed
+// (docs/clinic-cms/WAVE7.md RD1).
+func TestArrive_RefusesAVisitOfARestrictedRecordAsNotFound(t *testing.T) {
+	t.Parallel()
+	// A video visit too: answering not_in_person would tell the desk the hidden visit exists and is a video visit.
+	for _, mode := range []schedule.VisitMode{schedule.ModeInPerson, schedule.ModeVideo} {
+		a := booked(apptA, patientA, roleA1, clinicA, now.Add(time.Hour))
+		a.Mode = mode
+		f := staffFixture(a)
+		f.patients.restricted = patientA + clinicA
+		for _, c := range []appointment.Caller{desk, admin} {
+			if _, err := f.svc.Arrive(t.Context(), c, apptA); !errors.Is(err, appointment.ErrNotFound) {
+				t.Errorf("Arrive of a restricted record's %s visit as %s = %v, want ErrNotFound", mode, c.AccountID, err)
+			}
+		}
+		if got := f.repo.appts[0]; got.Status != appointment.StatusBooked || len(f.repo.changes) != 0 {
+			t.Errorf("the %s visit %+v, changes %+v; want it booked and unchanged", mode, got, f.repo.changes)
+		}
+		if n := len(f.audit.events); n != 2 || f.audit.events[0].Outcome != auditevent.OutcomeMinorFailure {
+			t.Errorf("audit of the %s visit %+v, want two refusals", mode, f.audit.events)
+		}
+	}
+}
+
 func TestDeskDay_GivesTheClinicsDayInItsZoneWithEachPatientAndAuditsTheReads(t *testing.T) {
 	t.Parallel()
 	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
@@ -422,5 +447,33 @@ func TestDeskDay_GivesEachVisitItsReceiptsAndAuditsThem(t *testing.T) {
 		if !slices.Contains(f.audit.events, event(desk, auditevent.CodeRead, "Invoice", id, auditevent.OutcomeSuccess)) {
 			t.Errorf("no audited read of Invoice/%s by the desk in %+v", id, f.audit.events)
 		}
+	}
+}
+
+// The desk's day writes its events (each patient's read, each receipt's and the search) in one statement, not one a
+// row (docs/clinic-cms/load/REPORT.md).
+func TestDeskDay_WritesItsEventsAtOnce(t *testing.T) {
+	t.Parallel()
+	sarajevo, _ := time.LoadLocation("Europe/Sarajevo")
+	day := time.Date(2030, 1, 7, 0, 0, 0, 0, sarajevo)
+	first := booked("ab000000-0000-4000-8000-0000000000ab", patientA, roleA1, clinicA, day.Add(9*time.Hour))
+	second := booked("ac000000-0000-4000-8000-0000000000ac", patientA, roleA1, clinicA, day.Add(10*time.Hour))
+	f := staffFixture(first, second)
+	receipts := fakeReceipts{first.ID: {{ID: "e1000000-0000-4000-8000-0000000000e1", Number: 7}}}
+	svc := appointment.NewService(appointment.Ports{Repo: f.repo, Audit: f.audit, Tx: fakeTransactor{f: f}, Clock: clock.Fixed{T: now},
+		Patients: f.patients, Clinics: f.clinics, Receipts: receipts, Rules: f.rules, Consents: f.consents})
+	if _, err := svc.DeskDay(t.Context(), desk, day, ""); err != nil {
+		t.Fatal(err)
+	}
+	want := []auditevent.AuditEvent{
+		event(desk, auditevent.CodeRead, "Patient", patientA, auditevent.OutcomeSuccess),
+		event(desk, auditevent.CodeRead, "Invoice", "e1000000-0000-4000-8000-0000000000e1", auditevent.OutcomeSuccess),
+		event(desk, auditevent.CodeSearchType, "", "", auditevent.OutcomeSuccess),
+	}
+	if f.audit.writes != 1 || !slices.Equal(f.audit.events, want) {
+		t.Errorf("%d writes of %+v, want one of %+v", f.audit.writes, f.audit.events, want)
+	}
+	if f.consents.asked != 0 || f.consents.batches != 1 || f.patients.batches != 1 {
+		t.Errorf("consents %d one by one and %d at once, profiles in %d reads; want one read of each", f.consents.asked, f.consents.batches, f.patients.batches)
 	}
 }

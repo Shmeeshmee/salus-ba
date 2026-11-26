@@ -284,6 +284,7 @@ type Appointment struct {
 	LocationID           pgtype.UUID
 	RoomID               pgtype.UUID
 	DeviceID             pgtype.UUID
+	StartAt              pgtype.Timestamptz
 }
 
 type AppointmentActionToken struct {
@@ -1223,6 +1224,7 @@ type Slot struct {
 	VisitMode      string
 	LocationID     pgtype.UUID
 	RoomID         pgtype.UUID
+	StartAt        pgtype.Timestamptz
 }
 
 type SmsUsage struct {

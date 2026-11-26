@@ -151,6 +151,13 @@ describe('CallScreen: the device check', () => {
     }
   })
 
+  it('announces a camera the browser denies as an alert (WAVE7 RD3)', async () => {
+    renderCall({ camera: 'denied' })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('Your browser is not allowing the camera. Allow it in the site settings, then reload the page. You can still join without video.')
+  })
+
   it('still joins with audio when the browser denies the camera', async () => {
     const { last, requests } = renderCall({ camera: 'denied' })
 

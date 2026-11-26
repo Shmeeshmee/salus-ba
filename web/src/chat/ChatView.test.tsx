@@ -128,6 +128,20 @@ describe('ChatView', () => {
     expect(remove).toHaveBeenCalledTimes(2)
   })
 
+  it('takes the focus into Add a doctor when the clinic has no other doctor, and closes it from there (WAVE7 RD3)', async () => {
+    const chat = fakeChat({ history: 1 })
+    renderInLanguage(<ChatView chat={chat} id={chat.conversations[0].id} staff={[member(1)]} practitionerId="p1" organizationId={org} zone="Europe/Sarajevo" patientName={patientName} />, 'en')
+    const opener = await screen.findByRole('button', { name: 'Add a doctor' })
+    opener.focus()
+    fireEvent.click(opener)
+
+    const dialog = screen.getByRole('dialog', { name: 'Add a doctor' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+
   it('lets only the treating doctor add or remove doctors', async () => {
     const chat = fakeChat({ history: 1 })
     const id = chat.conversations[0].id
@@ -216,6 +230,7 @@ describe('ChatView', () => {
     fireEvent.change(await screen.findByLabelText('Attach a file'), { target: { files: [new File(['x'], 'placeholder.mp4', { type: 'video/mp4' })] } })
 
     expect(await screen.findByText('The file is too large.')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toBe('The file is too large.') // announced (WAVE7 RD3)
   })
 
   it('offers no summary for a short conversation', async () => {

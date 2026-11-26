@@ -85,7 +85,7 @@ export function Composer({ chat, id, onSent }: Props) {
         <ul className="chat-uploads">
           {uploads.map((u) => (
             <li key={u.key} className={u.error ? 'alert' : undefined}>
-              <span>{u.error ?? (u.attachment ? t('chat.attachment.scanning', { name: u.name }) : u.name)}</span>
+              <span role={u.error ? 'alert' : undefined}>{u.error ?? (u.attachment ? t('chat.attachment.scanning', { name: u.name }) : u.name)}</span>
               {!pending && (
                 <button type="button" className="icon" aria-label={t('chat.composer.removeFile', { name: u.name })} title={t('chat.composer.removeFile', { name: u.name })} onClick={() => setUploads((us) => us.filter((x) => x.key !== u.key))}>
                   <CrossIcon />

@@ -58,6 +58,12 @@ writes under its own heading here.
 | TP2 | done 2026-11-25, integrated 2026-11-25; a step's service name and visit time joined at the integration | `cms(TP2)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 | LC3 | done 2026-11-25, integrated 2026-11-25; the slot-location extension and the Location participant served at the integration | `cms(LC3)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
 | BG4 | done 2026-11-25, integrated 2026-11-25 (migration `00083`, `00085` in its worktree) | `cms(BG4)`, merged into `feat/cms` with `cms(wave 6): integrate the second half` |
+| RD1 | done 2026-11-25, integrated 2026-11-26 (no migration); one low hole fixed; the matrix's 400 rule and four classes tightened at the integration | `cms(RD1)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD2 | done 2026-11-26, integrated 2026-11-26 (migration `00087`) | `cms(RD2)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD3 | done 2026-11-26, integrated 2026-11-26 (no migration); five design decisions for the owner | `cms(RD3)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD4 | done 2026-11-26, integrated 2026-11-26 (no migration); four deploy blockers for the owner | `cms(RD4)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD5 | done 2026-11-25, integrated 2026-11-26 (no migration); the dev server's `cluster_name` added to its guard at the integration | `cms(RD5)`, merged into `feat/cms` with `cms(wave 7)` |
+| RD6 | done 2026-11-26, integrated 2026-11-26 (no migration) | `cms(RD6)`, merged into `feat/cms` with `cms(wave 7)` |
 
 ## A: visit modes
 
@@ -4246,3 +4252,500 @@ e2e` 468 s on `salus-e2e`, which it removed): passed, 853 s. Its first run, befo
 ran `scripts/check.sh --base af1079c0` in their worktrees: W6LB and W6TP passed on their first run; W6RM's failed on two
 timing tests outside its diff (`TestNew_ServesTheChatsNotificationSettingsDevicesAndWebhooks` under `make cover`,
 `CallScreen.test.tsx` "no sound for 5 seconds"), each passed on its one rerun, and both passed in the integration's runs.
+
+## RD1: the role matrix
+
+Done 2026-11-25 on `wt/cms/RD1` (from `13db9fbc`), no migration. Test first: the matrix was written and run before the
+one fix, whose service test failed before the code changed.
+
+**Built.** `internal/api/role_matrix_test.go` and five files beside it (`_fixture`, `_body`, `_table`, `_own`,
+`_states`; split to keep each under 400 lines). The routes come from `api/openapi.yaml` and the interactions from
+`api/fhir/CapabilityStatement.json`, so a route added later is held without a line and fails
+`TestRoleMatrix_EveryRouteIsClassifiedForEveryRole` until `roleRoutes` classifies it for the patient, the practitioner
+and the admin (the receptionist's stay F1's `receptionRoutes` and `receptionFHIR`). Every write gets a body built from
+its request schema (required fields, and every field that names a record, filled with the fixture's ids), so that it
+reaches its access check instead of a 400; six bodies the schema cannot give are written out (`matrixBodies`).
+
+- The world (`newRoleWorld`): two clinics on one database with row-level security on, each with its admin,
+  practitioner and receptionist, two app patients with a booked visit, a past visit with its encounter, an allergy and
+  a medication, a chat with a message and an attachment, a receipt, a quote, a released lab result, a treatment plan,
+  a questionnaire response and a file uploaded to it, a waitlist entry and a data request, and the clinic's own
+  location, room, device, service, webhook, document template, export and membership invoice. About 4 s to build.
+- `TestRoleMatrix_AnotherClinicsAndPatientsIDsAnswerAsUnknownOnes`: every route and FHIR interaction as clinic A's
+  admin, practitioner, receptionist and patient with clinic B's records (and for the patient with their neighbour's at
+  A): status and body the same as for ids that do not exist (the ids taken out), none of the other's data. Twice: with
+  B's directory ids, and with A's own slot, service, role and location beside B's patient and visit (as a write of
+  A's own would name them). The public directory (clinics, roles, schedules, slots, locations, price lists) is read by
+  anyone; there staff may write nothing of B's. Checked to fail: run with A's own records as "another's", it reports
+  73 differences.
+- `TestRoleMatrix_EachRoleOnItsOwnClinic`: each role in a world of its own, every route to its class (allowed: never
+  401, 403 or 5xx; refused: 403 or 404, or a 400 before any access, never a patient's data; stranger: what an account
+  without a patient profile gets; machine: 401). The receptionist is also held, as F1, to the unknown id's answer on
+  the clinic's own records.
+- `TestRoleMatrix_ASignedOutCallerReachesOnlyThePublicRoutes`: the one 401 everywhere but the public routes and the
+  public FHIR directory.
+- States: a suspended clinic (every read answers each role as before but the public directory's; the patient's, the
+  desk's, the waitlist's and a plan's new bookings refused, each accepted at clinic B as control; a lab result and a
+  receipt still written); a restricted record (per role: no read shows the patient but the admin's openings, no write
+  succeeds but `restrictedWrites`); a revoked consent and a closed account (no staff read shows the birth date or the
+  phone but the admin's data-request queue, no staff write succeeds but `revokedWrites`; the closed account's session
+  gets the one 401 on every route and cannot sign in).
+
+**Holes found, each fixed test first:**
+
+| Severity | Hole | Fix |
+| --- | --- | --- |
+| low | The desk and the admin could check in (`POST /clinic/appointments/{id}/arrive`) a visit of a patient whose record is restricted at the clinic, through its id, though the desk's day hides it (S7). Nothing of the patient was shown and the visit had to be known by id; it changed the visit and the clinic's statistics | `appointment.Service.Arrive` refuses it as not found, audited (`TestArrive_RefusesAVisitOfARestrictedRecordAsNotFound`, and the matrix's restricted test) |
+
+No other hole: no route or FHIR interaction answers another clinic's or another patient's real id differently from an
+unknown one, none returns their data, no role reaches a route outside its class, a signed-out caller and a closed
+account reach nothing but the public routes.
+
+**Readings and decisions.**
+
+- Within its own clinic a refusal may say `forbidden` where an unknown id is `not_found` (the id is the clinic's own,
+  opaque); only another clinic's ids are held to the unknown answer, as WAVE7 asks, and the receptionist's own as F1
+  holds them.
+- F1's class for `POST /appointments` changed from refused to stranger: with a real body a receptionist gets the
+  `profile_required` an account without a patient profile gets; with F1's empty body both get the same 400. It loosens
+  nothing (stranger still accepts only a refusal or the stranger's very answer).
+- `DELETE /waitlist/{id}`: the practitioner and the admin withdraw an entry of their clinic's waitlist (the service's
+  rule, `entryOf`); classified allowed for them.
+- A 409 or 412 on a restricted or revoked record is the record's state (a released report, a stale version), not
+  counted as a success; the routes' own tests hold their order of checks.
+- Receipts (`POST /clinic/receipts`, a reversal, a retried report) are still issued for a restricted record's visit:
+  the fiscal law asks for them, and D4 left it open. Kept, for the owner (below).
+- The public directory hides a suspended clinic from everyone, its own staff and patients too: `GET
+  /organizations/{id}/locations` and `/profile` and the FHIR Schedule read answer 404 to them once suspended. Not an
+  authorization hole (it refuses more); the patient app then cannot name the location of a visit at a suspended clinic.
+  For the owner.
+
+**Not reached by the fixture** (held only with unknown ids, and by their domains' tests): compositions, drafts and
+signed documents (need a transcript), chat invitations, waitlist offers, chat participants and threads by id, the
+terminology curation routes by term.
+
+**Checks** (compose project `salus-cms-rd1`): the fast layer (vet and tests of every package that imports the changed
+ones) passed; `runner.sh full`, set `go`, passed on its first run: `make gen-clients` with no diff, `make lint` 0
+issues (with i18n-check and the migrations check), `make test` (`internal/api` 103 s, under the 10-minute limit; the
+matrix's tests alone take about 30 s), `make archcheck`, `make cover` 89.9% total and every package at 80% or more.
+
+**For the owner**: (1) may a clinic issue a receipt for a visit of a patient whose record is restricted (fiscal law
+against GDPR Art. 18)? It does today. (2) Should a suspended clinic's own patients and staff still read its locations
+and profile, which the app uses for a visit's address?
+
+## RD2: load and slow queries
+
+Done 2026-11-26 on `wt/cms/RD2` (from `13db9fbc`), unattended. The readings, the fixes and the indexes are in
+`docs/clinic-cms/load/REPORT.md`.
+
+**Built.** `test/load/` (build tag `loadtest`, stdlib only, in the `tools` container): the busy year's seeder (50 clinics,
+500 practitioners, 200,000 patients, 1,044,000 visits with their slots, 687,600 receipts, 890,500 reminders, encounters
+and diagnoses, the clinic statistics of 18,250 clinic-days; 9 minutes, 4.4 GB) and the driver: the api as `api.New`
+builds it behind a real HTTP server, signed in by seeded sessions (a token derived from the account id, its SHA-256 the
+row's `token_hash`), every hot path of WAVE7.md 500 times 8 at a time, the hourly slot generation through the slot
+service as the worker builds it, and the reminders through the sweep and the notifier's own River client
+(`worker.NewNotifier` with fake senders, `worker.NewScheduler` as River's leader). Each path's p50/p95/p99, its
+pg_stat_statements calls and database time a request, and the slowest statements. `make load` runs it on
+`<project>-load` (`scripts/load.sh`, `test/load/docker-compose.load.yml`: Postgres with production's settings plus
+pg_stat_statements, `track_io_timing`, a larger WAL for the seed and `cluster_name=salus-load`; no host ports; the
+shared service definitions are untouched), `make load-down` removes it with its volumes. `make load-budget` (a step of
+the Go workflow's test job) is `TestBudgets`: the small seed on a `pgtest` database, each path's median within its
+budget, 25 to 35 s.
+
+**Refusal.** The seeder and the driver refuse unless `LOAD_CONFIRM=synthetic-busy-year` is given, `SALUS_ENV` is `dev`,
+the server's `cluster_name` is `salus-load` and the database holds no clinic but the seed's (`test/load/guard_test.go`);
+`make load` passes `LOAD_CONFIRM` only from its caller. The budget test seeds only a throwaway database of `pgtest`.
+
+**Fixes** (each test first; the failing run is quoted in the report):
+
+- `00087_start_at.sql`: `appointment.start_at` and `slot.start_at`, generated from `lower(period)`, with the indexes
+  `appointment_organization_start_at` and `slot_schedule_start_at`. A condition on `lower(period)` is not leakproof, so
+  under row-level security the desk's day read the clinic's whole year (132 ms to 1.2 ms in `EXPLAIN ANALYZE` on the
+  seed). `DeskAppointments`, `SearchAppointments`, `ClinicVisits`, `SearchFreeSlots` and `DeleteFreeSlotsExcept` compare
+  `start_at`. Tests: `TestStaffRangeReads_ReadOnlyTheRangesRows`, `TestSlotReads_TouchOnlyTheRangesRows`, on the plan of
+  the statement the repository sent (`pgtest.LastQuery`, `pgtest.TracedPool`, `pgtest.Explain`, tested in pgtest).
+- The appointment search (the calendar, the patient's visits) and the desk's day read their page's consent states,
+  restrictions, visits and profiles in one statement each (`consent.Service.States`, `patient.Service.RestrictedAll`,
+  `VisitsOfPatients`, `patient.Service.LookupAll`) and write the page's AuditEvents in one insert (`RecordAll`), the same
+  events in the same order. A clinic's week went from 3,133 statements to 792 (most of what is left are the two inside
+  `patient_record_restricted`, which `track = all` counts), the desk's day from 478 to 155.
+- `InsertSlots` leaves out a period the schedule has a slot of already, so an hourly re-run sends none to the exclusion
+  constraint's conflict check (480 conflicts to 0 in the test; the run of 500 schedules 14.6 s to 9.3 s with the index).
+
+**Readings** (busy year, p50 before / after, ms; the report has p95, p99 and the statements): the desk's day 133.5 /
+23.8, a practitioner's week 84.5 / 34.3 (23.3 in the quieter run), the clinic's week 739 / 139, a week's free slots 10.9
+/ 1.4, the patient's visits 14.3 / 9.4, the hourly slot generation 14.6 s / 9.3 s; the directory, the receipts, their
+report and the clinic statistics unchanged. The machine was shared with two other packages (load average 9 to 24): the
+p95 and p99 move by tens of milliseconds between runs.
+
+**Decisions.** A generated column, not a leakproof wrapper function (needs a superuser and is a security claim) and not
+an index on the expression (the qual still is not leakproof). The 00087 rewrite of both tables took 86 s on the seed
+under an `ACCESS EXCLUSIVE` lock: no clinic runs on production yet. The budgets are on the median, not the p95: on 60
+requests a p95 is the third slowest, and one pause of the shared machine moved it past every budget in two runs of three.
+The api is driven in process (`api.New` on the loopback), not as the `api` container: no image build, the same handler
+and middleware; the load stack has Postgres and Redis only (the object store and LiveKit are not reached by these paths).
+No new personal data: `start_at` is the start already in `period`, under the same retention; the seed is synthetic.
+
+**Checks** (this worktree's compose project `salus-cms-rd2`): `bash scripts/runner.sh full` (`make check`, set go):
+`make gen-clients` with no diff, `i18n-check`, `make test`, `make archcheck`, `make cover` (89.8% total, every package at
+80% or more) passed; `make lint` failed on one gofmt blank line, then on its first full pass on three `time.Now` in
+`test/load`, a struct's field order and the slot plan test's length (golangci-lint over the `loadtest` tag); fixed, and
+`make lint` passed (0 issues), with the changed tests run again. `make load-budget` passed (26 to 36 s, three runs). The
+load runs themselves: five on the busy year (the seed once, 9 min; each run 2 to 4 min).
+
+**Deferred** (in the report's "Left for later"): the staff's appointment search without dates is unbounded (a contract
+change, for the owner); the hourly generation's role read a schedule; audit events, deliveries, chats and documents were
+not seeded at their real size.
+
+## RD3: accessibility and keyboard
+
+Status: done, 2026-11-26, on `wt/cms/RD3`, one commit `cms(RD3)`. No Go under `internal/`, no migration, no schema, no
+new catalog string. Built from `WAVE7.md` (RD3); no Jira for this wave.
+
+**Built.**
+
+- **The journey** `TestAccessibility_EveryStaffScreenAndDialog` (`test/e2e/accessibility_test.go`) makes a clinic with a
+  row on every staff screen (in-person hours, a second location with a room and a device, a service, a receptionist,
+  the desk's day with an arrived walk-in, her receipt and a booked visit, a patient of the app with a visit, a lab
+  result, a draft treatment plan, a conversation, a data request), then runs `test/e2e/web/a11y.spec.ts` once as the
+  admin, the practitioner and the receptionist. Every screen of the role at 1280 px: the axe engine (WCAG 2.2 A and AA
+  tags), and a keyboard walk (each Tab stop after the one before it in the document, on screen and not covered, with a
+  focus indicator of 3:1 or more against what is around it). Every dialog, opened from its button with Enter: the focus
+  moves in, axe, a modal keeps Tab inside, and closing it (Escape, or the question's cancel button) gives the focus back
+  to its opener. At 390 px on a touch screen: axe again and a target of at least 44 × 44 px for every control a finger
+  presses (a link in running text exempt, a checkbox or radio measured with its label, a chart's marks exempt: their
+  table is the equivalent). A wrong password on the sign-in page is announced in an alert. Every finding of the run is
+  listed in one failure. 26 distinct screens (35 role passes) and 12 dialogs over the three roles (`a11y.ts` holds the checks); the run takes about
+  three minutes.
+- **Fixed** (each failing first: the journey, and a Vitest test where one could state it):
+  1. The focus ring was the mint `#34D399`, **1.9:1** on white and 1.8:1 on the page: below the 3:1 a focus indicator
+     needs. Every ring (`app.css`, `chat.css`, `review.css`, `explain.css`) now uses the brand green `--color-brand`
+     (6.3:1 on white). No new colour (`appCss.test.ts`).
+  2. The medical terms search had no focus ring at all (`outline: none`); it has the ring, drawn inside its bar
+     (`cheatsheet.css`).
+  3. Targets on a touch screen: header links (39 px), the language select (33 px), quiet and icon buttons (38 px),
+     selects (41 px), link-like buttons (the desk's patient names, 24 px), toolbar and settings links (16 to 24 px),
+     summaries (20 px), checkbox and radio labels (24 px), the tooltip tags. One `@media (pointer: coarse)` block in
+     `app.css` makes each at least 44 px; a mouse sees no change (`appCss.test.ts`).
+  4. "Add a doctor" in a clinic with no other doctor held no control: the focus stayed behind it, Escape did nothing and
+     it could not be closed. `Dialog` now takes the focus itself when it holds no control (and keeps Tab on itself),
+     and the empty state has Cancel (`chat/Dialog.test.tsx`, `chat/ChatView.test.tsx`).
+  5. `Dialog`'s Tab trap counted a disabled last button (the receipt dialog's Issue before a service is picked), so Tab
+     left the dialog; disabled controls are skipped (`chat/Dialog.test.tsx`).
+  6. Errors not announced: the call's camera or microphone problem (`DeviceCheck.tsx`) and a refused chat upload
+     (`chat/Composer.tsx`) are now alerts (`CallScreen.test.tsx`, `chat/ChatView.test.tsx`).
+  7. The focused heatmap cell is also the one shown, whose 1.5 px stroke won over the 2 px focus stroke
+     (`analytics.css`; the CSS test was written after the journey had failed on it).
+- `@axe-core/playwright` 4.14.0 and `axe-core` 4.14.0, pinned, as dev dependencies of `test/e2e/web` (both published in
+  October 2026). `vite.config.ts` lets Vitest read the other stylesheets as text, for the focus ring test.
+- `scripts/e2e.sh`: `go test -timeout 30m` for the suite (the default 10 minutes would be too short with the three
+  passes added to a 7 to 8 minute suite).
+
+**What axe found:** nothing, on any screen or dialog at either width, after the run's first pass (labels, names, roles,
+text contrast, ARIA). Every finding came from the keyboard and touch checks.
+
+**Needs a design decision (not changed, or changed as little as possible):**
+
+- The focus ring colour: changed from the mint to the existing brand green, the smallest change that passes. The owner
+  may prefer another treatment (a two-tone ring, mint with a dark inner line); the mint itself cannot carry a ring.
+- The mint as a hover border (`.appt:hover`, `.palette .kind:hover`), the confirmed tags' border and today's underline
+  in the calendar is 1.9:1: decorative there (the text says the state), so not changed; it must not become the only sign
+  of a state.
+- On a phone the header holds 9 to 12 links of 44 px in wrapped rows (about 260 px of the first screen for the admin).
+  A menu button would give that back; a layout decision, not made here.
+- A disabled button is shown by opacity alone (`.6`); WCAG exempts it from contrast, RD6 owns how it looks.
+- Chart marks (analytics) are 24 px on a phone; their table ("Show as table") is the touch equivalent. Larger marks
+  would be a chart design decision.
+- The date inputs' parts and picker are the browser's own (one Tab per part); not styled.
+
+**Departures from `WAVE7.md`:** the specs are in `test/e2e/web` (the existing Playwright suite, run by `make e2e`), not
+`web/e2e`; they run from a Go journey like every web journey. The visit's live call screen (`/appointments/<id>/call`)
+is not walked: it needs a started consultation and LiveKit, which only the consultation journey sets up; its one
+finding found by reading (the device problem not announced) is fixed with a Vitest test. The file viewer of
+questionnaire answers is not opened (no uploaded file in this fixture). Between 23:30 and midnight in Sarajevo the
+desk's visits are tomorrow's and the desk rows' own dialogs (move, another receipt) are skipped for that run; the same
+dialogs are checked on the visit page and the receipts page.
+
+**Checks** (this worktree's compose projects `salus-cms-rd3` and `salus-cms-rd3-e2e`): `runner.sh full e2e` (sets go,
+web, e2e: `make gen-clients` with no diff, `make lint` 0 issues, `test`, `archcheck`, `cover`, `i18n-check`, `web-lint`
+0 warnings, `web-typecheck`, `web-test` 100 files and 1407 tests) passed every check but `make e2e`, which the full
+layer's 20-minute limit stopped as it started; `make e2e` alone then passed (the suite's `go test` 453 s, the new
+journey included, about three minutes of it). The journey was run on its own stack eight times while building; its
+last two runs passed.
+
+**Walk:** `docs/clinic-cms/walk/rd3/WALK.md`, nine screenshots at 1280 and 390 px from the passing run.
+
+**For RD6 and the integration:** the spec runs on the merged code. It needs: the buttons and dialog names it opens by
+their English text (Walk-in, Patients, Issue another receipt / New receipt, Move / Move visit, Show treatment plans,
+New treatment plan, Book / Book treatment plan, Cancel plan and Keep the plan, Issue receipt, Write a quote / New quote,
+Add a lab result, Show history, Show changes, Add a doctor, New questionnaire, New receipt, the cheatsheet's
+`header button.cheatsheet-open`); every new button at least 44 px under `(pointer: coarse)` (a new class of control
+may need adding to the block); a disabled-looking button keeping the brand-green focus ring; "Add step" (RD6) as a
+button reaches 44 px through the `button` rule.
+
+## RD4: operations drill
+
+Status: done, 2026-11-26, on `wt/cms/RD4`, one commit `cms(RD4)`. No behaviour under `internal/`, no migration.
+
+**Built.** `scripts/restore-drill.sh` (the backup and restore runbook end to end on a worktree's own stack: seed by the
+drill's journey `test/e2e/restore_drill_test.go`, tags `e2e,drill`, never run by `make e2e`; the real `backup.sh` to a
+throwaway SFTP server; the project's database and object store volumes removed; restored by the runbook; every table's
+count compared; signed in again, the attachment decrypted through the api, the receipt's PDF), `scripts/migration-drill.sh`
+with `scripts/migration-drill/seed-00059.sql` and `check-head.sql` (empty to head; a 00059 dump with data restored and
+migrated to head), `scripts/audit.sh` (govulncheck v1.9.0, npm audit of the three lock files, osv-scanner v2.6.0 on the
+mobile lock file, Trivy at the Images workflow's pin over the four production images and the five third-party images),
+and `docs/deploy/BEFORE-PRODUCTION.md` (deploy blockers, the placeholders, every setting and what refuses without it,
+the audit). The drills are recorded in `docs/deploy/restore-drills.md`.
+
+**Restore drill: passed** (third run, 2026-11-25): 95 tables and 5 018 rows equal, 3 objects, 0 rows without an object and
+0 objects without a row, staff signed in with password and TOTP, the attachment's SHA-1 equal, the receipt's PDF
+byte-identical; backup 15 s, fetch to restored 43 s. **Migration drill: passed**: empty to 00086, and 00059 with data
+through `pg_dump`/`pg_restore` to 00086 with every count equal and the backfills (video modes, first locations) and
+row-level security holding.
+
+**Runbook fixes** (`docs/deploy/backup-restore.md`): the bucket's contents (lab PDFs, chat files, `clinicexport/`,
+`datarequest/` were missing); the erasure paragraph said erasure was not built (wave 5 built it: the daily job erases
+again by itself an account erased after the dump; a closure after the dump is lost and must be redone with the patient);
+a new **sessions** point and step 9 of "Restoring onto a new server": a restored database reopens every session signed
+out after the dump (proved: 200 before the step, 401 after), so every session is closed before the stack opens; the
+Postgres version note; "The local rehearsal".
+
+**Dependencies.** Fixed: Go 1.27.3 to 1.27.4 (GO-2026-6859, reachable from `cmd/api`'s HTTP server; the three Go images
+and both `toolchain` lines), postgres 18.6 to 18.7 in production and the backup test (55 HIGH fewer; dev already ran
+18.7), clamav 1.5.4 to 1.5.5 (libxml2 HIGH), redis 8.10.3 repinned to its rebuilt digest. All patch or minor bumps of
+fixes-only releases; no Go module or npm or pub dependency needed an update (govulncheck, npm audit and osv-scanner
+found nothing else). Left, with their reach, in BEFORE-PRODUCTION.md §4: Caddy's go-jose (no fix), LiveKit's x/net (no
+release), Debian packages of postgres and redis (no Debian fix), gosu's Go stdlib in the postgres image.
+
+**Findings for the owner** (BEFORE-PRODUCTION.md §1, not fixed: production wiring and behaviour are outside RD4): the
+notifier refuses to start in production (`SALUS_OPERATOR_EMAIL` is not passed to it by the production compose file); the
+`SELLER_*` and several other settings reach no production container; the landing image is built without `VITE_APP_URL`;
+the patient app has no release build setting `SUPPORT_EMAIL` and `PRIVACY_NOTICE_URL`.
+
+**Readings.** The drill runs on the worktree's own project (`salus-cms-rd4`) and refuses `salus`; it needs
+`SALUS_IMAGE_TAG` set so it never rebuilds the shared `salus:dev`. The drill's harness is a build-tagged test file in
+`test/e2e/` (outside RD4's listed files) because it reuses the journeys' helpers; `make e2e` never compiles it.
+`configs/.env.example` gained the engine settings it did not name (commented, defaults). The backup counts are taken
+with the app services stopped, so every table compares exactly; the production backup runs with the stack live and the
+runbook's "Order and consistency" covers that.
+
+**Checks** (sets go and e2e, selected by the files): `make gen-clients` no diff, `make lint` 0 issues with i18n-check,
+`make test`, `make archcheck`, `make cover` 89.9% (every package at 80% or more), `make e2e` passed; `make
+deploy-check` steps shellcheck, backup and deploy passed (the backup test's Postgres moved); shellcheck clean on the new
+scripts; `go vet -tags e2e,drill ./test/e2e/`. The first two `scripts/runner.sh full` runs did not finish: the first was
+cut short by this session's own wait, the second hit the runner's 20-minute limit after `go test`'s 10-minute package
+timeout in `cmd/salusctl`, `internal/worker` and `migrations` (each stuck in pgtest's `DROP DATABASE … WITH (FORCE)`, on
+IPC, with three stacks' suites on the machine, load 14 to 16). Those packages passed alone (80 s), then `make test`,
+`make archcheck cover` and `make e2e` passed one after another on the same tree.
+
+## RD5: the demo
+
+Done 2026-11-25 in the worktree `wt/cms/RD5` (compose project `salus-cms-rd5`, `SALUS_IMAGE_TAG=cms-rd5`), from
+`WAVE7.md` RD5. No Jira, no migration, no new user-facing string in any app.
+
+**Built:**
+
+- **`make demo-seed`** (`Makefile`): `make up`, then `salusctl demo-seed` in the tools container with `SALUS_ENV=dev`.
+  About 30 s on a fresh stack. It fills "Poliklinika Primjer (demo)": two locations (Sarajevo, three rooms and an ECG
+  device; Tuzla, two rooms), four practitioners with specialties and weekly hours at a location and room (three with
+  evening video hours; every weekday has someone's hours), a receptionist, nine services (one inactive), sixty patients
+  (five app accounts with profile and consent, fifty-five registered at the desk with consent in person), about 490
+  visits over eight weeks in every state (fulfilled, no-show, cancelled by patient and by clinic, booked, one arrived
+  today), about 170 receipts and one reversal, two quotes, a released blood count, a booked three-step treatment plan, a
+  published questionnaire with branching (one response submitted on the branch, one waiting), a chat, two data requests
+  (an access request that Salus fulfils itself, a rectification left open), chat hours, the setup marked done, and the
+  membership past its trial with this month's invoice. The patients who own each item are fixed (SCRIPT.md names them).
+- **How it writes:** through the running api as its users do (`cmd/salusctl/demo_http.go`: bearer tokens, the patient
+  app's way), so every guard, trigger, audit record and receipt rule applies. Staff accept their invites and confirm a
+  TOTP code; patients register, log in, save their profile and consent. On the owner's connection, through services as
+  the other salusctl commands do: the default plan when none exists (`PutPlan`, placeholder price 2.00 BAM, name
+  "Demo (placeholder price)"), the clinic (`signup.CreateClinic`, as create-clinic), invite tokens
+  (`auth.IssueInviteToken`, retried for up to a minute because the invite e-mail's job issues its own token and replaces
+  the earlier one), slot generation (`slot.Service.Generate`, retried in case it races the worker) and the invoice
+  (`subscription.IssueMonthly`, as the monthly job). Plain SQL (`demo_sql.go`) is used only where nothing else works:
+  reading whether the database is fresh, reading role, schedule and free-slot ids, moving a booked visit four weeks back
+  (the api books only ahead; the owner's connection is the only one appointment_guard_change lets move a visit), and
+  ending the trial before this month (a new clinic is in its trial, and IssueMonthly invoices only after it).
+- **Refused outside development:** `config.IsDev` (new file `internal/config/config_demo.go`: `SALUS_ENV` exactly `dev`,
+  which compose sets and production's env file does not) and a database with no clinic but the demo clinic. Every
+  production or staging database has clinics, so it is refused whatever `SALUS_ENV` says. A partial demo clinic (no
+  invoice yet, the seed's last write) is refused with "stopped partway". On its own complete clinic it prints "nothing
+  changed" and the sign-in sheet without TOTP secrets.
+- **`docs/demo/SCRIPT.md`**: the fifteen-minute walkthrough (front desk, a visit, the receipt, online hours, the patient
+  app, the numbers), a sign-in per step, thirteen screenshots at 1280 px (`docs/demo/screenshots/`, Bosnian UI), and
+  three questions for the clinic. The patient-app step has no screenshots; it is shown live on an emulator.
+  `docs/demo/screenshots.sh` with `screenshots.spec.ts` and `playwright.config.ts` retakes them in the playwright container.
+
+**Tests** (`cmd/salusctl/demo_test.go`, `internal/config/config_demo_test.go`): refused outside dev (three values, no row
+written); refused on a database with another clinic, with a partial demo clinic, and with the demo clinic and another
+one; the full seed against `api.New` on a throwaway database with row-level security (salus_app) behind
+`httptest.Server`, checking 29 counts (every item above), then a second run that leaves the row counts and the audit
+trail unchanged; a refused call's error names only the route and the api's code, never the query or the body; the
+arrival choice (next one ahead, the last one that began late in the day, a spare slot, none); rune padding of the sheet.
+`cmd/salusctl` coverage 83 %.
+
+**Readings and decisions:**
+
+- Test first was not kept for the seed: the code was written ahead of `TestDemoSeed_FillsAFreshStackOnce` and the guard
+  tests, then driven to green against them; `TestIsDev`, the refusal-message test and the arrival test came first.
+- The seed prints the TOTP secrets of the accounts it made (synthetic, dev only) because the owner must sign in. It
+  breaks salusctl's "opaque ids only" convention, on purpose and only for this command.
+- Receipts carry the seed's own time: fiscal receipts are append-only and numbered at issue, so they are not backdated.
+  The desk's arrival time is the time of the seed. A seed late in the day shows an earlier visit as arrived at that time;
+  SCRIPT.md says to seed on the morning of the demo.
+- Staff accounts use Bosnian (`bs`); demo data is in Bosnian, with "(primjer)" on clinical wording.
+- The quote is sent by the visit's practitioner: the api refuses quotes from the desk and quotes without a visit.
+- Seen on the walk, outside this package: on the price list, the "Nije u ponudi" badge of an inactive service is drawn
+  as a tall pill (`0-price-list.png`); for RD3 or RD6.
+
+**Checks:** fast layer passed (`cmd/*`, `internal/api`, `internal/config` tests); golangci-lint on the changed packages
+0 issues; `make demo-seed` twice on this stack (counts and audit trail the same after the second run); screenshots
+taken with `docs/demo/screenshots.sh`. Full check set (`runner.sh full web`: sets go and web, `make gen-clients` no
+diff, lint, test, archcheck, cover, i18n-check, web-lint, web-typecheck, web-test): passed on the first run. Afterwards
+only the seed test's check that the second run prints no secret was tightened (test-only), and passed in the fast layer.
+
+**Deferred:** document templates are not seeded (`make document-templates-seed clinic=<id>` adds them); the seed does
+not run a video consultation (no transcript or recording in the demo).
+
+## RD6: wave 6 leftovers
+
+Status: done, 2026-11-26, on `wt/cms/RD6`, one commit `cms(RD6)`. No migration, no new route. Built from `WAVE7.md` and
+the wave 6 walk's findings 4 to 8 (`walk/wave6/WALK.md`), which its six items name in another order; no Jira export.
+
+**Built**, each test first:
+
+1. **A busy room on the working hours** (`internal/schedule`, `Availability.tsx`, `AvailabilityPlaces.tsx`). The
+   availability read (`GET /practitioner-roles/{id}/availability`, in its transaction and clinic scope) marks each rule
+   whose room another active role's in-person rule holds at an overlapping time on the same day: `Rule.RoomBusy`, in the
+   JSON `roomBusy: true` (absent otherwise; `readOnly` in `api/openapi.yaml`; never stored; a PUT that sends it is a 400
+   as any unknown field). It is the case RM1's review left (items 9 and (b)): a role brought back into use is not
+   re-checked, and the slots of one of the two are not generated where they overlap. The save's own check
+   (`roomsHeld`, `resource_busy`) now shares the same code (`roomsBusy`). The hours screen shows under the row's
+   location and room "Another practitioner works in this room at these hours, so some of these times are not offered.
+   Choose another room or time." (the room select's `aria-describedby`), in the error colour; a row changed on screen
+   drops it (its save checks the room again, and is refused with `resource_busy` while it still clashes).
+2. **The desk names a location taken out of use** (`Desk.tsx`): the desk reads every location, not only those in use; a
+   visit at one taken out of use names it "<name> (not in use)" while every location is shown, also in a clinic with
+   one location left in use. The location filter still offers only those in use, and a visit at a location in use is
+   named only with two in use, as before.
+3. **"Add step" is a button** (`CarePlanDialog.tsx`): outlined as the form's other buttons ("Add hours" on the working
+   hours has the same form), no longer the `quiet` text style.
+4. **A disabled button looks disabled** (`app.css`, `tokens.css`): a disabled primary, outlined (`.actions`) or danger
+   button is flat grey (`--color-disabled` #EEF1EF), its text muted (`--color-disabled-text` #5F6B66, 4.9:1 on the
+   grey) and its shape kept by an inset 1 px outline (`--color-disabled-border` #7C8782, 3.7:1 on a surface and 3.5:1
+   on the page, so WCAG 1.4.11's 3:1 holds although inactive controls are exempt), `cursor: not-allowed`, hover changes
+   nothing; the border takes the fill's colour so no button changes size. The faded primary (`opacity: .6`) and the
+   faded `.actions` button (`.55`) are gone. Text-only buttons (`quiet`, `icon`, the call's round controls, the
+   builder's palette and item icons) keep their own faded look. Focus is unchanged (a disabled button takes none).
+5. **The booking date in the app's format** (`CarePlanBook.tsx`): the plan booking's "First day" is the browser's
+   `<input type="date">` (its format is the browser's locale, en-US in the walk); the chosen day is now named under it in
+   the UI language ("Thursday, 26 November 2026", the field's `aria-describedby`), as the steps below name their days.
+   The native field stays (keyboard, the picker, `min`).
+6. **The patient app's plan step has its time** (`mobile/lib/care_plans_screen.dart`): a booked step reads "1. Monday 7
+   December 2026, 10:00 · By video", its visit's day and time in the clinic's zone, through the existing `dateAndTime`
+   string (no new mobile string); a step without a visit keeps its day.
+
+**Readings and decisions:**
+
+- Item 5 is the web's (finding 6 of the wave 6 walk: "the booking dialog's date field shows the browser's own date
+  format"), and `WAVE7.md` gives RD6 one mobile screen (the plan steps). The patient app's booking already dates its days
+  through `intl` (`Zone.longDate`, `DateFormat.yMMMMEEEEd` in the app's language, on the times screen and the booking
+  screen), so nothing changed there.
+- The busy flag is on the read only, not on the save's answer: a save with a busy room is refused, so a saved schedule
+  has none. Both roles' rules are marked (either may lose slots: the one generated second does). A rule of a role out of
+  use holds no room, as at save.
+- The warning is per row, not a banner: it names the row and the fix.
+- The desk names an in-use location only with two in use, as LC2 built; an out-of-use one always, because it is the case
+  a receptionist cannot guess.
+- jsdom drops a declaration that uses `var()`, so the style tests compare the computed opacity, cursor and padding and
+  read the colours from the rule.
+
+**Test first.** Red seen before the code for: the service's busy marks (`TestAvailability_MarksARuleWhoseRoomAnotherRoleHolds`),
+the mobile step's time, and, run against the HEAD versions of the sources, the desk's out-of-use location, the hours'
+warning, "Add step"'s padding, the disabled look and the first day's hint. Not seen red: the handler's `roomBusy` test
+(the JSON field was added with the model, before its test).
+
+**Walk** (`walk/rd6/WALK.md`, 1280 and 390 px, the Vite dev server of this worktree with a fake API): no finding, nothing
+past the right edge.
+
+**New user-facing strings** (web, the five staff languages, area `locations`): `roomBusyHours` "Another practitioner works
+in this room at these hours, so some of these times are not offered. Choose another room or time."; `placeNotInUse`
+"{name} (not in use)". No new mobile string.
+
+**Checks** (this worktree's compose project, `salus-cms-rd6`): the fast layer after each change (`go vet` and `go test` of `internal/schedule` and its importers, oxlint and `vitest related`, i18n-check) and single test files in the `tools`, `node` and `flutter` containers. `runner.sh full` (`make check`, sets go, web and mobile: `make gen-clients` with no diff, `make lint` 0 issues with i18n-check, `test`, `archcheck`, `cover` 89.9% total and every package at 80% or more, `web-lint`, `web-typecheck`, `web-test` 100 files with 1404 tests, `mobile-analyze` no issues, `mobile-test` 718): passed on its first run.
+
+**For the integration:** `api/openapi.yaml` gains `AvailabilityRule.roomBusy` (read only) and `make gen-clients` changed
+`web/src/api/schema.d.ts` and the Dart `availability_rule.dart`; no new route (RD1's matrix). `app.css` and
+`tokens.css` are RD3's too: keep both sides' rules (RD6's block sits after `.danger-text:hover`, and removes the two
+faded disabled rules). `Desk.tsx` and `CarePlanDialog.tsx` may meet RD3's accessibility fixes.
+
+## Wave 7 integration
+
+Done 2026-11-26 on `feat/cms` (from `13db9fbc`, `cms(plan): wave 7, readiness`, on main's `1cb56c5d`), in the worktree
+`../salus-cms-int` (`wt/cms/int`, compose project `salus-cms-int`, image tag `cms-int`) so that no check touched the
+owner's `salus` stack. The six packages ran as subagents in their own worktrees and compose projects, at most three at
+once (RD1, RD2, RD5 first; RD3, RD4, RD6 as slots freed). Each finished on its first run; none was stopped.
+
+**Merges.** `wt/cms/RD4`, `RD2`, `RD1`, `RD6`, `RD3`, `RD5` with `--no-ff` in that order. One conflict:
+`web/src/appCss.test.ts`, where RD6's disabled-button test and RD3's focus and touch tests were both appended at the
+end; both kept. `app.css`, `tokens.css`, the records and the Makefile merged on their own, each package's block kept.
+`make sqlc` and `make gen-clients` after the merges left no diff (RD6's `roomBusy` was already in both clients).
+Migrations: `00087` RD2's `start_at`, the only one (RD1's `00089` and RD6's `00088` unused), next after main's `00086`:
+no renumbering, no gap. `go vet` with the `e2e,drill` and `loadtest` tags compiles every tagged file on the merged tree.
+
+**The demo seed on the merged code** (a fresh `salus-cms-int` stack): `make demo-seed` built the clinic ("The demo clinic
+is ready"), the second run printed "nothing changed"; with `SALUS_ENV=production` it refuses and writes nothing. The
+screenshots in `docs/demo/screenshots/` were not retaken: RD6's restyle of disabled buttons and "Add step" may show in
+two of them (`docs/demo/screenshots.sh` retakes them with the seed's TOTP secrets).
+
+**RD1's matrix and RD3's specs on the merged code**: both ran in the full check below (`internal/api` 191 to 201 s,
+`test/e2e` 446 s with the accessibility journey) and passed.
+
+**Review** (a fresh subagent over `git diff origin/main...HEAD`; Copilot's quota is out until 2026-12-01). No high or
+medium finding; on its three questions: no server refusal was weakened (three test-side looseners, below); the demo and
+load seeds write nothing before their guards and the CI budget test seeds only a throwaway database; no dependency update
+changed behaviour (Go 1.27.4, Postgres 18.7, ClamAV 1.5.5, Redis's rebuilt digest, axe-core as an e2e dev dependency).
+**Fixed**, test first:
+
+- `Arrive` checked the visit's mode before the restricted record, so the desk got `not_in_person` for a restricted
+  record's video visit, which tells that the hidden visit exists and is a video visit (RD1's S7 fix, one step short; low).
+  The restricted check comes first; `TestArrive_RefusesAVisitOfARestrictedRecordAsNotFound` covers both modes and failed
+  on the video one before.
+- The matrix counted any 400 as a refusal. Now only `invalid_request` and `websocket_required`, as F1's check. That
+  showed four routes classed "allowed" for roles the server refuses, a 400 before their access check having passed them:
+  `GET /clinic/patients` (the patient), `POST /invites` and both imports (the patient and the practitioner). With
+  requests that pass validation (a `name`, a valid invite, a CSV file) the server refuses each as it should: no hole.
+  Classes corrected, the requests given (`receptionQueries`, `matrixBodies`), and
+  `TestRoleMatrix_RequestsPastTheirValidationAreRefusedToTheRolesTheyAreNotFor` holds them with real requests and files.
+- `TestRoleMatrix_AReceptionistBookingWithARealBodyIsAnAccountWithoutAPatientProfile`: RD1 moved `POST /appointments`
+  for the desk from refused to stranger, checked only without a body; now with a real slot: 409 `profile_required`, the
+  stranger's answer, nothing booked.
+- The demo seed's guard: `make demo-seed` sets `SALUS_ENV=dev` itself, so on production before its first clinic an
+  operator passing `-e SALUS_ENV=dev` would have created accounts with a known password. Now the server must also be the
+  dev stack's: `deployments/docker-compose.yml`'s Postgres runs with `cluster_name=salus-dev`, which the seed checks
+  (`devServer`, `TestDemoSeed_IsRefusedOnAnyServerButTheDevStacks`); production's, staging's and the load stack's servers
+  have another. The owner's `salus` stack gets the setting on its next `make up` (Postgres recreated, data kept).
+- The load guard checked only the owner's pool; `guardPools` holds the app's and the statistics' pools to the load
+  server's `cluster_name` too (`TestGuard_RefusesAPoolOnAnyServerButTheLoadStacks`, the guard's first test).
+- `salusctl`'s header said it prints ids only; it names `demo-seed`'s sign-in sheet as the exception.
+
+**Declined, recorded**: `scripts/e2e.sh`'s `go test -timeout 30m` (RD3; the suite is 7 to 8 minutes with three
+accessibility passes, 10 was too close); `00087` rewrites `appointment` and `slot` under an exclusive lock (fine before
+go-live, RD2's question); consent's `HistoryShared` is still read once per patient with a history consent (rare); the
+CI budget test is a timing test on shared runners (medians, about 4x headroom); the load driver's Redis URL is not
+checked to be the load stack's (temporary state only).
+
+**Checks** (`salus-cms-int`): `make check BASE=origin/main SETS=go,web,mobile,landing,e2e` on the merged tree passed
+(`make gen-clients` no diff, `make lint` 0 issues with i18n-check and the migrations check, `test`, `archcheck`, `cover`
+89.7% total and every package at 80% or more, `web-lint`, `web-typecheck`, `web-test`, `mobile-analyze`, `mobile-test`
+718, the landing set, `make e2e` on `salus-cms-int-e2e`, which it removed). The review's fixes were made while its last
+sets ran; the same command on the final tree, with them, passed too (cover 89.7%). Two full runs, no rerun of a failing
+check, nothing flaky.
+
+**After the commit**: the session's Stop hook (`make arch-gate`, in the main checkout on the `salus` stack, which it
+starts with `--no-recreate`) failed the demo seed's tests: a Postgres started before `cluster_name=salus-dev` answers
+`""`, so on any stack not yet recreated the guard refused the tests' own runs. The required name is now `run`'s constant
+and the tests pass their server's own (`runOn`); `TestDemoSeed_IsRefusedOnAnyServerButTheDevStacks` holds the refusal
+on any other, writing nothing. `cmd/salusctl` passed on a fresh stack and on one whose Postgres has no `cluster_name`
+(a worktree of its own, recreated with an override), `make lint` 0 issues, coverage 85.2%. Commit `cms(wave 7): the demo
+seed's tests run on a stack whose Postgres predates cluster_name`.

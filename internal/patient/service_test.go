@@ -572,3 +572,17 @@ func TestRead_FailsForStaffOnAConsentOrAppointmentError(t *testing.T) {
 		}
 	}
 }
+
+func (r *fakeRepository) ByIDs(ctx context.Context, ids []string) ([]patient.Patient, error) {
+	r.seen(ctx, "ByIDs")
+	if r.err != nil {
+		return nil, r.err
+	}
+	var out []patient.Patient
+	for _, p := range r.profiles {
+		if slices.Contains(ids, p.ID) && (r.clinic != "" || p.AccountID == r.account) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}

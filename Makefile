@@ -25,7 +25,7 @@ GO_TEST        = go test -p $(TEST_PACKAGES) $(TESTFLAGS) ./... && go -C tools t
 GO_NODEPS     := $(COMPOSE) run --rm --no-deps tools
 
 .PHONY: check test cover bench-hash bench-auth bench-slots bench-stt bench-translate bench-join bench-join-http bench-removal bench-questionnaire-http bench-binary-http bench-terminology bench-consult-stream bench-chat bench-clinicstats bench-reminders bench-history bench-history-practitioner bench-suggest bench-drafting turn-check livekit-turn-cert mailpit-tls-cert lint i18n-check archcheck arch-gate arch-gate-stack arch-gate-checks e2e e2e-up e2e-report e2e-install e2e-image fhir-validate migrate migrate-status migrate-create salusctl sqlc \
-	terminology-fetch terminology-import terminology-export document-templates-seed \
+	terminology-fetch terminology-import terminology-export document-templates-seed demo-seed \
 	gen-clients gen-client-ts gen-client-dart mobile-analyze mobile-test web-install web-lint web-typecheck web-test web-build web-dev \
 	landing-install landing-lint landing-typecheck landing-test landing-build landing-dev flutter-image tools-image node-image up landing psql down \
 	deploy-check
@@ -150,6 +150,20 @@ bench-suggest: tools-image
 bench-terminology: tools-image
 	$(GO) go test -run '^$$' -bench 'BenchmarkSearch' -benchtime=2000x -count=3 ./internal/terminology
 
+## load: the busy year (50 clinics, 500 practitioners, 200,000 patients, about 1,000,000 visits) seeded on a compose
+## project of its own and every hot path driven through the api and the workers, with p50/p95/p99 and pg_stat_statements'
+## slowest statements (scripts/load.sh, docs/clinic-cms/load/REPORT.md). Refused without LOAD_CONFIRM=synthetic-busy-year.
+load: tools-image
+	LOAD_CONFIRM=$(LOAD_CONFIRM) bash scripts/load.sh
+
+## load-down: stop the load project and remove its volumes
+load-down:
+	bash scripts/load.sh down
+
+## load-budget: the hot paths' budgets on a small seed, on a throwaway database (test/load TestBudgets; in CI)
+load-budget: tools-image
+	$(GO) go test -tags loadtest -count=1 -v -run '^TestBudgets$$' ./test/load/
+
 ## turn-check: a call through the compose LiveKit with UDP and its ICE/TCP port blocked: it does not connect
 ## without TURN, and does through TURN over TLS on 443 (docs/consultation/PROGRESS.md, package 10). Not part of make test.
 turn-check: tools-image
@@ -268,6 +282,13 @@ terminology-import: tools-image
 ## into a clinic of the compose Postgres, once (salusctl document-templates seed)
 document-templates-seed: tools-image
 	$(GO) go run ./cmd/salusctl document-templates seed -clinic $(clinic) assets/document-templates/specialist-findings.json assets/document-templates/referral.json
+
+## demo-seed: the demo clinic of docs/demo/SCRIPT.md on this checkout's fresh stack: starts the stack (make up), then
+## fills it through the api as its users would (salusctl demo-seed) and prints the sign-in sheet. SALUS_ENV=dev is the
+## compose stack's own setting; the seed refuses without it and on a database with any clinic but the demo's. A second
+## run changes nothing
+demo-seed: up tools-image
+	$(COMPOSE) run --rm -T -e SALUS_ENV=dev tools go run ./cmd/salusctl demo-seed
 
 ## terminology-export out=<path> [status=draft]: write the terms as the curator's CSV (salusctl terminology export),
 ## to a path under the repository

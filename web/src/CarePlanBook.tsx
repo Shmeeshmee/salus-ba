@@ -90,7 +90,20 @@ export function CarePlanBook({ api, fhir, plan, services, zone, practitionerId, 
         </div>
         <div className="field">
           <label htmlFor={`${id}-d`}>{t('carePlans.firstDay')}</label>
-          <input id={`${id}-d`} type="date" min={today} value={startsOn} onChange={(e) => { setStartsOn(e.target.value); reset() }} />
+          <input
+            id={`${id}-d`}
+            type="date"
+            min={today}
+            value={startsOn}
+            aria-describedby={dated ? `${id}-dh` : undefined}
+            onChange={(e) => { setStartsOn(e.target.value); reset() }}
+          />
+          {/* The field shows the browser's own date format; the day is named in the app's too (RD6). */}
+          {dated && (
+            <p className="hint" id={`${id}-dh`}>
+              {f.date(dayStart(startsOn, 0, zone), zone, 'long')}
+            </p>
+          )}
         </div>
         {slots.state.name === 'loading' && dated && <p className="muted">{t('common.loading')}</p>}
         {(slots.state.name === 'failed' || staff.state.name === 'failed') && <Alert message={t('carePlans.slotsFailed')} />}

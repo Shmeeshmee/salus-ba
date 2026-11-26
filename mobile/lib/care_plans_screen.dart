@@ -10,8 +10,8 @@ import 'visit_mode.dart';
 import 'zones.dart';
 
 /// The patient's booked treatment plans from every clinic, newest first (docs/clinic-cms, U6, package TP2): each with
-/// its clinic, its state, its first day and its steps in order, each a visit on its day (its visit's, in the clinic's
-/// zone, which a move changes) and of its type, with its service as the clinic's price list names it. A step's visit
+/// its clinic, its state, its first day and its steps in order, each a visit on its day and time (its visit's, in the
+/// clinic's zone, which a move changes) and of its type, with its service as the clinic's price list names it. A step's visit
 /// is one of the patient's visits; moving or cancelling it is done there. The server never sends a draft. Each card
 /// names its clinic from the directory, as the quotes screen does.
 class CarePlansScreen extends StatefulWidget {
@@ -75,13 +75,15 @@ class _CarePlansScreenState extends LoadingState<CarePlansScreen, _Plans> {
     );
   }
 
-  /// The step's day: its visit's, in the clinic's zone (a moved visit's new day), or the first day plus its days.
+  /// The step's day: its visit's day and time, in the clinic's zone (a moved visit's new day; two visits on one day
+  /// read apart, RD6), or the first day plus its days.
   String _day(CarePlanStep step, DateTime startsOn, Organization? clinic) {
-    final locale = context.t.localeName;
+    final t = context.t;
+    final locale = t.localeName;
     final visit = step.visitStart;
     if (visit != null) {
-      final zone = clinic == null || clinic.timeZone.isEmpty ? 'Europe/Sarajevo' : clinic.timeZone;
-      return Zone(zone).date(visit, locale);
+      final zone = Zone(clinic == null || clinic.timeZone.isEmpty ? 'Europe/Sarajevo' : clinic.timeZone);
+      return t.dateAndTime(zone.date(visit, locale), zone.time(visit));
     }
     return Zone.longDate(DateTime.utc(startsOn.year, startsOn.month, startsOn.day + step.dayOffset), locale);
   }

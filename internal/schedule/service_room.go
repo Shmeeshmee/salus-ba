@@ -57,6 +57,34 @@ func (s *Service) roomsFree(ctx context.Context, c Caller, roleID string, rules 
 // roomsHeld returns ErrResourceBusy when an in-person rule of another active role of the clinic org holds a room of
 // rules at an overlapping time on the same day, or nil; err is any other error. A role taken out of use holds no room.
 func (s *Service) roomsHeld(ctx context.Context, org, roleID string, rules []Rule) (failed, err error) {
+	busy, err := s.roomsBusy(ctx, org, roleID, rules)
+	if err != nil || !slices.Contains(busy, true) {
+		return nil, err
+	}
+	return ErrResourceBusy, nil
+}
+
+// markRoomsBusy sets RoomBusy on each rule of sc whose room another active role of its clinic holds at an overlapping
+// time on the same day: one of the two gets no slots there (a role brought back into use is not re-checked, RM1).
+func (s *Service) markRoomsBusy(ctx context.Context, sc Schedule) (Schedule, error) {
+	busy, err := s.roomsBusy(ctx, sc.OrganizationID, sc.PractitionerRoleID, sc.Rules)
+	if err != nil {
+		return Schedule{}, err
+	}
+	sc.Rules = slices.Clone(sc.Rules)
+	for i := range sc.Rules {
+		sc.Rules[i].RoomBusy = busy[i]
+	}
+	return sc, nil
+}
+
+// roomsBusy reports for each of rules whether an in-person rule of another active role of the clinic org holds its room
+// at an overlapping time on the same day. Read in the transaction's clinic scope.
+func (s *Service) roomsBusy(ctx context.Context, org, roleID string, rules []Rule) ([]bool, error) {
+	busy := make([]bool, len(rules))
+	if !slices.ContainsFunc(rules, func(r Rule) bool { return r.RoomID != "" }) {
+		return busy, nil
+	}
 	others, err := s.Repo.Listed(ctx)
 	if err != nil {
 		return nil, err
@@ -65,9 +93,11 @@ func (s *Service) roomsHeld(ctx context.Context, org, roleID string, rules []Rul
 		if o.PractitionerRoleID == roleID || o.OrganizationID != org {
 			continue
 		}
-		if !slices.ContainsFunc(o.Rules, func(held Rule) bool {
-			return held.RoomID != "" && slices.ContainsFunc(rules, func(r Rule) bool { return clash(r, held) })
-		}) {
+		hit := make([]bool, len(rules))
+		for i, r := range rules {
+			hit[i] = r.RoomID != "" && slices.ContainsFunc(o.Rules, func(held Rule) bool { return clash(r, held) })
+		}
+		if !slices.Contains(hit, true) {
 			continue
 		}
 		role, err := s.Roles.Lookup(ctx, org, o.PractitionerRoleID)
@@ -76,10 +106,12 @@ func (s *Service) roomsHeld(ctx context.Context, org, roleID string, rules []Rul
 		case err != nil:
 			return nil, err
 		case role.Active:
-			return ErrResourceBusy, nil
+			for i := range busy {
+				busy[i] = busy[i] || hit[i]
+			}
 		}
 	}
-	return nil, nil
+	return busy, nil
 }
 
 // clash reports whether two rules hold one room at an overlapping time on the same day.

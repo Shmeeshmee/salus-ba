@@ -88,6 +88,9 @@ func (s *Service) Availability(ctx context.Context, c Caller, roleID string) (Sc
 		if out, err = s.byRole(ctx, c, roleID); err != nil {
 			return err
 		}
+		if out, err = s.markRoomsBusy(ctx, out); err != nil {
+			return err
+		}
 		return s.record(ctx, c, auditevent.CodeRead, out.ID, auditevent.OutcomeSuccess)
 	})
 	switch {

@@ -22,7 +22,7 @@
 .chat-older { min-height: 1.4em; margin: 0; text-align: center; }
 
 .chat-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
-.chat-scroll:focus-visible { outline: 2px solid var(--color-mint); outline-offset: -2px; }
+.chat-scroll:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
 .chat-space { position: relative; }
 .chat-rows { position: absolute; left: 0; right: 0; margin: 0; padding: 0 4px; list-style: none; }
 .chat-rows > li { display: flow-root; padding: 4px 0; }
@@ -43,7 +43,7 @@
 .chat-compose-row textarea { resize: vertical; min-height: 44px; max-height: 200px; }
 .chat-attach { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-control); color: var(--color-text-muted); cursor: pointer; }
 .chat-attach:hover { color: var(--color-ink); background: var(--color-page); }
-.chat-attach:focus-within { outline: 2px solid var(--color-mint); }
+.chat-attach:focus-within { outline: 2px solid var(--color-brand); }
 .chat-uploads { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chat-uploads li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border: 1px solid var(--color-border-strong); border-radius: 999px; font-size: 13px; }
 

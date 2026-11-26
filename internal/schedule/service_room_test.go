@@ -178,3 +178,45 @@ func TestSaveAvailability_AnInactiveRolesRulesHoldNoRoom(t *testing.T) {
 		t.Errorf("a failing role lookup saved, want the error")
 	}
 }
+
+// A rule whose room another active role's in-person rule holds at an overlapping time on the same day (a role brought
+// back into use, RM1's review item 9) gets slots only where the other's are not: the read says so on the rule, for the
+// working hours screen's warning (docs/clinic-cms/WAVE7.md RD6).
+func TestAvailability_MarksARuleWhoseRoomAnotherRoleHolds(t *testing.T) {
+	t.Parallel()
+	clashing := func() fixture {
+		f, _ := roomFixture()
+		f.repo.schedules = append(f.repo.schedules, schedule.Schedule{ID: scheduleA1, OrganizationID: clinicA, PractitionerRoleID: roleA1,
+			SlotMinutes: 30, VersionID: 1, Rules: []schedule.Rule{
+				{Day: 2, Start: "09:00", End: "11:00", Mode: schedule.ModeInPerson, LocationID: siteA1, RoomID: room1},
+				{Day: 2, Start: "11:00", End: "12:00", Mode: schedule.ModeInPerson, LocationID: siteA1, RoomID: room1},
+				{Day: 3, Start: "08:00", End: "10:00", Mode: schedule.ModeInPerson, LocationID: siteA1, RoomID: room1},
+			}})
+		return f
+	}
+	busy := func(s schedule.Schedule) []bool {
+		out := make([]bool, 0, len(s.Rules))
+		for _, r := range s.Rules {
+			out = append(out, r.RoomBusy)
+		}
+		return out
+	}
+	f := clashing()
+	got, err := f.svc.Availability(t.Context(), practitionerA1, roleA1)
+	if err != nil || !slices.Equal(busy(got), []bool{true, false, false}) {
+		t.Errorf("role A1's rules busy %v, %v; want only Tuesday 09:00 to 11:00 busy", busy(got), err)
+	}
+	if got, err := f.svc.Availability(t.Context(), adminA, roleA2); err != nil || !slices.Equal(busy(got), []bool{true}) {
+		t.Errorf("role A2's rules busy %v, %v; want its Tuesday busy too", busy(got), err)
+	}
+	f = clashing()
+	f.roles.inactive = roleA2
+	if got, err := f.svc.Availability(t.Context(), practitionerA1, roleA1); err != nil || slices.Contains(busy(got), true) {
+		t.Errorf("busy %v, %v; want none while role A2 is out of use", busy(got), err)
+	}
+	f = clashing()
+	f.roles.failing = roleA2
+	if _, err := f.svc.Availability(t.Context(), practitionerA1, roleA1); err == nil {
+		t.Errorf("a failing role lookup read, want the error")
+	}
+}

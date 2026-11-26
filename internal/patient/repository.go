@@ -19,6 +19,8 @@ type Repository interface {
 	ByAccount(ctx context.Context, accountID string) (Patient, error)
 	// ByID returns the profile, or ErrNotFound (also for one outside the scope, or an id that is not a UUID).
 	ByID(ctx context.Context, id string) (Patient, error)
+	// ByIDs returns the profiles of ids the scope shows, in no order; an id that is not a UUID is none.
+	ByIDs(ctx context.Context, ids []string) ([]Patient, error)
 	// Create stores p as the profile of p.AccountID, last updated at, and returns it; ErrConflict when the
 	// account has one already.
 	Create(ctx context.Context, p Patient, at time.Time) (Patient, error)
@@ -57,4 +59,6 @@ type Repository interface {
 	SetDataRequests(ctx context.Context, on bool) error
 	// Restricted reports whether the patient's record is restricted at the clinic org, as the scope in ctx shows it.
 	Restricted(ctx context.Context, patientID, org string) (bool, error)
+	// RestrictedAll is Restricted for each of the patients ids (those that are UUIDs), by id.
+	RestrictedAll(ctx context.Context, ids []string, org string) (map[string]bool, error)
 }

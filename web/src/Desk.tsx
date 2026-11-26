@@ -32,8 +32,8 @@ export function Desk({ api, fhir, account, now = () => new Date() }: Props) {
   const organizationId = account.organizationId ?? ''
   const { state } = useLoad(async () => {
     const [zone, staff, locations] = await Promise.all([loadTimeZone(fhir, organizationId), loadStaff(fhir, organizationId), attempt(api.GET('/clinic/locations'))])
-    // The filter by location is offered only with two locations in use (LC2); without them, the desk is the day's.
-    return { zone, staff, locations: locations.ok ? locations.data.filter((l) => l.active) : [] }
+    // Every location, those taken out of use too: a visit booked at one before still names it (RD6).
+    return { zone, staff, locations: locations.ok ? locations.data : [] }
   }, [api, fhir, organizationId])
   if (state.name === 'loading') return <p className="panel muted">{t('common.loading')}</p>
   if (state.name === 'failed') return <Alert message={t('desk.loadFailed')} />
@@ -49,8 +49,16 @@ function Day({ api, fhir, zone, staff, locations, now }: DayProps) {
   const [patients, setPatients] = useState(false)
   const [notice, setNotice] = useState<string>()
   const [locationId, setLocationId] = useState('') // '' for every location
-  // While every location is shown, each in-person visit names its own (U2); a picked location needs no name.
-  const sites = new Map(locations.map((l) => [l.id, l.name]))
+  // The filter by location is offered only with two locations in use (LC2); without them, the desk is the day's.
+  const inUse = locations.filter((l) => l.active)
+  // While every location is shown, each in-person visit names its own when the clinic has two in use (U2), and always
+  // when its location was taken out of use since, marked so (RD6); a picked location needs no name.
+  const placeOf = (id = ''): string | undefined => {
+    const l = locations.find((x) => x.id === id)
+    if (!l || locationId) return undefined
+    if (!l.active) return t('locations.placeNotInUse', { name: l.name })
+    return inUse.length > 1 ? l.name : undefined
+  }
   const { state, reload, set } = useLoad(async () => {
     const res = await attempt(api.GET('/clinic/desk/today', { params: { query: locationId ? { locationId } : {} } }))
     if (!res.ok) throw new Error('desk')
@@ -67,10 +75,10 @@ function Day({ api, fhir, zone, staff, locations, now }: DayProps) {
       <h1>{t('desk.title')}</h1>
       <div className="toolbar">
         {day && <h2>{f.date(startOfDay(calendarDay(day.date), zone), zone, 'long')}</h2>}
-        {locations.length > 1 && (
+        {inUse.length > 1 && (
           <select className="desk-location" aria-label={t('locations.filter')} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
             <option value="">{t('locations.allLocations')}</option>
-            {locations.map((l) => (
+            {inUse.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
               </option>
@@ -103,7 +111,7 @@ function Day({ api, fhir, zone, staff, locations, now }: DayProps) {
                     api={api}
                     visit={v}
                     zone={zone}
-                    place={locations.length > 1 && !locationId ? sites.get(v.appointment.locationId ?? '') : undefined}
+                    place={placeOf(v.appointment.locationId)}
                     move={{ fhir, staff: staff.filter((m) => m.active), now }}
                     onMoved={() => {
                       setNotice(t('desk.move.moved'))

@@ -319,3 +319,37 @@ func TestClinicRecord_GivesTheAdminTheVisitsAWithdrawalCancelled(t *testing.T) {
 		checkEvents(t, name, f.audit, event(c, auditevent.CodeSearchType, "", "", auditevent.OutcomeMinorFailure))
 	}
 }
+
+// A search's events are written in one statement and each patient's profile is read once, however many of their
+// appointments it finds: the calendar's week of a busy clinic is not a round trip per row (docs/clinic-cms/load/REPORT.md).
+func TestSearch_WritesItsEventsAtOnceAndReadsEachPatientOnce(t *testing.T) {
+	f := newFixture(booked(apptA, patientA, roleA1, clinicA, start), booked(apptB, patientA, roleA1, clinicA, start.Add(time.Hour)),
+		booked("e5000000-0000-4000-8000-0000000000a5", patientB, roleA1, clinicA, start.Add(2*time.Hour)))
+	f.consents.state[patientB+clinicA] = access.Consent{Active: true}
+
+	got, err := f.svc.Search(t.Context(), admin, appointment.Filter{})
+	if err != nil || len(got) != 3 {
+		t.Fatalf("Search() = %+v, %v; want the three", got, err)
+	}
+	if !slices.Equal(f.patients.lookup, []string{patientA, patientB}) || f.patients.batches != 1 {
+		t.Errorf("profiles read %v in %d reads, want each patient's once in one read", f.patients.lookup, f.patients.batches)
+	}
+	if f.consents.asked != 0 || f.consents.batches != 1 || slices.Index(f.repo.calls, "VisitsOf") < 0 || countOf(f.repo.calls, "Search") != 1 {
+		t.Errorf("consents %d one by one, %d at once, repository calls %v; want the patients' consents and visits in one read each",
+			f.consents.asked, f.consents.batches, f.repo.calls)
+	}
+	if f.audit.writes != 1 || len(f.audit.events) != 6 {
+		t.Errorf("%d audit writes of %d events, want one write of the three appointments' and three patients' reads", f.audit.writes, len(f.audit.events))
+	}
+}
+
+// countOf is how many of all are s.
+func countOf(all []string, s string) int {
+	n := 0
+	for _, x := range all {
+		if x == s {
+			n++
+		}
+	}
+	return n
+}
