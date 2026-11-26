@@ -14,15 +14,12 @@ type Operator struct {
 	Language string // SALUS_OPERATOR_LANGUAGE, one of the ten; bs when unset
 }
 
-// operatorPlaceholder is SALUS_OPERATOR_EMAIL in configs/.env.example until the owner sets it: no address.
-const operatorPlaceholder = "[OPERATOR EMAIL]"
-
 // LoadOperator reads the operator's address and language, for the notifier, which sends the deadline warnings. Without
-// an address (or with the .env.example placeholder) the start-up fails, except with SALUS_ENV=dev, where the warnings
+// an address (or with a placeholder in brackets, as configs/.env.example's [OPERATOR EMAIL]: isPlaceholder) the start-up fails, except with SALUS_ENV=dev, where the warnings
 // to the operator are logged by their opaque ids instead. Errors name the variable, never a value.
 func LoadOperator() (Operator, error) {
 	o := Operator{Email: strings.TrimSpace(os.Getenv("SALUS_OPERATOR_EMAIL")), Language: strings.TrimSpace(os.Getenv("SALUS_OPERATOR_LANGUAGE"))}
-	if o.Email == operatorPlaceholder {
+	if isPlaceholder(o.Email) {
 		o.Email = ""
 	}
 	if o.Language == "" {

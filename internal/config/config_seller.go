@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strings"
 )
@@ -14,17 +15,37 @@ type Seller struct {
 	Account string // SELLER_ACCOUNT, the IBAN of the transfer
 }
 
-// LoadSeller reads the seller; a value not set is its [SELLER] placeholder, printed as such on the invoice until the
-// owner sets it (Q3).
-func LoadSeller() Seller {
-	get := func(name, placeholder string) string {
-		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-			return v
+// LoadSeller reads the seller, for the membership invoices' PDF: cmd/api and cmd/notifier call it. In dev a value not
+// set is its [SELLER] placeholder, printed as such on the invoice. Outside SALUS_ENV=dev each of the four is required
+// and may not be a placeholder (isPlaceholder), so no invoice of a real clinic prints one. Errors name the variable,
+// never a value.
+func LoadSeller() (Seller, error) {
+	s := Seller{
+		Name: strings.TrimSpace(os.Getenv("SELLER_NAME")), TaxID: strings.TrimSpace(os.Getenv("SELLER_TAX_ID")),
+		Address: strings.TrimSpace(os.Getenv("SELLER_ADDRESS")), Account: strings.TrimSpace(os.Getenv("SELLER_ACCOUNT")),
+	}
+	dev := os.Getenv("SALUS_ENV") == EnvDev
+	for _, v := range []struct {
+		value       *string
+		name, blank string
+	}{
+		{&s.Name, "SELLER_NAME", "[SELLER]"}, {&s.TaxID, "SELLER_TAX_ID", "[SELLER TAX ID]"},
+		{&s.Address, "SELLER_ADDRESS", "[SELLER ADDRESS]"}, {&s.Account, "SELLER_ACCOUNT", "[SELLER ACCOUNT]"},
+	} {
+		switch {
+		case !isPlaceholder(*v.value):
+		case !dev:
+			return Seller{}, errors.New("config: " + v.name + " is required outside SALUS_ENV=dev (it is unset or still a [placeholder])")
+		case *v.value == "":
+			*v.value = v.blank
 		}
-		return placeholder
 	}
-	return Seller{
-		Name: get("SELLER_NAME", "[SELLER]"), TaxID: get("SELLER_TAX_ID", "[SELLER TAX ID]"),
-		Address: get("SELLER_ADDRESS", "[SELLER ADDRESS]"), Account: get("SELLER_ACCOUNT", "[SELLER ACCOUNT]"),
-	}
+	return s, nil
+}
+
+// isPlaceholder reports whether a setting is unset or still a placeholder in brackets, as configs/.env.example and
+// deployments/production/.env.production.example write them ([OPERATOR EMAIL], [SELLER]).
+func isPlaceholder(value string) bool {
+	value = strings.TrimSpace(value)
+	return value == "" || strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]")
 }

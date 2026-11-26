@@ -28,6 +28,7 @@ func TestRun_StartsTheEmailQueueAndStopsCleanly(t *testing.T) {
 	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
 	t.Setenv("APPOINTMENT_LINK_URL", "https://api.example.test")
 	t.Setenv("SALUS_OPERATOR_EMAIL", "operator@example.test")
+	setSeller(t)
 	logs, err := runUntilStarted(t)
 	if err != nil {
 		t.Fatalf("run() error = %v, want nil after the context ends", err)
@@ -86,6 +87,31 @@ func TestRun_NeedsTheOperatorsAddressOutsideDev(t *testing.T) {
 	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "SALUS_OPERATOR_EMAIL") {
 		t.Errorf("run() without the operator's address: error = %v, want one naming SALUS_OPERATOR_EMAIL", err)
 	}
+}
+
+// Outside dev a membership invoice may not print a [SELLER] placeholder: the notifier, which sends them, refuses.
+func TestRun_NeedsTheSellerOutsideDev(t *testing.T) {
+	t.Setenv("DATABASE_URL", pgtest.NewDatabaseURL(t))
+	setMailpit(t)
+	t.Setenv("WEB_BASE_URL", "https://app.example.test")
+	t.Setenv("PATIENT_APP_URL", "https://patient.example.test")
+	t.Setenv("APPOINTMENT_LINK_URL", "https://api.example.test")
+	t.Setenv("SALUS_ENV", "production")
+	t.Setenv("SALUS_OPERATOR_EMAIL", "operator@example.test")
+	setSeller(t)
+	t.Setenv("SELLER_TAX_ID", "[SELLER TAX ID]")
+	if err := run(t.Context(), &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "SELLER_TAX_ID") {
+		t.Errorf("run() with the seller's tax id a placeholder: error = %v, want one naming SELLER_TAX_ID", err)
+	}
+}
+
+// setSeller sets a synthetic seller of the membership invoices, which the notifier needs outside dev.
+func setSeller(t *testing.T) {
+	t.Helper()
+	t.Setenv("SELLER_NAME", "Synthetic seller d.o.o.")
+	t.Setenv("SELLER_TAX_ID", "4200000000002")
+	t.Setenv("SELLER_ADDRESS", "Synthetic street 2, 71000 Sarajevo")
+	t.Setenv("SELLER_ACCOUNT", "BA391290079401028494")
 }
 
 // syncBuffer collects run's log output; run writes it while the test reads it.

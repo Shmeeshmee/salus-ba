@@ -64,6 +64,12 @@ func TestRun_ServesUntilCancelledThenShutsDown(t *testing.T) {
 	t.Setenv("RATE_LIMIT_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtcmF0ZWxpbWl0LWs=") // synthetic, as in compose
 	t.Setenv("WEBHOOK_KEY", "bG9jYWwtb25seS1zeW50aGV0aWMtd2ViaG9vay1rZXk=")    // synthetic, as in compose
 	t.Setenv("FHIR_BASE_URL", "http://localhost:8080/fhir/R4")
+	for name, value := range map[string]string{ // the membership invoices' seller, required outside dev; synthetic
+		"SELLER_NAME": "Synthetic seller d.o.o.", "SELLER_TAX_ID": "4200000000002",
+		"SELLER_ADDRESS": "Synthetic street 2, 71000 Sarajevo", "SELLER_ACCOUNT": "BA391290079401028494",
+	} {
+		t.Setenv(name, value)
+	}
 	setLiveKit(t)
 	setObjectStore(t)
 	ctx, cancel := context.WithCancel(t.Context())
