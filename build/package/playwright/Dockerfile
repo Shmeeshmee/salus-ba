@@ -2,7 +2,7 @@
 # with Chromium and Node, plus the Go toolchain of dev.Dockerfile. The Go journeys in test/e2e/ start the web
 # journey (test/e2e/web, @playwright/test of the same version) as a subprocess, so the browser, the Go SDK test
 # participant and the test that checks the API all run in one container on the compose network.
-FROM golang:1.27.3-trixie AS go
+FROM golang:1.27.4-trixie AS go
 
 FROM mcr.microsoft.com/playwright:v1.65.1-noble
 COPY --from=go /usr/local/go /usr/local/go

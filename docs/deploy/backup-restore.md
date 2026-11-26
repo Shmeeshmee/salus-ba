@@ -9,8 +9,10 @@ server.
 ## What is and is not backed up
 
 - **Backed up:** the Postgres database of the `salus` compose project, every night, as one `pg_dump` in custom
-  format (`-Fc`); and right after it every object of Garage's bucket (`S3_BUCKET`: the questionnaire attachments
-  and the signed documents' PDFs under `composition/`) as one tar. Both are kept 14 days (`BACKUP_RETENTION_DAYS`);
+  format (`-Fc`); and right after it every object of Garage's bucket (`S3_BUCKET`) as one tar: the files that are
+  rows of `binary` under their id (questionnaire and chat attachments, lab result PDFs), the signed documents' PDFs
+  under `composition/`, the clinics' data exports under `clinicexport/` and the patients' exports under
+  `datarequest/`. Both are kept 14 days (`BACKUP_RETENTION_DAYS`);
   how long backups are kept is still open (ADR 0011 point 7).
 - **The objects are encrypted twice.** Each object is already envelope-encrypted by the api (its data key wrapped by
   `BINARY_KEK`, which the backup never reads); the archive is then `age`-encrypted like the dump. A restored object is
@@ -27,15 +29,24 @@ server.
   resets it, `salusctl reset-mfa`), any surviving attachment cannot be decrypted, and every webhook delivery fails
   until its clinic creates the webhook again. Never generate new ones for a
   restore.
-- **Erasure.** A dump holds what the database held that night (an archive the objects of that night), so data erased since is still in the dumps for up
-  to 14 days (unreadable without the age private key). A restore brings it back, and the erasures completed after
-  the dump's time must be applied again before the stack is opened to users. The record of those erasures would be
-  in the same database and is lost with it, so the owner has to keep a list outside the server of completed erasures
-  (request id, patient id, date) for the last 14 days. **Today there is nothing to re-apply them with:** erasure is
-  part of the subject-rights feature, which is not built yet (`internal/retention` leaves erasure to it, and
-  `salusctl` has no erasure command). Until it is, an erasure would be done by hand and would have to be redone by
-  hand after a restore. Building the re-application (for example a `salusctl` command that takes the list) and
-  keeping the list are open items for the owner, with point 7 of ADR 0011.
+- **Erasure.** A dump holds what the database held that night (an archive the objects of that night), so data erased
+  since is still in the dumps for up to 14 days (unreadable without the age private key), and a restore brings it
+  back. Since wave 5 an account is erased by the daily `account_erasure` job (04:00 UTC) once its erasure date
+  (`account.erase_after`, 21 days after the patient closed it) has come. What that means after a restore
+  (corrected by the drill of 2026-11-25, which found this paragraph still describing erasure as not built):
+  - *Erased after the dump's time:* the restored account is closed, its date has passed and `erased_at` is empty, so
+    the next run of the job erases it again by itself. It is closed, so nobody can sign in with it meanwhile. Step 9
+    of "Restoring onto a new server" checks the count.
+  - *Closed after the dump's time:* the closure and its erasure request are lost with the database; nothing redoes
+    them. The owner keeps a list outside the server of the account closures of the last 14 days (request id, account
+    id, date; opaque ids only) and, after a restore, asks each of those patients to close the account again (there is
+    no operator command that closes an account) and answers the lost request within its deadline. A tool for this
+    and keeping the list are open items for the owner, with point 7 of ADR 0011.
+  - Clinic-side changes after the dump (a record restricted, a consent withdrawn at the desk) are lost the same way.
+- **Sessions.** The `session` table is in the dump, so a session that was signed out, or ended by a password change,
+  an MFA reset or a closure after the dump's time, is open again after a restore until it expires (proved by the
+  drill of 2026-11-25). "Restoring onto a new server" closes every session before the stack opens; everyone signs in
+  again. The MFA challenges and login counters are in Redis, which is not backed up: they are temporary.
 
 ## How the backup works
 
@@ -176,8 +187,8 @@ start=$(date +%s)
 echo 'ls -1 salus/postgres' | sftp -q -b - -P 23 USER@HOST | grep '\.dump\.age$' | sort | tail -1   # its name
 sftp -P 23 USER@HOST:salus/postgres/salus-YYYYMMDDTHHMMSSZ.dump.age ./drill.dump.age
 
-# 2. A throwaway Postgres: the dev compose file's postgres (the production major version), in a project of its own,
-#    no host port.
+# 2. A throwaway Postgres: the dev compose file's postgres (the version production runs, 18.7 in both files; keep the
+#    two equal), in a project of its own, no host port.
 DRILL="docker compose -p salus-restore-drill -f deployments/docker-compose.yml"
 $DRILL up -d --wait postgres
 
@@ -221,8 +232,9 @@ RCLONE="docker run --rm --network salus-restore-drill_default -v $PWD/drill.obje
 $RCLONE archive extract /in.tar D:salus-binaries
 $RCLONE size D:salus-binaries                    # objects and bytes: compare with production's (below)
 
-# 9. Rows and objects: the attachments' rows without an object, and the objects without a row (composition/ PDFs
-#    are another table's and are left out). Both should be zero or a handful from the minutes between the dump and
+# 9. Rows and objects: the rows of binary (questionnaire and chat attachments, lab result PDFs) without an object,
+#    and the objects without a row (the prefixed keys, composition/, clinicexport/ and datarequest/, are other tables'
+#    and are left out by the grep). Both should be zero or a handful from the minutes between the dump and
 #    the archive ("Order and consistency" above). Rejected files have no object by design.
 $DRILL exec -T postgres psql -U salus -d salus -Atc "SELECT id FROM \"binary\" WHERE status <> 'rejected' ORDER BY 1" >drill.rows
 $RCLONE lsf --files-only D:salus-binaries | grep -v / | sort >drill.objects
@@ -263,6 +275,18 @@ with Bitwarden's copy, not from memory.
 sizes, the time from fetch to restored, the migration version, the objects restored, the rows without an object and
 the objects without a row, whether the sample matched, who ran it, and anything that went wrong. Synthetic data only
 until real data exists; afterwards the counts, never contents.
+
+### The local rehearsal
+
+`scripts/restore-drill.sh` runs this page end to end on a worktree's own compose stack, with synthetic data and no
+Storage Box: it seeds the stack (a clinic, a patient, an attachment scanned clean, a fiscalized receipt), runs the
+real `backup.sh` for both backups against a throwaway SFTP server, removes the project's database and object store
+volumes, restores them by the steps above and "Restoring onto a new server" (roles, the decrypting stream,
+`migrate`, the objects with rclone, the sessions step), compares every table's row count with the one taken before
+the backup and rows against objects, then signs in again (password and TOTP) and downloads the attachment, decrypted
+by the api, and the receipt's PDF. It refuses the main checkout's project `salus`. Run it after a change to
+`backup.sh`, the compose files or the migrations' roles; record it in docs/deploy/restore-drills.md under "Local
+drills". `scripts/migration-drill.sh` proves the migrations alone, from empty and from a dump taken at `00059`.
 
 ## Restoring onto a new server
 
@@ -361,8 +385,17 @@ everything but Caddy, then Caddy.
    In step 10, once the stack is open, sign in as staff and download one attachment of a record you are entitled to see
    (with synthetic data before real data exists): it proves row, object and `BINARY_KEK` fit together. Files
    uploaded after the archive's time are lost; tell the clinics which (their rows point to no object).
-9. **Re-apply the erasures** completed after the dump's time, from the owner's list ("Erasure" above), while Caddy is
-   still down. There is no tool for this yet: do it the same way the erasure was done, and record it.
+9. **Close every session and check the erasures**, while Caddy is still down ("Sessions" and "Erasure" above):
+
+   ```sh
+   $C exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+     -c "UPDATE session SET revoked_at = now() WHERE revoked_at IS NULL" \
+     -c "SELECT count(*) AS erasures_due FROM account WHERE erase_after <= now() AND erased_at IS NULL"'
+   ```
+
+   Every user signs in again. A non-zero `erasures_due` is erased by the job's next run (04:00 UTC); check the count is
+   0 the next morning. The closures made after the dump's time are on the owner's list: contact those patients.
+   Record what was done.
 10. **Open it:** point the DNS records at the new IP (lower their TTL beforehand if you can) and the deploy
     workflow's settings at the new server (docs/deploy/README.md), then `$C up -d --wait caddy`, or approve a deploy
     of the same release, which brings up everything. Check the healthchecks, sign in and download a sample
