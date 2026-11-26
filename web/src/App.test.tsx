@@ -220,6 +220,33 @@ describe('App', () => {
     }
   })
 
+  it("puts each role's links, the medical terms, the language and sign out behind the header's menu button (readiness)", async () => {
+    const roles: [Account, string, string[]][] = [
+      [admin, '/', ['Front desk', 'Calendar', 'Working hours', 'Practitioners', 'Questionnaires', 'Waitlist', 'Analytics', 'Receipts', 'Quotes', 'Data requests', 'Clinic settings']],
+      [{ ...admin, role: 'practitioner', termReviewer: true }, '/', ['Calendar', 'Working hours', 'Practitioners', 'Questionnaires', 'Waitlist', 'Messages', 'Analytics', 'Term review']],
+      [{ ...admin, role: 'reception' }, '/desk', ['Front desk']],
+    ]
+    for (const [account, path, links] of roles) {
+      renderAt(path, { ...staff(account), 'GET /clinic/desk/today': () => Response.json({ date: '2026-11-23', visits: [] }) })
+      const button = await screen.findByRole('button', { name: 'Menu' })
+      expect(button.closest('header')).toBeTruthy()
+      expect(button.getAttribute('aria-expanded')).toBe('false')
+      const panel = document.getElementById(button.getAttribute('aria-controls') ?? '')
+      if (!panel) throw new Error('the menu button controls no element')
+      // The panel holds the header's one navigation, a list of the role's links: the same links on every screen width.
+      expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(1)
+      const nav = within(panel).getByRole('navigation', { name: 'Main' })
+      const items = within(nav).getAllByRole('listitem')
+      expect(items.map((li) => within(li).getByRole('link').textContent)).toEqual(links)
+      expect(within(panel).getByRole('button', { name: 'Sign out' })).toBeTruthy()
+      expect(within(panel).getByRole('combobox', { name: 'Language' })).toBeTruthy()
+      expect(within(panel).queryAllByRole('button', { name: /^Search medical terms/ })).toHaveLength(account.role === 'reception' ? 0 : 1)
+      fireEvent.click(button)
+      expect(button.getAttribute('aria-expanded')).toBe('true')
+      cleanup()
+    }
+  })
+
   it('lands a receptionist on the front desk (clinic-cms F1, F3)', async () => {
     renderAt('/', { ...staff({ ...admin, role: 'reception' }), 'GET /clinic/desk/today': () => Response.json({ date: '2026-11-23', visits: [] }) })
 

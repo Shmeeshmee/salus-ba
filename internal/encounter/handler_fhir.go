@@ -22,7 +22,7 @@ const (
 // Reader reads and searches encounters for a caller (Service).
 type Reader interface {
 	Read(ctx context.Context, c appointment.Caller, id string) (Encounter, error)
-	Search(ctx context.Context, c appointment.Caller, f Filter) ([]Encounter, error)
+	SearchPage(ctx context.Context, c appointment.Caller, f Filter, count int) (Page, error)
 }
 
 // Handler serves the Encounter read and search of the FHIR API (api/fhir/CapabilityStatement.json). There is
@@ -111,42 +111,46 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	fhir.Write(w, http.StatusOK, toFHIR(e))
 }
 
-// search answers Encounter?[appointment=…][&patient=…][&practitioner=…].
+// search answers Encounter?[appointment=…][&patient=…][&practitioner=…][&_count=…][&_cursor=…], a page at a time
+// where the service pages it (SearchPage), with the next page's link while more may follow.
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.signedIn(w, r)
 	if !ok {
 		return
 	}
-	q, f, ok := searchQuery(r.URL.RawQuery)
+	q, f, count, ok := searchQuery(r.URL.RawQuery)
 	if !ok {
-		fhir.WriteError(w, http.StatusBadRequest, "not-supported", "Search by appointment, patient and practitioner, each once.")
+		fhir.WriteError(w, http.StatusBadRequest, "not-supported",
+			"Search by appointment, patient, practitioner and _count (1 to 200), each once, from a next link's _cursor.")
 		return
 	}
-	all, err := h.svc.Search(r.Context(), c, f)
+	page, err := h.svc.SearchPage(r.Context(), c, f, count)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
 	}
-	matches := make([]fhir.BundleEntry, 0, len(all))
-	for _, e := range all {
+	matches := make([]fhir.BundleEntry, 0, len(page.Encounters))
+	for _, e := range page.Encounters {
 		matches = append(matches, fhir.BundleEntry{FullURL: h.base + "/Encounter/" + e.ID, Resource: toFHIR(e)})
 	}
-	self := h.base + "/Encounter"
-	if len(q) > 0 {
-		self += "?" + q.Encode()
+	var next string
+	if page.More {
+		last := page.Encounters[len(page.Encounters)-1]
+		next = fhir.NextLink(h.base+"/Encounter", q, fhir.NewCursor(last.PeriodStart, last.ID))
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	fhir.Write(w, http.StatusOK, fhir.NewSearchset(self, matches, nil))
+	fhir.Write(w, http.StatusOK, fhir.NewPage(fhir.SelfLink(h.base+"/Encounter", q), next, f.AfterID == "", matches, nil))
 }
 
-// searchQuery reads the search into a filter, and false for an unknown or repeated parameter or a reference
-// it cannot read.
-func searchQuery(raw string) (url.Values, Filter, bool) {
+// searchQuery reads the search into a filter and the count it asks for (0 for none), and false for an unknown or
+// repeated parameter or a value it cannot read.
+func searchQuery(raw string) (url.Values, Filter, int, bool) {
 	q, err := url.ParseQuery(raw)
 	if err != nil {
-		return nil, Filter{}, false
+		return nil, Filter{}, 0, false
 	}
 	var f Filter
+	var count int
 	for key, values := range q {
 		var id string
 		var ok bool
@@ -160,12 +164,17 @@ func searchQuery(raw string) (url.Values, Filter, bool) {
 		case "practitioner":
 			id, ok = fhir.ReferenceID(values[0], "Practitioner")
 			f.PractitionerID = id
+		case "_count":
+			count, ok = fhir.Count(values, appointment.MaxCount)
+		case "_cursor":
+			f.AfterStart, f.AfterID, ok = fhir.ParseCursor(values[0])
+			ok = ok && !f.AfterStart.IsZero()
 		}
 		if !ok || len(values) != 1 {
-			return nil, Filter{}, false
+			return nil, Filter{}, 0, false
 		}
 	}
-	return q, f, true
+	return q, f, count, true
 }
 
 // signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.

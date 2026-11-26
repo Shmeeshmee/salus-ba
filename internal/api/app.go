@@ -83,19 +83,21 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 	}
 	tx := postgres.NewTransactor(pool)
 	audit := auditevent.NewService(auditevent.NewPostgresRepository(pool), tx, clock.System{})
+	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, consent.NewRiverJobs(jobs))
 	clinics := organization.NewService(organization.NewPostgresRepository(pool), audit, tx, clock.System{},
 		terminology.NewCatalog(terminology.NewPostgresCatalogRepository(pool))) // the location's check and city name
+	clinics = clinics.WithPatients(consents)             // a stopped membership keeps a clinic's public reads for its patients (readiness)
 	sites := locations(pool, audit, tx, clinics)         // the clinic's locations and the rules' (clinic-cms LC1)
 	prices := priceList(pool, audit, tx, clinics, sites) // the price list's routes and the receipts' prices (clinic-cms B, C)
 	practitioners := practitioner.NewService(practitioner.NewPostgresRepository(pool), audit, tx)
 	roles := practitionerrole.NewService(practitionerrole.Ports{
 		Repo: practitionerrole.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{}, Clinics: clinics, People: practitioners,
 	})
-	consents := consent.NewService(consent.NewPostgresRepository(pool), audit, tx, clock.System{}, consent.NewRiverJobs(jobs))
 	appointmentRepo := appointment.NewPostgresRepository(pool)
 	// The patient's appointment facts come from the appointment repository alone, so the patient service can
 	// be built before the appointment service, which reads profiles through it.
 	patients := patient.NewService(patient.NewPostgresRepository(pool), audit, tx, clock.System{}, consents, appointment.NewFacts(appointmentRepo))
+	served := servedBy(clinics, patients)          // the public reads of a clinic its staff and patients keep once its membership stops
 	consents = consents.WithRestrictions(patients) // every other domain's consent state tells a restricted record (WAVE5.md S7)
 	schedules := schedule.NewService(schedule.Ports{
 		Repo: schedule.NewPostgresRepository(pool), Audit: audit, Tx: tx, Clock: clock.System{},
@@ -147,10 +149,10 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 		Session: authHandler.Session,
 		Routes: append([]func(*http.ServeMux){
 			authHandler.Routes,
-			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).Routes,
-			organization.NewProfileHandler(clinics, organizationCaller(accounts), log).Routes,
+			organization.NewHandler(clinics, organizationCaller(accounts), fhirBase, log).WithServed(served).Routes,
+			organization.NewProfileHandler(clinics, organizationCaller(accounts), log).WithServed(served).Routes,
 			practitioner.NewHandler(practitioners, practitionerCaller, log).Routes,
-			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).Routes,
+			practitionerrole.NewHandler(roles, practitioners, roleCaller, fhirBase, log).WithServed(served).Routes,
 			practitionerrole.NewHTTPHandler(roles, roleAdminCaller(accounts), log).Routes,
 			patient.NewHandler(patients, patientCaller, log).Routes,
 			patient.NewFHIRHandler(patients, patientReadCaller(accounts, roles), log).Routes,
@@ -158,7 +160,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			consent.NewHandler(newSharing(consents, encounters, documents, roles, clinics), consentCaller(accounts, patients), log).Routes,
 			consent.NewFHIRHandler(consents, consentCaller(accounts, patients), log).Routes,
 			schedule.NewHTTPHandler(schedules, scheduleCaller(accounts), log).Routes,
-			schedule.NewHandler(schedules, sessionClinic, fhirBase, log).Routes,
+			schedule.NewHandler(schedules, sessionClinic, fhirBase, log).WithServed(served).Routes,
 			slot.NewHandler(slots, sessionClinic, fhirBase, log).Routes,
 			appointment.NewHTTPHandler(appointments, appointmentCaller(accounts, patients), log).Routes,
 			appointment.NewHandler(appointments, appointmentCaller(accounts, patients), fhirBase, log).Routes,
@@ -169,7 +171,7 @@ func New(ctx context.Context, cfg config.Config, lk config.LiveKit, files config
 			appointment.NewStaffHandler(appointments, deskCaller(accounts, patients), log).Routes, // clinic-cms F2
 			videosession.NewHandler(sessions, appointmentCaller(accounts, patients), log).Routes,
 			encounter.NewHandler(encounters, appointmentCaller(accounts, patients), fhirBase, log).Routes,
-		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log), locationRoutes(sites, accounts, log)},
+		}, slices.Concat(questionnaireAPI, consultAPI, terminologyRoutes(pool, audit, tx, accounts, log), []func(*http.ServeMux){chatAPI, clinicStatsRoutes(pool, audit, tx, clinicStatsCaller(accounts, roles), log, practiceSources{clinics, schedules, appointments})}, newHistory(historyPorts{pool: pool, audit: audit, tx: tx, encounters: encounters, documents: documents, timeline: timeline, clinics: clinics, roles: roles, appointments: appointments, allergies: entries.allergies, medications: entries.medications, caller: appointmentCaller(accounts, patients)}, log), entries.routes, chatNotificationRoutes(chatNotificationPorts{pool: pool, audit: audit, tx: tx, consents: consents, accounts: accounts, patients: patients, box: k.webhooks}, log), []func(*http.ServeMux){reminderRoutes(pool, audit, tx, accounts, patients, log), priceListRoutes(prices, accounts, log), locationRoutes(sites, accounts, served, log)},
 			[]func(*http.ServeMux){invoiceRoutes(invoicePorts{pool: pool, audit: audit, tx: tx, jobs: jobs, clinics: clinics, appointments: appointments, consents: consents, care: appointment.NewFacts(appointmentRepo), prices: prices, sites: sites, accounts: accounts, patients: patients}, log)}, // receipts (clinic-cms C)
 			[]func(*http.ServeMux){carePlanRoutes(carePlanPorts{pool: pool, audit: audit, tx: tx, appointments: appointments, care: appointment.NewFacts(appointmentRepo), roles: roles, consents: consents, prices: prices, accounts: accounts, patients: patients}, log)},                             // treatment plans (clinic-cms TP1)
 			subscriptionRoutes(pool, audit, tx, accounts, clinics, cfg.Seller, log), // membership (clinic-cms D)
@@ -439,6 +441,31 @@ func absoluteURL(s string) (string, error) {
 func sessionClinic(ctx context.Context) string {
 	s, _ := auth.SessionFrom(ctx)
 	return s.OrganizationID
+}
+
+// servedBy gives the listed clinics whose public reads (locations, profile, schedules) the signed-in session keeps once
+// their membership stops (organization.Service.Served, docs/clinic-cms/PROGRESS.md "Readiness follow-ups: suspended
+// clinics"): its own clinic for staff, a patient's of their care consents; none signed out or without a patient
+// profile. Asked only when the directory no longer shows a clinic.
+func servedBy(clinics *organization.Service, patients *patient.Service) organization.Served {
+	return func(ctx context.Context) ([]string, error) {
+		s, ok := auth.SessionFrom(ctx)
+		if !ok {
+			return nil, nil
+		}
+		c := organization.Caller{AccountID: s.AccountID, OrganizationID: s.OrganizationID}
+		if c.OrganizationID == "" {
+			p, err := patients.Me(ctx, patient.Caller{AccountID: s.AccountID})
+			switch {
+			case errors.Is(err, patient.ErrNotFound):
+				return nil, nil
+			case err != nil:
+				return nil, err
+			}
+			c.PatientID = p.ID
+		}
+		return clinics.Served(ctx, c)
+	}
 }
 
 // organizationCaller is the directory's view of the signed-in session, with whether the account is the

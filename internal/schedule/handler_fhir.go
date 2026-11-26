@@ -8,13 +8,14 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
 
 // Public reads the schedules of the public directory, for anyone, and those of the caller's own clinic org for its
 // staff (empty org for anyone else) whether or not it is listed (Service).
 type Public interface {
-	ReadFor(ctx context.Context, org, id string) (Schedule, error)
+	ReadFor(ctx context.Context, org, id string, served organization.Served) (Schedule, error)
 	ByActorFor(ctx context.Context, org, roleID string) (Schedule, error)
 }
 
@@ -24,6 +25,7 @@ type Public interface {
 type Handler struct {
 	svc    Public
 	clinic func(ctx context.Context) string // the signed-in staff's clinic; empty for anyone else
+	served organization.Served              // the clinics the caller keeps once their membership stops; nil: none
 	log    *slog.Logger
 	base   string // the FHIR API's absolute base URL (FHIR_BASE_URL)
 }
@@ -32,6 +34,13 @@ type Handler struct {
 // the FHIR API's absolute base URL (https://…/fhir/R4).
 func NewHandler(svc Public, clinic func(ctx context.Context) string, base string, log *slog.Logger) *Handler {
 	return &Handler{svc: svc, clinic: clinic, base: base, log: log}
+}
+
+// WithServed returns h with the Schedule read for the clinics served gives too once their membership stops.
+func (h *Handler) WithServed(served organization.Served) *Handler {
+	out := *h
+	out.served = served
+	return &out
 }
 
 // Routes declares the Schedule routes on mux.
@@ -58,7 +67,7 @@ func toFHIR(s Schedule) resource {
 }
 
 func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
-	s, err := h.svc.ReadFor(r.Context(), h.clinic(r.Context()), r.PathValue("id"))
+	s, err := h.svc.ReadFor(r.Context(), h.clinic(r.Context()), r.PathValue("id"), h.served)
 	switch {
 	case errors.Is(err, ErrNotFound):
 		fhir.WriteError(w, http.StatusNotFound, "not-found", "Resource not found.")

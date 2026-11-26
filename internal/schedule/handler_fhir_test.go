@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/schedule"
 )
 
@@ -39,12 +40,14 @@ func assertGolden(t *testing.T, name string, got []byte) {
 
 // stubPublic answers with what it is given and keeps what it was asked.
 type stubPublic struct {
-	err   error
-	asked []string // "read:<id>" or "actor:<role>"
-	out   schedule.Schedule
+	err    error
+	served organization.Served
+	asked  []string // "read:<id>" or "actor:<role>"
+	out    schedule.Schedule
 }
 
-func (s *stubPublic) ReadFor(_ context.Context, org, id string) (schedule.Schedule, error) {
+func (s *stubPublic) ReadFor(_ context.Context, org, id string, served organization.Served) (schedule.Schedule, error) {
+	s.served = served
 	s.asked = append(s.asked, org+"read:"+id)
 	return s.out, s.err
 }
@@ -154,5 +157,21 @@ func TestHandler_PassesTheStaffsClinic(t *testing.T) {
 	}
 	if want := []string{clinicA + "read:" + scheduleA2, clinicA + "actor:" + roleA2}; !slices.Equal(svc.asked, want) {
 		t.Errorf("asked %v, want %v", svc.asked, want)
+	}
+}
+
+// The read goes with the clinics the handler is given as served (readiness: suspended clinics).
+func TestHandlerRead_GoesWithTheServedClinics(t *testing.T) {
+	svc := &stubPublic{out: scheduleOfA2}
+	mux := http.NewServeMux()
+	served := func(context.Context) ([]string, error) { return []string{clinicB}, nil }
+	schedule.NewHandler(svc, staffClinic, "https://api.example.test/fhir/R4", slog.New(slog.DiscardHandler)).WithServed(served).Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/fhir/R4/Schedule/"+scheduleA2, nil))
+	if rec.Code != http.StatusOK || svc.served == nil {
+		t.Fatalf("GET Schedule = %d, served %v; want 200 with the served clinics", rec.Code, svc.served != nil)
+	}
+	if got, err := svc.served(t.Context()); err != nil || len(got) != 1 || got[0] != clinicB {
+		t.Errorf("served() = %v, %v; want clinic B", got, err)
 	}
 }

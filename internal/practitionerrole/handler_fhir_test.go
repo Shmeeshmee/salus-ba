@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/internal/practitionerrole"
 )
@@ -47,6 +48,7 @@ func assertGolden(t *testing.T, name string, got []byte) {
 // stubRoles answers with what it is given and keeps what it was asked.
 type stubRoles struct {
 	err    error
+	served organization.Served // what Read was given
 	role   practitionerrole.PractitionerRole
 	caller practitionerrole.Caller
 	id     string // the role read, or the clinic searched
@@ -55,8 +57,8 @@ type stubRoles struct {
 	public int // calls of PublicByOrganization
 }
 
-func (s *stubRoles) Read(_ context.Context, c practitionerrole.Caller, id string) (practitionerrole.PractitionerRole, error) {
-	s.caller, s.id = c, id
+func (s *stubRoles) ReadFor(_ context.Context, c practitionerrole.Caller, id string, served organization.Served) (practitionerrole.PractitionerRole, error) {
+	s.caller, s.id, s.served = c, id, served
 	s.calls++
 	return s.role, s.err
 }
@@ -349,4 +351,25 @@ func TestHandler_SendsAFixedOperationOutcomeAndLogsNoName(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The read goes with the handler's Served, for a patient of a clinic the directory no longer shows (readiness:
+// suspended clinics); the role is the same resource.
+func TestHandlerRead_GoesWithTheServedClinics(t *testing.T) {
+	r := role(roleA1, clinicA, practitionerA1)
+	r.SpecialtyCode = "394579002" // cardiology
+	s := newServer(&stubRoles{role: r})
+	s.caller = signedIn(patient)
+	mux := http.NewServeMux()
+	served := func(context.Context) ([]string, error) { return []string{clinicA}, nil }
+	practitionerrole.NewHandler(s.roles, s.people, s.caller, "https://api.example.test/fhir/R4", s.log).WithServed(served).Routes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/fhir/R4/PractitionerRole/"+roleA1, nil))
+	if rec.Code != http.StatusOK || s.roles.served == nil || s.roles.caller != patient {
+		t.Fatalf("status = %d %s, served %v; want 200 with the handler's Served", rec.Code, rec.Body, s.roles.served != nil)
+	}
+	if got, err := s.roles.served(t.Context()); err != nil || len(got) != 1 || got[0] != clinicA {
+		t.Errorf("served() = %v, %v; want clinic A", got, err)
+	}
+	assertGolden(t, "practitioner_role.json", rec.Body.Bytes())
 }

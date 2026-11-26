@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
 	"github.com/Shmeeshmee/salus/internal/appointment"
@@ -20,13 +21,14 @@ import (
 const (
 	extensionAppointment  = "https://salus.invalid/fhir/StructureDefinition/questionnaireresponse-appointment"
 	includeQuestionnaire  = "QuestionnaireResponse:questionnaire"
-	unsupportedSearchText = "Search by appointment, patient and status, each once, optionally with _include=QuestionnaireResponse:questionnaire."
+	unsupportedSearchText = "Search by appointment, patient, status and _count (1 to 200), each once, optionally with " +
+		"_include=QuestionnaireResponse:questionnaire, from a next link's _cursor."
 )
 
 // Reader reads and searches responses for a caller (Service).
 type Reader interface {
 	Read(ctx context.Context, c appointment.Caller, id string) (Seen, error)
-	Search(ctx context.Context, c appointment.Caller, f Filter) ([]Seen, error)
+	SearchPage(ctx context.Context, c appointment.Caller, f Filter, count int) (Page, error)
 }
 
 // Versions reads a questionnaire version for a caller, audited as their read of it (questionnaire.Service):
@@ -183,23 +185,29 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	fhir.Write(w, http.StatusOK, h.toFHIR(s, known[s.Response.QuestionnaireID]))
 }
 
-// search answers QuestionnaireResponse?[appointment=…][&patient=…][&status=…]
-// [&_include=QuestionnaireResponse:questionnaire].
+// search answers QuestionnaireResponse?[appointment=…][&patient=…][&status=…][&_include=QuestionnaireResponse:questionnaire]
+// [&_count=…][&_cursor=…], a page at a time where the service pages it (SearchPage), with the next page's link while
+// more may follow. A page includes the versions its own responses answer.
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.signedIn(w, r)
 	if !ok {
 		return
 	}
-	q, f, include, ok := searchQuery(r.URL.RawQuery)
+	q, f, count, include, ok := searchQuery(r.URL.RawQuery)
 	if !ok {
 		fhir.WriteError(w, http.StatusBadRequest, "not-supported", unsupportedSearchText)
 		return
 	}
-	all, err := h.svc.Search(r.Context(), c, f)
-	if err != nil {
+	page, err := h.svc.SearchPage(r.Context(), c, f, count)
+	switch {
+	case errors.Is(err, ErrPosition):
+		fhir.WriteError(w, http.StatusBadRequest, "not-found", "The page's position is no longer there: run the search again from its first page.")
+		return
+	case err != nil:
 		fhir.InternalError(w, r, h.log, err)
 		return
 	}
+	all := page.Seen
 	known := map[string]questionnaire.Questionnaire{}
 	if err := h.readVersions(r.Context(), c, all, known); err != nil {
 		fhir.InternalError(w, r, h.log, err)
@@ -216,12 +224,12 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 			included = append(included, fhir.BundleEntry{FullURL: h.base + "/Questionnaire/" + v.ID, Resource: questionnaire.ToFHIR(v)})
 		}
 	}
-	self := h.base + "/QuestionnaireResponse"
-	if len(q) > 0 {
-		self += "?" + q.Encode()
+	var next string
+	if page.More { // the position is the last response's id: its order's times are not in the resource
+		next = fhir.NextLink(h.base+"/QuestionnaireResponse", q, fhir.NewCursor(time.Time{}, all[len(all)-1].Response.ID))
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	fhir.Write(w, http.StatusOK, fhir.NewSearchset(self, matches, included))
+	fhir.Write(w, http.StatusOK, fhir.NewPage(fhir.SelfLink(h.base+"/QuestionnaireResponse", q), next, f.AfterID == "", matches, included))
 }
 
 // readVersions reads, as c, each version the responses answer that known does not hold yet, once, into known.
@@ -241,12 +249,12 @@ func (h *Handler) readVersions(ctx context.Context, c appointment.Caller, all []
 	return nil
 }
 
-// searchQuery reads the search into a filter and whether it includes the versions, and false for an unknown or
-// repeated parameter or a value it cannot read.
-func searchQuery(raw string) (q url.Values, f Filter, include, ok bool) {
+// searchQuery reads the search into a filter, the count it asks for (0 for none) and whether it includes the
+// versions, and false for an unknown or repeated parameter or a value it cannot read.
+func searchQuery(raw string) (q url.Values, f Filter, count int, include, ok bool) {
 	q, err := url.ParseQuery(raw)
 	if err != nil {
-		return nil, Filter{}, false, false
+		return nil, Filter{}, 0, false, false
 	}
 	for key, values := range q {
 		v, ok := values[0], false
@@ -260,12 +268,18 @@ func searchQuery(raw string) (q url.Values, f Filter, include, ok bool) {
 			ok = f.Status == StatusInProgress || f.Status == StatusCompleted || f.Status == StatusStopped
 		case "_include":
 			include, ok = v == includeQuestionnaire, v == includeQuestionnaire
+		case "_count":
+			count, ok = fhir.Count(values, appointment.MaxCount)
+		case "_cursor":
+			var at time.Time
+			at, f.AfterID, ok = fhir.ParseCursor(v)
+			ok = ok && at.IsZero()
 		}
 		if !ok || len(values) != 1 {
-			return nil, Filter{}, false, false
+			return nil, Filter{}, 0, false, false
 		}
 	}
-	return q, f, include, true
+	return q, f, count, include, true
 }
 
 // signedIn returns the caller, or answers 401 (nobody signed in) or 500 and false.

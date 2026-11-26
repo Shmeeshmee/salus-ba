@@ -35,6 +35,7 @@ import { attempt } from './api/result'
 import { isStaffLanguage, type Language } from './i18n/languages'
 import { useLanguage, useT } from './i18n/useT'
 import { CalendarIcon, ChartIcon, ChatIcon, ClinicIcon, ClockIcon, DeskIcon, ListIcon, Logo, PeopleIcon, PrivacyIcon, QuoteIcon, ReceiptIcon, ReviewIcon, SignOutIcon, WaitlistIcon } from './icons'
+import { HeaderMenu } from './HeaderMenu'
 import { LanguagePicker } from './LanguagePicker'
 import { navigate, usePath } from './route'
 import { Cheatsheet } from './terminology/Cheatsheet'
@@ -121,14 +122,16 @@ function SignedIn({ api, fhir, path }: Clients & { path: string }) {
     <>
       <header className="bar">
         <Logo />
-        {clinical && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} desk={deskRoles.has(account.role)} reviewer={account.termReviewer === true} />}
-        {account.role === 'reception' && <ReceptionNavigation />}
-        {clinical && <Cheatsheet api={api} />}
-        {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
-        <button type="button" className="quiet" onClick={signOut}>
-          <SignOutIcon />
-          {t('shell.signOut')}
-        </button>
+        <HeaderMenu>
+          {clinical && <Navigation admin={account.role === 'admin'} practitioner={account.role === 'practitioner'} desk={deskRoles.has(account.role)} reviewer={account.termReviewer === true} />}
+          {account.role === 'reception' && <ReceptionNavigation />}
+          {clinical && <Cheatsheet api={api} />}
+          {staff && <LanguagePicker value={staffChoice(account)} onChange={(language) => saveLanguage(account, language)} />}
+          <button type="button" className="quiet" onClick={signOut}>
+            <SignOutIcon />
+            {t('shell.signOut')}
+          </button>
+        </HeaderMenu>
       </header>
       <main className={path === '/' || path === '/analytics' || callPath.test(path) || questionnairePath.test(path) || chatPath.test(path) ? 'page wide' : 'page'}>
         <Alert message={signOutFailed ? t('shell.signOutFailed') : undefined} />
@@ -147,72 +150,100 @@ function Navigation({ admin, practitioner, desk, reviewer }: { admin: boolean; p
   const t = useT()
   return (
     <nav aria-label={t('shell.mainNav')}>
-      {desk && (
-        <Link to="/desk">
-          <DeskIcon />
-          {t('desk.nav')}
-        </Link>
-      )}
-      <Link to="/">
-        <CalendarIcon />
-        {t('shell.calendar')}
-      </Link>
-      <Link to="/availability">
-        <ClockIcon />
-        {t('shell.workingHours')}
-      </Link>
-      <Link to="/practitioners">
-        <PeopleIcon />
-        {t('shell.practitioners')}
-      </Link>
-      <Link to="/questionnaires">
-        <ListIcon />
-        {t('shell.questionnaires')}
-      </Link>
-      <Link to="/waitlist">
-        <WaitlistIcon />
-        {t('waitlist.nav')}
-      </Link>
-      {practitioner && (
-        <Link to="/chats">
-          <ChatIcon />
-          {t('shell.messages')}
-        </Link>
-      )}
-      <Link to="/analytics">
-        <ChartIcon />
-        {t('shell.analytics')}
-      </Link>
-      {reviewer && (
-        <Link to="/term-review">
-          <ReviewIcon />
-          {t('shell.termReview')}
-        </Link>
-      )}
-      {admin && (
-        <Link to="/receipts">
-          <ReceiptIcon />
-          {t('receipts.nav')}
-        </Link>
-      )}
-      {admin && (
-        <Link to="/quotes">
-          <QuoteIcon />
-          {t('receipts.quotes.nav')}
-        </Link>
-      )}
-      {admin && (
-        <Link to="/data-requests">
-          <PrivacyIcon />
-          {t('privacy.nav')}
-        </Link>
-      )}
-      {admin && (
-        <Link to="/clinic">
-          <ClinicIcon />
-          {t('shell.clinicSettings')}
-        </Link>
-      )}
+      <ul>
+        {desk && (
+          <li>
+            <Link to="/desk">
+              <DeskIcon />
+              {t('desk.nav')}
+            </Link>
+          </li>
+        )}
+        <li>
+          <Link to="/">
+            <CalendarIcon />
+            {t('shell.calendar')}
+          </Link>
+        </li>
+        <li>
+          <Link to="/availability">
+            <ClockIcon />
+            {t('shell.workingHours')}
+          </Link>
+        </li>
+        <li>
+          <Link to="/practitioners">
+            <PeopleIcon />
+            {t('shell.practitioners')}
+          </Link>
+        </li>
+        <li>
+          <Link to="/questionnaires">
+            <ListIcon />
+            {t('shell.questionnaires')}
+          </Link>
+        </li>
+        <li>
+          <Link to="/waitlist">
+            <WaitlistIcon />
+            {t('waitlist.nav')}
+          </Link>
+        </li>
+        {practitioner && (
+          <li>
+            <Link to="/chats">
+              <ChatIcon />
+              {t('shell.messages')}
+            </Link>
+          </li>
+        )}
+        <li>
+          <Link to="/analytics">
+            <ChartIcon />
+            {t('shell.analytics')}
+          </Link>
+        </li>
+        {reviewer && (
+          <li>
+            <Link to="/term-review">
+              <ReviewIcon />
+              {t('shell.termReview')}
+            </Link>
+          </li>
+        )}
+        {admin && (
+          <li>
+            <Link to="/receipts">
+              <ReceiptIcon />
+              {t('receipts.nav')}
+            </Link>
+          </li>
+        )}
+        {admin && (
+          <li>
+            <Link to="/quotes">
+              <QuoteIcon />
+              {t('receipts.quotes.nav')}
+            </Link>
+          </li>
+        )}
+        {admin && (
+          <li>
+            <Link to="/data-requests">
+              <PrivacyIcon />
+              {t('privacy.nav')}
+            </Link>
+          </li>
+        )}
+        {admin && (
+          <li>
+            <Link to="/clinic">
+              <ClinicIcon />
+              {t('shell.clinicSettings')}
+            </Link>
+          </li>
+        )}
+      </ul>
     </nav>
   )
 }
@@ -222,10 +253,14 @@ function ReceptionNavigation() {
   const t = useT()
   return (
     <nav aria-label={t('shell.mainNav')}>
-      <Link to="/desk">
-        <DeskIcon />
-        {t('desk.nav')}
-      </Link>
+      <ul>
+        <li>
+          <Link to="/desk">
+            <DeskIcon />
+            {t('desk.nav')}
+          </Link>
+        </li>
+      </ul>
     </nav>
   )
 }

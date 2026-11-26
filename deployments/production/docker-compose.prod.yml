@@ -44,9 +44,32 @@ x-app: &app
 # What every app binary reads (internal/config). The binaries log in as salus_app (no superuser, no BYPASSRLS);
 # only migrate logs in as the owner. Postgres and Redis are on the compose network: no TLS between containers on
 # one host (decided, ADR 0011 point 4).
+#
+# Every variable a binary reads is listed for its service, from the env file or fixed here: compose passes a
+# container only what its service lists. deployments/production/wiring_test.go (make test) fails when a variable
+# internal/config reads for a binary is missing from its service, or a variable interpolated here from
+# .env.production.example.
+#
+# SALUS_ENV is fixed, never read from the env file: production can never run as dev (no generated webhook key, no
+# operator or seller placeholder, no demo seed). Every Go service sets it, migrate (and salusctl in it) too.
 x-app-env: &app-env
+  SALUS_ENV: production
   DATABASE_URL: postgres://salus_app:${APP_DATABASE_PASSWORD:?APP_DATABASE_PASSWORD is required}@postgres:5432/salus?sslmode=disable
   REDIS_URL: redis://redis:6379/0
+
+# The analytics (docs/plans/analytics.md A4): the platform view stays off, and k at 10, until the owner confirms the
+# legal answers L1 to L8. Read by the api, the worker, the scheduler and salusctl (the migrate service).
+x-analytics-env: &analytics-env
+  ANALYTICS_PLATFORM_ENABLED: ${ANALYTICS_PLATFORM_ENABLED:-false}
+  ANALYTICS_MIN_COUNT: ${ANALYTICS_MIN_COUNT:-10}
+
+# Who issues the membership invoices (docs/plans/clinic-cms.md Q3), on their PDF in the api and the notifier. Both
+# refuse to start without the four, or with one still a [placeholder].
+x-seller-env: &seller-env
+  SELLER_NAME: ${SELLER_NAME:?SELLER_NAME is required}
+  SELLER_TAX_ID: ${SELLER_TAX_ID:?SELLER_TAX_ID is required}
+  SELLER_ADDRESS: ${SELLER_ADDRESS:?SELLER_ADDRESS is required}
+  SELLER_ACCOUNT: ${SELLER_ACCOUNT:?SELLER_ACCOUNT is required}
 
 x-livekit-env: &livekit-env
   LIVEKIT_URL: http://livekit:7880
@@ -108,6 +131,8 @@ services:
     <<: *app
     command: ["/usr/local/bin/migrate", "up"]
     environment:
+      <<: *analytics-env # salusctl's platform builds (it runs in this service)
+      SALUS_ENV: production
       DATABASE_URL: postgres://salus:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/salus?sslmode=disable
       APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD}
       RETENTION_DATABASE_PASSWORD: ${RETENTION_DATABASE_PASSWORD:?RETENTION_DATABASE_PASSWORD is required}
@@ -121,7 +146,9 @@ services:
     <<: *app
     command: ["/usr/local/bin/api"]
     environment:
-      <<: [*app-env, *livekit-env, *objectstore-env, *llm-env]
+      <<: [*app-env, *livekit-env, *objectstore-env, *llm-env, *analytics-env, *seller-env]
+      # The chat's AI summary: fake, and only fake, until the owner decides the basis for a real model (SAL-31).
+      CHAT_SUMMARY_ENGINE: ${CHAT_SUMMARY_ENGINE:-fake}
       HTTP_ADDR: ":8080"
       TOTP_KEY_FILE: /run/secrets/totp_key
       WEBHOOK_KEY_FILE: /run/secrets/webhook_key # seals the clinics' webhook secrets (SAL-29)
@@ -149,8 +176,14 @@ services:
     <<: *app
     command: ["/usr/local/bin/worker"]
     environment:
-      <<: [*app-env, *livekit-env, *objectstore-env, *llm-env]
+      <<: [*app-env, *livekit-env, *objectstore-env, *llm-env, *analytics-env]
       CLAMD_ADDR: clamd:3310
+      # The retention job's policy, pending lawyer L1 to L3: clinical data kept (keep is the only value taken), the
+      # operational logs 90 days.
+      RETENTION_CLINICAL_DATA: ${RETENTION_CLINICAL_DATA:-keep}
+      RETENTION_OPERATIONAL_LOG_DAYS: ${RETENTION_OPERATIONAL_LOG_DAYS:-90}
+      # The receipts' fiscalization: the fake only, until the ESET adapter (clinic-cms package G).
+      FISCAL_ENGINE: ${FISCAL_ENGINE:-fake}
       # The retention_apply job's own login (BYPASSRLS, delete on the tables whose rule is delete). Only here.
       RETENTION_DATABASE_URL: postgres://salus_retention:${RETENTION_DATABASE_PASSWORD}@postgres:5432/salus?sslmode=disable
       # The clinic statistics' builds' own login (ADR 0013: BYPASSRLS, the source columns only). Only here.
@@ -170,7 +203,8 @@ services:
   scheduler:
     <<: *app
     command: ["/usr/local/bin/scheduler"]
-    environment: *app-env
+    environment:
+      <<: [*app-env, *analytics-env] # the platform builds are scheduled only when the platform view is on
     depends_on: &migrate-only # Postgres only: it opens no Redis connection (cmd/scheduler)
       migrate: {condition: service_completed_successfully}
     mem_limit: ${SALUS_MEM_SCHEDULER:-128m}
@@ -182,7 +216,7 @@ services:
     <<: *app
     command: ["/usr/local/bin/notifier"]
     environment:
-      <<: *app-env
+      <<: [*app-env, *seller-env]
       SMTP_ADDR: ${SMTP_ADDR:?SMTP_ADDR is required}
       SMTP_TLS: ${SMTP_TLS:-starttls}
       SMTP_USERNAME: ${SMTP_USERNAME:?SMTP_USERNAME is required}
@@ -191,6 +225,21 @@ services:
       WEB_BASE_URL: https://app.${SALUS_DOMAIN}
       PATIENT_APP_URL: ${PATIENT_APP_URL:?PATIENT_APP_URL is required}
       APPOINTMENT_LINK_URL: https://api.${SALUS_DOMAIN} # the reminders' one-time links (SAL-33)
+      # Who answers the data requests to the Salus account, and gets their deadline warnings (WAVE5 S1); the notifier
+      # refuses to start without an address, or with one still in brackets.
+      SALUS_OPERATOR_EMAIL: ${SALUS_OPERATOR_EMAIL:?SALUS_OPERATOR_EMAIL is required}
+      SALUS_OPERATOR_LANGUAGE: ${SALUS_OPERATOR_LANGUAGE:-bs}
+      # The reminders' SMS: the fake only, until an SMS provider is chosen and its DPA recorded.
+      SMS_ENGINE: ${SMS_ENGINE:-fake}
+      # Push (docs/deploy/push.md): off while these are empty. The two key files reach the notifier as compose
+      # secrets, added here with the app's token registration; set FCM_CREDENTIALS_FILE and APNS_KEY_FILE to their
+      # /run/secrets/ paths only then (the notifier refuses a path it cannot read, and a partial APNs set).
+      FCM_CREDENTIALS_FILE: ${FCM_CREDENTIALS_FILE:-}
+      APNS_KEY_FILE: ${APNS_KEY_FILE:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
+      APNS_SANDBOX: ${APNS_SANDBOX:-}
     depends_on: *migrate-only # Postgres only (cmd/notifier)
     mem_limit: ${SALUS_MEM_NOTIFIER:-128m}
 

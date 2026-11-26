@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/internal/practitioner"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 )
@@ -17,7 +18,7 @@ const includePractitioner = "PractitionerRole:practitioner"
 
 // Roles reads and searches practitioner roles for a caller, and the public directory's for anyone (Service).
 type Roles interface {
-	Read(ctx context.Context, c Caller, id string) (PractitionerRole, error)
+	ReadFor(ctx context.Context, c Caller, id string, served organization.Served) (PractitionerRole, error)
 	Search(ctx context.Context, c Caller, org string) ([]PractitionerRole, error)
 	PublicByOrganization(ctx context.Context, org string) ([]PractitionerRole, error)
 }
@@ -35,6 +36,7 @@ type Handler struct {
 	people Practitioners
 	// caller is who is signed in for the request, and false for nobody (from the session, in internal/api).
 	caller func(ctx context.Context) (Caller, bool)
+	served organization.Served // the clinics a patient keeps reading the roles of; nil: none
 	log    *slog.Logger
 	base   string // the FHIR API's absolute base URL, for a Bundle's links (FHIR_BASE_URL)
 }
@@ -43,6 +45,14 @@ type Handler struct {
 // API's absolute base URL (https://…/fhir/R4).
 func NewHandler(roles Roles, people Practitioners, caller func(ctx context.Context) (Caller, bool), base string, log *slog.Logger) *Handler {
 	return &Handler{roles: roles, people: people, caller: caller, base: base, log: log}
+}
+
+// WithServed returns h with the read of a role for the clinics served gives too (a patient's, once the directory no
+// longer shows their clinic).
+func (h *Handler) WithServed(served organization.Served) *Handler {
+	out := *h
+	out.served = served
+	return &out
 }
 
 // Routes declares the PractitionerRole routes on mux.
@@ -83,7 +93,7 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	p, err := h.roles.Read(r.Context(), c, r.PathValue("id"))
+	p, err := h.roles.ReadFor(r.Context(), c, r.PathValue("id"), h.served)
 	if err != nil {
 		h.writeError(w, r, err)
 		return

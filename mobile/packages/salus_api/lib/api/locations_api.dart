@@ -471,7 +471,7 @@ class LocationsApi {
 
   /// A listed clinic's locations
   ///
-  /// The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2). Public, as `/organizations/{id}/services`. Built in package LC1.
+  /// The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2), and for the address of a visit. Public, as `/organizations/{id}/services`. A clinic whose membership is suspended or cancelled is out of the directory; its own staff and the patients with a care consent with it, active or revoked, still read its locations. Built in package LC1.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -508,7 +508,7 @@ class LocationsApi {
 
   /// A listed clinic's locations
   ///
-  /// The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2). Public, as `/organizations/{id}/services`. Built in package LC1.
+  /// The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2), and for the address of a visit. Public, as `/organizations/{id}/services`. A clinic whose membership is suspended or cancelled is out of the directory; its own staff and the patients with a care consent with it, active or revoked, still read its locations. Built in package LC1.
   ///
   /// Parameters:
   ///

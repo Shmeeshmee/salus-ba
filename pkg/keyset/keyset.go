@@ -1,6 +1,7 @@
 // Package keyset is one page of a list read newest first by an instant, a reference breaking a tie (keyset
 // pagination): the position the page starts after, a range of instants, and how many items at most. A reference
 // is compared byte by byte (Go's string order, COLLATE "C" in Postgres), so every reader of a list orders it alike.
+// Fill reads such a page of a list in any order whose items are not all matches.
 package keyset
 
 import "time"

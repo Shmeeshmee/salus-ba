@@ -100,9 +100,12 @@ func (r *postgresRepository) Organization(ctx context.Context, id string) (strin
 
 func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Encounter, error) {
 	var p encounterdb.SearchEncountersParams
-	if (f.AppointmentID != "" && p.AppointmentID.Scan(f.AppointmentID) != nil) || (f.PatientID != "" && p.PatientID.Scan(f.PatientID) != nil) {
+	if (f.AppointmentID != "" && p.AppointmentID.Scan(f.AppointmentID) != nil) || (f.PatientID != "" && p.PatientID.Scan(f.PatientID) != nil) ||
+		(f.AfterID != "" && p.AfterID.Scan(f.AfterID) != nil) {
 		return nil, nil // an id that is not a UUID matches nothing
 	}
+	p.AfterStart = pgtype.Timestamptz{Time: f.AfterStart, Valid: f.AfterID != ""}
+	p.RowLimit = pgtype.Int4{Int32: int32(f.Limit), Valid: f.Limit > 0} //nolint:gosec // a page and one more, appointment.MaxCount+1 at most
 	rows, err := r.q(ctx).SearchEncounters(ctx, p)
 	if err != nil {
 		return nil, err

@@ -4749,3 +4749,140 @@ and the tests pass their server's own (`runOn`); `TestDemoSeed_IsRefusedOnAnySer
 on any other, writing nothing. `cmd/salusctl` passed on a fresh stack and on one whose Postgres has no `cluster_name`
 (a worktree of its own, recreated with an override), `make lint` 0 issues, coverage 85.2%. Commit `cms(wave 7): the demo
 seed's tests run on a stack whose Postgres predates cluster_name`.
+
+## Readiness follow-ups: suspended clinics
+
+Done 2026-11-26 on `wt/readiness/suspended` (from `origin/main`), no migration. The owner's answer to RD1's question 2:
+a suspended or cancelled clinic stays out of the public directory and takes no new booking, but its own staff still
+see everything of theirs, and a patient with a visit or record there still sees the clinic and their own data. Test
+first: the matrix's two tests were written and run before the code (the served reads failed as below; the directory's
+side and the bookings already passed and are now held).
+
+**What was lost.** RD1's suspended state, run with every answer compared (code and body), showed three reads by id
+that `00064`'s directory policy took from the clinic's own: `GET /organizations/{id}/locations` and `/profile` (404 to
+its admin, practitioner, receptionist and patient) and the FHIR Schedule read (404 to its patient; its staff read it in
+the clinic's scope since F3). Nothing else changed: the FHIR Organization, Practitioner and PractitionerRole reads are
+the staff's in the clinic's scope and were never a patient's (404 before and after); there is no Slot read; the
+patient's visits, receipts, results, plans, chat, history and export are read in the patient's scope and answered as
+before. The directory's searches (Organization, PractitionerRole, Schedule, Slot) and the prices shown at booking
+(`/organizations/{id}/services`) stop showing the clinic to everyone, as `00064` means; its staff's role, schedule and
+slot searches are the desk's own scope (F3) and unchanged.
+
+**The fix.** The three reads try the directory first, as before; only when it no longer shows the clinic they ask
+`organization.Service.Served`, and a clinic it gives is read in its own scope (no policy changed, no migration):
+`Profile`, `location.Service.PublicLocations` and `schedule.Service.ReadFor` take an `organization.Served`, which the
+handlers get with `WithServed` and `app.go` builds (`servedBy`: the session's clinic for staff, the patient profile
+for a patient, asked only then, so the directory's reads cost what they did). The listing, the searches, the prices
+and the bookings (`bookableClinics`) are untouched.
+
+**The definition.** `Served` gives, among listed clinics only: a staff account's own clinic; a patient's clinics of a
+care consent, active or revoked (`consent.Service.CareClinics`, in the patient's scope, unaudited as `State`). Every
+visit at a clinic, of any status, the app's, the desk's, a waitlist offer's or a plan's, is booked on an active care
+consent, and a revocation keeps it (inactive); the erasure job counts the same consents as the clinics that keep a record
+(`ClinicsOf`). A clinic-registered profile has no account and so no session. A history or transcription consent alone
+does not count. A clinic that is not listed is out for everyone, as before.
+
+**Tests.** `internal/api/role_matrix_suspended_test.go` (the suspended state moved out of `_states`, 152 lines):
+`TestRoleMatrix_ASuspendedClinicTakesNoNewBookingsAndCareGoesOn` now compares every read's code for each role as
+before (the `directoryOnly` exception is gone) and the three served reads' bodies too, and holds them for a patient
+who revoked their consent; the four new bookings refused, B's accepted, care going on.
+`TestRoleMatrix_ASuspendedClinicIsOutOfTheDirectoryUntilItsMembershipReturns`: suspended and then cancelled, the eight
+directory reads show the clinic to no caller it does not serve (signed out, without a patient profile, another
+clinic's patient, another clinic's admin); its patient gets the three served reads only, its staff those and the
+desk's searches; active again, everything is back for the others and the four bookings are accepted. Domain tests:
+`TestCareClinics_…`, `TestServed_…`, `TestProfile_AStoppedMembership…` (fakes), the Postgres profile test with a
+suspended clinic served and an unlisted one not, `TestPublicLocations_AStoppedClinic…`,
+`TestReadFor_AStoppedClinicsSchedule…`, and each handler's `WithServed` pass-through.
+
+**Contracts.** `api/openapi.yaml`'s locations and profile descriptions and 404s, and the CapabilityStatement's Schedule
+documentation, say who keeps a stopped clinic; no route, field or golden file changed.
+
+**Second commit: the clinic's name in the app.** The app named a visit's clinic only from the directory's Organization
+and PractitionerRole searches (`Booking.places`), which hide a stopped clinic, so its visits showed "A clinic no longer
+listed" and no address. Server, test first: the FHIR Organization and PractitionerRole reads by id now also answer a
+patient of the clinic (`Served`: a care consent, active or revoked), whatever its membership, read in the clinic's scope
+and audited as a read by them (`organization.Service.ReadFor`, `practitionerrole.Service.ReadFor`; the ports' `Read`
+unchanged). The Organization is the directory's form (golden `organization_served.json`: no address, no contribution);
+the role the same resource as the staff's. Anyone else gets the unknown id's answer, as before. The matrix: both reads
+classed allowed for the patient on their own clinic, and held in the suspended tests (`servedReads`, and
+`namesTheClinicToItsOwnOnly`: the clinic's patient and staff get it suspended, cancelled and active again; a signed-out
+caller, an account without a profile, another clinic's patient and admin the unknown id's answer). App: `places` reads
+a consent's clinic the directory does not list by id, and each visit's role not placed by then (`Fhir.clinic`,
+`Fhir.role`); the card then names the clinic (without the practitioner, whose name only the search includes), shows its
+zone and, through the locations the server now answers, the address. "A clinic no longer listed" stays for a clinic
+the read refuses too. No new string. `mobile/test/stopped_clinic_test.dart`: named with zone and address; unnamed in
+UTC when the read fails; a listed clinic never read by id. The CapabilityStatement's Organization and PractitionerRole
+documentation says so.
+
+## Readiness follow-ups: paged staff searches
+
+Done 2026-11-26 on `wt/readiness/paging` (from `origin/main`), for `load/REPORT.md` "Left for later" (the unbounded
+staff appointment search). The owner's scope: Appointment, Encounter and QuestionnaireResponse; the patient- and
+encounter-scoped searches (AllergyIntolerance, MedicationStatement, DocumentReference) and the public directory
+(Organization, PractitionerRole, Schedule, Slot) are unchanged.
+
+**The rule** (each service's `SearchPage`; `Search` and `ClinicRecord`, the reads inside the app, stay unpaged). A
+search is paged when a staff member (a caller with a clinic) runs it without a bound on its size, or when any caller
+gives `_count` or a next link's `_cursor`: Appointment without a closed date range (a `ge` and an `lt`; one bound is
+not a range), Encounter and QuestionnaireResponse unless narrowed to one appointment (an encounter at most, a response
+per questionnaire). The calendar's week, `Encounter?appointment=…`, `QuestionnaireResponse?appointment=…` and every
+patient's own search (web and mobile send no `_count`) answer as before, byte for byte. `_count`: 1 to 200, 50 by
+default (`appointment.DefaultCount`, `MaxCount`); a larger number gives 200 (FHIR lets a server return fewer), 0, a
+non-number or a repeat is a 400.
+
+**Pages.** Keyset, in each search's existing order: Appointment by `start_at, id`, Encounter by `period_start, id`,
+QuestionnaireResponse by `due_at, created_at, id`, one statement a batch (`LIMIT`, `(…) > (…)`). The next link is the
+same search with `_cursor`, base64url of the page's last match's start and id (Appointment, Encounter: both in the
+resource) or its id alone (QuestionnaireResponse: its order's times are not in the resource, so the repository reads
+them back in the caller's scope; a response gone since, or never the caller's, is a 400 `not-found`: search again). A
+page reads `count+1` rows, keeps those the caller may see as the unpaged search does, and reads on past the rest
+(`keyset.Fill`), so the cursor is always a match the caller was given, never a row they may not see; a page may hold
+fewer than `_count`, the last none. Each page's consents, restrictions, visits and profiles are read in one statement
+each and its events written in one insert (RD2), per page; a page's events are exactly those of its matches, an empty
+page's the one event of a search that finds none. `total` stays where the page is the whole answer (the first, no
+next link), as before; other pages have none (no count is run). `_include=QuestionnaireResponse:questionnaire` includes
+the versions of the page's own responses.
+
+**Tests.** `pkg/fhir` (`Count`, `NewCursor`/`ParseCursor`, `NewPage`, the whole-answer page equal to `NewSearchset`),
+`pkg/keyset` (`Fill`, pages concatenated equal the whole); each service (the rule's table, the concatenated pages of
+every count equal to the unpaged search's matches and audit events, refusals unchanged); each repository on `pgtest`
+(order with ties, page boundaries, the QuestionnaireResponse position refused out of scope); each handler (`_count`,
+`_cursor`, the next link, no total, new goldens `search_page.json`, `position_gone.json`; `unsupported_search.json`
+names `_count`; `search.json` and `search_include.json` unchanged); `internal/api`
+`TestNew_PagesTheStaffSearchesWithoutChangingTheirEntries` (through the api: the pages of 1, 2 and 3, followed by their
+next links, are byte for byte the closed range's or the per-appointment searches' entries, audited alike).
+`api/fhir/CapabilityStatement.json` (and the served `metadata.json`) documents `_count` and the paging.
+
+**Not changed, noted.** A page bounds what is returned, not what is read when the caller may see few rows: a receptionist's
+`QuestionnaireResponse?patient=…` (nothing visible) or a practitioner's encounters without `practitioner=` read the
+clinic's rows in batches of `count+1`, as the unpaged search read them all at once. Pushing those filters into SQL is
+left for later.
+
+## Readiness follow-ups: wiring, phone menu, screenshots, integration
+
+Done 2026-11-26 on `fix/readiness` (from `9d39936c`, PR #126's squash), one PR with the two notes above.
+
+- **Production wiring** (`b1c50f8f`): `deployments/production/docker-compose.prod.yml` passes every setting each
+  binary reads, with `SALUS_ENV` fixed to `production` for every Go service; `.env.production.example` names every key;
+  `deployments/production/wiring_test.go` (in `make test` and CI's `make cover`) derives each binary's variables from
+  `internal/config` and `cmd/*` and fails when one is not passed to its service. Outside dev, `LoadSeller` refuses an
+  empty or bracketed `SELLER_*` (api, notifier) and any bracketed operator address counts as unset; the deploy
+  workflow refuses a bracketed env-file value; the landing image gets `VITE_APP_URL`; `scripts/mobile-release.sh` and
+  the mobile workflow's `release` job build a release APK with `API_BASE_URL`, `PRIVACY_NOTICE_URL` and `SUPPORT_EMAIL`
+  from repository variables, refusing placeholders, and a release build of the app refuses them at start.
+  `docs/deploy/BEFORE-PRODUCTION.md` §1 now lists only values.
+- **Phone menu** (`f0f56297`): at 520 px and below the staff header is the brand and a "Menu" disclosure button
+  (`web/src/HeaderMenu.tsx`); above it the header is unchanged (screenshots compared byte for byte). RD3's specs check
+  the menu at 390 px (keyboard, axe and 44 px targets with it open) and its absence at 1280 px. Walk:
+  `docs/clinic-cms/walk/readiness-menu/`. One new string, `shell.menu`.
+- **Demo screenshots** retaken on this branch's own stack after `make demo-seed` (all at 1280 px, so the menu does
+  not show in them).
+- **Integration** (review fixes): the merged CapabilityStatement's golden (`internal/api/router/testdata/metadata.json`)
+  regenerated; `api/fhir`'s served-interactions test names `_count`; `_cursor` declared on the three paged searches;
+  a QuestionnaireResponse page position the scope does not show is audited as a refused search (it rolled back
+  unaudited); the Schedule read's documentation says a stopped clinic's own also read an inactive role's schedule.
+- **Left, from the review** (low): a patient with a care consent can read the clinic's Organization and its roles by
+  id whatever the membership (the clinic's directory form and roles: no personal data), and each such read also
+  audits the patient lookup; the QuestionnaireResponse cursor is a response id looked up again, so a 400 or 200 tells
+  whether that id exists in the caller's clinic scope (opaque UUIDs); the landing page's `[PRICE]`, `[YOUR EMAIL]`,
+  `[Hosting]` and `[Certification]` still ship as written (BEFORE-PRODUCTION §2).

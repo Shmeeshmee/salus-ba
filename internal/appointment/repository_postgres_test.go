@@ -3,6 +3,8 @@ package appointment_test
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -216,6 +218,100 @@ func TestSearch_FiltersWhatTheScopeShowsByStart(t *testing.T) {
 		}
 	}
 	_ = other
+}
+
+// seedPageable stores patient A's six appointments: one an hour before start, three at start (two of them cancelled
+// to make room), one an hour after and one two hours after, in another order.
+func seedPageable(t *testing.T, app *pgxpool.Pool, s seeded) {
+	t.Helper()
+	err := inScope(t, app, asPatient(s.patientA), func(ctx context.Context, r appointment.Repository) error {
+		for i, at := range []time.Time{start.Add(time.Hour), start, start, start, start.Add(-time.Hour), start.Add(2 * time.Hour)} {
+			a, err := r.Create(ctx, newAppt(s, s.patientA, at))
+			if err != nil {
+				return err
+			}
+			if i == 1 || i == 2 {
+				if _, err := r.Cancel(ctx, a.ID, appointment.ReasonPatient, s.accountA, now); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// pageThrough reads the search f a page of limit at a time, each after the last one's position, and gives the ids
+// of every page, concatenated.
+func pageThrough(t *testing.T, search func(appointment.Filter) []appointment.Appointment, f appointment.Filter, limit int) []string {
+	t.Helper()
+	var got []string
+	f.Limit = limit
+	for range 100 {
+		page := search(f)
+		if len(page) > limit {
+			t.Fatalf("a page of %d holds %d", limit, len(page))
+		}
+		for _, a := range page {
+			got = append(got, a.ID)
+		}
+		if len(page) < limit {
+			return got
+		}
+		f.AfterStart, f.AfterID = page[len(page)-1].Start, page[len(page)-1].ID
+	}
+	t.Fatal("the pages do not end")
+	return nil
+}
+
+// A page of the search starts after the position (start, id), strictly, holds Limit at most, and keeps the search's
+// order, by start then id: the pages, concatenated, are the search without them, appointments at one start included.
+func TestSearch_PagesByStartThenIDAfterThePosition(t *testing.T) {
+	t.Parallel()
+	owner, app := pgtest.NewAppDatabase(t)
+	s := seedDB(t, owner)
+	seedPageable(t, app, s)
+	search := func(f appointment.Filter) []appointment.Appointment {
+		t.Helper()
+		var all []appointment.Appointment
+		if err := inScope(t, app, asClinic, func(ctx context.Context, r appointment.Repository) error {
+			var err error
+			all, err = r.Search(ctx, f)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return all
+	}
+	whole := search(appointment.Filter{OrganizationID: clinicA})
+	var want, cancelled []string // cancelled: those after the first at start, of the other two at start
+	for i, a := range whole {
+		want = append(want, a.ID)
+		if (i == 2 || i == 3) && a.Status == appointment.StatusCancelled {
+			cancelled = append(cancelled, a.ID)
+		}
+	}
+	if len(whole) != 6 || !slices.IsSortedFunc(whole, func(a, b appointment.Appointment) int {
+		if c := a.Start.Compare(b.Start); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID, b.ID)
+	}) {
+		t.Fatalf("Search() = %+v, want six by start then id", whole)
+	}
+	for limit := 1; limit <= len(whole)+1; limit++ {
+		if got := pageThrough(t, search, appointment.Filter{OrganizationID: clinicA}, limit); !slices.Equal(got, want) {
+			t.Errorf("pages of %d = %v, want %v", limit, got, want)
+		}
+	}
+	if got := pageThrough(t, search, appointment.Filter{OrganizationID: clinicA, AfterStart: whole[1].Start, AfterID: whole[1].ID, Status: appointment.StatusCancelled}, 10); !slices.Equal(got, cancelled) {
+		t.Errorf("after the first at start, the cancelled = %v, want %v", got, cancelled)
+	}
+	if got := search(appointment.Filter{OrganizationID: clinicA, AfterStart: start, AfterID: "not-a-uuid"}); got != nil {
+		t.Errorf("after an id that is not a UUID = %+v, want none", got)
+	}
 }
 
 func TestCancelAndSetStatus_ChangeOnlyABookedAppointment(t *testing.T) {

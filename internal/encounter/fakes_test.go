@@ -184,11 +184,22 @@ func (r *fakeRepository) Search(ctx context.Context, f encounter.Filter) ([]enco
 	if r.err != nil {
 		return nil, r.err
 	}
+	byStart := func(x, y encounter.Encounter) int {
+		if c := x.PeriodStart.Compare(y.PeriodStart); c != 0 {
+			return c
+		}
+		return strings.Compare(x.ID, y.ID)
+	}
 	var out []encounter.Encounter
 	for _, e := range r.encounters {
-		if r.visible(e) && (f.AppointmentID == "" || e.AppointmentID == f.AppointmentID) && (f.PatientID == "" || e.PatientID == f.PatientID) {
+		if r.visible(e) && (f.AppointmentID == "" || e.AppointmentID == f.AppointmentID) && (f.PatientID == "" || e.PatientID == f.PatientID) &&
+			(f.AfterID == "" || byStart(e, encounter.Encounter{PeriodStart: f.AfterStart, ID: f.AfterID}) > 0) {
 			out = append(out, e)
 		}
+	}
+	slices.SortFunc(out, byStart)
+	if f.Limit > 0 && len(out) > f.Limit {
+		out = out[:f.Limit]
 	}
 	return out, nil
 }

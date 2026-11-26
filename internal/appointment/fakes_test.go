@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Shmeeshmee/salus/internal/access"
@@ -92,8 +93,9 @@ type fakeRepository struct {
 	clinic   string               // set by SetClinic
 	notice   string               // set by SetNotice
 	calls    []string
-	record   bool // set by SetRecord
-	busy     bool // Create, MoveByStaff and Reschedule meet a busy device (ErrResourceBusy, RM1)
+	searched []appointment.Filter // what Search was asked, in order
+	record   bool                 // set by SetRecord
+	busy     bool                 // Create, MoveByStaff and Reschedule meet a busy device (ErrResourceBusy, RM1)
 }
 
 func (r *fakeRepository) seen(ctx context.Context, call string) {
@@ -203,16 +205,29 @@ func (r *fakeRepository) Search(ctx context.Context, f appointment.Filter) ([]ap
 	if r.err != nil {
 		return nil, r.err
 	}
+	r.searched = append(r.searched, f)
 	var out []appointment.Appointment
 	for _, a := range r.appts {
 		if r.visible(a) && (f.PatientID == "" || a.PatientID == f.PatientID) && (f.OrganizationID == "" || a.OrganizationID == f.OrganizationID) &&
 			(f.PractitionerRoleID == "" || a.PractitionerRoleID == f.PractitionerRoleID) && (f.Status == "" || a.Status == f.Status) &&
-			(f.From.IsZero() || !a.Start.Before(f.From)) && (f.To.IsZero() || a.Start.Before(f.To)) {
+			(f.From.IsZero() || !a.Start.Before(f.From)) && (f.To.IsZero() || a.Start.Before(f.To)) &&
+			(f.AfterID == "" || byStart(a, appointment.Appointment{Start: f.AfterStart, ID: f.AfterID}) > 0) {
 			out = append(out, a)
 		}
 	}
-	slices.SortFunc(out, func(x, y appointment.Appointment) int { return x.Start.Compare(y.Start) })
+	slices.SortFunc(out, byStart)
+	if f.Limit > 0 && len(out) > f.Limit {
+		out = out[:f.Limit]
+	}
 	return out, nil
+}
+
+// byStart is the search's order: by start, then by id.
+func byStart(x, y appointment.Appointment) int {
+	if c := x.Start.Compare(y.Start); c != 0 {
+		return c
+	}
+	return strings.Compare(x.ID, y.ID)
 }
 
 func (r *fakeRepository) VisitsOf(ctx context.Context, org string, patientIDs []string) ([]appointment.Appointment, error) {

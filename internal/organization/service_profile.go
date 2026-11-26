@@ -19,12 +19,35 @@ const maxProfileDescription = 2000 // characters
 var languages = []string{"bs", "hr", "sr-Latn", "sr-Cyrl", "en", "de", "ar", "tr", "it", "fr"}
 
 // Profile returns the profile of the listed clinic id, as the public directory shows it, for anyone: a clinic that is
-// not listed, or whose membership is stopped (the directory's policy, package I), gives ErrNotFound, as the directory
-// does. Every translation comes with it; the app picks the patient's language. Not audited: not personal data.
-func (s *Service) Profile(ctx context.Context, id string) (Profile, error) {
+// not listed gives ErrNotFound, as the directory does. One whose membership is stopped (the directory's policy, package
+// I) is read in its own scope for those it serves (served, asked only then: Served), and gives ErrNotFound to anyone
+// else. Every translation comes with it; the app picks the patient's language. Not audited: not personal data.
+func (s *Service) Profile(ctx context.Context, id string, served Served) (Profile, error) {
+	p, err := s.profileIn(ctx, id, s.repo.SetDirectory)
+	if errors.Is(err, ErrNotFound) && served != nil {
+		var ids []string
+		if ids, err = served(ctx); err == nil {
+			err = ErrNotFound
+			if slices.Contains(ids, id) {
+				p, err = s.profileIn(ctx, id, func(ctx context.Context) error { return s.repo.SetOrganization(ctx, id) })
+			}
+		}
+	}
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return Profile{}, ErrNotFound
+	case err != nil:
+		return Profile{}, fmt.Errorf("organization: profile: %w", err)
+	}
+	return p, nil
+}
+
+// profileIn reads the profile of the listed clinic id in the scope scope sets, in a transaction of its own; ErrNotFound
+// for a clinic the scope does not show or that is not listed.
+func (s *Service) profileIn(ctx context.Context, id string, scope func(ctx context.Context) error) (Profile, error) {
 	var p Profile
 	err := s.tx.WithTx(ctx, func(ctx context.Context) error {
-		if err := s.repo.SetDirectory(ctx); err != nil {
+		if err := scope(ctx); err != nil {
 			return err
 		}
 		o, err := s.repo.ByID(ctx, id)
@@ -37,13 +60,7 @@ func (s *Service) Profile(ctx context.Context, id string) (Profile, error) {
 		p, err = s.repo.ProfileOf(ctx, id)
 		return err
 	})
-	switch {
-	case errors.Is(err, ErrNotFound):
-		return Profile{}, ErrNotFound
-	case err != nil:
-		return Profile{}, fmt.Errorf("organization: profile: %w", err)
-	}
-	return p, nil
+	return p, err
 }
 
 // ClinicProfile returns the profile of the caller's clinic to its staff, at the organization's version; ErrNotFound

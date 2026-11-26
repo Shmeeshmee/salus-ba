@@ -177,6 +177,20 @@ func (r *postgresRepository) Search(ctx context.Context, f Filter) ([]Response, 
 	if f.Status != "" {
 		p.Status = pgtype.Text{String: string(f.Status), Valid: true}
 	}
+	if f.AfterID != "" {
+		if p.AfterID.Scan(f.AfterID) != nil {
+			return nil, ErrPosition
+		}
+		at, err := r.q(ctx).QuestionnaireResponsePosition(ctx, p.AfterID)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return nil, ErrPosition
+		case err != nil:
+			return nil, err
+		}
+		p.AfterDue, p.AfterCreated = at.DueAt, at.CreatedAt
+	}
+	p.RowLimit = pgtype.Int4{Int32: int32(f.Limit), Valid: f.Limit > 0} //nolint:gosec // a page and one more, appointment.MaxCount+1 at most
 	rows, err := r.q(ctx).SearchQuestionnaireResponses(ctx, p)
 	if err != nil {
 		return nil, err

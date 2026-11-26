@@ -158,6 +158,13 @@ jobs:
             fi
           done < <(grep -E '^[A-Z0-9_]+=' deployments/production/.env.production.example | cut -d= -f1)
           [ "$missing" = 0 ]
+          # A value still a [placeholder] of the example ([OPERATOR EMAIL], [SELLER], ...): the api and the notifier
+          # would refuse to start on it, so the deploy stops here instead of rolling back. Only names are printed.
+          placeholders=$(grep -E '^[A-Z0-9_]+=["'"'"']?\[.*\]["'"'"']?$' "$RUNNER_TEMP/salus/.env" | cut -d= -f1 | tr '\n' ' ' || true)
+          if [ -n "$placeholders" ]; then
+            echo "SALUS_ENV_FILE still has a [placeholder] for: $placeholders(docs/deploy/BEFORE-PRODUCTION.md)" >&2
+            exit 1
+          fi
           if grep -q $'\r' "$RUNNER_TEMP/salus/.env"; then
             echo "SALUS_ENV_FILE has Windows line endings (CR): paste it again with LF only." >&2
             exit 1

@@ -1,12 +1,13 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test'
-import { axe, dialog, findings, report, tabWalk, targets } from './a11y'
+import { axe, dialog, findings, openMenu, phoneMenu, report, tabWalk, targets, wideHeader } from './a11y'
 import { required, signIn } from './signin'
 
 // Every staff screen and dialog of the web app for one role (E2E_A11Y_ROLE: admin, practitioner or reception), as the Go
 // test TestAccessibility_EveryStaffScreenAndDialog signs it in (docs/clinic-cms/WAVE7.md RD3). At 1280 px: the axe
 // engine (WCAG 2.2 A and AA), the keyboard walk of each screen and dialog (order, focus seen, focus back on the opener).
-// At 390 px on a touch screen: the engine again and targets of at least 44 px. Every finding of the run is listed at
-// the end.
+// At 390 px on a touch screen: the engine again and targets of at least 44 px, and the header's menu (readiness): its
+// button, the keyboard, the engine and the targets with it open, and the same links as at 1280. Every finding of the
+// run is listed at the end.
 
 type Role = 'admin' | 'practitioner' | 'reception'
 type Screen = { name: string; path: string; open?: (page: Page) => Promise<void>; dialogs?: (page: Page, where: string, touch: boolean) => Promise<void> }
@@ -63,6 +64,8 @@ const clinical = (role: Role): Screen[] => [
     name: 'the cheatsheet',
     path: '/',
     dialogs: async (page, where, touch) => {
+      // On a phone the medical terms' button is in the header's menu: the menu opens first.
+      if (touch) await openMenu(page)
       const opener = page.locator('header button.cheatsheet-open')
       await dialog(page, where, opener, page.locator('[role=dialog].cheatsheet'), undefined, { tab: !touch, touch })
     },
@@ -174,6 +177,18 @@ async function phoneContext(browser: Browser, desktop: BrowserContext) {
   })
 }
 
+// walkShots keeps, when E2E_WALK_DIR is set, the header of the role's first screen at 1280 px and at 390 px with the
+// menu closed and open (the walk's record); unset, nothing is written.
+async function walkShots(page: Page, phone: Page, role: Role) {
+  const dir = process.env.E2E_WALK_DIR
+  if (!dir) return
+  await page.screenshot({ path: `${dir}/1280-${role}.png`, animations: 'disabled' })
+  await phone.screenshot({ path: `${dir}/390-${role}-menu-closed.png`, animations: 'disabled' })
+  await openMenu(phone)
+  await phone.screenshot({ path: `${dir}/390-${role}-menu-open.png`, animations: 'disabled' })
+  await phone.keyboard.press('Escape')
+}
+
 test('every staff screen and dialog of the role passes the accessibility checks', async ({ browser }) => {
   test.setTimeout(11 * 60_000)
   const role = required('E2E_A11Y_ROLE') as Role
@@ -186,18 +201,24 @@ test('every staff screen and dialog of the role passes the accessibility checks'
 
   page.setDefaultTimeout(10_000)
   phone.setDefaultTimeout(10_000)
-  for (const s of screens(role)) {
+  const all = screens(role)
+  const first = all[0]
+  for (const s of all) {
     const where = `${role} ${s.name}`
+    let wide: string[] = []
     await checked(`${where} at 1280`, async () => {
       await show(page, s)
       await axe(page, `${where} at 1280`)
       await tabWalk(page, `${where} at 1280`)
+      wide = await wideHeader(page, `${where} at 1280`)
       if (s.dialogs) await s.dialogs(page, `${where} at 1280`, false)
     })
     await checked(`${where} at 390`, async () => {
       await show(phone, s)
       await axe(phone, `${where} at 390`)
       await targets(phone, `${where} at 390`)
+      await phoneMenu(phone, `${where} at 390`, wide)
+      if (s === first) await walkShots(page, phone, role)
       if (s.dialogs) await s.dialogs(phone, `${where} at 390`, true)
     })
   }

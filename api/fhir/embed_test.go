@@ -77,18 +77,18 @@ func TestCapabilityStatement_ListsExactlyTheInteractionsServed(t *testing.T) {
 	want := map[string]string{
 		"AllergyIntolerance":  "read search-type param:patient:reference ",
 		"MedicationStatement": "read search-type param:patient:reference ",
-		"Appointment":         "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token ",
+		"Appointment":         "read search-type param:patient:reference param:practitioner:reference param:date:date param:status:token param:_count:number param:_cursor:string ",
 		"Composition":         "read ",
 		"Condition":           "read ",
 		"Consent":             "read ",
 		"DocumentReference":   "read search-type param:encounter:reference ",
-		"Encounter":           "read search-type param:appointment:reference param:patient:reference param:practitioner:reference ",
+		"Encounter":           "read search-type param:appointment:reference param:patient:reference param:practitioner:reference param:_count:number param:_cursor:string ",
 		"Organization":        "read update search-type param:listed:token param:language:token versioning:versioned-update",
 		"Patient":             "read ",
 		"Practitioner":        "read ",
 		"PractitionerRole":    "read search-type param:organization:reference include:PractitionerRole:practitioner ",
 		"Questionnaire":       "read search-type param:url:uri param:version:token param:status:token ",
-		"QuestionnaireResponse": "read search-type param:appointment:reference param:patient:reference param:status:token " +
+		"QuestionnaireResponse": "read search-type param:appointment:reference param:patient:reference param:status:token param:_count:number param:_cursor:string " +
 			"include:QuestionnaireResponse:questionnaire ",
 		"Provenance": "read ",
 		"Schedule":   "read search-type param:actor:reference ",

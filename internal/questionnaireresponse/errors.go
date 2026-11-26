@@ -44,6 +44,9 @@ var (
 	ErrLanguageUnavailable = errors.New("questionnaireresponse: language unavailable")
 	// ErrAnswersInvalid is what every *AnswersError is (answers_invalid).
 	ErrAnswersInvalid = errors.New("questionnaireresponse: answers invalid")
+	// ErrPosition is returned for a page of a search after a response the scope does not show: gone since the page
+	// before (a purge, a discard) or never the caller's. The search is run again from its first page.
+	ErrPosition = errors.New("questionnaireresponse: page position not found")
 	// ErrNotEnabled is what every *NotEnabledError is (answer_not_enabled).
 	ErrNotEnabled = errors.New("questionnaireresponse: answer not enabled")
 )

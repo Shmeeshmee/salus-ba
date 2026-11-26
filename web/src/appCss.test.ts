@@ -119,3 +119,20 @@ it('gives every control at least 44 px on a touch screen', () => {
 it("keeps the focused heatmap cell's 2 px ring when it is also the cell shown", () => {
   expect(analyticsCSS).toMatch(/\.chart-svg \.cell\.active \{[^}]*\}[\s\S]*\.chart-svg \.cell\.active:focus-visible \{ stroke-width: 2; \}/)
 })
+
+// The header's menu (readiness): on a wide screen the panel's contents sit in the header as before and the button is
+// not there; on a phone (520 px and below) the button shows and the panel shows only when open.
+it("shows the header's links in the bar on a wide screen, without the menu button", () => {
+  styled('<header class="bar"><button class="menu-button"></button><div class="bar-menu"><nav><ul><li><a href="/">x</a></li></ul></nav></div></header>')
+  expect(getComputedStyle(document.querySelector('.menu-button')!).display).toBe('none')
+  expect(getComputedStyle(document.querySelector('.bar-menu')!).display).toBe('contents')
+  const list = getComputedStyle(document.querySelector('.bar nav ul')!)
+  expect([list.display, list.flexWrap, list.listStyleType, list.margin, list.padding]).toEqual(['flex', 'wrap', 'none', '0px', '0px'])
+})
+
+it("folds the header's links into the menu on a phone, the panel shown only when open", () => {
+  const phone = appCSS.match(/@media \(max-width: 520px\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
+  expect(phone).toMatch(/\.bar \.menu-button \{[^}]*display: inline-flex/)
+  expect(phone).toMatch(/\.bar-menu \{[^}]*display: none/)
+  expect(phone).toMatch(/\.bar-menu\.open \{[^}]*display: flex/)
+})

@@ -20,7 +20,7 @@
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Read: staff of the clinic; a receptionist's read is audited. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true and at most one language, without the location and the contribution.",
+          "documentation": "Read: staff of the clinic; a receptionist's read is audited. Also a patient with a care consent with a listed clinic, active or revoked, whatever its membership, audited: the clinic as the search shows it. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true and at most one language, without the location and the contribution.",
           "searchParam": [
             {
               "name": "listed",
@@ -45,7 +45,7 @@
           "type": "PractitionerRole",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
           "searchInclude": ["PractitionerRole:practitioner"],
-          "documentation": "Read: staff of the clinic. Search: staff of the clinic get its roles; anyone else, signed in or not, the active roles of a listed clinic with their specialty, and their practitioners with the name only (none for a clinic that is not listed).",
+          "documentation": "Read: staff of the clinic, and a patient with a care consent with a listed clinic, active or revoked, whatever its membership, its roles; audited. Search: staff of the clinic get its roles; anyone else, signed in or not, the active roles of a listed clinic with their specialty, and their practitioners with the name only (none for a clinic that is not listed).",
           "searchParam": [
             {
               "name": "organization",
@@ -68,7 +68,7 @@
         {
           "type": "Schedule",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
-          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope.",
+          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope. A clinic whose membership is suspended or cancelled is out of the directory; its schedules (an inactive role's included) are still read, in its scope, by its own staff and by the patients with a care consent with it, active or revoked.",
           "searchParam": [
             {
               "name": "actor",
@@ -106,7 +106,7 @@
         {
           "type": "Appointment",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
-          "documentation": "As the access rules allow: the patient their own; the practitioner theirs and the clinic's admin the clinic's while the patient's consent is active; after a revocation, past appointments only, with the patient's name, the times and the status. The patient participant carries the name only where the caller may see it. A practitioner must search by themselves.",
+          "documentation": "As the access rules allow: the patient their own; the practitioner theirs and the clinic's admin the clinic's while the patient's consent is active; after a revocation, past appointments only, with the patient's name, the times and the status. The patient participant carries the name only where the caller may see it. A practitioner must search by themselves. A staff search without a closed date range (a ge and an lt) is paged: 50 appointments a page unless _count asks for another number, by start then id, with a next link to the following page while more may follow (a page may hold fewer, the last none); the total is given only when the first page is the whole answer. A next link's _cursor is opaque: follow the link. A search with a closed range (the calendar's week) and a patient's own search return every match unless _count is given.",
           "searchParam": [
             {
               "name": "patient",
@@ -131,13 +131,23 @@
               "definition": "http://hl7.org/fhir/SearchParameter/Appointment-status",
               "type": "token",
               "documentation": "One of booked, arrived, cancelled, fulfilled, noshow."
+            },
+            {
+              "name": "_count",
+              "type": "number",
+              "documentation": "Matches a page, 1 to 200: a larger number gives 200. Pages the search."
+            },
+            {
+              "name": "_cursor",
+              "type": "string",
+              "documentation": "The position of the next page, opaque: taken from the bundle's next link, never written by hand. A position the caller can no longer see is refused (400); run the search again."
             }
           ]
         },
         {
           "type": "Encounter",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
-          "documentation": "The video consultation of an appointment, class VR: in-progress from the practitioner's first join, finished when it ends. No create or update: the consultation's lifecycle drives it. Seen by whoever sees its appointment: the patient their own; the practitioner theirs and the clinic's admin the clinic's while the patient's consent is active; after a revocation, those of appointments that started before it. A practitioner's search gives their own encounters only, and naming another practitioner gives 403.",
+          "documentation": "The video consultation of an appointment, class VR: in-progress from the practitioner's first join, finished when it ends. No create or update: the consultation's lifecycle drives it. Seen by whoever sees its appointment: the patient their own; the practitioner theirs and the clinic's admin the clinic's while the patient's consent is active; after a revocation, those of appointments that started before it. A practitioner's search gives their own encounters only, and naming another practitioner gives 403. A staff search not narrowed to one appointment is paged: 50 encounters a page unless _count asks for another number, by period start then id, with a next link to the following page while more may follow (a page may hold fewer, the last none); the total is given only when the first page is the whole answer. A next link's _cursor is opaque: follow the link. A search by appointment and a patient's own search return every match unless _count is given.",
           "searchParam": [
             {
               "name": "appointment",
@@ -156,6 +166,16 @@
               "definition": "http://hl7.org/fhir/SearchParameter/Encounter-practitioner",
               "type": "reference",
               "documentation": "One practitioner, the one behind the participant's practitioner role."
+            },
+            {
+              "name": "_count",
+              "type": "number",
+              "documentation": "Matches a page, 1 to 200: a larger number gives 200. Pages the search."
+            },
+            {
+              "name": "_cursor",
+              "type": "string",
+              "documentation": "The position of the next page, opaque: taken from the bundle's next link, never written by hand. A position the caller can no longer see is refused (400); run the search again."
             }
           ]
         },
@@ -242,7 +262,7 @@
           "type": "QuestionnaireResponse",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
           "searchInclude": ["QuestionnaireResponse:questionnaire"],
-          "documentation": "A questionnaire the appointment's practitioner (or the practitioner role's default, with the booking) asked the patient to fill in before an appointment, and the patient's answers, nested under the questionnaire's sections. As the access rules allow: the patient their own; the appointment's practitioner the answers once submitted and the status before, the clinic's admin the status only, while the patient's consent is active; after a revocation, the submitted responses of appointments that started before it only. Anyone else gets 404 on a read and nothing from a search. Every response carries the questionnaireresponse-appointment extension. No create or update: requests and answers go through the JSON API.",
+          "documentation": "A questionnaire the appointment's practitioner (or the practitioner role's default, with the booking) asked the patient to fill in before an appointment, and the patient's answers, nested under the questionnaire's sections. As the access rules allow: the patient their own; the appointment's practitioner the answers once submitted and the status before, the clinic's admin the status only, while the patient's consent is active; after a revocation, the submitted responses of appointments that started before it only. Anyone else gets 404 on a read and nothing from a search. Every response carries the questionnaireresponse-appointment extension. No create or update: requests and answers go through the JSON API. A staff search not narrowed to one appointment is paged: 50 responses a page unless _count asks for another number, by due time then creation, with a next link to the following page while more may follow (a page may hold fewer, the last none); a page includes the questionnaire versions its own responses answer, and the total is given only when the first page is the whole answer. A next link's _cursor is opaque: follow the link; one whose response is gone since gives 400, and the search is run again. A search by appointment and a patient's own search return every match unless _count is given.",
           "searchParam": [
             {
               "name": "appointment",
@@ -261,6 +281,16 @@
               "definition": "http://hl7.org/fhir/SearchParameter/QuestionnaireResponse-status",
               "type": "token",
               "documentation": "One of in-progress, completed, stopped."
+            },
+            {
+              "name": "_count",
+              "type": "number",
+              "documentation": "Matches a page, 1 to 200: a larger number gives 200. Pages the search."
+            },
+            {
+              "name": "_cursor",
+              "type": "string",
+              "documentation": "The position of the next page, opaque: taken from the bundle's next link, never written by hand. A position the caller can no longer see is refused (400); run the search again."
             }
           ]
         }
