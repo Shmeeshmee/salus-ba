@@ -132,15 +132,17 @@ func TestNew_ServesTheDirectoryOverFHIRToStaffOfTheClinicAndAuditsIt(t *testing.
 			[]any{"Practitioner/" + d.practitionerID, practitionerAccount}, 1},
 		{"the admin's reads", "subtype_code = 'read' AND outcome = 0 AND entity_reference IN ($1, $2) AND agent_account_id = $3 AND organization_id = $4",
 			[]any{"Practitioner/" + d.practitionerID, "PractitionerRole/" + d.roleID, adminID, inviteClinic}, 2},
-		{"the patient's refusals", "outcome = 4 AND entity_reference IS NULL AND organization_id IS NULL AND subtype_code IN ('read', 'search-type')", nil, 2},
+		// Two refusals of the directory's reads, and the two lookups of the account's patient profile (it has none) that
+		// the Organization and PractitionerRole reads make for a caller of no clinic (readiness: suspended clinics).
+		{"the patient's refusals", "outcome = 4 AND entity_reference IS NULL AND organization_id IS NULL AND subtype_code IN ('read', 'search-type')", nil, 4},
 	} {
 		if n := audited(tt.where, tt.args...); n != tt.want {
 			t.Errorf("%s: %d audit events, want %d", tt.name, n, tt.want)
 		}
 	}
 	// Nothing else: Organization reads, public searches and signed-out requests are not audited.
-	if n := audited("true") - baseline; n != 9 {
-		t.Errorf("%d audit events for the FHIR requests, want 9", n)
+	if n := audited("true") - baseline; n != 11 {
+		t.Errorf("%d audit events for the FHIR requests, want 11", n)
 	}
 }
 

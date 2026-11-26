@@ -39,6 +39,7 @@ func assertGolden(t *testing.T, name string, got []byte) {
 // stubClinics answers with what it is given and keeps what it was asked.
 type stubClinics struct {
 	err     error
+	served  organization.Served // what ReadFor was given
 	caller  organization.Caller
 	id      string
 	speaks  string // the language ListListedSpeaking was asked for
@@ -56,8 +57,8 @@ func (s *stubClinics) ListListedSpeaking(_ context.Context, language string) ([]
 	return s.all, s.err
 }
 
-func (s *stubClinics) Read(_ context.Context, c organization.Caller, id string) (organization.Organization, error) {
-	s.caller, s.id = c, id
+func (s *stubClinics) ReadFor(_ context.Context, c organization.Caller, id string, served organization.Served) (organization.Organization, error) {
+	s.caller, s.id, s.served = c, id, served
 	s.calls++
 	return s.org, s.err
 }

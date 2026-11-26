@@ -18,7 +18,7 @@ const maxProfileBody = 96 << 10
 
 // Profiles is what the profile's handler calls (Service).
 type Profiles interface {
-	Profile(ctx context.Context, id string) (Profile, error)
+	Profile(ctx context.Context, id string, served Served) (Profile, error)
 	ClinicProfile(ctx context.Context, c Caller) (Profile, error)
 	SaveProfile(ctx context.Context, c Caller, p Profile, version int32) (Profile, error)
 }
@@ -28,12 +28,20 @@ type Profiles interface {
 type ProfileHandler struct {
 	svc    Profiles
 	caller func(ctx context.Context) (Caller, bool, error)
+	served Served // the clinics the signed-in caller keeps once their membership stops; nil: none
 	log    *slog.Logger
 }
 
 // NewProfileHandler returns the handler on svc; caller resolves the signed-in session.
 func NewProfileHandler(svc Profiles, caller func(ctx context.Context) (Caller, bool, error), log *slog.Logger) *ProfileHandler {
 	return &ProfileHandler{svc: svc, caller: caller, log: log}
+}
+
+// WithServed returns h with the public profile read for the clinics served gives too once their membership stops.
+func (h *ProfileHandler) WithServed(served Served) *ProfileHandler {
+	out := *h
+	out.served = served
+	return &out
 }
 
 // Routes declares the routes on mux.
@@ -96,7 +104,7 @@ func (h *ProfileHandler) save(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProfileHandler) public(w http.ResponseWriter, r *http.Request) {
-	p, err := h.svc.Profile(r.Context(), r.PathValue("id"))
+	p, err := h.svc.Profile(r.Context(), r.PathValue("id"), h.served)
 	h.write(w, r, p, err, false, false)
 }
 

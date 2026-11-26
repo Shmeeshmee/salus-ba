@@ -20,7 +20,7 @@
           "versioning": "versioned-update",
           "readHistory": false,
           "updateCreate": false,
-          "documentation": "Read: staff of the clinic; a receptionist's read is audited. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true and at most one language, without the location and the contribution.",
+          "documentation": "Read: staff of the clinic; a receptionist's read is audited. Also a patient with a care consent with a listed clinic, active or revoked, whatever its membership, audited: the clinic as the search shows it. Update: the clinic's admin, with If-Match and the version read (a stale or missing version gives 412); it sets the name and, when given, the organization-listed, organization-timezone, organization-default-language, organization-patient-transcript-copy and organization-analytics-contributes extensions, and the location as one address with the leaf region's ISO 3166-2:BA code as the state and the city's Wikidata id in its organization-city extension (a city outside the region gives 400; a left-out extension or address keeps its value; the default language is one of bs, hr, sr-Latn, sr-Cyrl, en). Search: anyone, listed=true and at most one language, without the location and the contribution.",
           "searchParam": [
             {
               "name": "listed",
@@ -45,7 +45,7 @@
           "type": "PractitionerRole",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
           "searchInclude": ["PractitionerRole:practitioner"],
-          "documentation": "Read: staff of the clinic. Search: staff of the clinic get its roles; anyone else, signed in or not, the active roles of a listed clinic with their specialty, and their practitioners with the name only (none for a clinic that is not listed).",
+          "documentation": "Read: staff of the clinic, and a patient with a care consent with a listed clinic, active or revoked, whatever its membership, its roles; audited. Search: staff of the clinic get its roles; anyone else, signed in or not, the active roles of a listed clinic with their specialty, and their practitioners with the name only (none for a clinic that is not listed).",
           "searchParam": [
             {
               "name": "organization",
@@ -68,7 +68,7 @@
         {
           "type": "Schedule",
           "interaction": [{ "code": "read" }, { "code": "search-type" }],
-          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope.",
+          "documentation": "Anyone: the schedules of active practitioner roles of listed clinics. A clinic's own staff also get its schedules whether or not it is listed (the front desk, clinic-cms F3), read in the clinic's scope. A clinic whose membership is suspended or cancelled is out of the directory; its listed schedules are still read, in its scope, by its own staff and by the patients with a care consent with it, active or revoked.",
           "searchParam": [
             {
               "name": "actor",

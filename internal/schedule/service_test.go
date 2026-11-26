@@ -68,12 +68,13 @@ type fakeRepository struct {
 	createErr error
 	clinic    string
 	schedules []schedule.Schedule
+	stopped   []string // clinics whose membership stopped: the directory hides their schedules (package I)
 	leak      bool
 	directory bool
 }
 
 func (r *fakeRepository) visible(s schedule.Schedule) bool {
-	return r.leak || r.directory || s.OrganizationID == r.clinic
+	return r.leak || r.directory && !slices.Contains(r.stopped, s.OrganizationID) || s.OrganizationID == r.clinic
 }
 
 func (r *fakeRepository) SetOrganization(ctx context.Context, id string) error {
@@ -487,7 +488,7 @@ func TestReadAndByActor_ShowTheDirectorysSchedulesWithoutAuditing(t *testing.T) 
 func TestReadForAndByActorFor_GiveStaffTheirClinicsSchedulesInItsScope(t *testing.T) {
 	t.Parallel()
 	f := newFixture()
-	if got, err := f.svc.ReadFor(t.Context(), clinicA, scheduleA2); err != nil || got.ID != scheduleA2 {
+	if got, err := f.svc.ReadFor(t.Context(), clinicA, scheduleA2, nil); err != nil || got.ID != scheduleA2 {
 		t.Errorf("ReadFor(clinic A) = %+v, %v; want schedule A2", got, err)
 	}
 	if got, err := f.svc.ByActorFor(t.Context(), clinicA, roleA2); err != nil || got.ID != scheduleA2 {
@@ -497,7 +498,7 @@ func TestReadForAndByActorFor_GiveStaffTheirClinicsSchedulesInItsScope(t *testin
 		t.Errorf("calls = %v with %d events, want %v in the clinic's scope and none", f.calls, len(f.audit.events), want)
 	}
 	g := newFixture()
-	if got, err := g.svc.ReadFor(t.Context(), clinicA, scheduleB); err != nil || got.ID != scheduleB {
+	if got, err := g.svc.ReadFor(t.Context(), clinicA, scheduleB, nil); err != nil || got.ID != scheduleB {
 		t.Errorf("ReadFor(another clinic's) = %+v, %v; want schedule B from the directory", got, err)
 	}
 	if _, err := g.svc.ByActorFor(t.Context(), "", roleA2); err != nil {
@@ -505,6 +506,38 @@ func TestReadForAndByActorFor_GiveStaffTheirClinicsSchedulesInItsScope(t *testin
 	}
 	if want := []string{"SetOrganization", "ByID", "SetDirectory", "ByID", "SetDirectory", "ByRole"}; !slices.Equal(g.calls, want) {
 		t.Errorf("calls = %v, want %v", g.calls, want)
+	}
+}
+
+// A clinic whose membership stopped is out of the directory; its schedules are still read, in its own scope, by those
+// it serves (its staff, its patients: organization.Service.Served), and by no one else (readiness: suspended clinics).
+// A schedule the directory shows asks nothing of the caller.
+func TestReadFor_AStoppedClinicsScheduleIsReadByThoseItServes(t *testing.T) {
+	t.Parallel()
+	served := func(ids ...string) organization.Served {
+		return func(context.Context) ([]string, error) { return ids, nil }
+	}
+	f := newFixture()
+	f.repo.stopped = []string{clinicB}
+	if got, err := f.svc.ReadFor(t.Context(), "", scheduleB, served(clinicA, clinicB)); err != nil || got.ID != scheduleB {
+		t.Errorf("ReadFor(stopped B's) to whom it serves = %+v, %v; want schedule B", got, err)
+	}
+	if want := []string{"SetDirectory", "ByID", "SetOrganization", "ByID", "SetOrganization", "ByID"}; !slices.Equal(f.calls, want) || len(f.audit.events) != 0 {
+		t.Errorf("calls = %v with %d events, want %v (A's scope, then B's) and none", f.calls, len(f.audit.events), want)
+	}
+	for name, sv := range map[string]organization.Served{"no one": nil, "A's": served(clinicA), "none": served()} {
+		f.repo.clinic, f.repo.directory = "", false // a new transaction, without the last one's scope
+		if _, err := f.svc.ReadFor(t.Context(), "", scheduleB, sv); !errors.Is(err, schedule.ErrNotFound) {
+			t.Errorf("ReadFor(stopped B's) to %s = %v, want ErrNotFound", name, err)
+		}
+	}
+	broken := func(context.Context) ([]string, error) { return nil, errors.New("connection reset") }
+	f.repo.clinic, f.repo.directory = "", false
+	if _, err := f.svc.ReadFor(t.Context(), "", scheduleB, broken); err == nil || errors.Is(err, schedule.ErrNotFound) {
+		t.Errorf("ReadFor() with a failing Served = %v, want its error", err)
+	}
+	if got, err := f.svc.ReadFor(t.Context(), "", scheduleA2, broken); err != nil || got.ID != scheduleA2 {
+		t.Errorf("ReadFor(listed A's) = %+v, %v; want the directory's, without asking Served", got, err)
 	}
 }
 

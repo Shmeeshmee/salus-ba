@@ -105,22 +105,43 @@ func (s *Service) SaveLocation(ctx context.Context, st Staff, l Location) (Locat
 }
 
 // PublicLocations returns the active locations of a listed clinic, by name, for the patient booking in person (GET
-// /organizations/{id}/locations). ErrNotFound for a clinic that is not listed.
-func (s *Service) PublicLocations(ctx context.Context, org string) ([]Location, error) {
+// /organizations/{id}/locations) and for the address of a visit. ErrNotFound for a clinic that is not listed; one whose
+// membership is stopped (out of the directory, package I) is read in its own scope for those it serves (served, asked
+// only then: organization.Service.Served), and is ErrNotFound to anyone else.
+func (s *Service) PublicLocations(ctx context.Context, org string, served organization.Served) ([]Location, error) {
 	listed, err := s.p.Clinics.ListListed(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("location: listed clinics: %w", err)
 	}
-	if !slices.ContainsFunc(listed, func(o organization.Organization) bool { return o.ID == org }) {
+	if slices.ContainsFunc(listed, func(o organization.Organization) bool { return o.ID == org }) {
+		return s.publicIn(ctx, org, s.p.Repo.SetDirectory)
+	}
+	if served == nil {
 		return nil, ErrNotFound
 	}
+	ids, err := served(ctx)
+	switch {
+	case err != nil:
+		return nil, fmt.Errorf("location: served: %w", err)
+	case !slices.Contains(ids, org):
+		return nil, ErrNotFound
+	}
+	return s.publicIn(ctx, org, func(ctx context.Context) error { return s.p.Repo.SetOrganization(ctx, org) })
+}
+
+// publicIn reads the active locations of the clinic org, by name, in the scope scope sets.
+func (s *Service) publicIn(ctx context.Context, org string, scope func(ctx context.Context) error) ([]Location, error) {
 	var out []Location
-	err = s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
-		if err := s.p.Repo.SetDirectory(ctx); err != nil {
+	err := s.p.Tx.WithTx(ctx, func(ctx context.Context) error {
+		if err := scope(ctx); err != nil {
 			return err
 		}
-		var err error
-		out, err = s.p.Repo.PublicLocations(ctx, org)
+		all, err := s.p.Repo.PublicLocations(ctx, org)
+		for _, l := range all {
+			if l.Active && l.OrganizationID == org { // the directory's scope shows the active ones only; the clinic's all
+				out = append(out, l)
+			}
+		}
 		return err
 	})
 	if err != nil {

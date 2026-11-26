@@ -30,10 +30,10 @@ var roleRoutes = map[string][3]receptionClass{
 	"FHIR read DocumentReference":                                       {allowed, allowed, refused},
 	"FHIR read Encounter":                                               {allowed, allowed, allowed},
 	"FHIR read MedicationStatement":                                     {allowed, allowed, refused},
-	"FHIR read Organization":                                            {refused, allowed, allowed},
+	"FHIR read Organization":                                            {allowed, allowed, allowed}, // the patient's: a clinic of their care consent
 	"FHIR read Patient":                                                 {allowed, allowed, refused},
 	"FHIR read Practitioner":                                            {refused, allowed, allowed},
-	"FHIR read PractitionerRole":                                        {refused, allowed, allowed},
+	"FHIR read PractitionerRole":                                        {allowed, allowed, allowed}, // the patient's: a role of such a clinic
 	"FHIR read Provenance":                                              {allowed, allowed, refused},
 	"FHIR read Questionnaire":                                           {allowed, allowed, allowed},
 	"FHIR read QuestionnaireResponse":                                   {allowed, allowed, allowed},

@@ -38,6 +38,7 @@ type fakeRepository struct {
 	clinic    string   // set by SetOrganization
 	calls     []string // the calls, "outside:" prefixed when made outside a transaction
 	shared    []string // other clinics the scope shows through organization_shared (the history)
+	stopped   []string // clinics whose membership is suspended or cancelled: the directory hides them (package I)
 	directory bool     // the public directory scope is set
 }
 
@@ -67,10 +68,15 @@ func (r *fakeRepository) ByID(ctx context.Context, id string) (organization.Orga
 		return organization.Organization{}, r.err
 	}
 	o, ok := r.orgs[id]
-	if !ok || (id != r.clinic && !slices.Contains(r.shared, id) && (!r.directory || !o.Listed)) {
+	if !ok || (id != r.clinic && !slices.Contains(r.shared, id) && !r.listed(o)) {
 		return organization.Organization{}, organization.ErrNotFound
 	}
 	return o, nil
+}
+
+// listed reports whether the directory's scope shows o: set, o listed, its membership not stopped.
+func (r *fakeRepository) listed(o organization.Organization) bool {
+	return r.directory && o.Listed && !slices.Contains(r.stopped, o.ID)
 }
 
 func (r *fakeRepository) Update(ctx context.Context, in organization.Organization, at time.Time) (organization.Organization, error) {

@@ -3462,7 +3462,7 @@ export interface paths {
         };
         /**
          * A listed clinic's profile for patients
-         * @description Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+         * @description Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. A clinic whose membership is suspended or cancelled is out of the directory; its own staff and the patients with a care consent with it, active or revoked, still read it. Built in package X2. Not personal data; not audited.
          */
         get: operations["getOrganizationProfile"];
         put?: never;
@@ -3758,7 +3758,7 @@ export interface paths {
         };
         /**
          * A listed clinic's locations
-         * @description The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2). Public, as `/organizations/{id}/services`. Built in package LC1.
+         * @description The active locations of a listed clinic, by name, for the patient booking in person: they pick the location before the time (U2), and for the address of a visit. Public, as `/organizations/{id}/services`. A clinic whose membership is suspended or cancelled is out of the directory; its own staff and the patients with a care consent with it, active or revoked, still read its locations. Built in package LC1.
          */
         get: operations["listOrganizationLocations"];
         put?: never;
@@ -15806,7 +15806,7 @@ export interface operations {
                     "application/json": components["schemas"]["ClinicProfile"];
                 };
             };
-            /** @description `not_found`: no such listed clinic. */
+            /** @description `not_found`: no such listed clinic, or one out of the directory to this caller. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16636,7 +16636,7 @@ export interface operations {
                     "application/json": components["schemas"]["Location"][];
                 };
             };
-            /** @description `not_found`: no listed clinic with that id. */
+            /** @description `not_found`: no listed clinic with that id, or one out of the directory to this caller. */
             404: {
                 headers: {
                     [name: string]: unknown;

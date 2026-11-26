@@ -211,7 +211,7 @@ class DirectoryApi {
 
   /// A listed clinic's profile for patients
   ///
-  /// Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+  /// Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. A clinic whose membership is suspended or cancelled is out of the directory; its own staff and the patients with a care consent with it, active or revoked, still read it. Built in package X2. Not personal data; not audited.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -248,7 +248,7 @@ class DirectoryApi {
 
   /// A listed clinic's profile for patients
   ///
-  /// Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. Built in package X2. Not personal data; not audited.
+  /// Public, as the directory: the languages its staff speak, its description (in the patient's language when translated) and whether it welcomes patients from abroad. A clinic whose membership is suspended or cancelled is out of the directory; its own staff and the patients with a care consent with it, active or revoked, still read it. Built in package X2. Not personal data; not audited.
   ///
   /// Parameters:
   ///

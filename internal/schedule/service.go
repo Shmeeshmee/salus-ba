@@ -242,10 +242,29 @@ func (s *Service) public(ctx context.Context, read func(ctx context.Context) (Sc
 }
 
 // ReadFor is Read for a caller who is staff of the clinic org (empty for anyone else): a schedule of that clinic is read
-// in its own scope, listed or not (the front desk, docs/clinic-cms F3), any other as the directory shows it. Not
-// audited.
-func (s *Service) ReadFor(ctx context.Context, org, id string) (Schedule, error) {
-	return s.forClinic(ctx, org, func(ctx context.Context) (Schedule, error) { return s.Repo.ByID(ctx, id) })
+// in its own scope, listed or not (the front desk, docs/clinic-cms F3), any other as the directory shows it. One the
+// directory no longer shows (a stopped membership, package I) is read in the scope of each clinic served gives (asked
+// only then: organization.Service.Served), its staff's and its patients'. Not audited.
+func (s *Service) ReadFor(ctx context.Context, org, id string, served organization.Served) (Schedule, error) {
+	read := func(ctx context.Context) (Schedule, error) { return s.Repo.ByID(ctx, id) }
+	out, err := s.forClinic(ctx, org, read)
+	if !errors.Is(err, ErrNotFound) || served == nil {
+		return out, err
+	}
+	clinics, err := served(ctx)
+	if err != nil {
+		return Schedule{}, fmt.Errorf("schedule: served: %w", err)
+	}
+	for _, c := range clinics {
+		out, err := s.inClinic(ctx, c, read)
+		if !errors.Is(err, ErrNotFound) {
+			if err != nil {
+				return Schedule{}, fmt.Errorf("schedule: read in a served clinic: %w", err)
+			}
+			return out, nil
+		}
+	}
+	return Schedule{}, ErrNotFound
 }
 
 // ByActorFor is ByActor for a caller who is staff of the clinic org (empty for anyone else), as ReadFor. Not audited.

@@ -449,16 +449,34 @@ class Booking {
     throw const ApiFailure(status: HttpStatus.badGateway);
   }
 
-  /// The listed clinics, with the practitioners of those among [clinicIds]. A clinic that is no longer listed
-  /// is in neither map.
-  Future<Places> places(Iterable<String> clinicIds) async {
+  /// The listed clinics, with the practitioners of those among [clinicIds]. A clinic of [clinicIds] the directory
+  /// no longer lists (its membership stopped) is read by id, which the API answers for its own patients, and each of
+  /// [roleIds] not placed by then is read by id with its clinic, without its practitioner's name. A clinic that
+  /// cannot be read either is in neither map.
+  Future<Places> places(Iterable<String> clinicIds, {Iterable<String> roleIds = const []}) async {
     final clinics = {for (final c in await fhir.listedClinics()) c.id: c};
     final roles = <String, (Organization, PractitionerRole)>{};
     for (final id in clinicIds.toSet()) {
       final clinic = clinics[id];
-      if (clinic == null) continue;
+      if (clinic == null) {
+        try {
+          clinics[id] = await fhir.clinic(id);
+        } on ApiFailure {
+          // Not the patient's clinic, or gone: it stays unnamed.
+        }
+        continue;
+      }
       for (final role in await fhir.practitioners(id)) {
         roles[role.id] = (clinic, role);
+      }
+    }
+    for (final id in roleIds.toSet().difference(roles.keys.toSet())) {
+      try {
+        final (clinicId, role) = await fhir.role(id);
+        final clinic = clinics[clinicId];
+        if (clinic != null) roles[id] = (clinic, role);
+      } on ApiFailure {
+        // The visit shows without its clinic.
       }
     }
     return Places(clinics, roles);

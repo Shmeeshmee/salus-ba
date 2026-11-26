@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -98,7 +99,7 @@ func TestProfile_TheDirectoryHidesAnUnlistedOrSuspendedClinic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p, err := svc.Profile(t.Context(), clinicA); err != nil || p.Description != "Synthetic" {
+	if p, err := svc.Profile(t.Context(), clinicA, nil); err != nil || p.Description != "Synthetic" {
 		t.Errorf("Profile(listed clinic A) = %+v, %v; want its profile", p, err)
 	}
 	if got, err := svc.ListListedSpeaking(t.Context(), "de"); err != nil || len(got) != 1 || got[0].ID != clinicA {
@@ -107,7 +108,7 @@ func TestProfile_TheDirectoryHidesAnUnlistedOrSuspendedClinic(t *testing.T) {
 	if got, err := svc.ListListedSpeaking(t.Context(), "fr"); err != nil || len(got) != 0 {
 		t.Errorf("ListListedSpeaking(fr) = %+v, %v; want none", got, err)
 	}
-	if _, err := svc.Profile(t.Context(), clinicB); !errors.Is(err, organization.ErrNotFound) {
+	if _, err := svc.Profile(t.Context(), clinicB, nil); !errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Profile(unlisted clinic B) = %v, want ErrNotFound", err)
 	}
 
@@ -119,7 +120,7 @@ func TestProfile_TheDirectoryHidesAnUnlistedOrSuspendedClinic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Profile(t.Context(), clinicA); !errors.Is(err, organization.ErrNotFound) {
+	if _, err := svc.Profile(t.Context(), clinicA, nil); !errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Profile(suspended clinic A) = %v, want ErrNotFound, as the directory", err)
 	}
 	err = inDirectory(t, app, repo, func(ctx context.Context) error {
@@ -131,5 +132,17 @@ func TestProfile_TheDirectoryHidesAnUnlistedOrSuspendedClinic(t *testing.T) {
 	}
 	if got, err := svc.ListListedSpeaking(t.Context(), "de"); err != nil || len(got) != 0 {
 		t.Errorf("ListListedSpeaking(de) with clinic A suspended = %+v, %v; want none", got, err)
+	}
+	// Its own staff and patients keep it, read in its own scope (readiness: suspended clinics).
+	served, err := svc.WithPatients(fakePatients{"c1000000-0000-4000-8000-0000000000c1": {clinicA, clinicB}}).Served(t.Context(),
+		organization.Caller{AccountID: "c1000000-0000-4000-8000-0000000000c1", PatientID: "c1000000-0000-4000-8000-0000000000c1"})
+	if !slices.Equal(served, []string{clinicA}) || err != nil {
+		t.Errorf("Served(a patient of A and of unlisted B) = %v, %v; want the suspended, listed A", served, err)
+	}
+	if p, err := svc.Profile(t.Context(), clinicA, servedAs(clinicA)); err != nil || p.Description != "Synthetic" {
+		t.Errorf("Profile(suspended clinic A) to whom it serves = %+v, %v; want its profile", p, err)
+	}
+	if _, err := svc.Profile(t.Context(), clinicB, servedAs(clinicB)); !errors.Is(err, organization.ErrNotFound) {
+		t.Errorf("Profile(unlisted clinic B) to whom it serves = %v, want ErrNotFound", err)
 	}
 }

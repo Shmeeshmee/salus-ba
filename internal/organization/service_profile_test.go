@@ -20,7 +20,7 @@ func (r *fakeRepository) ProfileOf(ctx context.Context, id string) (organization
 		return organization.Profile{}, r.err
 	}
 	o, ok := r.orgs[id]
-	if !ok || (id != r.clinic && (!r.directory || !o.Listed)) {
+	if !ok || (id != r.clinic && !r.listed(o)) {
 		return organization.Profile{}, organization.ErrNotFound
 	}
 	p := r.profiles[id]
@@ -172,7 +172,7 @@ func TestClinicProfile_GivesStaffTheirOwnClinicsProfile(t *testing.T) {
 func TestProfile_ShowsAListedClinicsProfileInTheDirectoryOnly(t *testing.T) {
 	repo := newFakeRepository()
 	repo.profiles = map[string]organization.Profile{clinicB: profileA}
-	got, err := newService(repo, &fakeAuditor{}).Profile(t.Context(), clinicB)
+	got, err := newService(repo, &fakeAuditor{}).Profile(t.Context(), clinicB, nil)
 	want := profileA
 	want.VersionID = 1
 	if err != nil || !reflect.DeepEqual(got, want) || !repo.directory {
@@ -182,13 +182,13 @@ func TestProfile_ShowsAListedClinicsProfileInTheDirectoryOnly(t *testing.T) {
 	repo = newFakeRepository()
 	repo.shared = []string{clinicA}
 	for _, id := range []string{clinicA, "c0000000-0000-4000-8000-00000000000c", ""} {
-		if _, err := newService(repo, &fakeAuditor{}).Profile(t.Context(), id); !errors.Is(err, organization.ErrNotFound) {
+		if _, err := newService(repo, &fakeAuditor{}).Profile(t.Context(), id, nil); !errors.Is(err, organization.ErrNotFound) {
 			t.Errorf("Profile(%q) = %v, want ErrNotFound", id, err)
 		}
 	}
 	repo = newFakeRepository()
 	repo.err = errors.New("connection reset")
-	if _, err := newService(repo, &fakeAuditor{}).Profile(t.Context(), clinicB); err == nil || errors.Is(err, organization.ErrNotFound) {
+	if _, err := newService(repo, &fakeAuditor{}).Profile(t.Context(), clinicB, nil); err == nil || errors.Is(err, organization.ErrNotFound) {
 		t.Errorf("Profile() with a failing read = %v, want the repository error", err)
 	}
 }

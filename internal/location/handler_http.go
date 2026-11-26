@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Shmeeshmee/salus/internal/organization"
 	"github.com/Shmeeshmee/salus/pkg/fhir"
 	"github.com/Shmeeshmee/salus/pkg/httpx"
 )
@@ -20,19 +21,27 @@ const maxBody = 8 << 10
 type Locations interface {
 	Locations(ctx context.Context, st Staff) ([]Location, error)
 	SaveLocation(ctx context.Context, st Staff, l Location) (Location, error)
-	PublicLocations(ctx context.Context, org string) ([]Location, error)
+	PublicLocations(ctx context.Context, org string, served organization.Served) ([]Location, error)
 }
 
 // Handler serves the clinic's locations (api/openapi.yaml, tag locations). Errors are {"error": "<code>"}.
 type Handler struct {
 	svc    Locations
 	caller func(ctx context.Context) (Staff, bool, error)
+	served organization.Served // the clinics the signed-in caller keeps once their membership stops; nil: none
 	log    *slog.Logger
 }
 
 // NewHandler returns the handler on svc; caller resolves the signed-in staff (with whether it is the clinic's admin).
 func NewHandler(svc Locations, caller func(ctx context.Context) (Staff, bool, error), log *slog.Logger) *Handler {
 	return &Handler{svc: svc, caller: caller, log: log}
+}
+
+// WithServed returns h with the public locations read for the clinics served gives too once their membership stops.
+func (h *Handler) WithServed(served organization.Served) *Handler {
+	out := *h
+	out.served = served
+	return &out
 }
 
 // Routes declares the routes on mux.
@@ -100,7 +109,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) public(w http.ResponseWriter, r *http.Request) {
-	out, err := h.svc.PublicLocations(r.Context(), r.PathValue("id"))
+	out, err := h.svc.PublicLocations(r.Context(), r.PathValue("id"), h.served)
 	if err != nil {
 		h.fail(w, r, err)
 		return

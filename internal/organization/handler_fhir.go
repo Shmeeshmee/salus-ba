@@ -31,7 +31,7 @@ const (
 
 // Clinics reads and changes a clinic for a caller, and lists the listed ones for anyone (Service).
 type Clinics interface {
-	Read(ctx context.Context, c Caller, id string) (Organization, error)
+	ReadFor(ctx context.Context, c Caller, id string, served Served) (Organization, error)
 	Update(ctx context.Context, c Caller, id string, ch Changes, version int32) (Organization, error)
 	ListListed(ctx context.Context) ([]Organization, error)
 	ListListedSpeaking(ctx context.Context, language string) ([]Organization, error)
@@ -43,6 +43,7 @@ type Handler struct {
 	// caller is who is signed in for the request, and false for nobody (from the session and the account's
 	// role, in internal/api).
 	caller func(ctx context.Context) (Caller, bool, error)
+	served Served // the clinics a patient keeps reading once the directory no longer shows them; nil: none
 	log    *slog.Logger
 	base   string // the FHIR API's absolute base URL (FHIR_BASE_URL)
 }
@@ -51,6 +52,13 @@ type Handler struct {
 // Bundle's links.
 func NewHandler(svc Clinics, caller func(ctx context.Context) (Caller, bool, error), base string, log *slog.Logger) *Handler {
 	return &Handler{svc: svc, caller: caller, base: base, log: log}
+}
+
+// WithServed returns h with the read of a clinic for the patients served gives it to too.
+func (h *Handler) WithServed(served Served) *Handler {
+	out := *h
+	out.served = served
+	return &out
 }
 
 // Routes declares the Organization routes on mux.
@@ -152,7 +160,12 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	o, err := h.svc.Read(r.Context(), c, r.PathValue("id"))
+	o, err := h.svc.ReadFor(r.Context(), c, r.PathValue("id"), h.served)
+	if err == nil && c.OrganizationID != o.ID { // a patient's read: the clinic as the directory shows it
+		w.Header().Set("ETag", fhir.ETag(toDirectory(o).Meta.VersionID))
+		fhir.Write(w, http.StatusOK, toDirectory(o))
+		return
+	}
 	h.write(w, r, o, err)
 }
 
