@@ -4275,7 +4275,75 @@ Planned 2026-11-25 (`WAVE7.md`).
 
 ## RD6: wave 6 leftovers
 
-Planned 2026-11-25 (`WAVE7.md`).
+Status: done, 2026-11-26, on `wt/cms/RD6`, one commit `cms(RD6)`. No migration, no new route. Built from `WAVE7.md` and
+the wave 6 walk's findings 4 to 8 (`walk/wave6/WALK.md`), which its six items name in another order; no Jira export.
+
+**Built**, each test first:
+
+1. **A busy room on the working hours** (`internal/schedule`, `Availability.tsx`, `AvailabilityPlaces.tsx`). The
+   availability read (`GET /practitioner-roles/{id}/availability`, in its transaction and clinic scope) marks each rule
+   whose room another active role's in-person rule holds at an overlapping time on the same day: `Rule.RoomBusy`, in the
+   JSON `roomBusy: true` (absent otherwise; `readOnly` in `api/openapi.yaml`; never stored; a PUT that sends it is a 400
+   as any unknown field). It is the case RM1's review left (items 9 and (b)): a role brought back into use is not
+   re-checked, and the slots of one of the two are not generated where they overlap. The save's own check
+   (`roomsHeld`, `resource_busy`) now shares the same code (`roomsBusy`). The hours screen shows under the row's
+   location and room "Another practitioner works in this room at these hours, so some of these times are not offered.
+   Choose another room or time." (the room select's `aria-describedby`), in the error colour; a row changed on screen
+   drops it (its save checks the room again, and is refused with `resource_busy` while it still clashes).
+2. **The desk names a location taken out of use** (`Desk.tsx`): the desk reads every location, not only those in use; a
+   visit at one taken out of use names it "<name> (not in use)" while every location is shown, also in a clinic with
+   one location left in use. The location filter still offers only those in use, and a visit at a location in use is
+   named only with two in use, as before.
+3. **"Add step" is a button** (`CarePlanDialog.tsx`): outlined as the form's other buttons ("Add hours" on the working
+   hours has the same form), no longer the `quiet` text style.
+4. **A disabled button looks disabled** (`app.css`, `tokens.css`): a disabled primary, outlined (`.actions`) or danger
+   button is flat grey (`--color-disabled` #EEF1EF), its text muted (`--color-disabled-text` #5F6B66, 4.9:1 on the
+   grey) and its shape kept by an inset 1 px outline (`--color-disabled-border` #7C8782, 3.7:1 on a surface and 3.5:1
+   on the page, so WCAG 1.4.11's 3:1 holds although inactive controls are exempt), `cursor: not-allowed`, hover changes
+   nothing; the border takes the fill's colour so no button changes size. The faded primary (`opacity: .6`) and the
+   faded `.actions` button (`.55`) are gone. Text-only buttons (`quiet`, `icon`, the call's round controls, the
+   builder's palette and item icons) keep their own faded look. Focus is unchanged (a disabled button takes none).
+5. **The booking date in the app's format** (`CarePlanBook.tsx`): the plan booking's "First day" is the browser's
+   `<input type="date">` (its format is the browser's locale, en-US in the walk); the chosen day is now named under it in
+   the UI language ("Thursday, 26 November 2026", the field's `aria-describedby`), as the steps below name their days.
+   The native field stays (keyboard, the picker, `min`).
+6. **The patient app's plan step has its time** (`mobile/lib/care_plans_screen.dart`): a booked step reads "1. Monday 7
+   December 2026, 10:00 · By video", its visit's day and time in the clinic's zone, through the existing `dateAndTime`
+   string (no new mobile string); a step without a visit keeps its day.
+
+**Readings and decisions:**
+
+- Item 5 is the web's (finding 6 of the wave 6 walk: "the booking dialog's date field shows the browser's own date
+  format"), and `WAVE7.md` gives RD6 one mobile screen (the plan steps). The patient app's booking already dates its days
+  through `intl` (`Zone.longDate`, `DateFormat.yMMMMEEEEd` in the app's language, on the times screen and the booking
+  screen), so nothing changed there.
+- The busy flag is on the read only, not on the save's answer: a save with a busy room is refused, so a saved schedule
+  has none. Both roles' rules are marked (either may lose slots: the one generated second does). A rule of a role out of
+  use holds no room, as at save.
+- The warning is per row, not a banner: it names the row and the fix.
+- The desk names an in-use location only with two in use, as LC2 built; an out-of-use one always, because it is the case
+  a receptionist cannot guess.
+- jsdom drops a declaration that uses `var()`, so the style tests compare the computed opacity, cursor and padding and
+  read the colours from the rule.
+
+**Test first.** Red seen before the code for: the service's busy marks (`TestAvailability_MarksARuleWhoseRoomAnotherRoleHolds`),
+the mobile step's time, and, run against the HEAD versions of the sources, the desk's out-of-use location, the hours'
+warning, "Add step"'s padding, the disabled look and the first day's hint. Not seen red: the handler's `roomBusy` test
+(the JSON field was added with the model, before its test).
+
+**Walk** (`walk/rd6/WALK.md`, 1280 and 390 px, the Vite dev server of this worktree with a fake API): no finding, nothing
+past the right edge.
+
+**New user-facing strings** (web, the five staff languages, area `locations`): `roomBusyHours` "Another practitioner works
+in this room at these hours, so some of these times are not offered. Choose another room or time."; `placeNotInUse`
+"{name} (not in use)". No new mobile string.
+
+**Checks** (this worktree's compose project, `salus-cms-rd6`): the fast layer after each change (`go vet` and `go test` of `internal/schedule` and its importers, oxlint and `vitest related`, i18n-check) and single test files in the `tools`, `node` and `flutter` containers. `runner.sh full` (`make check`, sets go, web and mobile: `make gen-clients` with no diff, `make lint` 0 issues with i18n-check, `test`, `archcheck`, `cover` 89.9% total and every package at 80% or more, `web-lint`, `web-typecheck`, `web-test` 100 files with 1404 tests, `mobile-analyze` no issues, `mobile-test` 718): passed on its first run.
+
+**For the integration:** `api/openapi.yaml` gains `AvailabilityRule.roomBusy` (read only) and `make gen-clients` changed
+`web/src/api/schema.d.ts` and the Dart `availability_rule.dart`; no new route (RD1's matrix). `app.css` and
+`tokens.css` are RD3's too: keep both sides' rules (RD6's block sits after `.danger-text:hover`, and removes the two
+faded disabled rules). `Desk.tsx` and `CarePlanDialog.tsx` may meet RD3's accessibility fixes.
 
 ## Wave 7 integration
 

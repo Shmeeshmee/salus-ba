@@ -120,6 +120,16 @@ describe('CarePlanBook (clinic-cms TP2)', () => {
     }
   })
 
+  it("names the first day in the app's own format beside the browser's date field (RD6)", async () => {
+    const { dialog } = renderBook({})
+    const field = dialog.getByLabelText('First day')
+    expect(dialog.getByText('Wednesday, 25 November 2026').id).toBe(field.getAttribute('aria-describedby'))
+    fireEvent.change(field, { target: { value: '2026-11-30' } })
+    expect(dialog.getByText('Monday, 30 November 2026').id).toBe(field.getAttribute('aria-describedby'))
+    fireEvent.change(field, { target: { value: '' } })
+    expect(field.getAttribute('aria-describedby')).toBeNull()
+  })
+
   it('says so when a day has no free time of its type', async () => {
     const { dialog } = renderBook({ 'GET /fhir/R4/Slot': () => fhirJSON({ resourceType: 'Bundle', type: 'searchset', total: 0, entry: [] }) })
     fireEvent.change(dialog.getByLabelText('First day'), { target: { value: '2026-11-30' } })

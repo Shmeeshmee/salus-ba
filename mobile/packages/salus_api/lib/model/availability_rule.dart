@@ -19,6 +19,7 @@ class AvailabilityRule {
     this.mode,
     this.locationId,
     this.roomId,
+    this.roomBusy,
   });
 
   /// ISO weekday, 1 Monday to 7 Sunday.
@@ -59,6 +60,15 @@ class AvailabilityRule {
   ///
   String? roomId;
 
+  /// In a read only, and only when true (x-salus-package cms-rd6): another active practitioner role's in-person hours hold the rule's room at an overlapping time on the same day (a role brought back into use is not re-checked), so some of the rule's slots are not generated. Never sent in a PUT.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? roomBusy;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -68,7 +78,8 @@ class AvailabilityRule {
           other.end == end &&
           other.mode == mode &&
           other.locationId == locationId &&
-          other.roomId == roomId;
+          other.roomId == roomId &&
+          other.roomBusy == roomBusy;
 
   @override
   int get hashCode =>
@@ -78,11 +89,12 @@ class AvailabilityRule {
       (end.hashCode) +
       (mode == null ? 0 : mode!.hashCode) +
       (locationId == null ? 0 : locationId!.hashCode) +
-      (roomId == null ? 0 : roomId!.hashCode);
+      (roomId == null ? 0 : roomId!.hashCode) +
+      (roomBusy == null ? 0 : roomBusy!.hashCode);
 
   @override
   String toString() =>
-      'AvailabilityRule[day=$day, start=$start, end=$end, mode=$mode, locationId=$locationId, roomId=$roomId]';
+      'AvailabilityRule[day=$day, start=$start, end=$end, mode=$mode, locationId=$locationId, roomId=$roomId, roomBusy=$roomBusy]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -103,6 +115,11 @@ class AvailabilityRule {
       json[r'roomId'] = this.roomId;
     } else {
       json[r'roomId'] = null;
+    }
+    if (this.roomBusy != null) {
+      json[r'roomBusy'] = this.roomBusy;
+    } else {
+      json[r'roomBusy'] = null;
     }
     return json;
   }
@@ -140,6 +157,7 @@ class AvailabilityRule {
         mode: VisitMode.fromJson(json[r'mode']),
         locationId: mapValueOfType<String>(json, r'locationId'),
         roomId: mapValueOfType<String>(json, r'roomId'),
+        roomBusy: mapValueOfType<bool>(json, r'roomBusy'),
       );
     }
     return null;

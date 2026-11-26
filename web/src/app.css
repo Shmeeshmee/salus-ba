@@ -119,7 +119,6 @@ button.primary, .button.primary {
   text-decoration: none;
 }
 button.primary:hover, .button.primary:hover { background: var(--color-brand-hover); }
-button.primary:disabled { opacity: .6; cursor: default; }
 .actions button:not(.primary) {
   padding: 10px 16px;
   border: 1px solid var(--color-border-strong);
@@ -165,7 +164,18 @@ button.quiet:disabled { opacity: .5; cursor: default; background: none; }
 button.danger, .actions button.danger { padding: 10px 16px; border: 1px solid var(--color-error); border-radius: var(--radius-control); background: var(--color-error); color: #FFFFFF; font-weight: 600; }
 .danger-text { color: var(--color-error); }
 .danger-text:hover { color: var(--color-error); background: var(--color-error-faint); }
-.actions button:disabled { opacity: .55; cursor: default; }
+/* RD6: a disabled button looks disabled, whatever its kind (primary, outlined, danger): one flat grey look with a
+   visible outline, never a faded primary; hovering it changes nothing. Text-only buttons (quiet, icon, the call's round
+   controls, the builder's) keep their own faded look. The border takes the fill's colour, so no button changes size. */
+button.primary:disabled, button.primary:disabled:hover, button.danger:disabled, button.danger:disabled:hover,
+.actions button:disabled, .actions button:disabled:hover, .actions button.danger:disabled {
+  background: var(--color-disabled);
+  color: var(--color-disabled-text);
+  border-color: var(--color-disabled);
+  box-shadow: inset 0 0 0 1px var(--color-disabled-border);
+  opacity: 1;
+  cursor: not-allowed;
+}
 
 /* Toolbar above a calendar or editor */
 .toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; margin-bottom: 20px; }
@@ -725,6 +735,7 @@ p.hint.join { margin-bottom: 20px; }
 /* An in-person row's location and room (LC2): a line of their own below the row's day, type and times. */
 .hours-rows .hours-place { order: 1; flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
 .hours-rows .hours-place select { max-width: min(100%, 320px); text-overflow: ellipsis; }
+.hours-rows .room-busy { display: block; color: var(--color-error); } /* RD6: a room another practitioner holds then */
 @media (max-width: 520px) { .hours-rows .hours-place { grid-column: 1 / -1; display: grid; } .hours-rows .hours-place select { max-width: 100%; } }
 .desk .toolbar .desk-location { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 @media (max-width: 520px) { .desk .toolbar .desk-location { flex: 1 1 100%; width: 100%; } }

@@ -45,5 +45,7 @@
   "noRoom": "Bez prostorije",
   "noLocations": "Klinika nema lokaciju u upotrebi. Dodajte je pod Lokacije prije nego što dodate radno vrijeme u klinici.",
   "busy": "Drugi ljekar već radi u ovoj prostoriji u to vrijeme.",
-  "resourceSaveFailed": "Izmjena nije mogla da se sačuva. Pokušajte ponovo."
+  "resourceSaveFailed": "Izmjena nije mogla da se sačuva. Pokušajte ponovo.",
+  "roomBusyHours": "Drugi ljekar radi u ovoj prostoriji u ovo vrijeme, pa se neki od ovih termina ne nude. Izaberite drugu prostoriju ili vrijeme.",
+  "placeNotInUse": "{name} (nije u upotrebi)"
 }

@@ -68,3 +68,23 @@ it("puts a patient's name on the left in the patient search's results, as on the
   expect(name.justifySelf).toBe('start')
   expect(name.textAlign).toBe('left')
 })
+
+// RD6: a disabled button looks disabled, whatever its kind: one flat grey look, not a faded primary. jsdom drops a
+// declaration that uses var(), so the colours are read from the rule and the rest computed.
+it('gives every disabled button one grey look, and an enabled primary its own', () => {
+  styled(
+    '<button class="primary" disabled>a</button><div class="actions"><button disabled>b</button><button class="danger" disabled>c</button></div>' +
+      '<button class="primary">e</button>',
+  )
+  const [primary, plain, danger, enabled] = Array.from(document.querySelectorAll('button')).map((b) => getComputedStyle(b))
+  const look = (c: CSSStyleDeclaration) => [c.opacity, c.cursor]
+  expect(look(primary)).toEqual(['1', 'not-allowed'])
+  expect(look(plain)).toEqual(look(primary))
+  expect(look(danger)).toEqual(look(primary))
+  expect(look(enabled)).toEqual(['1', 'pointer'])
+  const rule = appCSS.match(/button\.primary:disabled, [^{]*\{([^}]*)\}/)?.[1] ?? ''
+  expect(rule).toContain('background: var(--color-disabled);')
+  expect(rule).toContain('color: var(--color-disabled-text);')
+  expect(rule).toContain('box-shadow: inset 0 0 0 1px var(--color-disabled-border);')
+  expect(appCSS).not.toMatch(/button\.primary:disabled \{ opacity/)
+})

@@ -41,6 +41,9 @@ type Rule struct {
 	LocationID string // the in-person rule's location; empty for a video rule
 	RoomID     string // an in-person rule's room, optional (U3 of docs/clinic-cms/WAVE6.md, RM1); its slots carry it
 	Day        int
+	// RoomBusy is set on a read only: another active role's in-person rule holds the room at an overlapping time on
+	// the same day, so the slots of one of them are not generated there (docs/clinic-cms/WAVE7.md RD6). Never stored.
+	RoomBusy bool
 }
 
 // Availability is what an edit sets: the slot length and the rules.

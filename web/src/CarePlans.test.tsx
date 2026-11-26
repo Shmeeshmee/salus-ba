@@ -6,6 +6,7 @@ import { newFhirClient } from './api/fhir'
 import { renderInLanguage } from './i18n/renderInLanguage'
 import { apiError, expectCsrfOnWrites, fakeFetch, type Route } from './test/fakeFetch'
 import { org, patientId } from './test/fixtures'
+import appCSS from './app.css?raw'
 
 afterEach(cleanup)
 
@@ -131,6 +132,23 @@ describe('CarePlans (clinic-cms TP2)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     await screen.findByText('Draft')
     expectCsrfOnWrites(fake.requests)
+  })
+
+  it('draws "Add step" as a button, outlined as the form\'s other buttons (RD6)', async () => {
+    const style = document.createElement('style')
+    style.textContent = appCSS
+    document.head.append(style)
+    try {
+      renderPlans({ [list]: () => Response.json([]) })
+      fireEvent.click(await screen.findByRole('button', { name: 'New treatment plan' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'New treatment plan' }))
+      // jsdom drops a declaration that uses var() (the border's colour), so the outlined button is told by its padding.
+      const look = (b: HTMLElement) => getComputedStyle(b).padding
+      expect(look(dialog.getByRole('button', { name: 'Add step' }))).toBe('10px 16px')
+      expect(look(dialog.getByRole('button', { name: 'Add step' }))).toBe(look(dialog.getByRole('button', { name: 'Cancel' })))
+    } finally {
+      style.remove()
+    }
   })
 
   it('offers a step only the visit types its service has, and saves nothing while a step has no service', async () => {
